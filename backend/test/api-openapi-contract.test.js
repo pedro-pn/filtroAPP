@@ -44,6 +44,21 @@ test('OpenAPI parses without duplicate keys and all references resolve', async (
   for (const ref of refs) assert.ok(resolveLocalRef(contract, ref), `Referência ausente: ${ref}`);
 });
 
+test('toda escrita documenta Prefer, confirmação simulada e erros com Preference-Applied', async () => {
+  const contract = YAML.parse(await readFile(contractUrl, 'utf8'));
+  for (const operation of API_OPERATIONS.filter(item => item.method === 'POST')) {
+    const item = contract.paths[`/integracoes/v1${operation.path.replace(':id', '{id}')}`].post;
+    assert.ok(item.parameters.some(parameter => (parameter.name || resolveLocalRef(contract, parameter.$ref).name) === 'Prefer'));
+    const simulated = item.responses['200'];
+    assert.ok(simulated.headers['Preference-Applied']);
+    assert.match(JSON.stringify(simulated.content), /SimulatedWriteResult/);
+    for (const [code, response] of Object.entries(item.responses).filter(([code]) => Number(code) >= 400)) {
+      const resolved = response.$ref ? resolveLocalRef(contract, response.$ref) : response;
+      assert.ok(resolved.headers['Preference-Applied'], `${operation.operationId}: ${code}`);
+    }
+  }
+});
+
 test('all administrative, quality and operational operations have unique IDs and concrete route handlers', async () => {
   const [source, adminRoutes, qualityRoutes] = await Promise.all([
     readFile(contractUrl, 'utf8'),

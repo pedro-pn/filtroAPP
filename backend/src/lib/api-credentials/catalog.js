@@ -4,7 +4,7 @@ import { OPERATIONAL_DOWNLOADS } from './extended-operational-resources.js';
 import { describePlaygroundParameters } from './playground-parameters.js';
 import { CRM_PLANNING_EXAMPLE } from '../../../../shared/modules/crm-planning-example.js';
 
-export const API_CATALOG_VERSION = '2026-10-28.2';
+export const API_CATALOG_VERSION = '2026-10-29.1';
 export { API_DATA_DOMAINS, DATA_CATALOG_VERSION, flattenDataCatalogModels, futureScopeDefinitions } from './data-catalog.js';
 
 const QUALITY_RECORD_FIELDS = ['id', 'number', 'type', 'registeredAt', 'origin', 'project', 'eventDate', 'nature', 'subnature', 'description', 'impact', 'recurrence', 'linkedRnc', 'disposition', 'definedAction', 'actionOwner', 'actionDeadline', 'evidenceSummary', 'resultVerification', 'status', 'createdAt', 'updatedAt'];
@@ -51,12 +51,14 @@ export const API_SCOPES = Object.freeze([
 
 export const API_OPERATIONS = Object.freeze([
   {
+    simulation: { strategy: 'rollback', testCase: 'quality.records.create' },
     operationId: 'quality.records.create', openApiOperationId: 'qualityRecordCreate', method: 'POST', path: '/qualidade/registros',
     label: 'Abrir registro de Qualidade pelo Omni', requiredScopes: ['qualidade.registros.create'], optionalScopes: [],
     pathParams: [], queryParams: [], headerParams: ['Idempotency-Key'], supportsPlayground: true,
     bodyExample: { type: 'DESVIO', projectCode: '5850', eventDate: '2026-10-28', description: 'Mobilização adiada: exemplo fictício.', impact: 'MEDIO', actionOwnerEmail: 'qualidade@filtrovali.com.br', externalRef: { system: 'omni', url: 'https://omni.filtrovali.com.br/exemplo', reference: 'pergunta-ficticia' } }
   },
   {
+    simulation: { strategy: 'rollback', testCase: 'acompanhamento.opportunities.post' },
     operationId: 'acompanhamento.opportunities.post', openApiOperationId: 'postIntegrationCrmOpportunity', method: 'POST', path: '/acompanhamento/oportunidades',
     label: 'Enviar planejamento do Prisma (planning-1.0)', requiredScopes: ['acompanhamento.oportunidades.write', 'efetivo.projetos.create'],
     optionalScopes: [], pathParams: [], queryParams: [], supportsPlayground: true,
@@ -105,18 +107,21 @@ export const API_OPERATIONS = Object.freeze([
     optionalScopes: [], pathParams: ['id'], queryParams: [], supportsPlayground: true
   },
   {
+    simulation: { strategy: 'rollback', testCase: 'efetivo.projects.create' },
     operationId: 'efetivo.projects.create', openApiOperationId: 'createIntegrationEfetivoProject', method: 'POST', path: '/efetivo/projetos',
     label: 'Criar projeto a partir do Prisma', requiredScopes: ['efetivo.projetos.create'], optionalScopes: [],
     pathParams: [], queryParams: [], supportsPlayground: true,
     bodyExample: { code: '05776', name: 'Projeto exemplo', clientName: 'Cliente exemplo', clientCnpj: '12345678000195', proposalCode: '1234', revision: 0, location: 'São Paulo' }
   },
   {
+    simulation: { strategy: 'rollback', testCase: 'efetivo.projects.commercialFact.post' },
     operationId: 'efetivo.projects.commercialFact.post', openApiOperationId: 'postIntegrationEfetivoCommercialFact', method: 'POST', path: '/efetivo/projetos/:id/fatos-comerciais',
     label: 'Enviar fato comercial do Prisma', requiredScopes: ['efetivo.projetos.fatos-comerciais.write'], optionalScopes: [],
     pathParams: ['id'], queryParams: [], supportsPlayground: true,
     bodyExample: { key: 'CONTRACT_SIGNED', status: 'CONFIRMED', reference: 'Contrato 123', occurredOn: '2026-09-30', externalId: 'crm-fact-123', sourceVersion: '1', sourceUpdatedAt: '2026-09-30T12:00:00.000Z' }
   },
   {
+    simulation: { strategy: 'rollback', testCase: 'efetivo.projects.document.post' },
     operationId: 'efetivo.projects.document.post', openApiOperationId: 'postIntegrationEfetivoDocument', method: 'POST', path: '/efetivo/projetos/:id/documentos',
     label: 'Enviar documento do Prisma', requiredScopes: ['efetivo.projetos.documentos.write'], optionalScopes: [],
     pathParams: ['id'], queryParams: [], supportsPlayground: true,
@@ -156,6 +161,12 @@ export function getApiScope(code) {
 
 export function getApiOperation(operationId) {
   return API_OPERATIONS.find(operation => operation.operationId === operationId) || null;
+}
+
+export function findApiOperationForRequest(method, path) {
+  const localPath = String(path || '').split('?')[0].replace(/^\/api\/integracoes\/v1/, '');
+  return API_OPERATIONS.find(operation => operation.method === method && new RegExp(`^${operation.path
+    .split('/').map(part => part.startsWith(':') ? '[^/]+' : part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('/')}/?$`, 'i').test(localPath)) || null;
 }
 
 export function assertApiCatalogIntegrity() {

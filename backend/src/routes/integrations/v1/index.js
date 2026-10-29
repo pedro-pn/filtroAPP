@@ -10,7 +10,7 @@ const router = Router();
 
 router.use(apiRequestContext());
 router.use(integrationApiBoundary({ allowedOrigins: env.allowedOrigins, requireHttps: env.nodeEnv === 'production' }));
-router.use(coarseApiTokenIpLimit);
+router.use((req, res, next) => req.apiCoarseLimitApplied ? next() : coarseApiTokenIpLimit(req, res, next));
 router.use(requireApiToken);
 router.use('/qualidade', qualidadeRouter);
 router.use(operationalRouter);

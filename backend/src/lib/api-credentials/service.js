@@ -53,6 +53,7 @@ export function publicCredential(credential, { now = new Date() } = {}) {
   return {
     id: base.id,
     name: base.name,
+    writeMode: base.writeMode || 'LIVE',
     purpose: base.purpose,
     recipientName: base.recipientName,
     recipientContact: base.recipientContact ?? null,
@@ -203,6 +204,7 @@ export async function createCredential(prisma, input, options) {
     expiresAt,
     neverExpiresConfirmedAt,
     projectAccessMode: parsed.projectAccess.mode,
+    writeMode: parsed.writeMode,
     allowedIpCidrs,
     allowedFormats: parsed.allowedFormats,
     ...parsed.limits,
@@ -338,6 +340,26 @@ export function validateRotationWindow(value, now = new Date(), maxOverlapMinute
   return revokeAt.getTime() <= current.getTime() ? current : revokeAt;
 }
 
+export async function updateCredentialWriteMode(prisma, id, input, options = {}) {
+  id = validateCredentialId(id);
+  const parsed = makeApiCredentialSchemas(z).writeMode.parse(input);
+  const { actorUserId, actorIp, actorUserAgent, now = new Date() } = options;
+  return prisma.$transaction(async tx => {
+    const current = await tx.apiCredential.findUnique({ where: { id }, include: credentialInclude });
+    if (!current) throw new ApiCredentialServiceError(404, 'NOT_FOUND', 'Credencial não encontrada.');
+    if (['REVOKED', 'EXPIRED'].includes(effectiveCredentialStatus(current, now))) {
+      throw new ApiCredentialServiceError(409, 'TERMINAL_CREDENTIAL', 'A credencial não pode ser alterada.');
+    }
+    const changed = await tx.apiCredential.updateMany({ where: { id, version: parsed.expectedVersion },
+      data: { writeMode: parsed.writeMode, version: { increment: 1 } } });
+    if (changed.count !== 1) throw new ApiCredentialServiceError(409, 'VERSION_CONFLICT', 'A credencial foi alterada por outra pessoa.');
+    await tx.apiCredentialEvent.create({ data: sanitizeAdminEvent({ credentialId: id, actorUserId,
+      type: 'METADATA_UPDATED', reason: parsed.reason, actorIp, actorUserAgent,
+      summary: { previousWriteMode: current.writeMode || 'LIVE', writeMode: parsed.writeMode } }) });
+    return publicCredential(await tx.apiCredential.findUnique({ where: { id }, include: credentialInclude }), { now });
+  });
+}
+
 function createDataForIssuedCredential(parsed, issued, { actorUserId, idempotencyKey, now, rotatedFromId = null }) {
   const expiresAt = parsed.expiresAt ? new Date(parsed.expiresAt) : null;
   return {
@@ -354,6 +376,7 @@ function createDataForIssuedCredential(parsed, issued, { actorUserId, idempotenc
     expiresAt,
     neverExpiresConfirmedAt: !expiresAt && parsed.neverExpiresConfirmation === NEVER_EXPIRES_CONFIRMATION ? new Date(now) : null,
     projectAccessMode: parsed.projectAccess.mode,
+    writeMode: parsed.writeMode,
     allowedIpCidrs: normalizeCidrs(parsed.allowedIpCidrs),
     allowedFormats: parsed.allowedFormats,
     ...parsed.limits,
@@ -396,6 +419,7 @@ export async function rotateCredential(prisma, id, input, options = {}) {
   }
   if (current.version !== parsed.expectedVersion) throw new ApiCredentialServiceError(409, 'VERSION_CONFLICT', 'A credencial foi alterada por outra pessoa.');
   if (current.replacement) throw new ApiCredentialServiceError(409, 'ALREADY_ROTATED', 'A credencial já possui uma substituta.');
+  parsed.replacement.writeMode = input.replacement?.writeMode ?? current.writeMode ?? 'LIVE';
   validateScopeSelection(parsed.replacement.scopeCodes);
   const revokePreviousAt = validateRotationWindow(parsed.revokePreviousAt, now, maxOverlapMinutes);
   const immediate = revokePreviousAt.getTime() <= new Date(now).getTime();

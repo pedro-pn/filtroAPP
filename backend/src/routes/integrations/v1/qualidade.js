@@ -36,9 +36,9 @@ export function createIntegrationQualityRouter({ prismaClient = prisma, envConfi
     const result = await runMeteredApiOperation(req, {
       prismaClient,
       operationId: 'quality.records.create', requestedRows: 1,
-      execute: async () => ({ body: await createIntegrationQualityRecord(prismaClient, req.body, key, ctx), rows: 1, statusCode: 201 })
+      execute: async database => ({ body: await createIntegrationQualityRecord(database, req.body, key, ctx), rows: 1, statusCode: 201 })
     });
-    res.status(201).json(result.body);
+    res.status(result.statusCode).json(result.body);
   }));
 
   function envelope(req, pageResult) {

@@ -7,8 +7,9 @@ import { hasIntegrationScopes, makeIntegrationApiSchemas, makeOperationalReadQue
 import { createIntegrationQualityRecord, validateIntegrationQualityCreate } from '../qualidade/integration-create.js';
 import { getIntegrationQualityRecord, listIntegrationQualityRecords } from '../qualidade/integration-service.js';
 import { listIntegrationQualityNatures } from '../qualidade/integration-natures.js';
-import { recordCredentialEvent } from './audit.js';
+import { recordApiRequest, recordCredentialEvent } from './audit.js';
 import { getApiOperation } from './catalog.js';
+import { executeApiWrite } from './write-simulation.js';
 import { getOperationalResource } from './operational-resources.js';
 import { listOperationalResources, prepareOperationalQuery } from './operational-service.js';
 import { createPrismaQuotaStore, reserveCredentialQuota, settleCredentialQuota } from './quota.js';
@@ -78,7 +79,8 @@ function curlForPath(path, download = false, method = 'GET', body, headers) {
     const quotedBody = JSON.stringify(body).replaceAll("'", "'\\''");
     const idempotency = path === '/api/integracoes/v1/acompanhamento/oportunidades' ? ` -H "Idempotency-Key: ${body.eventId}"`
       : headers?.['Idempotency-Key'] ? ` -H "Idempotency-Key: ${headers['Idempotency-Key']}"` : '';
-    return `curl --fail-with-body -X POST -H "Authorization: Bearer $FILTRO_API_TOKEN" -H "Content-Type: application/json"${idempotency} --data-raw '${quotedBody}' "${url}"`;
+    const preference = headers?.Prefer ? ' -H "Prefer: validate-only"' : '';
+    return `curl --fail-with-body -X POST -H "Authorization: Bearer $FILTRO_API_TOKEN" -H "Content-Type: application/json"${idempotency}${preference} --data-raw '${quotedBody}' "${url}"`;
   }
   return `curl --fail-with-body -H "Authorization: Bearer $FILTRO_API_TOKEN" -H "Accept: application/json" "${url}"`;
 }
@@ -92,6 +94,7 @@ export async function executePlaygroundOperation(prisma, credentialId, input, op
     include: { scopes: { where: { revokedAt: null }, select: { scopeCode: true } }, projects: { where: { revokedAt: null }, select: { projectId: true, project: { select: { code: true } } } } }
   });
   if (!credential) throw new ApiCredentialServiceError(404, 'NOT_FOUND', 'Credencial não encontrada.');
+  const simulated = operation.method === 'POST' && (credential.writeMode === 'SIMULATE' || parsed.writeMode !== 'LIVE');
   if (!['ACTIVE', 'NEAR_EXPIRY'].includes(effectiveCredentialStatus(credential, options.now || new Date()))) {
     throw new ApiCredentialServiceError(409, 'INACTIVE_CREDENTIAL', 'A credencial não está ativa.');
   }
@@ -147,13 +150,28 @@ export async function executePlaygroundOperation(prisma, credentialId, input, op
   let body;
   let rows = 0;
   let responseStatus;
+  let settled = false;
   try {
-    if (isDownload) {
+    if (operation.method === 'POST') {
+      const result = await executeApiWrite(prisma, { operation, simulated, requestId, execute: async database => {
+        let response;
+        let statusCode = 200;
+        if (parsed.operationId === 'quality.records.create') {
+          response = await createIntegrationQualityRecord(database, parsed.body, parsed.headers['Idempotency-Key'], context);
+          statusCode = 201;
+        } else if (parsed.operationId === 'acompanhamento.opportunities.post') {
+          const received = await receiveCrmOpportunity(database, parsed.body, { envConfig: options.envConfig || env, idempotencyKey: parsed.body.eventId });
+          response = received.body; statusCode = received.statusCode;
+        } else if (parsed.operationId === 'efetivo.projects.create') response = await createCrmProject(database, parsed.body);
+        else if (parsed.operationId === 'efetivo.projects.commercialFact.post') response = await upsertCrmCommercialFact(database, parsed.pathParams.id, parsed.body);
+        else if (parsed.operationId === 'efetivo.projects.document.post') response = await createCrmDocument(database, parsed.pathParams.id, parsed.body);
+        else throw new ApiCredentialServiceError(501, 'SIMULATION_NOT_SUPPORTED', 'A operação não suporta simulação.');
+        if (['created', 'CREATED'].includes(response?.status || response?.outcome)) statusCode = 201;
+        return { body: response, statusCode, rows: 1 };
+      } });
+      body = result.body; responseStatus = result.statusCode; rows = result.rows;
+    } else if (isDownload) {
       body = await checkPlaygroundDownload(prisma, operation, parsed.pathParams, context, options.fileRoots);
-    } else if (parsed.operationId === 'quality.records.create') {
-      body = await createIntegrationQualityRecord(prisma, parsed.body, parsed.headers['Idempotency-Key'], context);
-      responseStatus = 201;
-      rows = 1;
     } else if (parsed.operationId === 'quality.records.list') {
       const result = await listIntegrationQualityRecords(prisma, integrationSchemas.qualityRecordsQuery.parse(query), context);
       body = { ...result, generatedAt: new Date().toISOString(), schemaVersion: '1.0', requestId };
@@ -174,11 +192,6 @@ export async function executePlaygroundOperation(prisma, credentialId, input, op
         generatedAt: new Date().toISOString(), schemaVersion: '1.0', requestId
       };
       rows = 1;
-    } else if (parsed.operationId === 'acompanhamento.opportunities.post') {
-      const received = await receiveCrmOpportunity(prisma, parsed.body, { envConfig: options.envConfig || env, idempotencyKey: parsed.body.eventId });
-      body = received.body;
-      responseStatus = received.statusCode;
-      rows = 1;
     } else if (parsed.operationId === 'acompanhamento.opportunities.get') {
       body = await getCrmPlanningState(prisma, parsed.pathParams.externalId, options.envConfig || env);
       rows = 1;
@@ -186,23 +199,27 @@ export async function executePlaygroundOperation(prisma, credentialId, input, op
       body = await listCrmPlanningStates(prisma, query, { envConfig: options.envConfig || env, maxPageSize: context.maxPageSize,
         cursorKey: options.cursorKey || env.apiTokenHashKeys[env.apiTokenActiveKeyVersion] });
       rows = body.items.length;
-    } else if (parsed.operationId === 'efetivo.projects.create') {
-      body = await createCrmProject(prisma, parsed.body);
-      rows = 1;
-    } else if (parsed.operationId === 'efetivo.projects.commercialFact.post') {
-      body = await upsertCrmCommercialFact(prisma, parsed.pathParams.id, parsed.body);
-      rows = 1;
-    } else if (parsed.operationId === 'efetivo.projects.document.post') {
-      body = await createCrmDocument(prisma, parsed.pathParams.id, parsed.body);
-      rows = 1;
     } else {
       const result = await listOperationalResources(prisma, parsed.operationId, query, context);
       body = { ...result, generatedAt: new Date().toISOString(), schemaVersion: '1.0', requestId };
       rows = result.items.length;
     }
     await settleCredentialQuota({ store, reservation, actualRows: rows, responseBytes: Buffer.byteLength(JSON.stringify(body)) });
+    settled = true;
+    if (operation.method === 'POST') await recordApiRequest(prisma, {
+      credentialId, requestId, operationId: operation.operationId, scopeCode: operation.requiredScopes[0],
+      pathTemplate: operation.path, statusCode: responseStatus, outcomeCode: simulated ? 'SIMULATED' : 'OK', simulated,
+      responseRows: rows, responseBytes: Buffer.byteLength(JSON.stringify(body)), durationMs: Number((process.hrtime.bigint() - started) / 1_000_000n)
+    });
   } catch (error) {
-    try { await settleCredentialQuota({ store, reservation, actualRows: 0, responseBytes: 0 }); } catch { /* preserva falha original */ }
+    if (!settled) {
+      try { await settleCredentialQuota({ store, reservation, actualRows: 0, responseBytes: 0 }); } catch { /* preserva falha original */ }
+    }
+    if (operation.method === 'POST') {
+      await recordApiRequest(prisma, { credentialId, requestId, operationId: operation.operationId,
+        scopeCode: operation.requiredScopes[0], pathTemplate: operation.path, simulated,
+        statusCode: error.statusCode || 500, outcomeCode: error.code || 'INTERNAL_ERROR', durationMs: 0 }).catch(() => {});
+    }
     throw error;
   }
   await recordCredentialEvent(prisma, {
@@ -211,13 +228,15 @@ export async function executePlaygroundOperation(prisma, credentialId, input, op
     type: 'TESTED',
     actorIp: options.actorIp,
     actorUserAgent: options.actorUserAgent,
-    summary: { operationId: parsed.operationId, rows }
+    summary: { operationId: parsed.operationId, rows, simulated }
   });
   const path = requestPath(operation, parsed.pathParams, query);
+  const headers = { ...parsed.headers, ...(simulated ? { Prefer: 'validate-only' } : {}) };
   return {
-    request: { method: operation.method, path, authorization: `Bearer ••••${credential.secretLastFour}`, curl: curlForPath(path, isDownload, operation.method, parsed.body, parsed.headers), body: operation.method === 'POST' ? parsed.body : null,
-      ...(parsed.headers ? { headers: parsed.headers } : {}) },
+    request: { method: operation.method, path, authorization: `Bearer ••••${credential.secretLastFour}`, curl: curlForPath(path, isDownload, operation.method, parsed.body, headers), body: operation.method === 'POST' ? parsed.body : null,
+      ...(Object.keys(headers).length ? { headers } : {}) },
     response: {
+      ...(simulated ? { headers: { 'Preference-Applied': 'validate-only' } } : {}),
       status: responseStatus ?? (operation.method === 'POST' && ['created', 'CREATED'].includes(body?.status || body?.outcome) ? 201 : 200),
       durationMs: Number((process.hrtime.bigint() - started) / 1_000_000n),
       requestId,

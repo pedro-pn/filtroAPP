@@ -5,6 +5,7 @@ import { makeProjectDocumentSchemas } from '../../../../shared/schemas/project-d
 import { upsertCrmProjectDocument } from '../efetivo/project-workflow/documents.js';
 import { projectIntakeSchema, receiveProjectIntake } from '../projects/project-intake.js';
 import { IntegrationApiError } from '../../middleware/api-request-context.js';
+import { isApiWriteSimulation } from './write-context.js';
 
 const idSchema = z.string().trim().min(1).max(100);
 const factSchema = z.object({
@@ -51,7 +52,7 @@ export function validateCrmDocument(input) {
 }
 
 export async function createCrmProject(database, input) {
-  return receiveProjectIntake(input, database);
+  return receiveProjectIntake(input, database, { inTransaction: isApiWriteSimulation() });
 }
 
 export async function createCrmDocument(database, projectId, input) {

@@ -41,6 +41,7 @@ export function rotationDefaults(credential, now = new Date()) {
   return { name: `${credential.name.slice(0, 89)} (rotação)`, purpose: credential.purpose, recipientName: credential.recipientName,
     recipientContact: credential.recipientContact, description: credential.description,
     startsAt: now.toISOString(), expiresAt: credential.expiresAt, neverExpiresConfirmation: '',
+    writeMode: credential.writeMode || 'LIVE',
     scopeCodes: [...credential.scopeCodes], projectAccess: { ...credential.projectAccess, projectIds: [...credential.projectAccess.projectIds] },
     allowedIpCidrs: [...credential.allowedIpCidrs], allowedFormats: ['JSON'], limits: { ...credential.limits } };
 }

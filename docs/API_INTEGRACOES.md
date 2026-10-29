@@ -24,6 +24,83 @@ curl --fail-with-body \
 
 Todas as respostas usam `Cache-Control: no-store` e `X-Request-Id`. Registre o request ID, nunca o header `Authorization`.
 
+## Simulação de escritas
+
+Envie `Prefer: validate-only` em qualquer escrita de `/api/integracoes/v1` para
+executar as mesmas permissões, recorte de projetos, cotas, validações e regras da
+escrita real e desfazer a transação ao terminar. As cinco operações suportadas são
+Qualidade, oportunidades, criação de projetos, fatos comerciais e documentos CRM.
+Uma operação futura sem suporte recusa com `501 SIMULATION_NOT_SUPPORTED`.
+
+Em **Administração → Tokens de API**, `writeMode: SIMULATE` obriga a simulação de
+todas as escritas da credencial, inclusive quando o consumidor omite o cabeçalho.
+`LIVE` é o padrão para credenciais existentes e permite escrita real quando não há
+pedido de simulação. A listagem mostra o modo; nos detalhes, a alteração exige
+justificativa e versão atual e fica na auditoria. O Playground usa simulação por
+padrão; selecione **Real — salvar dados no FiltroAPP** para persistir com um token
+LIVE. Um token SIMULATE continua simulando mesmo se o Playground pedir LIVE.
+
+Para **Omni – desenvolvimento**, selecione SIMULATE e conceda
+`qualidade.registros.create`. Se a credencial atual não possui esse escopo, use
+**Rotacionar**, inclua a permissão e mantenha SIMULATE na substituta. Simulação
+exige os mesmos escopos da operação real e não amplia a política do token.
+
+Exemplo inteiramente fictício; injete o token pelo cofre de segredos:
+
+```bash
+curl --fail-with-body -X POST \
+  -H "Authorization: Bearer $FILTRO_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -H 'Prefer: validate-only' \
+  -H 'Idempotency-Key: 6d655c60-2dc0-4d56-98c3-7349fc19612e' \
+  --data-raw '{"type":"DESVIO","projectCode":"05776","eventDate":"2026-10-29","description":"Exemplo fictício de teste","impact":"MEDIO","actionOwnerEmail":"responsavel@example.test","externalRef":{"system":"omni","url":"https://example.test/checagem","reference":"exemplo"}}' \
+  'https://seu-dominio/api/integracoes/v1/qualidade/registros'
+```
+
+Sucesso simulado é sempre HTTP 200, com `Preference-Applied: validate-only` e:
+
+```json
+{
+  "simulated": true,
+  "operation": "quality.records.create",
+  "would": {
+    "type": "DESVIO",
+    "status": "EM_TRIAGEM",
+    "origin": "OMNI",
+    "projectCode": "05776",
+    "actionOwnerUserId": "usuario-existente-ficticio",
+    "eventDate": "2026-10-29",
+    "description": "Exemplo fictício de teste",
+    "impact": "MEDIO",
+    "externalRef": { "system": "omni", "url": "https://example.test/checagem", "reference": "exemplo" },
+    "previewNumber": "D-001/26"
+  },
+  "warnings": [],
+  "requestId": "simulacao-ficticia"
+}
+```
+
+`would` reflete os dados calculados no banco antes do rollback, inclusive replays
+e versões antigas ignoradas, sem IDs provisórios de registros, projetos,
+oportunidades, documentos ou versões. Referências a usuários existentes são
+preservadas. `previewNumber` é provisório e não reserva nem consome numeração.
+
+Erros mantêm o código HTTP e o corpo da escrita real, também com
+`Preference-Applied: validate-only`. Exemplo fictício: HTTP 422,
+`{"code":"ACTION_OWNER_NOT_FOUND","message":"O e-mail deve identificar um único usuário ativo.","requestId":"simulacao-ficticia"}`.
+O consumidor deve conferir cabeçalho e `simulated: true` em todo sucesso simulado.
+Escritas reais preservam seus contratos, sem esses marcadores.
+
+A simulação verifica conflitos com chaves reais, mas não salva sua chave. A mesma
+Idempotency-Key pode ser usada depois na escrita real. Registros de domínio,
+recibos, sequências, feed, notificações e auditoria de domínio ficam no rollback.
+Nenhum e-mail, arquivo, job, chamada externa ou efeito pós-commit é produzido;
+invalidações de cache das rotas de projetos são suprimidas. Cotas, último uso e o
+log `ApiRequestLog.simulated = true` permanecem fora da transação de domínio.
+
+Contrato OpenAPI em [openapi.yaml](../specs/015-api-token-playground/contracts/openapi.yaml)
+e evidências por rota em [relatório da entrega](../specs/035-api-simulacao-escritas/implementation-report.md).
+
 ## Operações disponíveis
 
 | Método | Caminho | Escopo obrigatório |

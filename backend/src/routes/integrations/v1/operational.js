@@ -32,8 +32,8 @@ export function createOperationalRouter({
     if (!req.headers['idempotency-key']) throw new IntegrationApiError(400, 'IDEMPOTENCY_KEY_REQUIRED', 'Envie Idempotency-Key igual ao eventId.');
     const result = await runMeteredApiOperation(req, {
       prismaClient, operationId: 'acompanhamento.opportunities.post', requestedRows: 1,
-      execute: async () => {
-        const received = await receiveCrmOpportunity(prismaClient, req.body, { envConfig, idempotencyKey: req.headers['idempotency-key'] });
+      execute: async database => {
+        const received = await receiveCrmOpportunity(database, req.body, { envConfig, idempotencyKey: req.headers['idempotency-key'] });
         return { rows: 1, statusCode: received.statusCode, outcomeCode: received.body.disposition.toUpperCase(), body: { ...received.body, requestId: req.requestId } };
       }
     });
@@ -44,7 +44,7 @@ export function createOperationalRouter({
     validatePlanningListQuery(req.query);
     const result = await runMeteredApiOperation(req, {
       prismaClient, operationId: 'acompanhamento.opportunities.links.list', requestedRows: Number(req.query.limit) || Math.min(100, req.apiAuth.credential.maxPageSize),
-      execute: async () => {
+      execute: async database => {
         const body = await listCrmPlanningStates(prismaClient, req.query, { envConfig,
           maxPageSize: Math.min(req.apiAuth.credential.maxPageSize, envConfig.apiTokenGlobalMaxPageSize),
           cursorKey: envConfig.apiTokenHashKeys[envConfig.apiTokenActiveKeyVersion] });
@@ -78,8 +78,8 @@ export function createOperationalRouter({
     validateProjectCreation(req.body);
     const result = await runMeteredApiOperation(req, {
       prismaClient, operationId: 'efetivo.projects.create', requestedRows: 1,
-      execute: async () => {
-        const body = await createCrmProject(prismaClient, req.body);
+      execute: async database => {
+        const body = await createCrmProject(database, req.body);
         return { rows: 1, statusCode: body.status === 'created' ? 201 : 200, outcomeCode: body.status.toUpperCase(), body: { ...body, requestId: req.requestId } };
       }
     });
@@ -91,8 +91,8 @@ export function createOperationalRouter({
     const result = await runMeteredApiOperation(req, {
       prismaClient, operationId: 'efetivo.projects.commercialFact.post', requestedRows: 1,
       filterSummary: { projectId: id },
-      execute: async () => {
-        const body = await upsertCrmCommercialFact(prismaClient, id, req.body);
+      execute: async database => {
+        const body = await upsertCrmCommercialFact(database, id, req.body);
         return { rows: 1, statusCode: body.outcome === 'CREATED' ? 201 : 200, outcomeCode: body.outcome, body: { ...body, requestId: req.requestId } };
       }
     });
@@ -104,8 +104,8 @@ export function createOperationalRouter({
     const result = await runMeteredApiOperation(req, {
       prismaClient, operationId: 'efetivo.projects.document.post', requestedRows: 1,
       filterSummary: { projectId: id },
-      execute: async () => {
-        const body = await createCrmDocument(prismaClient, id, req.body);
+      execute: async database => {
+        const body = await createCrmDocument(database, id, req.body);
         return { rows: 1, statusCode: body.outcome === 'CREATED' ? 201 : 200, outcomeCode: body.outcome, body: { ...body, requestId: req.requestId } };
       }
     });

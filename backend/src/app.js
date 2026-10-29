@@ -16,6 +16,8 @@ import { qualityAttachmentFileName, resolvePublicQualityAttachment } from './lib
 import { localizedZodErrorDetails, localizedZodIssues } from './lib/zod-error.js';
 import { requireAuth } from './middleware/auth.js';
 import { apiRequestContext, integrationApiBoundary, integrationApiErrorHandler } from './middleware/api-request-context.js';
+import { coarseApiTokenIpLimit, createApiSimulationPreferenceResolver } from './middleware/api-token-auth.js';
+import { isApiWriteMethod } from './lib/api-credentials/write-mode.js';
 import { requestMetrics } from './middleware/request-metrics.js';
 import apiRouter from './routes/index.js';
 import {
@@ -60,11 +62,16 @@ app.use(helmet({
 }));
 // Executa antes do CORS/body parser globais para que preflight, método e corpo
 // inválidos da API externa mantenham política fechada e envelope estável.
-app.use('/api/integracoes/v1', apiRequestContext(), integrationApiBoundary({
+app.use('/api/integracoes/v1', apiRequestContext(), (req, res, next) => {
+  if (!isApiWriteMethod(req.method)) return next();
+  if (req.apiCoarseLimitApplied) return next();
+  req.apiCoarseLimitApplied = true;
+  return coarseApiTokenIpLimit(req, res, next);
+}, createApiSimulationPreferenceResolver(), integrationApiBoundary({
   allowedOrigins: env.allowedOrigins,
   requireHttps: env.nodeEnv === 'production'
 }));
-app.use(cors({
+const browserCors = cors({
   origin(origin, callback) {
     const allowedOrigins = env.allowedOrigins || [];
     const originAllowed = !allowedOrigins.length || allowedOrigins.includes(origin);
@@ -73,7 +80,8 @@ app.use(cors({
     callback(null, !origin || originAllowed);
   },
   exposedHeaders: ['Content-Disposition']
-}));
+});
+app.use((req, res, next) => req.integrationBoundaryApplied ? next() : browserCors(req, res, next));
 
 export function jsonBodyLimitForRequest(method, requestPath) {
   const isProjectDocumentUpload = method === 'POST'

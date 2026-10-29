@@ -1,13 +1,12 @@
 import { randomUUID } from 'node:crypto';
+import { applySimulationPreference } from '../lib/api-credentials/write-mode.js';
+import { API_OPERATIONS, findApiOperationForRequest } from '../lib/api-credentials/catalog.js';
 
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/;
 const SENSITIVE_ERROR_TEXT = /fva_[A-Za-z0-9_-]{16}_[A-Za-z0-9_-]{20,}|\bBearer\s+\S+|\b(?:hmac|secret|password|authorization)\b|\b[a-f0-9]{64}\b|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|(?:\/home\/|\/var\/|\/tmp\/|[A-Za-z]:\\)/i;
 
 function isIntegrationWritePath(path) {
-  return path === '/api/integracoes/v1/qualidade/registros'
-    || path === '/api/integracoes/v1/efetivo/projetos'
-    || path === '/api/integracoes/v1/acompanhamento/oportunidades'
-    || /^\/api\/integracoes\/v1\/efetivo\/projetos\/[^/]+\/(?:fatos-comerciais|documentos)$/.test(path);
+  return API_OPERATIONS.some(operation => operation.method !== 'GET' && findApiOperationForRequest(operation.method, path));
 }
 
 function safeErrorText(value, fallback) {
@@ -35,6 +34,7 @@ export class IntegrationApiError extends Error {
 
 export function apiRequestContext({ maxQueryKeys = 20, maxQueryLength = 8192, timeoutMs = 15_000 } = {}) {
   return function integrationRequestContext(req, res, next) {
+    applySimulationPreference(req, res);
     if (req.requestId && req.apiStartedAt) {
       res.setHeader('X-Request-Id', req.requestId);
       res.setHeader('Cache-Control', 'no-store');
@@ -66,7 +66,7 @@ export function integrationApiBoundary({ allowedOrigins = [], requireHttps = fal
     req.integrationBoundaryApplied = true;
     const requestPath = String(req.originalUrl || req.url || '').split('?')[0];
     const writePath = isIntegrationWritePath(requestPath);
-    const postAllowed = req.method === 'POST' && writePath;
+    const writeAllowed = req.method !== 'GET' && Boolean(findApiOperationForRequest(req.method, requestPath));
     const origin = typeof req.headers?.origin === 'string' ? req.headers.origin : '';
     if (origin) {
       res.removeHeader('Access-Control-Allow-Origin');
@@ -75,12 +75,14 @@ export function integrationApiBoundary({ allowedOrigins = [], requireHttps = fal
         return sendIntegrationError(res, req, 403, 'CORS_NOT_ALLOWED', 'Esta origem de navegador não está autorizada.');
       }
       res.setHeader('Access-Control-Allow-Origin', origin);
-      res.setHeader('Access-Control-Allow-Methods', writePath ? 'GET, POST' : 'GET');
-      res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-Request-Id, Idempotency-Key');
-      res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, X-Request-Id, Retry-After');
+      const methods = [...new Set(['GET', ...API_OPERATIONS.filter(operation => operation.method !== 'GET'
+        && findApiOperationForRequest(operation.method, requestPath)).map(operation => operation.method)])];
+      res.setHeader('Access-Control-Allow-Methods', writePath ? methods.join(', ') : 'GET');
+      res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-Request-Id, Idempotency-Key, Prefer');
+      res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, X-Request-Id, Retry-After, Preference-Applied');
       if (req.method === 'OPTIONS') return res.status(204).end();
     }
-    if (req.method !== 'GET' && !postAllowed) {
+    if (req.method !== 'GET' && !writeAllowed) {
       res.setHeader('Allow', 'GET');
       return sendIntegrationError(res, req, 405, 'METHOD_NOT_ALLOWED', 'Método indisponível nesta operação de integração.');
     }
@@ -88,7 +90,7 @@ export function integrationApiBoundary({ allowedOrigins = [], requireHttps = fal
     if (req.method === 'GET' && ((Number.isFinite(contentLength) && contentLength > 0) || req.headers?.['transfer-encoding'])) {
       return sendIntegrationError(res, req, 400, 'BODY_NOT_ALLOWED', 'Requisições de consulta não aceitam corpo.');
     }
-    if (postAllowed && !/^application\/json(?:\s*;|$)/i.test(String(req.headers?.['content-type'] || ''))) {
+    if (writeAllowed && !/^application\/json(?:\s*;|$)/i.test(String(req.headers?.['content-type'] || ''))) {
       return sendIntegrationError(res, req, 415, 'UNSUPPORTED_MEDIA_TYPE', 'Envie application/json.');
     }
     if (requireHttps && !req.secure) {
@@ -99,6 +101,8 @@ export function integrationApiBoundary({ allowedOrigins = [], requireHttps = fal
 }
 
 export function sendIntegrationError(res, req, statusCode, code, message, extra = {}) {
+  applySimulationPreference(req, res);
+  req.apiOutcomeCode = code;
   if (statusCode === 429 && extra.retryAfterSeconds) {
     res.setHeader('Retry-After', String(extra.retryAfterSeconds));
   }

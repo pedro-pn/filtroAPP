@@ -17,6 +17,7 @@ export function ApiCredentialCards({ credentials, selectedId, onSelect }: {
         </div>
         <p className="api-card-purpose">{credential.purpose}</p>
         <dl className="api-card-facts">
+          <div><dt>Escritas</dt><dd>{credential.writeMode === 'SIMULATE' ? 'SIMULATE — simuladas' : 'LIVE — reais permitidas'}</dd></div>
           <div><dt>Destinatário</dt><dd>{credential.recipientName}</dd></div>
           <div><dt>Validade</dt><dd>{credential.expiresAt ? apiCredentialDateLabel(credential.expiresAt) : 'Sem expiração'}</dd></div>
           <div><dt>Último uso</dt><dd>{credential.lastUsedAt ? apiCredentialDateLabel(credential.lastUsedAt) : 'Ainda não usado'}</dd></div>

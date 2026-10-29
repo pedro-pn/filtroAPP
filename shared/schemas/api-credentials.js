@@ -1,4 +1,5 @@
 export const API_PROJECT_ACCESS_MODES = ['ALL', 'SELECTED'];
+export const API_WRITE_MODES = ['LIVE', 'SIMULATE'];
 export const API_ALLOWED_FORMATS = ['JSON'];
 export const API_CREDENTIAL_STATUSES = ['SCHEDULED', 'ACTIVE', 'NEAR_EXPIRY', 'EXPIRED', 'REVOKED'];
 export const NEVER_EXPIRES_CONFIRMATION = 'SEM EXPIRAÇÃO';
@@ -61,6 +62,7 @@ export function makeApiCredentialSchemas(z, { globalMaxPageSize = 500, allowLoca
     description: nullableTrimmed(z, 1000)
   };
   const policy = {
+    writeMode: z.enum(API_WRITE_MODES).default('LIVE'),
     scopeCodes,
     projectAccess,
     allowedIpCidrs: uniqueArray(z, cidr, { max: 100 }),
@@ -103,6 +105,7 @@ export function makeApiCredentialSchemas(z, { globalMaxPageSize = 500, allowLoca
     reason
   }).strict();
   const playground = z.object({
+    writeMode: z.enum(API_WRITE_MODES).default('SIMULATE'),
     operationId: z.string().trim().min(1).max(120),
     pathParams: z.record(z.string(), z.string()).optional().default({}),
     query: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.array(z.string())])).optional().default({}),
@@ -110,5 +113,8 @@ export function makeApiCredentialSchemas(z, { globalMaxPageSize = 500, allowLoca
     headers: z.object({ 'Idempotency-Key': z.uuid() }).strict().optional()
   }).strict();
 
-  return { create, reduce, rotate, revoke, playground, projectAccess, limits, scopeCodes };
+  const writeMode = z.object({
+    expectedVersion: z.coerce.number().int().min(1), reason, writeMode: z.enum(API_WRITE_MODES)
+  }).strict();
+  return { create, reduce, rotate, revoke, playground, projectAccess, limits, scopeCodes, writeMode };
 }

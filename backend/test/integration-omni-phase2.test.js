@@ -157,10 +157,10 @@ test('rotas reais: boundary permite POST Qualidade e guards exigem escopos, incl
 test('Playground: header tipado, criação idempotente, feed, envelope e estados de RDO',async()=>{
   const {db,client}=await phase2Database();
   try{
-    const op=publicApiOperations().find(o=>o.operationId==='quality.records.create');const input=buildPlaygroundInput(op,{bodyJson:JSON.stringify(payload),'Idempotency-Key':randomUUID()});
+    const op=publicApiOperations().find(o=>o.operationId==='quality.records.create');const input=buildPlaygroundInput(op,{writeMode:'LIVE',bodyJson:JSON.stringify(payload),'Idempotency-Key':randomUUID()});
     client.apiCredential={async findUnique(){return {id:'cred',projectAccessMode:'SELECTED',maxPageSize:100,requestsPerMinute:60,requestsPerDay:1000,rowsPerDay:10000,scopes:[...context().scopes].map(scopeCode=>({scopeCode})),projects:[{projectId:'p1',project:{code:'5850'}}]};}};
     const transaction=client.$transaction;client.$transaction=action=>typeof action==='function'?transaction(tx=>action({...tx,apiUsageBucket:client.apiUsageBucket})):Promise.all(action);
-    client.apiUsageBucket={async upsert({create}){return {id:create.windowKind};},async updateMany(){return {count:1};},async update(){}};client.apiCredentialEvent={async create(){}};
+    client.apiUsageBucket={async upsert({create}){return {id:create.windowKind};},async updateMany(){return {count:1};},async update(){}};client.apiCredentialEvent={async create(){}};client.apiRequestLog={async create(){}};client.apiCredential.updateMany=async()=>({count:1});
     const result=await executePlaygroundOperation(client,'cred',input,{cursorKey});assert.equal(result.response.status,201);assert.equal(result.response.body.status,'EM_TRIAGEM');assert.match(result.request.curl,/Idempotency-Key:/);assert.deepEqual(result.request.headers,input.headers);
     assert.deepEqual((await executePlaygroundOperation(client,'cred',input,{cursorKey})).response.body,result.response.body);
     const feed=await executePlaygroundOperation(client,'cred',{operationId:'integration.events.list',query:{}},{cursorKey});assert.deepEqual(feed.response.body.items.map(r=>r.type),['qualidade.criado']);assert.equal(feed.response.body.schemaVersion,'1.0');

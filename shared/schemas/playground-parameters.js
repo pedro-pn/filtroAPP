@@ -16,6 +16,7 @@ export function makePlaygroundParameterSchema(z, parameters, { maxPageSize = 20,
     shape[field.name] = z.preprocess(value => value === '' || value === undefined || (typeof value === 'string' && !value.trim()) ? undefined : value,
       field.required ? schema : schema.optional());
   }
+  if (method === 'POST') shape.writeMode = z.enum(['SIMULATE', 'LIVE']).default('SIMULATE');
   if (method === 'POST') shape.bodyJson = z.string().min(2, 'Informe o corpo JSON.').max(10000, 'O corpo JSON é muito longo.').refine(value => {
     try { const body = JSON.parse(value); return body !== null && typeof body === 'object' && !Array.isArray(body); } catch { return false; }
   }, 'Informe um objeto JSON válido.');
@@ -28,7 +29,7 @@ export function makePlaygroundParameterSchema(z, parameters, { maxPageSize = 20,
 
 export function playgroundParameterDefaults(operation, maxPageSize = 20, scopeCode = '', grantedScopes = []) {
   return {
-    ...(operation?.method === 'POST' ? { bodyJson: JSON.stringify(operation.bodyExample || {}, null, 2) } : {}),
+    ...(operation?.method === 'POST' ? { bodyJson: JSON.stringify(operation.bodyExample || {}, null, 2), writeMode: 'SIMULATE' } : {}),
     ...(operation?.queryParams.includes('limit') ? { limit: String(Math.min(10, maxPageSize)) } : {}),
     ...(operation?.queryParams.includes('includeDeleted') && scopeCode === 'qualidade.excluidos.read' && grantedScopes.includes(scopeCode) ? { includeDeleted: 'true' } : {})
   };
@@ -50,5 +51,5 @@ export function buildPlaygroundInput(operation, values) {
   }
   return { operationId: operation.operationId, pathParams, query,
     ...(Object.keys(headers).length ? { headers } : {}),
-    ...(operation.method === 'POST' ? { body: JSON.parse(values.bodyJson) } : {}) };
+    ...(operation.method === 'POST' ? { body: JSON.parse(values.bodyJson), writeMode: values.writeMode || 'SIMULATE' } : {}) };
 }
