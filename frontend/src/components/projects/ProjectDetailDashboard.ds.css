@@ -32,25 +32,30 @@
 .acp-tracking-period { color: var(--muted); font-size: var(--text-sm); font-weight: var(--font-semibold); }
 .acp-tracking-period .fv-card__body { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); }
 .acp-detail h1, .acp-detail h2, .acp-detail h3, .acp-detail p { margin: 0; }
-.acp-detail h1 { font-size: clamp(var(--text-2xl), 2.6vw, 34px); line-height: 1.16; }
+.acp-detail h1 { font-size: clamp(var(--text-xl), 2.2vw, 30px); line-height: 1.16; }
 .acp-detail h3 { font-size: var(--text-base); }
 .acp-detail-header > .fv-card__body, .acp-detail-col, .acp-detail-block > .fv-card__body, .acp-detail-notes > .fv-card__body,
 .acp-detail-loading, .acp-detail-metric { display: grid; gap: var(--space-4); min-width: 0; }
 .acp-detail-header { background: linear-gradient(125deg, var(--brand-hover), var(--brand)); border-color: var(--brand); color: var(--on-brand); overflow: hidden; box-shadow: var(--shadow-e2); }
-.acp-detail-header > .fv-card__body { padding: clamp(var(--space-5), 2.5vw, var(--space-6)); }
+.acp-detail-header > .fv-card__body { padding: clamp(var(--space-4), 2vw, var(--space-5)); }
 .acp-detail-hero-copy { display: grid; align-content: start; gap: var(--space-3); min-width: 0; }
 .acp-detail-header .acp-detail-eyebrow, .acp-detail-header .acp-detail-header-meta,
 .acp-detail-header .acp-detail-header-meta strong { color: var(--on-brand); }
 .acp-detail-header .acp-detail-eyebrow { font-size: var(--text-xs); font-weight: var(--font-bold); letter-spacing: .08em; text-transform: uppercase; }
-.acp-detail-header .acp-detail-header-meta { margin-top: var(--space-3); }
+.acp-detail-header .acp-detail-header-meta { margin-top: var(--space-1); }
 .acp-detail-header .acp-detail-header-meta > span { display: grid; gap: var(--space-1); font-size: var(--text-xs); }
 .acp-detail-header .acp-detail-header-meta strong { font-size: var(--text-sm); }
-.acp-detail-hero-progress { display: grid; align-content: center; gap: var(--space-3); padding: var(--space-6); border: var(--border-width) solid var(--line-strong); border-radius: var(--radius-lg); background: var(--brand-hover); min-width: 0; }
+.acp-detail-hero-progress { display: grid; align-content: center; gap: var(--space-2); padding: var(--space-4) var(--space-5); border: var(--border-width) solid var(--line-strong); border-radius: var(--radius-lg); background: var(--brand-hover); min-width: 0; }
 .acp-detail-hero-progress > span { font-size: var(--text-xs); font-weight: var(--font-bold); letter-spacing: .06em; text-transform: uppercase; overflow-wrap: anywhere; }
 .acp-detail-hero-progress > strong { font-size: clamp(42px, 6vw, 72px); line-height: 1; font-variant-numeric: tabular-nums; }
 .acp-detail-hero-progress > small { font-size: var(--text-xs); }
-.acp-detail-hero-track { height: var(--space-3); border-radius: var(--radius-pill); background: var(--brand-soft); overflow: hidden; }
-.acp-detail-hero-track i { display: block; height: 100%; border-radius: inherit; background: var(--on-brand); }
+/* Selo de saúde: nota ponderada dos quatro indicadores do resumo de reunião. */
+.acp-detail-health > strong { display: flex; align-items: center; gap: var(--space-3); font-size: clamp(var(--text-2xl), 3.4vw, 40px); }
+.acp-detail-health > strong::before { content: ''; flex: none; width: var(--space-4); height: var(--space-4); border-radius: var(--radius-pill); background: var(--surface-2); box-shadow: 0 0 0 3px var(--brand-soft); }
+.acp-detail-health.is-success > strong::before { background: var(--success); }
+.acp-detail-health.is-warning > strong::before { background: var(--warning); }
+.acp-detail-health.is-danger > strong::before { background: var(--danger); }
+.acp-detail-health__weights { opacity: .8; }
 .acp-detail-header .acp-detail-group-members { border-top: var(--border-width) solid var(--line-strong); padding-top: var(--space-3); }
 .acp-detail-header .acp-detail-alerts { justify-content: start; }
 /* Tone backgrounds are translucent in dark mode; keep alerts readable on the hero. */
@@ -255,8 +260,8 @@
   .acp-detail-header > .fv-card__body { padding: var(--space-5); gap: var(--space-4); }
   .acp-detail-hero-copy { gap: var(--space-2); }
   .acp-detail-hero-progress { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-2); padding: var(--space-4); }
-  .acp-detail-hero-progress > strong { font-size: 38px; }
-  .acp-detail-hero-track, .acp-detail-hero-progress > small { grid-column: 1 / -1; }
+  .acp-detail-hero-progress > strong { font-size: var(--text-2xl); }
+  .acp-detail-hero-progress > small { grid-column: 1 / -1; }
   .acp-detail-header .acp-detail-header-meta { margin-top: var(--space-1); }
   .acp-detail-col > .acp-detail-block > .fv-card__body,
   .acp-detail-financial-side > .acp-detail-block > .fv-card__body,
@@ -282,15 +287,6 @@
   .acp-detail .acp-det-romaneios-action > .fv-button { width: 100%; }
 }
 
-/* Reorganized project dashboard. */
-.acp-detail-priorities { display: grid; gap: var(--space-4); align-items: start; min-width: 0; }
-.acp-detail-priorities > .fv-card { min-width: 0; padding: var(--space-4); }
-.acp-detail-priorities > .fv-card > .fv-card__body { padding: 0; }
-.acp-detail-priorities .acp-story-time { container-type: inline-size; }
-.acp-detail-priorities .acp-story-time-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.acp-detail-priorities .acp-story-card-head { flex-wrap: wrap; }
-.acp-detail-priorities .acp-detail-last-rdo { padding: var(--space-3); }
-.acp-detail-priorities .acp-detail-last-rdo > .fv-card__body { padding: 0; }
 .acp-overview { gap: var(--space-4); }
 .acp-overview-heading { align-items: center; }
 .acp-story-time-actions { flex-wrap: wrap; }
@@ -302,22 +298,6 @@
 .acp-detail-services .acp-overview-service > .fv-card__body { padding: var(--space-3); gap: var(--space-2); }
 .acp-detail-services .acp-overview-service-quantity > strong { font-size: var(--text-lg); }
 .acp-detail-services .acp-overview-service-foot span { font-size: var(--text-xs); }
-.acp-detail-priorities .acp-story-time .acp-overview-main { grid-template-columns: minmax(0, 1fr); align-items: start; }
-.acp-detail-priorities .acp-overview-chart { padding: var(--space-3); }
-.acp-detail-priorities .acp-overview-chart > .fv-card__body,
-.acp-detail-priorities .acp-detail-services > .fv-card__body { padding: 0; }
-.acp-detail-priorities .acp-overview-card-head { flex-wrap: wrap; align-items: start; gap: var(--space-2); }
-.acp-detail-priorities .acp-overview-card-head > span { text-align: start; }
-.acp-detail-priorities .acp-detail-services .acp-overview-service { padding: var(--space-2); }
-.acp-detail-priorities .acp-detail-services .acp-overview-service > .fv-card__body { padding: 0; gap: var(--space-2); }
-.acp-detail-priorities .acp-detail-services .acp-overview-service-quantity > strong { font-size: var(--text-md); }
-.acp-detail-priorities .acp-detail-services .acp-overview-service-head { display: grid; grid-template-columns: var(--space-6) minmax(0, 1fr); gap: var(--space-1); align-items: start; }
-.acp-detail-priorities .acp-detail-services .acp-overview-service-icon { width: var(--space-6); height: var(--space-6); }
-.acp-detail-priorities .acp-detail-services .acp-overview-service-head > strong { min-width: 0; }
-.acp-detail-priorities .acp-detail-services .acp-overview-service-head > b { grid-column: 2; justify-self: start; }
-@container (min-width: 420px) {
-  .acp-detail-priorities .acp-story-time-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
 .acp-detail-financial { display: grid; gap: var(--space-4); container-type: inline-size; min-width: 0; }
 .acp-detail-financial > .fv-card__body { padding: 0; }
 #acp-financial { grid-template-columns: minmax(0, 1fr); }
@@ -331,7 +311,4 @@
 @container (min-width: 900px) {
   .acp-detail-financial-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .acp-detail-financial .acp-detail-financial-grid > .fv-card + .fv-card { border-top: 0; padding-top: 0; border-left: var(--border-width) solid var(--line); padding-left: var(--space-4); }
-}
-@media (min-width: 1100px) {
-  .acp-detail-priorities { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) minmax(0, .75fr); }
 }

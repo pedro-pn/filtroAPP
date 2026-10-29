@@ -146,8 +146,45 @@ function HistoryBars({ rows, selected }: { rows: WeeklyProgressComparison[]; sel
 }
 
 /**
- * Meta semanal no topo do dashboard. Abre na última semana fechada (a da reunião
- * de sexta) e alterna para a semana em andamento.
+ * Uma linha da meta semanal para o card de avanço do resumo de reunião: a última
+ * semana fechada (ou a atual, se ainda não houver) e o placar das anteriores.
+ */
+export function WeeklyTargetSummaryLine({ owner, progressHistory }: { owner: WeeklyTargetOwner; progressHistory?: ProgressHistoryPoint[] }) {
+  const { query, rows, serviceHistory } = useWeeklyTargets(owner, progressHistory);
+  if (query.isPending) return <span className="wts-line"><span>Meta semanal</span><span>Carregando…</span></span>;
+  if (query.isError) return null;
+  const today = corporateToday();
+  const current = currentWeeklyProgressComparison(rows, today);
+  const closed = rows.filter(row => row.periodEndDate < today);
+  const previous = closed[0];
+  if (!current || (!previous?.target && !current.target)) return <span className="wts-line"><span>Meta semanal</span><strong>Sem meta cadastrada</strong></span>;
+  const shown = previous?.target ? previous : current;
+  const status = spotlightStatus(shown);
+  const evaluated = closed.filter(row => row.target && ['ON_TARGET', 'ABOVE', 'BELOW', 'PARTIAL'].includes(row.status)).slice(0, 5);
+  // Meta por colaborador/dia: um bloco por dia com RDO, como o "Feito / meta por dia" do detalhe.
+  const goal = shown.goals[0];
+  const days = perDay(shown) && goal ? dailyBreakdown(serviceHistory, shown, today) : [];
+  const hits = days.filter(day => day.actualValue >= day.plannedValue).length;
+  return <span className="wts-line-group">
+    <span className="wts-line"><span>{shown === previous ? 'Semana fechada' : 'Semana atual'} · {period(shown)}</span><Badge tone={status.tone}>{status.label}</Badge></span>
+    {days.length ? <span className="wts-line wts-line--days">
+      <span>Por dia</span>
+      <span className="wts-day-strip" role="img" aria-label={`Feito e meta por dia: ${hits} de ${days.length} dias na meta. ${days.map(day =>
+        `${short(day.date)}: ${weeklyValueLabel(day.actualValue, goal.metric)} de ${weeklyValueLabel(day.plannedValue, goal.metric)}`).join('; ')}`}>
+        {days.map(day => <span key={day.date} className={day.actualValue >= day.plannedValue ? 'is-hit' : 'is-miss'}
+          title={`${short(day.date)}: ${weeklyValueLabel(day.actualValue, goal.metric)} / ${weeklyValueLabel(day.plannedValue, goal.metric)}`}>
+          <i aria-hidden="true" /><small aria-hidden="true">{short(day.date)}</small>
+        </span>)}
+      </span>
+      <strong>{hits} de {days.length} dias</strong>
+    </span> : null}
+    {evaluated.length ? <span className="wts-line"><span>Últimas semanas</span><strong>{evaluated.filter(reached).length} de {evaluated.length} atingidas</strong></span> : null}
+  </span>;
+}
+
+/**
+ * Meta semanal completa (no detalhe do avanço e no Efetivo). Abre na última semana
+ * fechada (a da reunião de sexta) e alterna para a semana em andamento.
  */
 export function WeeklyTargetSpotlight({ owner, progressHistory, canManage = false, onOpenHistory }: {
   owner: WeeklyTargetOwner; progressHistory?: ProgressHistoryPoint[]; canManage?: boolean; onOpenHistory: () => void;

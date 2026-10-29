@@ -42,7 +42,7 @@ import { ProjectTrackingDivisionsPanel } from './ProjectTrackingDivisionsPanel';
 import { ProjectStandbyHistoryNovelty } from './ProjectStandbyHistoryNovelty';
 import { ProjectWeeklyTargetNovelty } from './ProjectWeeklyTargetNovelty';
 import { MissionWeeklyProgressPanel } from './MissionWeeklyProgressPanel';
-import { WeeklyTargetSpotlight } from './WeeklyTargetSpotlight';
+import { WeeklyTargetSpotlight, WeeklyTargetSummaryLine } from './WeeklyTargetSpotlight';
 import type { WeeklyTargetOwner } from '../../api/weeklyProgressTargets';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
 import { Card, Button, Badge, Alert, Field, Input, Select, Textarea, Skeleton, EmptyState } from '../ui/ds';
@@ -51,14 +51,21 @@ import { ArrowLeft, CalendarDays } from 'lucide-react';
 import { ProjectDetailPeople } from './ProjectDetailPeople';
 import { ProjectDetailTaxes } from './ProjectDetailCosts';
 import { ProjectDetailOverview, ProjectDetailServiceComposition } from './ProjectDetailOverview';
-import { ProjectBillingSnapshot, ProjectFinancialSnapshot, ProjectTimeSnapshot } from './ProjectDetailStory';
+import { ProjectBillingSnapshot, ProjectFinancialSnapshot, ProjectReportsDetail, ProjectTimeDetail } from './ProjectDetailStory';
+import { ProjectMeetingSummary } from './ProjectMeetingSummary';
+import { ProjectDetailTabs } from './ProjectDetailTabs';
+import { readProjectDetailTab, writeProjectDetailTab } from './projectDetailPreferences';
+import { MEETING_HEALTH_WEIGHTS, projectMeeting, type MeetingKpiKey } from './projectMeetingModel';
 import { ProjectScopeDailyTable } from './ProjectScopeDailyTable';
-import { brl, fmtDate, fmtDateTime, fmtPct, hasMoney, manualCostFormDefaultValues, manualCostFormResolver, manualCostFormValuesToPayload, formatBrlCurrencyInput, mutationErrorMessage, QUALITY_IMPACT_LABELS, QUALITY_STATUS_LABELS, QUALITY_DISPOSITION_LABELS, type ManualCostFormValues } from './projectDetailModel';
+import { brl, fmtDate, fmtDateTime, hasMoney, manualCostFormDefaultValues, manualCostFormResolver, manualCostFormValuesToPayload, formatBrlCurrencyInput, mutationErrorMessage, QUALITY_IMPACT_LABELS, QUALITY_STATUS_LABELS, QUALITY_DISPOSITION_LABELS, type ManualCostFormValues } from './projectDetailModel';
 import { ProjectDetailSection } from './ProjectDetailSection';
 import './ProjectDetailDashboard.ds.css';
 import type { AuthUser } from '../../types/auth';
 
 const equipmentNameCollator = new Intl.Collator('pt-BR', { sensitivity: 'base', numeric: true });
+const HEALTH_LABELS: Record<MeetingKpiKey, string> = { cost: 'Gastos', time: 'Prazo', scope: 'Avanço', rdo: 'Relatórios' };
+const HEALTH_WEIGHTS_LABEL = (Object.keys(MEETING_HEALTH_WEIGHTS) as MeetingKpiKey[])
+  .map(key => `${HEALTH_LABELS[key]} ${Math.round(MEETING_HEALTH_WEIGHTS[key] * 100)}%`).join(' · ');
 
 // Dashboard detalhado de um projeto (aberto ao clicar num card da aba Projetos).
 export function ProjectDetailDashboard({
@@ -87,6 +94,8 @@ export function ProjectDetailDashboard({
     canManageProjectNotes = false;
   }
   const queryClient = useQueryClient();
+  const viewUserId = progressHistoryNoveltyUser?.id ?? null;
+  const [detailTab, setDetailTab] = useState(() => readProjectDetailTab(viewUserId));
   const [scopeOpen, setScopeOpen] = useState(false);
   const [scheduleProject, setScheduleProject] = useState<{ projectId: string; code: string } | null>(null);
   const [trackingDivisionsOpen, setTrackingDivisionsOpen] = useState(false);
@@ -346,6 +355,10 @@ export function ProjectDetailDashboard({
     ? { area: 'acompanhamento', groupId }
     : projectId ? { area: 'acompanhamento', projectId } : null;
   const weeklyProgressHistory = activeDivisionKey ? undefined : data.dailyProgressHistory ?? data.progressHistory ?? [];
+  const meeting = projectMeeting(data, shownAvancoPct);
+  const deviationCount = deviationProjects.length && qualityDeviationQueries.every(query => query.data)
+    ? qualityDeviationQueries.reduce((total, query) => total + (query.data?.length ?? 0), 0) : deviationProjects.length ? null : 0;
+  const health = meeting.health;
 
   return (
     <>
@@ -388,25 +401,15 @@ export function ProjectDetailDashboard({
             <span>{data.division ? 'Início do escopo' : 'Início'} <strong>{fmtDate(data.footer.startDate)}</strong></span>
             {h.segment ? <Badge tone="neutral" multiline>{h.segment}</Badge> : null}
           </div>
-          {data.alerts.length > 0 ? (
-            <div className="acp-detail-alerts">
-              {data.alerts.map((a, i) => <Badge key={i} tone={a.level === 'danger' ? 'danger' : 'warning'} multiline>{a.label}</Badge>)}
-            </div>
-          ) : null}
         </div>
-        {data.rentalTracking ? <div className="acp-detail-hero-progress">
-          <span>Dias de locação</span>
-          <strong>{data.rentalTracking.elapsedDays ?? '—'} / {data.rentalTracking.plannedDays ?? '—'}</strong>
-          <small>{fmtDate(data.rentalTracking.startDate)} a {fmtDate(data.rentalTracking.endDate)}</small>
-          <small>{data.rentalTracking.remainingDays == null ? 'Informe início e fim no cadastro do projeto.' : `${data.rentalTracking.remainingDays} dia(s) restante(s)`}</small>
-        </div> : (
-        <div className="acp-detail-hero-progress">
-          <span>Avanço · {progressFilterLabel || 'Escopo total'}</span>
-          <strong>{fmtPct(shownAvancoPct)}</strong>
-          <div className="acp-detail-hero-track" aria-hidden="true"><i style={{ width: `${Math.max(0, Math.min(100, shownAvancoPct ?? 0))}%` }} /></div>
-          <small>{shownAvancoPct == null ? 'Aguardando medição do escopo' : 'Meta do escopo: 100%'}</small>
+        <div className={`acp-detail-hero-progress acp-detail-health is-${health.status.tone}`} data-acp-health>
+          <span>Saúde do projeto</span>
+          <strong>{health.status.label}</strong>
+          <small>{health.score == null ? 'Sem indicadores suficientes para a nota.'
+            : `Nota ${health.score.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} de 2${health.contributors.length
+              ? ` · pesaram ${health.contributors.map(item => HEALTH_LABELS[item.key]).join(', ')}` : ' · todos os indicadores em dia'}`}</small>
+          <small className="acp-detail-health__weights">{HEALTH_WEIGHTS_LABEL}</small>
         </div>
-        )}
         {data.group ? (
           <div className="acp-detail-group-members" aria-label="Missões unificadas">
             {data.group.members.map(member => (
@@ -429,9 +432,6 @@ export function ProjectDetailDashboard({
           </div>
         ) : null}
       </Card>
-
-      {weeklyTargetOwner ? <WeeklyTargetSpotlight key={groupId || projectId} owner={weeklyTargetOwner} progressHistory={weeklyProgressHistory}
-        canManage={canManageProjectNotes} onOpenHistory={() => setWeeklyHistoryOpen(true)} /> : null}
 
       {isGroup && group && canManageDivisions ? (
         <Card padding="sm" className="acp-detail-group-policy">
@@ -493,111 +493,114 @@ export function ProjectDetailDashboard({
         Preencha a data no cronograma da divisão para calcular os dias corridos e a apropriação dos colaboradores.
       </Alert> : null}
 
-      <div className="acp-detail-priorities">
-        <ProjectFinancialSnapshot data={data} onViewAdditionalContribution={proposal => {
-          const ownerProjectId = proposal.projectId ?? projectId;
-          if (ownerProjectId && proposal.codProp != null) setAdditionalContribution({
-            projectId: ownerProjectId, proposalCode: String(proposal.codProp), source: proposal.source
-          });
-        }}>
-          {(manualCosts.length > 0 || canAddManualCost || (canManageManualCosts && isGroup)) ? (
-            <div className="acp-detail-manual-costs" data-acp-manual-costs>
-              <ProjectDetailSection label="Custos manuais" header={<>
-                <div className="acp-detail-manual-costs-head">
-                  <div className="acp-detail-sub">Custos manuais</div>
-                  {canAddManualCost ? (
-                    <Button
-                      type="button"
-                      size="sm" variant="secondary" className="acp-detail-manual-cost-toggle"
-                      aria-controls="acp-manual-cost-form"
-                      aria-expanded={manualCostFormOpen}
-                      data-acp-manual-cost-add
-                      onClick={manualCostFormOpen ? closeManualCostForm : openManualCostForm}
-                    >
-                      {manualCostFormOpen ? 'Cancelar' : 'Adicionar custo'}
-                    </Button>
-                  ) : null}
-                </div>
-              </>}>
-                {manualCosts.length > 0 ? (
-                  <ul className="acp-detail-manual-cost-list">
-                    {manualCosts.map(cost => (
-                      <li key={cost.id}>
-                        <div>
-                          <strong>{cost.description}</strong>
-                          <span>
-                            {isGroup && cost.projectCode ? `Missão ${cost.projectCode} · ` : ''}
-                            {fmtDate(cost.costDate ?? cost.createdAt)}
-                            {cost.createdBy?.name ? ` · ${cost.createdBy.name}` : ''}
-                          </span>
-                          {cost.note ? <em>{cost.note}</em> : null}
-                        </div>
-                        <div className="acp-detail-manual-cost-actions">
-                          <strong>{brl(cost.amount)}</strong>
-                          {canManageManualCosts ? (
-                            <Button
-                              type="button"
-                              size="sm" variant="danger"
-                              disabled={deleteManualCostMutation.isPending && deletingManualCostId === cost.id}
-                              onClick={() => deleteManualCostMutation.mutate(cost)}
-                            >
-                              {deleteManualCostMutation.isPending && deletingManualCostId === cost.id ? 'Removendo…' : 'Excluir'}
-                            </Button>
-                          ) : null}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="acp-detail-muted">Nenhum custo manual lançado.</div>
-                )}
-                {manualCostError ? <Alert tone="danger">{manualCostError}</Alert> : null}
-
-                {canAddManualCost && manualCostFormOpen ? (
-                  <form id="acp-manual-cost-form" className="acp-detail-manual-cost-form" onSubmit={submitManualCost}>
-                    <Field id="acp-manual-cost-description" label="Descrição" required errorText={errors.description?.message}>
-                      <Input {...register('description')} maxLength={120} />
-                    </Field>
-                    <Field id="acp-manual-cost-amount" label="Valor" required errorText={errors.amount?.message}>
-                      <Controller
-                        name="amount"
-                        control={control}
-                        render={({ field }) => (
-                          <Input
-                            name={field.name}
-                            ref={field.ref}
-                            value={field.value}
-                            type="text"
-                            inputMode="numeric"
-                            autoComplete="off"
-                            aria-invalid={Boolean(errors.amount)}
-                            required
-                            onBlur={field.onBlur}
-                            onChange={event => field.onChange(formatBrlCurrencyInput(event.target.value))}
-                          />
-                        )}
-                      />
-                    </Field>
-                    <Field id="acp-manual-cost-date" label="Data" errorText={errors.costDate?.message}>
-                      <Input {...register('costDate')} type="date" />
-                    </Field>
-                    <Field id="acp-manual-cost-note" label="Observação" className="acp-detail-form-wide" errorText={errors.note?.message}>
-                      <Textarea {...register('note')} maxLength={500} rows={3} />
-                    </Field>
-                    <div className="acp-detail-actions acp-detail-form-wide">
-                      <Button type="submit" size="sm" variant="primary" disabled={createManualCostMutation.isPending}>
-                        {createManualCostMutation.isPending ? 'Salvando…' : 'Adicionar custo'}
-                      </Button>
+      <ProjectMeetingSummary key={groupId || projectId} meeting={meeting} scopeLabel={progressFilterLabel}
+        weekly={weeklyTargetOwner && !data.rentalTracking ? <WeeklyTargetSummaryLine owner={weeklyTargetOwner} progressHistory={weeklyProgressHistory} /> : null}
+        details={{
+          cost: <>
+            <ProjectFinancialSnapshot data={data} status={meeting.cost.status} onViewAdditionalContribution={proposal => {
+              const ownerProjectId = proposal.projectId ?? projectId;
+              if (ownerProjectId && proposal.codProp != null) setAdditionalContribution({
+                projectId: ownerProjectId, proposalCode: String(proposal.codProp), source: proposal.source
+              });
+            }}>
+              {(manualCosts.length > 0 || canAddManualCost || (canManageManualCosts && isGroup)) ? (
+                <div className="acp-detail-manual-costs" data-acp-manual-costs>
+                  <ProjectDetailSection label="Custos manuais" header={<>
+                    <div className="acp-detail-manual-costs-head">
+                      <div className="acp-detail-sub">Custos manuais</div>
+                      {canAddManualCost ? (
+                        <Button
+                          type="button"
+                          size="sm" variant="secondary" className="acp-detail-manual-cost-toggle"
+                          aria-controls="acp-manual-cost-form"
+                          aria-expanded={manualCostFormOpen}
+                          data-acp-manual-cost-add
+                          onClick={manualCostFormOpen ? closeManualCostForm : openManualCostForm}
+                        >
+                          {manualCostFormOpen ? 'Cancelar' : 'Adicionar custo'}
+                        </Button>
+                      ) : null}
                     </div>
-                  </form>
-                ) : null}
-              </ProjectDetailSection>
+                  </>}>
+                    {manualCosts.length > 0 ? (
+                      <ul className="acp-detail-manual-cost-list">
+                        {manualCosts.map(cost => (
+                          <li key={cost.id}>
+                            <div>
+                              <strong>{cost.description}</strong>
+                              <span>
+                                {isGroup && cost.projectCode ? `Missão ${cost.projectCode} · ` : ''}
+                                {fmtDate(cost.costDate ?? cost.createdAt)}
+                                {cost.createdBy?.name ? ` · ${cost.createdBy.name}` : ''}
+                              </span>
+                              {cost.note ? <em>{cost.note}</em> : null}
+                            </div>
+                            <div className="acp-detail-manual-cost-actions">
+                              <strong>{brl(cost.amount)}</strong>
+                              {canManageManualCosts ? (
+                                <Button
+                                  type="button"
+                                  size="sm" variant="danger"
+                                  disabled={deleteManualCostMutation.isPending && deletingManualCostId === cost.id}
+                                  onClick={() => deleteManualCostMutation.mutate(cost)}
+                                >
+                                  {deleteManualCostMutation.isPending && deletingManualCostId === cost.id ? 'Removendo…' : 'Excluir'}
+                                </Button>
+                              ) : null}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="acp-detail-muted">Nenhum custo manual lançado.</div>
+                    )}
+                    {manualCostError ? <Alert tone="danger">{manualCostError}</Alert> : null}
 
-            </div>
-          ) : null}
-        </ProjectFinancialSnapshot>
-        <ProjectTimeSnapshot
-          progressPanel={
+                    {canAddManualCost && manualCostFormOpen ? (
+                      <form id="acp-manual-cost-form" className="acp-detail-manual-cost-form" onSubmit={submitManualCost}>
+                        <Field id="acp-manual-cost-description" label="Descrição" required errorText={errors.description?.message}>
+                          <Input {...register('description')} maxLength={120} />
+                        </Field>
+                        <Field id="acp-manual-cost-amount" label="Valor" required errorText={errors.amount?.message}>
+                          <Controller
+                            name="amount"
+                            control={control}
+                            render={({ field }) => (
+                              <Input
+                                name={field.name}
+                                ref={field.ref}
+                                value={field.value}
+                                type="text"
+                                inputMode="numeric"
+                                autoComplete="off"
+                                aria-invalid={Boolean(errors.amount)}
+                                required
+                                onBlur={field.onBlur}
+                                onChange={event => field.onChange(formatBrlCurrencyInput(event.target.value))}
+                              />
+                            )}
+                          />
+                        </Field>
+                        <Field id="acp-manual-cost-date" label="Data" errorText={errors.costDate?.message}>
+                          <Input {...register('costDate')} type="date" />
+                        </Field>
+                        <Field id="acp-manual-cost-note" label="Observação" className="acp-detail-form-wide" errorText={errors.note?.message}>
+                          <Textarea {...register('note')} maxLength={500} rows={3} />
+                        </Field>
+                        <div className="acp-detail-actions acp-detail-form-wide">
+                          <Button type="submit" size="sm" variant="primary" disabled={createManualCostMutation.isPending}>
+                            {createManualCostMutation.isPending ? 'Salvando…' : 'Adicionar custo'}
+                          </Button>
+                        </div>
+                      </form>
+                    ) : null}
+                  </ProjectDetailSection>
+
+                </div>
+              ) : null}
+            </ProjectFinancialSnapshot>
+          </>,
+          scope: data.rentalTracking ? null : <>
             <ProjectDetailOverview
               progressHistory={shownProgressHistory}
               chartKey={`${activeScopeKey}|${activeEquipmentKey}`}
@@ -619,290 +622,287 @@ export function ProjectDetailDashboard({
                 </div>
               ) : null}
             />
-          }
-          data={data}
-          onOpenStandbyHistory={!isGroup ? () => setStandbyHistoryOpen(true) : undefined}
-          reportsAction={(isGroup ? Boolean(data.group?.members.some(member => member.visible !== false)) : Boolean(projectId)) ? (
+            <ProjectDetailServiceComposition
+              target={shownRequiredWeeklyProgress}
+              fallbackProgress={isGroup ? data.progressBreakdown : undefined}
+              fallbackServices={!activeScopeKey && !activeEquipmentKey && projectProgress?.hasScope ? projectProgress.services : undefined}
+            />
+            {weeklyTargetOwner ? <WeeklyTargetSpotlight owner={weeklyTargetOwner} progressHistory={weeklyProgressHistory}
+              canManage={canManageProjectNotes} onOpenHistory={() => setWeeklyHistoryOpen(true)} /> : null}
+          </>,
+          rdo: <ProjectReportsDetail data={data} reportsAction={(isGroup ? Boolean(data.group?.members.some(member => member.visible !== false)) : Boolean(projectId)) ? (
             <ProjectReportsDialog
               projectId={isGroup ? undefined : data.presentation?.sourceProjectId ?? projectId}
               groupMembers={isGroup ? data.group?.members : undefined}
               signedReportDateFrom={data.division?.startDate}
               missionLabel={`${isGroup ? 'Missões' : 'Missão'} ${h.code} · ${h.clientName}`}
             />
-          ) : null}
-        />
-        <ProjectDetailServiceComposition
-          target={shownRequiredWeeklyProgress}
-          fallbackProgress={isGroup ? data.progressBreakdown : undefined}
-          fallbackServices={!activeScopeKey && !activeEquipmentKey && projectProgress?.hasScope ? projectProgress.services : undefined}
-        />
-      </div>
+          ) : null} />,
+          time: <ProjectTimeDetail data={data} onOpenStandbyHistory={!isGroup ? () => setStandbyHistoryOpen(true) : undefined} />
+        }} />
 
-      <ProjectDetailPeople data={data} isGroup={isGroup} collaborators={collaborators} showingPlannedCollaborators={showingPlannedCollaborators}
-        onSelect={(collaborator, source) => setHoursDetail({ collaborator, source })} onSelectRates={setRatesCollaborator} />
-
-      {data.canViewProjectFinancials ? <Card padding="sm" className="acp-detail-financial" id="acp-financial">
-        <ProjectDetailSection label="Gastos e retorno" header={<>
-          <div className="acp-detail-section-head">
-            <p>Financeiro</p><h2>Gastos e retorno</h2>
-            <span>Faturamento, impostos e notas fiscais do projeto.</span>
-          </div>
-        </>}>
-          <div className="acp-detail-financial-grid" data-acp-detail-financial-grid>
-            <ProjectBillingSnapshot data={data} />
-            <ProjectDetailTaxes data={data} />
-            <ProjectInvoicesSection key={groupId || projectId} projectId={projectId} groupId={groupId} division={data.division} />
-          </div>
-        </ProjectDetailSection>
-      </Card> : null}
-
-      <div className="acp-detail-section-head" id="acp-quality">
-        <p>Qualidade e gestão</p><h2>Desvios que pedem ação</h2>
-        <span>Impacto, situação e notas aparecem antes do texto completo.</span>
-      </div>
-
-      <div className={`acp-detail-quality-grid${isGroup ? ' is-group' : ''}`}>
-      {deviationProjects.length > 0 ? (
-        <Card padding="sm" className="acp-detail-block acp-detail-deviations" data-quality-project-deviations>
-          <details className="acp-detail-deviations-details" open>
-            <summary className="acp-detail-summary">{data.presentation ? 'Desvios / Incidentes' : 'Desvios'}</summary>
-            <div className="acp-detail-deviations-toolbar">
-              <a className="fv-button fv-button--secondary fv-button--sm" href="/qualidade?tab=registros">
-                <span className="fv-button__label">Abrir Qualidade</span>
-              </a>
-            </div>
-            <div className={`quality-deviation-projects${isGroup ? ' is-grouped' : ''}`}>
-          {deviationProjects.map((deviationProject, projectIndex) => {
-            const deviationQuery = qualityDeviationQueries[projectIndex];
-            const deviations: ProjectDeviation[] = deviationQuery?.data ?? [];
-            const projectLabel = deviationProject.name || deviationProject.clientName;
-            const titleId = `quality-deviation-project-${projectIndex}`;
-            return <section className="quality-deviation-project" key={deviationProject.projectId} aria-labelledby={isGroup ? titleId : undefined}>
-              {isGroup ? <div className="quality-deviation-project-head">
-                <h3 id={titleId}>Missão {deviationProject.code || 'sem código'}{projectLabel ? <span>{projectLabel}</span> : null}</h3>
-                {!deviationQuery?.isLoading && !deviationQuery?.isError ? <Badge tone="neutral">{deviations.length} {deviations.length === 1 ? 'desvio' : 'desvios'}</Badge> : null}
-              </div> : null}
-          {deviationQuery?.isError ? (
-            <Alert tone="warning" title="Não foi possível carregar os desvios."
-              action={<Button size="sm" variant="secondary" onClick={() => void deviationQuery.refetch()}>Tentar novamente</Button>} />
-          ) : deviationQuery?.isLoading ? <Skeleton height={64} /> : deviations.length === 0 ? (
-            <div className="acp-detail-muted">Nenhum desvio registrado.</div>
-          ) : (
-            <ul className="acp-detail-deviation-list">
-              {deviations.map(deviation => {
-              const expanded = expandedQualityDeviationIds.has(deviation.id) || deviation.cost != null;
-                const detailsId = `quality-deviation-${deviation.id}`;
-                return (
-                  <li key={deviation.id} className={expanded ? 'is-expanded' : ''}>
-                    <div className="acp-detail-deviation-row">
-                      <div className="acp-detail-deviation-main">
-                        <strong>{deviation.number}</strong>
-                        <span>{deviation.nature?.name || '—'}</span>
-                        {deviation.subnature ? <span>{deviation.subnature.name}</span> : null}
-                        <small>{fmtDate(deviation.eventDate)}</small>
-                        {deviation.cost != null ? <strong>Custo: {brl(deviation.cost)}</strong> : null}
-                      </div>
-                      <div className="acp-detail-deviation-meta">
-                        {deviation.impact ? <Badge tone={deviation.impact === 'ALTO' ? 'danger' : deviation.impact === 'MEDIO' ? 'warning' : 'info'}>
-                          {QUALITY_IMPACT_LABELS[deviation.impact] || deviation.impact}
-                        </Badge> : null}
-                        {deviation.status ? <Badge tone="neutral" multiline>{QUALITY_STATUS_LABELS[deviation.status] || deviation.status}</Badge> : null}
-                        {deviation.type !== 'INCIDENTE' ? <Badge tone={deviation.recurrent ? 'warning' : 'neutral'}>
-                          {deviation.occurrences12m}x 12m
-                        </Badge> : <Badge tone="neutral">Incidente</Badge>}
-                        {deviation.cost == null ? <Button
-                          type="button"
-                          size="sm" variant="secondary" className="acp-detail-deviation-toggle"
-                          aria-expanded={expanded}
-                          aria-controls={detailsId}
-                          onClick={() => toggleQualityDeviation(deviation.id)}
-                        >
-                          {expanded ? 'Recolher' : 'Ver mais'}
-                        </Button> : null}
-                      </div>
-                    </div>
-                    {expanded ? (
-                      <div id={detailsId} className="acp-detail-deviation-details">
-                        <dl className="acp-detail-deviation-fields">
-                          <div>
-                            <dt>Disposição</dt>
-                            <dd>{QUALITY_DISPOSITION_LABELS[deviation.disposition] || deviation.disposition}</dd>
+      <ProjectDetailTabs selected={detailTab} onSelect={tab => {
+        setDetailTab(tab);
+        writeProjectDetailTab(viewUserId, tab);
+      }} tabs={[
+        { key: 'team', label: 'Equipe', count: collaborators.length, content: <>
+            <ProjectDetailPeople data={data} isGroup={isGroup} collaborators={collaborators} showingPlannedCollaborators={showingPlannedCollaborators}
+              onSelect={(collaborator, source) => setHoursDetail({ collaborator, source })} onSelectRates={setRatesCollaborator} />
+        </> },
+        ...(data.canViewProjectFinancials ? [{ key: 'financial' as const, label: 'Financeiro', content: <>
+            <Card padding="sm" className="acp-detail-financial" id="acp-financial">
+              <ProjectDetailSection label="Gastos e retorno" header={<>
+                <div className="acp-detail-section-head">
+                  <p>Financeiro</p><h2>Gastos e retorno</h2>
+                  <span>Faturamento, impostos e notas fiscais do projeto.</span>
+                </div>
+              </>}>
+                <div className="acp-detail-financial-grid" data-acp-detail-financial-grid>
+                  <ProjectBillingSnapshot data={data} />
+                  <ProjectDetailTaxes data={data} />
+                  <ProjectInvoicesSection key={groupId || projectId} projectId={projectId} groupId={groupId} division={data.division} />
+                </div>
+              </ProjectDetailSection>
+            </Card>
+        </> }] : []),
+        { key: 'quality', label: 'Qualidade e notas', count: deviationCount, content: <>
+            <div className={`acp-detail-quality-grid${isGroup ? ' is-group' : ''}`} id="acp-quality">
+            {deviationProjects.length > 0 ? (
+              <Card padding="sm" className="acp-detail-block acp-detail-deviations" data-quality-project-deviations>
+                <details className="acp-detail-deviations-details" open>
+                  <summary className="acp-detail-summary">{data.presentation ? 'Desvios / Incidentes' : 'Desvios'}</summary>
+                  <div className="acp-detail-deviations-toolbar">
+                    <a className="fv-button fv-button--secondary fv-button--sm" href="/qualidade?tab=registros">
+                      <span className="fv-button__label">Abrir Qualidade</span>
+                    </a>
+                  </div>
+                  <div className={`quality-deviation-projects${isGroup ? ' is-grouped' : ''}`}>
+                {deviationProjects.map((deviationProject, projectIndex) => {
+                  const deviationQuery = qualityDeviationQueries[projectIndex];
+                  const deviations: ProjectDeviation[] = deviationQuery?.data ?? [];
+                  const projectLabel = deviationProject.name || deviationProject.clientName;
+                  const titleId = `quality-deviation-project-${projectIndex}`;
+                  return <section className="quality-deviation-project" key={deviationProject.projectId} aria-labelledby={isGroup ? titleId : undefined}>
+                    {isGroup ? <div className="quality-deviation-project-head">
+                      <h3 id={titleId}>Missão {deviationProject.code || 'sem código'}{projectLabel ? <span>{projectLabel}</span> : null}</h3>
+                      {!deviationQuery?.isLoading && !deviationQuery?.isError ? <Badge tone="neutral">{deviations.length} {deviations.length === 1 ? 'desvio' : 'desvios'}</Badge> : null}
+                    </div> : null}
+                {deviationQuery?.isError ? (
+                  <Alert tone="warning" title="Não foi possível carregar os desvios."
+                    action={<Button size="sm" variant="secondary" onClick={() => void deviationQuery.refetch()}>Tentar novamente</Button>} />
+                ) : deviationQuery?.isLoading ? <Skeleton height={64} /> : deviations.length === 0 ? (
+                  <div className="acp-detail-muted">Nenhum desvio registrado.</div>
+                ) : (
+                  <ul className="acp-detail-deviation-list">
+                    {deviations.map(deviation => {
+                    const expanded = expandedQualityDeviationIds.has(deviation.id) || deviation.cost != null;
+                      const detailsId = `quality-deviation-${deviation.id}`;
+                      return (
+                        <li key={deviation.id} className={expanded ? 'is-expanded' : ''}>
+                          <div className="acp-detail-deviation-row">
+                            <div className="acp-detail-deviation-main">
+                              <strong>{deviation.number}</strong>
+                              <span>{deviation.nature?.name || '—'}</span>
+                              {deviation.subnature ? <span>{deviation.subnature.name}</span> : null}
+                              <small>{fmtDate(deviation.eventDate)}</small>
+                              {deviation.cost != null ? <strong>Custo: {brl(deviation.cost)}</strong> : null}
+                            </div>
+                            <div className="acp-detail-deviation-meta">
+                              {deviation.impact ? <Badge tone={deviation.impact === 'ALTO' ? 'danger' : deviation.impact === 'MEDIO' ? 'warning' : 'info'}>
+                                {QUALITY_IMPACT_LABELS[deviation.impact] || deviation.impact}
+                              </Badge> : null}
+                              {deviation.status ? <Badge tone="neutral" multiline>{QUALITY_STATUS_LABELS[deviation.status] || deviation.status}</Badge> : null}
+                              {deviation.type !== 'INCIDENTE' ? <Badge tone={deviation.recurrent ? 'warning' : 'neutral'}>
+                                {deviation.occurrences12m}x 12m
+                              </Badge> : <Badge tone="neutral">Incidente</Badge>}
+                              {deviation.cost == null ? <Button
+                                type="button"
+                                size="sm" variant="secondary" className="acp-detail-deviation-toggle"
+                                aria-expanded={expanded}
+                                aria-controls={detailsId}
+                                onClick={() => toggleQualityDeviation(deviation.id)}
+                              >
+                                {expanded ? 'Recolher' : 'Ver mais'}
+                              </Button> : null}
+                            </div>
                           </div>
-                          {deviation.linkedRnc ? (
-                            <div>
-                              <dt>RNC ou RIAI vinculada</dt>
-                              <dd>{deviation.linkedRnc}</dd>
+                          {expanded ? (
+                            <div id={detailsId} className="acp-detail-deviation-details">
+                              <dl className="acp-detail-deviation-fields">
+                                <div>
+                                  <dt>Disposição</dt>
+                                  <dd>{QUALITY_DISPOSITION_LABELS[deviation.disposition] || deviation.disposition}</dd>
+                                </div>
+                                {deviation.linkedRnc ? (
+                                  <div>
+                                    <dt>RNC ou RIAI vinculada</dt>
+                                    <dd>{deviation.linkedRnc}</dd>
+                                  </div>
+                                ) : null}
+                                {deviation.actionDeadline ? (
+                                  <div>
+                                    <dt>Prazo da ação</dt>
+                                    <dd>{fmtDate(deviation.actionDeadline)}</dd>
+                                  </div>
+                                ) : null}
+                              </dl>
+                              <div className="acp-detail-deviation-text">
+                                <span>Descrição</span>
+                                <p>{deviation.description}</p>
+                              </div>
+                              {deviation.definedAction || deviation.actionOwner ? (
+                                <div className="acp-detail-deviation-text">
+                                  <span>Ação definida</span>
+                                  <p>
+                                    {deviation.definedAction || '—'}
+                                    {deviation.actionOwner ? ` · Responsável: ${deviation.actionOwner}` : ''}
+                                  </p>
+                                </div>
+                              ) : null}
                             </div>
                           ) : null}
-                          {deviation.actionDeadline ? (
-                            <div>
-                              <dt>Prazo da ação</dt>
-                              <dd>{fmtDate(deviation.actionDeadline)}</dd>
-                            </div>
-                          ) : null}
-                        </dl>
-                        <div className="acp-detail-deviation-text">
-                          <span>Descrição</span>
-                          <p>{deviation.description}</p>
-                        </div>
-                        {deviation.definedAction || deviation.actionOwner ? (
-                          <div className="acp-detail-deviation-text">
-                            <span>Ação definida</span>
-                            <p>
-                              {deviation.definedAction || '—'}
-                              {deviation.actionOwner ? ` · Responsável: ${deviation.actionOwner}` : ''}
-                            </p>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                </section>;
+                })}
+                  </div>
+                </details>
+              </Card>
+            ) : null}
+
+              <Card padding="sm" className="acp-detail-notes" data-acp-project-notes aria-labelledby="acp-project-notes-title">
+                <ProjectDetailSection label="Notas da gestão" header={<>
+                  <div className="acp-detail-notes-head">
+                    <h3 id="acp-project-notes-title">Notas da gestão</h3>
+                    <Badge tone="neutral">{projectNotes.length} {projectNotes.length === 1 ? 'nota' : 'notas'}</Badge>
+                  </div>
+
+                </>}>
+                  {canManageProjectNotes ? (
+                    <form className="acp-detail-note-form" onSubmit={submitProjectNote}>
+                      {isGroup ? (
+                        <Field id="acp-project-note-project" label="Missão da nota" required>
+                          <Select
+                            value={activeNoteProjectId ?? ''}
+                            onChange={event => setProjectNoteProjectId(event.target.value)}
+                            placeholder="Selecione a missão"
+                            options={noteProjects.map(project => ({
+                              value: project.projectId,
+                              label: `${project.code || 'Sem código'} · ${project.name}`
+                            }))}
+                            disabled={createProjectNoteMutation.isPending}
+                          />
+                        </Field>
+                      ) : null}
+                      <Field id="acp-project-note-content" label="Nova nota" optionalText="" className="acp-detail-note-field">
+                        <Textarea
+                          value={projectNoteContent}
+                          onChange={event => setProjectNoteContent(event.target.value)}
+                          maxLength={2000}
+                          rows={3}
+                          placeholder="Adicionar uma nota…"
+                          disabled={createProjectNoteMutation.isPending}
+                        />
+                      </Field>
+                      <Button
+                        type="submit"
+                        size="sm" variant="primary"
+                        disabled={!activeNoteProjectId || !projectNoteContent.trim() || createProjectNoteMutation.isPending}
+                      >
+                        {createProjectNoteMutation.isPending ? 'Adicionando…' : 'Adicionar'}
+                      </Button>
+                    </form>
+                  ) : null}
+
+                  {projectNoteError ? <Alert tone="danger">{projectNoteError}</Alert> : null}
+                  {projectNotesLoadError ? (
+                    <Alert tone="warning" title="Não foi possível carregar as notas." action={<Button size="sm" variant="secondary" onClick={() => void refetchNotes()}>Tentar novamente</Button>} />
+                  ) : null}
+                  {projectNotesLoading ? <Skeleton height={64} /> : null}
+                  {!projectNotesLoading && !projectNotesLoadError && projectNotes.length === 0 ? (
+                    <div className="acp-detail-muted">Nenhuma nota adicionada.</div>
+                  ) : null}
+                  {projectNotes.length > 0 ? (
+                    <ol className="acp-detail-note-list">
+                      {projectNotes.map(note => (
+                        <li key={note.id}>
+                          <div className="acp-detail-note-meta">
+                            <strong>{note.author.name}</strong>
+                            <time dateTime={note.createdAt}>{fmtDateTime(note.createdAt)}</time>
                           </div>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          </section>;
-          })}
+                          {isGroup ? (
+                            <Badge tone="neutral">Missão {noteProjects.find(project => project.projectId === note.projectId)?.code || 'sem código'}</Badge>
+                          ) : null}
+                          <p>{note.content}</p>
+                        </li>
+                      ))}
+                    </ol>
+                  ) : null}
+                </ProjectDetailSection>
+
+              </Card>
             </div>
-          </details>
-        </Card>
-      ) : null}
-
-        <Card padding="sm" className="acp-detail-notes" data-acp-project-notes aria-labelledby="acp-project-notes-title">
-          <ProjectDetailSection label="Notas da gestão" header={<>
-            <div className="acp-detail-notes-head">
-              <h3 id="acp-project-notes-title">Notas da gestão</h3>
-              <Badge tone="neutral">{projectNotes.length} {projectNotes.length === 1 ? 'nota' : 'notas'}</Badge>
-            </div>
-
-          </>}>
-            {canManageProjectNotes ? (
-              <form className="acp-detail-note-form" onSubmit={submitProjectNote}>
-                {isGroup ? (
-                  <Field id="acp-project-note-project" label="Missão da nota" required>
-                    <Select
-                      value={activeNoteProjectId ?? ''}
-                      onChange={event => setProjectNoteProjectId(event.target.value)}
-                      placeholder="Selecione a missão"
-                      options={noteProjects.map(project => ({
-                        value: project.projectId,
-                        label: `${project.code || 'Sem código'} · ${project.name}`
-                      }))}
-                      disabled={createProjectNoteMutation.isPending}
-                    />
-                  </Field>
-                ) : null}
-                <Field id="acp-project-note-content" label="Nova nota" optionalText="" className="acp-detail-note-field">
-                  <Textarea
-                    value={projectNoteContent}
-                    onChange={event => setProjectNoteContent(event.target.value)}
-                    maxLength={2000}
-                    rows={3}
-                    placeholder="Adicionar uma nota…"
-                    disabled={createProjectNoteMutation.isPending}
-                  />
-                </Field>
-                <Button
-                  type="submit"
-                  size="sm" variant="primary"
-                  disabled={!activeNoteProjectId || !projectNoteContent.trim() || createProjectNoteMutation.isPending}
-                >
-                  {createProjectNoteMutation.isPending ? 'Adicionando…' : 'Adicionar'}
-                </Button>
-              </form>
-            ) : null}
-
-            {projectNoteError ? <Alert tone="danger">{projectNoteError}</Alert> : null}
-            {projectNotesLoadError ? (
-              <Alert tone="warning" title="Não foi possível carregar as notas." action={<Button size="sm" variant="secondary" onClick={() => void refetchNotes()}>Tentar novamente</Button>} />
-            ) : null}
-            {projectNotesLoading ? <Skeleton height={64} /> : null}
-            {!projectNotesLoading && !projectNotesLoadError && projectNotes.length === 0 ? (
-              <div className="acp-detail-muted">Nenhuma nota adicionada.</div>
-            ) : null}
-            {projectNotes.length > 0 ? (
-              <ol className="acp-detail-note-list">
-                {projectNotes.map(note => (
-                  <li key={note.id}>
-                    <div className="acp-detail-note-meta">
-                      <strong>{note.author.name}</strong>
-                      <time dateTime={note.createdAt}>{fmtDateTime(note.createdAt)}</time>
+        </> },
+        { key: 'resources', label: 'Equipamentos e romaneios', count: equipamentos.length, content: <>
+            <Card padding="sm" className="acp-detail-block" id="acp-resources">
+              <details className="acp-detail-equips-details" open>
+                <summary className="acp-detail-summary">
+                  Equipamentos na obra ({equipamentos.length})
+                </summary>
+                {equipamentos.length === 0 ? (
+                  <div className="acp-detail-muted">Nenhum equipamento em obra.</div>
+                ) : (
+                  <>
+                    <div className="acp-detail-equips-table-wrap">
+                      <SortableTable className="acp-detail-equips-table">
+                        <caption className="sr-only">Equipamentos na obra</caption>
+                        <thead><tr>
+                          <th scope="col">Equipamento</th>
+                          <th scope="col">Tempo na obra</th>
+                          <th scope="col">Desde</th>
+                        </tr></thead>
+                        <tbody>{equipamentos.map((equipment, index) => (
+                          <tr key={`${equipment.code ?? equipment.name}-${index}`}>
+                            <th scope="row" data-sort-value={`${equipment.code ?? ""} ${equipment.name}`}>
+                              {equipment.code ? <span className="acp-detail-equip-code">{equipment.code}</span> : null}
+                              <span>{equipment.name}</span>
+                            </th>
+                            <td data-sort-value={equipment.days}>{equipment.days} dia{equipment.days === 1 ? '' : 's'}</td>
+                            <td data-sort-value={equipment.since}>{fmtDate(equipment.since)}</td>
+                          </tr>
+                        ))}</tbody>
+                      </SortableTable>
                     </div>
-                    {isGroup ? (
-                      <Badge tone="neutral">Missão {noteProjects.find(project => project.projectId === note.projectId)?.code || 'sem código'}</Badge>
-                    ) : null}
-                    <p>{note.content}</p>
-                  </li>
-                ))}
-              </ol>
-            ) : null}
-          </ProjectDetailSection>
-
-        </Card>
-      </div>
-
-      <div className="acp-detail-section-head" id="acp-resources">
-        <p>Recursos e rastreabilidade</p><h2>Equipamentos e escopo</h2>
-        <span>Recursos de campo e evidências de execução agrupados por assunto.</span>
-      </div>
-
-      <Card padding="sm" className="acp-detail-block">
-        <details className="acp-detail-equips-details" open>
-          <summary className="acp-detail-summary">
-            Equipamentos na obra ({equipamentos.length})
-          </summary>
-          {equipamentos.length === 0 ? (
-            <div className="acp-detail-muted">Nenhum equipamento em obra.</div>
-          ) : (
-            <>
-              <div className="acp-detail-equips-table-wrap">
-                <SortableTable className="acp-detail-equips-table">
-                  <caption className="sr-only">Equipamentos na obra</caption>
-                  <thead><tr>
-                    <th scope="col">Equipamento</th>
-                    <th scope="col">Tempo na obra</th>
-                    <th scope="col">Desde</th>
-                  </tr></thead>
-                  <tbody>{equipamentos.map((equipment, index) => (
-                    <tr key={`${equipment.code ?? equipment.name}-${index}`}>
-                      <th scope="row" data-sort-value={`${equipment.code ?? ""} ${equipment.name}`}>
-                        {equipment.code ? <span className="acp-detail-equip-code">{equipment.code}</span> : null}
-                        <span>{equipment.name}</span>
-                      </th>
-                      <td data-sort-value={equipment.days}>{equipment.days} dia{equipment.days === 1 ? '' : 's'}</td>
-                      <td data-sort-value={equipment.since}>{fmtDate(equipment.since)}</td>
-                    </tr>
-                  ))}</tbody>
-                </SortableTable>
+                    <ul className="acp-detail-equips-mobile" aria-label="Equipamentos na obra">
+                      {equipamentos.map((equipment, index) => (
+                        <li key={`${equipment.code ?? equipment.name}-${index}`}>
+                          {equipment.code ? <span className="acp-detail-equip-code">{equipment.code}</span> : null}
+                          <strong>{equipment.name}</strong>
+                          <div className="acp-detail-equip-mobile-meta">
+                            <span><small>Tempo na obra</small><b>{equipment.days} dia{equipment.days === 1 ? '' : 's'}</b></span>
+                            <span><small>Desde</small><b>{fmtDate(equipment.since)}</b></span>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </details>
+              <div className="acp-det-romaneios-action">
+                <ProjectRomaneiosDialog
+                  key={groupId || projectId}
+                  projectId={projectId}
+                  groupId={groupId}
+                  missionLabel={`${isGroup ? 'Missões' : 'Missão'} ${h.code}`}
+                />
               </div>
-              <ul className="acp-detail-equips-mobile" aria-label="Equipamentos na obra">
-                {equipamentos.map((equipment, index) => (
-                  <li key={`${equipment.code ?? equipment.name}-${index}`}>
-                    {equipment.code ? <span className="acp-detail-equip-code">{equipment.code}</span> : null}
-                    <strong>{equipment.name}</strong>
-                    <div className="acp-detail-equip-mobile-meta">
-                      <span><small>Tempo na obra</small><b>{equipment.days} dia{equipment.days === 1 ? '' : 's'}</b></span>
-                      <span><small>Desde</small><b>{fmtDate(equipment.since)}</b></span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </details>
-        <div className="acp-det-romaneios-action">
-          <ProjectRomaneiosDialog
-            key={groupId || projectId}
-            projectId={projectId}
-            groupId={groupId}
-            missionLabel={`${isGroup ? 'Missões' : 'Missão'} ${h.code}`}
-          />
-        </div>
-      </Card>
-
-
-
-      <ProjectScopeDailyTable points={shownDailyProgressHistory} filterLabel={progressFilterLabel} />
+            </Card>
+        </> },
+        { key: 'daily', label: 'Avanço diário', content: <ProjectScopeDailyTable points={shownDailyProgressHistory} filterLabel={progressFilterLabel} limit={14} /> }
+      ]} />
 
     </div>
 

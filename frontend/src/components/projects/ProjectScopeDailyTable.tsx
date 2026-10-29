@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import { SortableTable } from '../ui/SortableTable';
 import type { DailyProgressPoint } from '../../api/acompanhamentoComercial';
 import { formatDateOnlyPtBr } from '../../utils/dateOnly';
-import { Card } from '../ui/ds';
+import { Button, Card } from '../ui/ds';
 import { fmtPct, physicalQuantityLabel, SERVICE_LABELS } from './projectDetailModel';
 import './ProjectScopeDailyTable.css';
 
@@ -38,10 +39,13 @@ function quantityFor(point: DailyProgressPoint | undefined, serviceType: string,
     ?.quantities?.find(quantity => quantity.unit === unit)?.realizedQty;
 }
 
-export function ProjectScopeDailyTable({ points, filterLabel }: {
+export function ProjectScopeDailyTable({ points, filterLabel, limit }: {
   points?: DailyProgressPoint[];
   filterLabel?: string;
+  /** Mostra só os lançamentos mais recentes até a pessoa pedir todos. */
+  limit?: number;
 }) {
+  const [showAll, setShowAll] = useState(false);
   const ordered = (points ?? [])
     .filter(point => validDate(point.date) && Number.isFinite(point.progressPct))
     .slice()
@@ -71,6 +75,9 @@ export function ProjectScopeDailyTable({ points, filterLabel }: {
       })
     };
   }).reverse();
+  // Os incrementos já foram calculados com o histórico inteiro; o corte só limita a exibição.
+  const limited = limit != null && !showAll && rows.length > limit;
+  const shownRows = limited ? rows.slice(0, limit) : rows;
 
   return <Card padding="sm" className="acp-scope-daily" data-acp-scope-daily>
     <details className="acp-scope-daily__details" open>
@@ -78,7 +85,7 @@ export function ProjectScopeDailyTable({ points, filterLabel }: {
         Avanço diário do escopo <span>· {filterLabel || 'Escopo total'}</span>
       </summary>
       <div className="acp-scope-daily__content">
-        <p className="acp-scope-daily__intro">Últimos lançamentos primeiro</p>
+        <p className="acp-scope-daily__intro">{limited ? `Últimos ${limit} de ${rows.length} lançamentos` : 'Últimos lançamentos primeiro'}</p>
         {rows.length === 0 ? <p className="acp-scope-daily__empty">Ainda não há avanço diário registrado para este recorte.</p>
         : measures.length === 0 ? <p className="acp-scope-daily__empty">Sem quantitativos de execução por serviço para este recorte.</p> : <>
           <div className="acp-scope-daily__table-wrap">
@@ -93,7 +100,7 @@ export function ProjectScopeDailyTable({ points, filterLabel }: {
                 {visibleTotalIndexes.map(index => <th scope="col" key={units[index]}>{totalLabel(units[index])}</th>)}
                 <th scope="col">Avanço acumulado</th>
               </tr></thead>
-              <tbody>{rows.map(({ point, services, totals }) => <tr key={point.date}>
+              <tbody>{shownRows.map(({ point, services, totals }) => <tr key={point.date}>
                 <th scope="row" data-sort-value={point.date}>{formatDateOnlyPtBr(point.date)}</th>
                 <td>{weekdayFormatter.format(validDate(point.date)!)}</td>
                 {services.map((value, index) => <td key={`${measures[index].serviceType}:${measures[index].unit}`}>
@@ -110,7 +117,7 @@ export function ProjectScopeDailyTable({ points, filterLabel }: {
             </SortableTable>
           </div>
           <div className="acp-scope-daily__mobile" aria-label="Avanço diário em cartões">
-            {rows.map(({ point, services, totals }) => {
+            {shownRows.map(({ point, services, totals }) => {
               const dailyTotals = totals.flatMap((value, index) => value == null ? [] : [{ unit: units[index], value }]);
               const dailyServices = measures.flatMap((measure, index) => {
                 const value = services[index];
@@ -149,6 +156,11 @@ export function ProjectScopeDailyTable({ points, filterLabel }: {
               </article>;
             })}
           </div>
+          {limit != null && rows.length > limit ? <div className="acp-scope-daily__more">
+            <Button type="button" size="sm" variant="secondary" onClick={() => setShowAll(current => !current)}>
+              {showAll ? `Mostrar só os últimos ${limit}` : `Ver todos os ${rows.length} lançamentos`}
+            </Button>
+          </div> : null}
         </>}
       </div>
     </details>

@@ -19,7 +19,7 @@ test('dashboard integrado preserva indicadores, consultas e permissões', async 
     const { ProjectDetailDashboard } = await server.ssrLoadModule('/src/components/projects/ProjectDetailDashboard.tsx');
     const { ProjectOverviewMetrics } = await server.ssrLoadModule('/src/components/projects/ProjectOverviewMetrics.tsx');
     const { MissionWeeklyProgressPanel } = await server.ssrLoadModule('/src/components/projects/MissionWeeklyProgressPanel.tsx');
-    const { WeeklyTargetSpotlight } = await server.ssrLoadModule('/src/components/projects/WeeklyTargetSpotlight.tsx');
+    const { WeeklyTargetSpotlight, WeeklyTargetSummaryLine } = await server.ssrLoadModule('/src/components/projects/WeeklyTargetSpotlight.tsx');
     const { ProjectInvoicesSection } = await server.ssrLoadModule('/src/components/projects/ProjectInvoicesSection.tsx');
     const auth = { user: { id: 'u', moduleRoles: ['rdo:manager'] }, isAuthenticated: true };
     const render = (Component, props) => renderToStaticMarkup(createElement(QueryClientProvider, { client },
@@ -31,18 +31,42 @@ test('dashboard integrado preserva indicadores, consultas e permissões', async 
     client.setQueryData(['qualidade', 'project-deviations', 'p'], []);
     setDetail(true);
     const manager = render(ProjectDetailDashboard, { projectId: 'p', canManage: true, canManageManualCosts: true, canManageProjectNotes: true });
-    for (const value of ['105.000,00', '260h', 'Dias úteis', 'Dias parados', 'Último RDO', 'Consultar escopo', 'Ver relatórios', 'Editar cronograma', 'Adicionar custo']) {
+    // Resumo de reunião: selo de saúde, quatro indicadores, leitura e atenção; o detalhe abre sob demanda.
+    for (const value of ['Saúde do projeto', 'Atenção', 'Nota 0,90 de 2', 'Gastos', 'Avanço do escopo', 'Relatórios assinados', 'Prazo',
+      '105.000,00', '62,5', 'Último RDO', 'Meta semanal', 'Leitura para a reunião', 'Pontos de atenção', '5.000,00 acima do previsto',
+      '3 RDOs aguardando assinatura', 'Prazo previsto próximo do encerramento', 'Consultar escopo', 'Editar cronograma']) {
       assert.ok(manager.includes(value), value);
     }
-    assert.ok(manager.indexOf('Histórico do avanço') < manager.indexOf('Composição do avanço'));
-    assert.ok(manager.indexOf('Composição do avanço') < manager.indexOf('Colaboradores na obra'));
-    // A meta da semana fica logo abaixo do cabeçalho; a tabela vai para o histórico.
-    assert.ok(manager.indexOf('Meta da semana') > -1 && manager.indexOf('Meta da semana') < manager.indexOf('Consumo de gastos'));
+    assert.equal((manager.match(/data-acp-meeting-kpi=/g) ?? []).length, 4);
+    assert.match(manager, /aria-expanded="false" aria-controls="acp-meeting-detail-cost"/);
+    assert.doesNotMatch(manager, /data-acp-meeting-detail=|Consumo de gastos|Histórico do avanço|Ver relatórios|Adicionar custo|Meta da semana/);
+    assert.ok(manager.indexOf('data-acp-meeting-kpi') < manager.indexOf('Leitura para a reunião'));
+    // Painel do projeto em abas; sem aba escolhida, nada operacional é renderizado.
+    assert.deepEqual([...manager.matchAll(/data-acp-detail-tab="([a-z]+)"/g)].map(match => match[1]), ['team', 'financial', 'quality', 'resources', 'daily']);
+    assert.match(manager, /Escolha uma aba para abrir/);
+    assert.doesNotMatch(manager, /Colaboradores na obra|Avanço diário do escopo|Equipamentos na obra/);
+    assert.ok(manager.indexOf('Leitura para a reunião') < manager.indexOf('data-acp-detail-tabs'));
     assert.doesNotMatch(manager, /Meta semanal de avanço/);
     assert.doesNotMatch(manager, /Leitura rápida|Prazos com contexto|O projeto em um olhar/);
     setDetail(false);
     const viewer = render(ProjectDetailDashboard, { projectId: 'p' });
-    assert.match(viewer, /Consumo de gastos/);
+    assert.match(viewer, /data-acp-meeting-kpi="cost"/);
+    assert.doesNotMatch(viewer, /data-acp-detail-tab="financial"/);
+
+    // Preferência por usuário: a última aba abre direto.
+    const storage = new Map();
+    globalThis.window = { localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) } };
+    try {
+      setDetail(true);
+      const key = 'filtrovali:acompanhamento-project-tab:v1:u';
+      storage.set(key, 'daily');
+      const daily = render(ProjectDetailDashboard, { projectId: 'p', canManage: true, progressHistoryNoveltyUser: { id: 'u' } });
+      assert.match(daily, /aria-selected="true"[^>]*data-acp-detail-tab="daily"/);
+      assert.match(daily, /Avanço diário do escopo/);
+      assert.doesNotMatch(daily, /Trabalho|Apresentação · cópia/);
+      storage.set(key, 'inválida');
+      assert.match(render(ProjectDetailDashboard, { projectId: 'p', progressHistoryNoveltyUser: { id: 'u' } }), /Escolha uma aba para abrir/);
+    } finally { delete globalThis.window; }
     assert.doesNotMatch(viewer, /Gastos e retorno|Faturamentos realizados|Impostos do projeto|Adicionar custo|Editar cronograma|Definir meta/);
 
     const invoice = (id, issuedAt, amount) => ({ id, number: id, type: 'NFSE', issuedAt, amount,
@@ -113,6 +137,27 @@ test('dashboard integrado preserva indicadores, consultas e permissões', async 
     assert.equal(render(WeeklyTargetSpotlight, { owner: spotlightOwner, progressHistory, onOpenHistory() {} }), '');
     assert.match(render(WeeklyTargetSpotlight, { owner: spotlightOwner, progressHistory, canManage: true, onOpenHistory() {} }), /Nenhuma meta cadastrada[\s\S]*Definir meta/);
     client.setQueryData(['mission-weekly-targets', '/acompanhamento/comercial/projetos/p/metas-semanais', false], { targets });
+
+    // Resumo do card de avanço: meta por colaborador/dia mostra um bloco por dia com RDO da semana fechada.
+    const perDayOwner = { area: 'acompanhamento', projectId: 'per-day' };
+    const closedDays = [-7, -6, -5].map(shift);
+    client.setQueryData(['mission-weekly-targets', '/acompanhamento/comercial/projetos/per-day/metas-semanais', false], {
+      targets: [{ id: 'pd', weekStartDate: shift(-7), plannedPctPoints: null, revision: 1, author: { name: 'Gestora' }, createdAt: `${shift(-7)}T12:00:00Z`,
+        definition: { version: 2, logic: 'ALL', repeatWeekly: true,
+          goals: [{ kind: 'SERVICE', serviceType: 'LIMPEZA_QUIMICA', metric: 'M', basis: 'PER_PRODUCTIVE_DAY', value: 20 }] } }],
+      serviceHistory: closedDays.flatMap((date, index) => [
+        { date, serviceType: 'LIMPEZA_QUIMICA', quantities: { M: [70, 50, 60][index], L: 0, UN: 0 } },
+        { date, serviceType: 'LIMPEZA_QUIMICA', quantities: { M: 0, L: 0, UN: 0 }, productivityIssues: [], productivePersonDays: 3 }
+      ]),
+      attendanceHistory: []
+    });
+    const perDay = render(WeeklyTargetSummaryLine, { owner: perDayOwner, progressHistory: [] });
+    assert.match(perDay, /Semana fechada/);
+    assert.match(perDay, /Por dia/);
+    assert.equal((perDay.match(/class="is-hit"/g) ?? []).length, 2);
+    assert.equal((perDay.match(/class="is-miss"/g) ?? []).length, 1);
+    assert.match(perDay, /2 de 3 dias/);
+    assert.match(perDay, new RegExp(`${closedDays[1].slice(8, 10)}/${closedDays[1].slice(5, 7)}: 50 m de 60 m`));
 
     const attendanceTargets = [-7, 0].map((days, index) => ({
       id: `attendance-${index}`, weekStartDate: shift(days), revision: 1,

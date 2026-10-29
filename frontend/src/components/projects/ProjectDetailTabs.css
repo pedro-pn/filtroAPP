@@ -1,0 +1,17 @@
+/* Painel do projeto em abas (camada 3 do dashboard). */
+.acp-detail-tabs { display: grid; min-width: 0; border: var(--border-width) solid var(--line); border-radius: var(--radius-lg); background: var(--surface); }
+.acp-detail-tabs__list { display: flex; gap: var(--space-1); min-width: 0; overflow-x: auto; padding: 0 var(--space-2); border-bottom: var(--border-width) solid var(--line); }
+.acp-detail-tabs__tab {
+  display: inline-flex; flex: none; align-items: center; gap: var(--space-2);
+  padding: var(--space-3) var(--space-3) calc(var(--space-3) - 2px); border: 0; border-bottom: 2px solid transparent;
+  background: transparent; color: var(--muted); font: inherit; font-size: var(--text-sm); font-weight: var(--font-semibold); white-space: nowrap; cursor: pointer;
+}
+.acp-detail-tabs__tab:hover { color: var(--ink); }
+.acp-detail-tabs__tab[aria-selected="true"] { border-bottom-color: var(--brand); color: var(--brand-text); }
+.acp-detail-tabs__tab:focus-visible { outline: var(--focus-ring-width) solid var(--focus-ring); outline-offset: calc(-1 * var(--focus-ring-width)); }
+.acp-detail-tabs__count { padding: 0 var(--space-2); border-radius: var(--radius-pill); background: var(--surface-2); color: var(--muted); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+.acp-detail-tabs__panel { display: grid; gap: var(--space-4); min-width: 0; padding: var(--space-4); }
+.acp-detail-tabs__hint { margin: 0; padding: var(--space-4); color: var(--muted); font-size: var(--text-sm); }
+/* As seções viram conteúdo da aba, sem moldura própria. */
+.acp-detail-tabs__panel > .fv-card { min-width: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.acp-detail-tabs__panel > .fv-card > .fv-card__body { padding: 0; }
