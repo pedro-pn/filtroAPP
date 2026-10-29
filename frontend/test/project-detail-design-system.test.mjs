@@ -65,6 +65,7 @@ test('detalhe: DS preserva valores, escopo, metas e apropriação', async t => {
         ]
       }] };
       assert.equal(model.weeklyPhysicalProgress(physicalTarget), '3 unidades/semana · 250 L de óleo/semana');
+      assert.equal(model.SERVICE_LABELS.LIMPEZA_MECANICA, 'Limpeza mecânica');
       assert.match(render(visuals.PlannedScopeView, { scope: detail.plannedScope }), /Limpeza química/);
       assert.match(render(visuals.PlannedScopeView, {}), /Nenhum escopo cadastrado/);
       assert.match(render(ProgressHistoryChart, { points: detail.progressHistory }), /acp-detail-history-line/);
@@ -176,7 +177,7 @@ test('detalhe: DS preserva valores, escopo, metas e apropriação', async t => {
             assert.equal(model.fmtDate(value), '—');
             assert.equal(model.fmtShortDate(value), '—');
           }
-          const time = render(story.ProjectTimeSnapshot, { data: {
+          const time = render(story.ProjectReportsDetail, { data: {
             ...detail,
             header: { ...detail.header, lastRdoDate: '2026-10-16T00:00:00.000Z' },
             ultimosDias: [{ ...detail.ultimosDias[0], date: '2026-10-16T00:00:00.000Z' }]
@@ -277,39 +278,48 @@ test('detalhe: DS preserva valores, escopo, metas e apropriação', async t => {
       assert.match(noScopeEnd, /Fim do escopo<\/span><strong>—/);
       assert.match(noScopeEnd, /Mobilização do escopo<\/span><strong>—/);
       assert.match(noScopeEnd, /Início do escopo<\/span><strong>10\/09\/2026/);
-      const time = render(story.ProjectTimeSnapshot, {
-        data: detail,
-        onOpenStandbyHistory() {},
-        reportsAction: createElement('button', null, 'Ver relatórios')
-      });
+      // Prazo: linha do tempo, dias e horas; as assinaturas ficam no detalhe de Relatórios.
+      const time = render(story.ProjectTimeDetail, { data: detail, onOpenStandbyHistory() {} });
+      assert.match(time, /2 dias antes do previsto/);
       assert.match(time, /9 \/ 30/);
       assert.match(time, /260h/);
       assert.match(time, /1 dia/);
       assert.match(time, /Dias úteis/);
-      assert.match(time, /Último RDO/);
-      assert.match(time, /09\/09\/2026/);
-      assert.equal((time.match(/class="acp-story-time-item"/g) ?? []).length, 6);
-      assert.match(time, /RDOs assinados<\/span><strong>5 \/ 8/);
-      assert.match(time, /Assinados \/ total de RDOs/);
-      const zeroRdos = render(story.ProjectTimeSnapshot, { data: { ...detail, rdoSignatures: { signed: 0, total: 0 } } });
-      assert.match(zeroRdos, /RDOs assinados<\/span><strong>0 \/ 0/);
+      assert.equal((time.match(/class="acp-story-time-item"/g) ?? []).length, 5);
+      assert.doesNotMatch(time, /RDOs assinados|Últimos dias/);
       assert.match(time, /acp-story-hours-meter/);
       assert.match(time, /Normais 220h/);
       assert.match(time, /HE 40h/);
       assert.match(time, /width:55%/);
       assert.match(time, /width:10%/);
       assert.doesNotMatch(time, /Horas extras totais/);
-      assert.match(time, /Últimos dias/);
-      assert.match(time, /acp-story-time-bar/);
-      for (const status of ['green', 'yellow', 'red']) assert.match(time, new RegExp(`acp-story-time-segment ${status}`));
-      assert.match(time, /09\/09\/2026: Parado/);
       assert.match(time, /Ver histórico de standby/);
-      assert.match(time, /Ver relatórios/);
-      const withoutReports = render(story.ProjectTimeSnapshot, { data: { ...detail, ultimosDias: [] } });
+      assert.doesNotMatch(render(story.ProjectTimeDetail, { data: detail }), /Ver histórico de standby/);
+      const rental = render(story.ProjectTimeDetail, { data: { ...detail, rentalTracking: {
+        startDate: '2026-09-01', endDate: '2026-09-30', plannedDays: 30, elapsedDays: 9, remainingDays: 21, status: 'ACTIVE'
+      } } });
+      assert.match(rental, /Período da locação/);
+      assert.match(rental, /Dias de locação<\/span><strong>9 \/ 30/);
+      const reports = render(story.ProjectReportsDetail, { data: detail, reportsAction: createElement('button', null, 'Ver relatórios') });
+      assert.match(reports, /RDOs assinados<\/span><strong>5 \/ 8/);
+      assert.match(reports, /Assinados \/ total de RDOs/);
+      assert.match(reports, /Aguardando assinatura<\/span><strong>3</);
+      assert.match(reports, /Último RDO<\/span><strong>09\/09\/2026/);
+      const zeroRdos = render(story.ProjectReportsDetail, { data: { ...detail, rdoSignatures: { signed: 0, total: 0 } } });
+      assert.match(zeroRdos, /RDOs assinados<\/span><strong>0 \/ 0/);
+      assert.match(reports, /Últimos dias/);
+      assert.match(reports, /acp-story-time-bar/);
+      for (const status of ['green', 'yellow', 'red']) assert.match(reports, new RegExp(`acp-story-time-segment ${status}`));
+      assert.match(reports, /09\/09\/2026: Parado/);
+      assert.match(reports, /Ver relatórios/);
+      const withoutReports = render(story.ProjectReportsDetail, { data: { ...detail, ultimosDias: [] } });
       assert.match(withoutReports, /Sem relatórios de execução/);
       assert.doesNotMatch(withoutReports, /acp-story-time-bar/);
       const costs = render(story.ProjectFinancialSnapshot, { data: detail });
       assert.match(costs, /R\$\s105\.000,00/);
+      const meetingStatus = render(story.ProjectFinancialSnapshot, { data: detail, status: { tone: 'warning', label: 'À frente do avanço' } });
+      assert.match(meetingStatus, /acp-story-status is-warning">À frente do avanço/);
+      assert.doesNotMatch(meetingStatus, /Acima do previsto/);
       assert.match(costs, /R\$\s5\.000,00 acima do previsto/);
       for (const value of ['Compras Omie', 'Estoque', 'Custos manuais', 'Mão de obra']) assert.ok(costs.includes(value), value);
       const billing = render(story.ProjectBillingSnapshot, { data: detail });
@@ -398,6 +408,40 @@ test('detalhe: DS preserva valores, escopo, metas e apropriação', async t => {
       const result = await model.manualCostFormResolver({ ...input, amount: '0' });
       assert.equal(result.errors.amount.message, 'Informe um valor maior que zero.');
     });
+    await t.test('painel do projeto em abas e avanço diário limitado aos últimos lançamentos', async () => {
+      const { ProjectDetailTabs } = await server.ssrLoadModule('/src/components/projects/ProjectDetailTabs.tsx');
+      const tabs = [
+        { key: 'team', label: 'Equipe', count: 2, content: 'Tabela de colaboradores' },
+        { key: 'daily', label: 'Avanço diário', content: 'Tabela diária' }
+      ];
+      const closed = render(ProjectDetailTabs, { tabs, selected: null, onSelect() {} });
+      assert.match(closed, /role="tablist"/);
+      assert.match(closed, /Escolha uma aba para abrir/);
+      assert.doesNotMatch(closed, /role="tabpanel"|Tabela de colaboradores|aria-controls/);
+      assert.match(closed, /tabindex="0"[^>]*data-acp-detail-tab="team"/);
+      const open = render(ProjectDetailTabs, { tabs, selected: 'daily', onSelect() {} });
+      assert.match(open, /role="tabpanel"/);
+      assert.match(open, /Tabela diária/);
+      assert.doesNotMatch(open, /Tabela de colaboradores/);
+      assert.match(open, /aria-selected="true" aria-controls="[^"]+" tabindex="0" data-acp-detail-tab="daily"/);
+      assert.match(open, /Equipe<span class="acp-detail-tabs__count">2<\/span>/);
+
+      const points = Array.from({ length: 20 }, (_, index) => ({
+        date: `2026-09-${String(index + 1).padStart(2, '0')}`, progressPct: (index + 1) * 5,
+        services: [{ serviceType: 'LIMPEZA_QUIMICA', progressPct: (index + 1) * 5, quantities: [{ unit: 'M', realizedQty: (index + 1) * 10 }] }]
+      }));
+      const limited = render(ProjectScopeDailyTable, { points, limit: 14 });
+      assert.equal((limited.match(/<tr>/g) ?? []).length - 1, 14);
+      assert.match(limited, /Últimos 14 de 20 lançamentos/);
+      assert.match(limited, /Ver todos os 20 lançamentos/);
+      assert.match(limited, /20\/09\/2026/);
+      assert.doesNotMatch(limited, /06\/09\/2026/);
+      // O incremento do lançamento mais antigo exibido continua relativo ao dia anterior oculto.
+      assert.match(limited, /07\/09\/2026[\s\S]*?>10 m</);
+      const full = render(ProjectScopeDailyTable, { points });
+      assert.equal((full.match(/<tr>/g) ?? []).length - 1, 20);
+      assert.doesNotMatch(full, /Ver todos/);
+    });
   } finally { await server.close(); }
 });
 
@@ -415,7 +459,9 @@ test('detalhe: estados e fronteira DS incluem cronograma e preservam diálogos d
   }
   assert.match(main, /<ProjectReportsDialog/);
   assert.match(main, /<ProjectDetailOverview/);
-  assert.doesNotMatch(main, /<ProjectTimelineCard|Prazos com contexto/);
+  // A linha do tempo voltou dentro do detalhe do card Prazo (resumo de reunião).
+  assert.match(main, /<ProjectTimeDetail /);
+  assert.doesNotMatch(main, /<ProjectTimelineCard|<ProjectTimeSnapshot|Prazos com contexto/);
   assert.match(main, /<ProjectScopeDialog/);
   assert.match(source('ProjectScopeDialog.tsx'), /<PlannedScopeView/);
   assert.doesNotMatch(main, /Conferir cálculo de dias e horas|Detalhar metas e composição do avanço/);

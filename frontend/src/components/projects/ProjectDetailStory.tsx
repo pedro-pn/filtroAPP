@@ -8,15 +8,8 @@ import { CalendarClock, ClipboardList, Clock3, Coins, FileText, HardHat, Hourgla
 import { brl, DAY_META, fmtDate, fmtHM, fmtHours, toNum } from './projectDetailModel';
 import { ProposalContributionDetails } from './ProjectDetailVisuals';
 import { ProjectDetailSection } from './ProjectDetailSection';
+import { dateGapDays, durationLabel } from './projectMeetingModel';
 import './ProjectDetailStory.css';
-
-function dateGapDays(projected: string | null, expected: string | null) {
-  if (!projected || !expected) return null;
-  const projectedMs = new Date(projected).getTime();
-  const expectedMs = new Date(expected).getTime();
-  return Number.isFinite(projectedMs) && Number.isFinite(expectedMs)
-    ? Math.round((projectedMs - expectedMs) / 86400000) : null;
-}
 
 function pct(value: number | null) {
   return value == null ? '—' : `${value.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
@@ -34,7 +27,7 @@ export function ProjectTimelineCard({ data }: { data: ProjectDetail }) {
   return <Card padding="sm" className="acp-story-timeline" data-acp-timeline>
     <div className="acp-story-card-head"><div><p>{data.division ? 'Linha do tempo da divisão' : 'Linha do tempo da missão'}</p><h3>{data.division ? 'A divisão em relação ao cronograma' : 'O projeto em relação ao cronograma'}</h3></div>
       <span className={`acp-story-status ${gap == null ? 'is-neutral' : gap > 0 ? 'is-warning' : 'is-success'}`}>
-        {gap == null ? 'Sem projeção comparável' : gap > 0 ? `${gap} ${gap === 1 ? 'dia' : 'dias'} após o previsto` : gap < 0 ? `${Math.abs(gap)} ${gap === -1 ? 'dia' : 'dias'} antes do previsto` : 'Na data prevista'}
+        {gap == null ? 'Sem projeção comparável' : gap > 0 ? `${durationLabel(gap)} após o previsto` : gap < 0 ? `${durationLabel(Math.abs(gap))} antes do previsto` : 'Na data prevista'}
       </span>
     </div>
     <ol className="acp-story-milestones">{milestones.map((milestone, index) => <li key={milestone.label} className={milestone.date ? index < 2 ? 'is-recorded' : index === 2 ? 'is-projected' : '' : ''}>
@@ -45,15 +38,42 @@ export function ProjectTimelineCard({ data }: { data: ProjectDetail }) {
   </Card>;
 }
 
-export function ProjectTimeSnapshot({ data, onOpenStandbyHistory, reportsAction, progressPanel }: {
-  data: ProjectDetail;
-  onOpenStandbyHistory?: () => void;
-  reportsAction?: ReactNode;
-  progressPanel?: ReactNode;
-}) {
-  if (data.rentalTracking) return <Card padding="sm" className="acp-story-time"><h3>Dias de locação</h3>
-    <p>{data.rentalTracking.elapsedDays ?? '—'} de {data.rentalTracking.plannedDays ?? '—'} dias corridos</p>
-    <p>{data.rentalTracking.remainingDays ?? '—'} dia(s) restante(s)</p></Card>;
+function LastDaysBar({ days }: { days: ProjectDetail['ultimosDias'] }) {
+  return <div className="acp-story-time-days">
+    <strong><HelpTip help="Status dos dias mais recentes com relatório de execução: verde = trabalhado, amarelo = trabalhado com standby, vermelho = totalmente parado. Passe o mouse para ver as horas.">Últimos dias</HelpTip></strong>
+    {days.length === 0 ? <span className="acp-story-time-empty">Sem relatórios de execução.</span>
+      : <div className="acp-story-time-bar" role="group" aria-label="Situação dos últimos dias">
+        {days.map((day, index) => <PortalTip
+          key={`${day.date}-${index}`}
+          triggerClassName={`acp-story-time-segment ${DAY_META[day.status].cls}`}
+          ariaLabel={`${fmtDate(day.date)}: ${DAY_META[day.status].label}`}
+          content={<>
+            <div className="acp-detail-tip-date">{fmtDate(day.date)}</div>
+            <div className="acp-detail-tip-status"><span className={`acp-detail-tip-dot ${DAY_META[day.status].cls}`} />{DAY_META[day.status].label}</div>
+            <div className="acp-detail-tip-row"><span>Trabalhado</span><strong>{fmtHM(day.workedMinutes)}</strong></div>
+            <div className="acp-detail-tip-row"><span>Standby</span><strong>{fmtHM(day.standbyMinutes)}</strong></div>
+          </>}
+        ><span aria-hidden="true" /></PortalTip>)}
+      </div>}
+  </div>;
+}
+
+type TimeItem = { label: string; value: string; sub: string; percent?: number | null; icon: typeof CalendarClock; help?: string; extra?: ReactNode };
+
+function TimeItems({ items }: { items: TimeItem[] }) {
+  return <div className="acp-story-time-grid">{items.map(item => <div className="acp-story-time-item" key={item.label}>
+    <span className="acp-story-time-icon"><AppIcon icon={item.icon} size="sm" /></span><span>{item.help ? <HelpTip help={item.help}>{item.label}</HelpTip> : item.label}</span><strong>{item.value}</strong><small>{item.sub}</small>
+    {item.extra ?? (item.percent != null ? <div className="acp-story-meter" aria-hidden="true"><i style={{ width: `${Math.min(100, Math.max(0, item.percent))}%` }} /></div> : null)}
+  </div>)}</div>;
+}
+
+/** Detalhe do card Prazo: linha do tempo, dias e horas da execução registrada. */
+export function ProjectTimeDetail({ data, onOpenStandbyHistory }: { data: ProjectDetail; onOpenStandbyHistory?: () => void }) {
+  if (data.rentalTracking) return <div className="acp-story-time-detail" data-acp-time-detail><ProjectTimelineCard data={data} />
+    <TimeItems items={[
+      { label: 'Dias de locação', value: `${data.rentalTracking.elapsedDays ?? '—'} / ${data.rentalTracking.plannedDays ?? '—'}`, sub: 'Dias corridos do período', icon: CalendarClock },
+      { label: 'Dias restantes', value: `${data.rentalTracking.remainingDays ?? '—'}`, sub: data.rentalTracking.remainingDays == null ? 'Informe início e fim no cadastro do projeto.' : 'Até o fim da locação', icon: Hourglass }
+    ]} /></div>;
   const hours = data.workedHours;
   const workedHoursPct = hours?.plannedTotalHours != null && hours.plannedTotalHours > 0
     ? hours.totalPct ?? Math.round((hours.totalWorkedHours / hours.plannedTotalHours) * 100)
@@ -63,72 +83,54 @@ export function ProjectTimeSnapshot({ data, onOpenStandbyHistory, reportsAction,
   const hoursScale = Math.max(hours?.plannedTotalHours ?? 0, normalHours + overtimeHours, 1);
   const normalWidth = Math.min(100, Math.round(normalHours / hoursScale * 1000) / 10);
   const overtimeWidth = Math.min(100 - normalWidth, Math.round(overtimeHours / hoursScale * 1000) / 10);
-  const items = [
-    { label: 'Dias corridos', value: `${data.diasCorridos.elapsed ?? '—'} / ${data.diasCorridos.planned ?? '—'}`, sub: `${pct(data.diasCorridos.pct)} do prazo`, percent: data.diasCorridos.pct, icon: CalendarClock, help: null },
-    { label: 'Dias trabalhados', value: `${data.diasTrabalhados.worked} / ${data.diasTrabalhados.planned ?? '—'}`, sub: `${pct(data.diasTrabalhados.pct)} do planejado`, percent: data.diasTrabalhados.pct, icon: HardHat, help: null },
-    { label: 'Horas trabalhadas', value: `${fmtHours(hours?.totalWorkedHours ?? 0)}${workedHoursPct != null ? ` · ${pct(workedHoursPct)}` : ''}`, sub: hours?.plannedTotalHours != null ? `de ${fmtHours(hours.plannedTotalHours)} previstas` : 'Sem previsão de horas', percent: null, icon: Clock3, help: 'Soma das horas-homem dos relatórios de execução, separando horas normais e horas extras. Cada turno é multiplicado pela quantidade de colaboradores daquele turno. O percentual compara o total trabalhado com as horas previstas.' },
-    { label: 'Dias úteis', value: `${data.businessDays ?? '—'}`, sub: 'Dias úteis decorridos', percent: null, icon: CalendarClock, help: 'Dias de segunda a sexta decorridos desde o início, sem descontar feriados. Segue o mesmo período dos dias corridos.' },
-    { label: 'Dias parados', value: data.stoppedDays == null ? '—' : `${data.stoppedDays} ${data.stoppedDays === 1 ? 'dia' : 'dias'}`, sub: `${fmtHM(data.standby.minutes)} de standby`, percent: null, icon: Hourglass, help: 'Datas distintas em que o standby cobriu a jornada completa. O tempo de standby inclui também as paradas parciais.' },
-    { label: 'RDOs assinados', value: `${data.rdoSignatures?.signed ?? '—'} / ${data.rdoSignatures?.total ?? '—'}`, sub: 'Assinados / total de RDOs', percent: null, icon: ClipboardList, help: null }
-  ];
-  return <Card padding="sm" className="acp-story-time" data-acp-time-snapshot>
-    <ProjectDetailSection label="Evolução" header={<>
-      <div className="acp-story-card-head"><div><h3>Evolução</h3><p className="acp-detail-section-subtitle">Execução registrada</p></div><span className="acp-story-soft-label">RDO e ponto</span></div>
-    </>}>
-      <div className="acp-story-time-grid">{items.map(item => <div className="acp-story-time-item" key={item.label}>
-        <span className="acp-story-time-icon"><AppIcon icon={item.icon} size="sm" /></span><span>{item.help ? <HelpTip help={item.help}>{item.label}</HelpTip> : item.label}</span><strong>{item.value}</strong><small>{item.sub}</small>
-        {item.label === 'Horas trabalhadas' ? <div className="acp-story-hours-breakdown" role="group" aria-label="Composição das horas trabalhadas">
-          <div className="acp-story-hours-meter" aria-hidden="true">
-            <span className="is-normal" style={{ width: `${normalWidth}%` }} />
-            <span className="is-overtime" style={{ width: `${overtimeWidth}%` }} />
-          </div>
-          <div className="acp-story-hours-legend">
-            <span><i className="is-normal" />Normais {fmtHours(normalHours)}</span>
-            <span><i className="is-overtime" />HE {fmtHours(overtimeHours)}</span>
-          </div>
-        </div> : item.percent != null ? <div className="acp-story-meter" aria-hidden="true"><i style={{ width: `${Math.min(100, Math.max(0, item.percent))}%` }} /></div> : null}
-      </div>)}
-        <Card padding="sm" className="acp-overview-kpi acp-detail-last-rdo" data-acp-detail-last-rdo>
-          <div className="acp-overview-kpi-icon"><AppIcon icon={ClipboardList} /></div>
-          <span>Último RDO</span><strong>{fmtDate(data.header.lastRdoDate)}</strong>
-          <small>{data.header.lastRdoDate ? 'Último lançamento registrado' : 'Sem relatório registrado'}</small>
-        </Card>
-      </div>
-      {progressPanel}
-      <div className="acp-story-time-extras">
-        <div className="acp-story-time-days">
-          <ProjectDetailSection label="Últimos dias" header={<>
-            <strong><HelpTip help="Status dos dias mais recentes com relatório de execução: verde = trabalhado, amarelo = trabalhado com standby, vermelho = totalmente parado. Passe o mouse para ver as horas.">Últimos dias</HelpTip></strong>
-          </>}>
-            {data.ultimosDias.length === 0 ? <span className="acp-story-time-empty">Sem relatórios de execução.</span>
-              : <div className="acp-story-time-bar" role="group" aria-label="Situação dos últimos dias">
-                {data.ultimosDias.map((day, index) => <PortalTip
-                  key={`${day.date}-${index}`}
-                  triggerClassName={`acp-story-time-segment ${DAY_META[day.status].cls}`}
-                  ariaLabel={`${fmtDate(day.date)}: ${DAY_META[day.status].label}`}
-                  content={<>
-                    <div className="acp-detail-tip-date">{fmtDate(day.date)}</div>
-                    <div className="acp-detail-tip-status"><span className={`acp-detail-tip-dot ${DAY_META[day.status].cls}`} />{DAY_META[day.status].label}</div>
-                    <div className="acp-detail-tip-row"><span>Trabalhado</span><strong>{fmtHM(day.workedMinutes)}</strong></div>
-                    <div className="acp-detail-tip-row"><span>Standby</span><strong>{fmtHM(day.standbyMinutes)}</strong></div>
-                  </>}
-                ><span aria-hidden="true" /></PortalTip>)}
-              </div>}
-          </ProjectDetailSection>
-
+  const items: TimeItem[] = [
+    { label: 'Dias corridos', value: `${data.diasCorridos.elapsed ?? '—'} / ${data.diasCorridos.planned ?? '—'}`, sub: `${pct(data.diasCorridos.pct)} do prazo`, percent: data.diasCorridos.pct, icon: CalendarClock },
+    { label: 'Dias trabalhados', value: `${data.diasTrabalhados.worked} / ${data.diasTrabalhados.planned ?? '—'}`, sub: `${pct(data.diasTrabalhados.pct)} do planejado`, percent: data.diasTrabalhados.pct, icon: HardHat },
+    { label: 'Horas trabalhadas', value: `${fmtHours(hours?.totalWorkedHours ?? 0)}${workedHoursPct != null ? ` · ${pct(workedHoursPct)}` : ''}`, sub: hours?.plannedTotalHours != null ? `de ${fmtHours(hours.plannedTotalHours)} previstas` : 'Sem previsão de horas', icon: Clock3,
+      help: 'Soma das horas-homem dos relatórios de execução, separando horas normais e horas extras. Cada turno é multiplicado pela quantidade de colaboradores daquele turno. O percentual compara o total trabalhado com as horas previstas.',
+      extra: <div className="acp-story-hours-breakdown" role="group" aria-label="Composição das horas trabalhadas">
+        <div className="acp-story-hours-meter" aria-hidden="true">
+          <span className="is-normal" style={{ width: `${normalWidth}%` }} />
+          <span className="is-overtime" style={{ width: `${overtimeWidth}%` }} />
         </div>
-      </div>
-      {(onOpenStandbyHistory || reportsAction) ? <div className="acp-story-time-actions">
-        {onOpenStandbyHistory ? <Button type="button" size="sm" variant="secondary" aria-haspopup="dialog" data-acp-standby-history-trigger onClick={onOpenStandbyHistory}>Ver histórico de standby</Button> : null}
-        {reportsAction}
-      </div> : null}
-    </ProjectDetailSection>
-  </Card>;
+        <div className="acp-story-hours-legend">
+          <span><i className="is-normal" />Normais {fmtHours(normalHours)}</span>
+          <span><i className="is-overtime" />HE {fmtHours(overtimeHours)}</span>
+        </div>
+      </div> },
+    { label: 'Dias úteis', value: `${data.businessDays ?? '—'}`, sub: 'Dias úteis decorridos', icon: CalendarClock, help: 'Dias de segunda a sexta decorridos desde o início, sem descontar feriados. Segue o mesmo período dos dias corridos.' },
+    { label: 'Dias parados', value: data.stoppedDays == null ? '—' : `${data.stoppedDays} ${data.stoppedDays === 1 ? 'dia' : 'dias'}`, sub: `${fmtHM(data.standby.minutes)} de standby`, icon: Hourglass, help: 'Datas distintas em que o standby cobriu a jornada completa. O tempo de standby inclui também as paradas parciais.' }
+  ];
+  return <div className="acp-story-time-detail" data-acp-time-detail>
+    <ProjectTimelineCard data={data} />
+    <TimeItems items={items} />
+    {onOpenStandbyHistory ? <div className="acp-story-time-actions">
+      <Button type="button" size="sm" variant="secondary" aria-haspopup="dialog" data-acp-standby-history-trigger onClick={onOpenStandbyHistory}>Ver histórico de standby</Button>
+    </div> : null}
+  </div>;
 }
 
-export function ProjectFinancialSnapshot({ data, children, onViewAdditionalContribution }: {
+/** Detalhe do card Relatórios: assinaturas, último RDO e situação dos últimos dias. */
+export function ProjectReportsDetail({ data, reportsAction }: { data: ProjectDetail; reportsAction?: ReactNode }) {
+  const signed = data.rdoSignatures?.signed;
+  const total = data.rdoSignatures?.total;
+  const pending = signed != null && total != null ? Math.max(0, total - signed) : null;
+  return <div className="acp-story-reports-detail" data-acp-reports-detail>
+    <TimeItems items={[
+      { label: 'RDOs assinados', value: `${signed ?? '—'} / ${total ?? '—'}`, sub: 'Assinados / total de RDOs', percent: total ? (signed ?? 0) / total * 100 : null, icon: ClipboardList },
+      { label: 'Aguardando assinatura', value: pending == null ? '—' : `${pending}`, sub: pending ? 'RDOs ainda sem assinatura' : 'Nenhum RDO pendente', icon: FileText },
+      { label: 'Último RDO', value: fmtDate(data.header.lastRdoDate), sub: data.header.lastRdoDate ? 'Último lançamento registrado' : 'Sem relatório registrado', icon: ClipboardList }
+    ]} />
+    <LastDaysBar days={data.ultimosDias} />
+    {reportsAction ? <div className="acp-story-time-actions">{reportsAction}</div> : null}
+  </div>;
+}
+
+export function ProjectFinancialSnapshot({ data, children, onViewAdditionalContribution, status }: {
   data: ProjectDetail; children?: ReactNode;
   onViewAdditionalContribution?: (proposal: BudgetBreakdownSlice) => void;
+  /** Selo calculado pelo resumo de reunião (gasto comparado ao avanço); sem ele, compara só com o previsto. */
+  status?: { tone: 'success' | 'warning' | 'danger' | 'neutral'; label: string };
 }) {
   const presentation = Boolean(data.presentation);
   const actual = data.consumo.gasto + (data.maoDeObra.custo ?? 0);
@@ -145,7 +147,8 @@ export function ProjectFinancialSnapshot({ data, children, onViewAdditionalContr
   return <Card padding="sm" className="acp-story-financial" data-acp-financial-snapshot>
     <ProjectDetailSection label="Consumo de gastos" header={<>
       <div className="acp-story-card-head"><div><h3>{presentation ? 'Custo realizado' : 'Consumo de gastos'}</h3>{!presentation ? <p className="acp-detail-section-subtitle">Quanto do previsto já foi usado</p> : null}</div>
-        {!presentation ? <span className={`acp-story-status ${spentPct == null ? 'is-neutral' : spentPct > 100 ? 'is-warning' : 'is-success'}`}>{spentPct == null ? 'Sem orçamento' : spentPct > 100 ? 'Acima do previsto' : 'Dentro do previsto'}</span> : null}
+        {!presentation ? status ? <span className={`acp-story-status is-${status.tone}`}>{status.label}</span>
+          : <span className={`acp-story-status ${spentPct == null ? 'is-neutral' : spentPct > 100 ? 'is-warning' : 'is-success'}`}>{spentPct == null ? 'Sem orçamento' : spentPct > 100 ? 'Acima do previsto' : 'Dentro do previsto'}</span> : null}
       </div>
     </>}>
       <div className="acp-story-amount"><strong>{brl(actual)}</strong>{!presentation ? <span>de {brl(planned)} previstos{spentPct != null ? ` · ${pct(spentPct)}` : ''}</span> : null}</div>
