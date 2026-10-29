@@ -31,6 +31,7 @@ test('simulação das escritas: HTTP, Prisma e rollback de todas as tabelas Post
     email: 'quality@example.test', passwordHash: 'synthetic', role: 'MANAGER', accountType: 'ADMIN' } });
   const project = await prisma.project.create({ data: { code: '05776', name: 'Projeto fictício', clientName: 'Cliente',
     clientCnpj: '12345678000195', contractCode: '1234', location: 'Itajaí', workflow: { create: { leaderUserId: user.id } } } });
+  const romaneio = await prisma.romaneio.create({ data: { projectId: project.id, romaneioDate: new Date(), driverName: 'Fictício', vehiclePlate: 'ABC1D23' } });
   await prisma.commercialProposal.create({ data: { codBd: 1234, codProp: 1234, nRev: 0, rawRow: {} } });
   async function issue(writeMode = 'LIVE', extra = {}) {
     const issued = createApiToken({ key });
@@ -70,6 +71,7 @@ test('simulação das escritas: HTTP, Prisma e rollback de todas as tabelas Post
   }
   const operationPayload = id => {
     const body = structuredClone(getApiOperation(id).bodyExample);
+    if (id === 'logistics.unloadings.create') { body.romaneioId = romaneio.id; body.confirmadaPorEmail = user.email; }
     if (id === 'quality.records.create') { body.projectCode = project.code; body.actionOwnerEmail = user.email; }
     if (id === 'efetivo.projects.create') { body.code = 'new-project'; body.clientSegment = 'Segmento fictício novo'; }
     if (id === 'acompanhamento.opportunities.post') {

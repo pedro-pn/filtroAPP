@@ -423,6 +423,13 @@ paths:
                     - operational.ReportAttachment.download
                     - operational.StockItemDocument.download
                     - operational.MaintenanceAttachment.download
+                    - efetivo.projects.measurement.get
+                    - logistics.unloadings.create
+                    - efetivo.projects.measurements.list
+                    - operational.OmieInvoice.list
+                    - operational.Romaneio.list
+                    - operational.ProjectPending.list
+                    - operational.LogisticsUnloading.list
                 pathParams:
                   type: object
                   additionalProperties:
@@ -2898,7 +2905,7 @@ paths:
         - IntegrationOperational
       operationId: listIntegrationEvents
       summary: Eventos de integração — identificadores das mudanças
-      description: Feed vivo dos últimos 30 dias, sequência em ordem de commit. Exige eventos.read mais escopo do recurso e recorte do token. nextCursor também é retornado quando hasMore=false e deve ser usado no próximo polling. Cursor atrasado retorna 410 CURSOR_EXPIRED; reconciliar e reiniciar. Nenhum conteúdo no evento. Deduplicar por id.
+      description: Feed vivo dos últimos 30 dias, sequência em ordem de commit. Exige eventos.read mais escopo do recurso e recorte do token. nextCursor também é retornado quando hasMore=false e deve ser usado no próximo polling. Cursor atrasado retorna 410 CURSOR_EXPIRED; reconciliar e reiniciar. Nenhum conteúdo no evento. Deduplicar por id. Inclui medicao.alterada, nota.emitida, nota.recebimento_alterado, romaneio.emitido, pendencia.alterada e descarga.confirmada conforme o escopo de leitura de cada recurso.
       security:
         - IntegrationToken: []
       x-required-scopes:
@@ -2977,6 +2984,979 @@ paths:
                 $ref: "#/components/schemas/ValidationError"
         "429":
           $ref: "#/components/responses/RateLimited"
+
+  /integracoes/v1/efetivo/projetos/medicoes:
+    get:
+      tags:
+        - IntegrationOperational
+      operationId: listIntegrationProjectMeasurements
+      summary: Medição por projeto — situação e saldo pendente
+      description: Projetos autorizados, inclusive sem medição. Valores em BRL somente com o escopo financeiro adicional.
+      security:
+        - IntegrationToken: []
+      x-required-scopes:
+        - efetivo.projetos.medicao.read
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: updatedSince
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: snapshotAt
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: projectCode
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: projectId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Página operacional por updatedAt e id, sem campos não contratados.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                  - page
+                  - generatedAt
+                  - schemaVersion
+                  - requestId
+                properties:
+                  items:
+                    type: array
+                    items:
+                      oneOf:
+                        - type: object
+                          additionalProperties: false
+                          required:
+                            - projectId
+                            - projectCode
+                            - preparedAt
+                            - sentAt
+                            - approvedAt
+                            - situacao
+                            - saldoPendente
+                            - updatedAt
+                          properties:
+                            projectId:
+                              type: string
+                            projectCode:
+                              type: string
+                            preparedAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+                            sentAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+                            approvedAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+                            situacao:
+                              type: string
+                            saldoPendente:
+                              type: boolean
+                              nullable: true
+                            updatedAt:
+                              type: string
+                              format: date-time
+                        - type: object
+                          additionalProperties: false
+                          required:
+                            - projectId
+                            - projectCode
+                            - preparedAt
+                            - sentAt
+                            - approvedAt
+                            - situacao
+                            - saldoPendente
+                            - updatedAt
+                            - executedAmount
+                            - measuredAmount
+                            - approvedAmount
+                            - currency
+                          properties:
+                            projectId:
+                              type: string
+                            projectCode:
+                              type: string
+                            preparedAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+                            sentAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+                            approvedAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+                            situacao:
+                              type: string
+                            saldoPendente:
+                              type: boolean
+                              nullable: true
+                            updatedAt:
+                              type: string
+                              format: date-time
+                            executedAmount:
+                              type: string
+                              nullable: true
+                            measuredAmount:
+                              type: string
+                              nullable: true
+                            approvedAmount:
+                              type: string
+                              nullable: true
+                            currency:
+                              type: string
+                  page:
+                    $ref: "#/components/schemas/IntegrationPageMeta"
+                  generatedAt:
+                    type: string
+                    format: date-time
+                  schemaVersion:
+                    type: string
+                    const: "1.0"
+                  requestId:
+                    type: string
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/InvalidIntegrationToken"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+      x-optional-scopes:
+        - efetivo.projetos.medicao.valores.read
+  /integracoes/v1/omie/notas:
+    get:
+      tags:
+        - IntegrationOperational
+      operationId: listIntegrationOmieInvoice
+      summary: Notas fiscais por projeto — emissão e recebimento
+      description: Ligação exata codigoProjeto → OmieProject.codigo → projectId. Sem vínculo atual não publica. Valores em BRL.
+      security:
+        - IntegrationToken: []
+      x-required-scopes:
+        - omie.notas.read
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: updatedSince
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: snapshotAt
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: projectCode
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: projectId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Página operacional por updatedAt e id, sem campos não contratados.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                  - page
+                  - generatedAt
+                  - schemaVersion
+                  - requestId
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required:
+                        - id
+                        - projectId
+                        - projectCode
+                        - tipo
+                        - numero
+                        - serie
+                        - dataEmissao
+                        - valor
+                        - situacaoRecebimento
+                        - updatedAt
+                      properties:
+                        id:
+                          type: string
+                        projectId:
+                          type: string
+                        projectCode:
+                          type: string
+                        tipo:
+                          type: string
+                        numero:
+                          type: string
+                        serie:
+                          type: string
+                          nullable: true
+                        dataEmissao:
+                          type: string
+                          format: date-time
+                        valor:
+                          type: string
+                        situacaoRecebimento:
+                          type: string
+                        updatedAt:
+                          type: string
+                          format: date-time
+                  page:
+                    $ref: "#/components/schemas/IntegrationPageMeta"
+                  generatedAt:
+                    type: string
+                    format: date-time
+                  schemaVersion:
+                    type: string
+                    const: "1.0"
+                  requestId:
+                    type: string
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/InvalidIntegrationToken"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+      x-optional-scopes: []
+  /integracoes/v1/romaneios:
+    get:
+      tags:
+        - IntegrationOperational
+      operationId: listIntegrationRomaneio
+      summary: Romaneios de saída e retorno — resumo da carga
+      description: Resumo por projeto autorizado. Quantidade de linhas; sem motorista, placa, assinaturas ou arquivos.
+      security:
+        - IntegrationToken: []
+      x-required-scopes:
+        - romaneios.read
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: updatedSince
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: snapshotAt
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: projectCode
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: projectId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Página operacional por updatedAt e id, sem campos não contratados.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                  - page
+                  - generatedAt
+                  - schemaVersion
+                  - requestId
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required:
+                        - id
+                        - projectId
+                        - projectCode
+                        - tipo
+                        - data
+                        - emitidoEm
+                        - quantidadeItens
+                        - pesoCarga
+                        - unidadePeso
+                        - updatedAt
+                      properties:
+                        id:
+                          type: string
+                        projectId:
+                          type: string
+                        projectCode:
+                          type: string
+                        tipo:
+                          type: string
+                        data:
+                          type: string
+                          format: date-time
+                        emitidoEm:
+                          type: string
+                          format: date-time
+                          nullable: true
+                        quantidadeItens:
+                          type: integer
+                        pesoCarga:
+                          type: string
+                          nullable: true
+                        unidadePeso:
+                          type: string
+                          nullable: true
+                        updatedAt:
+                          type: string
+                          format: date-time
+                  page:
+                    $ref: "#/components/schemas/IntegrationPageMeta"
+                  generatedAt:
+                    type: string
+                    format: date-time
+                  schemaVersion:
+                    type: string
+                    const: "1.0"
+                  requestId:
+                    type: string
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/InvalidIntegrationToken"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+      x-optional-scopes: []
+  /integracoes/v1/omie/projetos/pendencias:
+    get:
+      tags:
+        - IntegrationOperational
+      operationId: listIntegrationProjectPending
+      summary: Pendências financeiras — agregado por projeto
+      description: Somente quantidades, valores abertos em BRL e próximo vencimento. Inclui zeros; saldo parcial desconhecido é nulo.
+      security:
+        - IntegrationToken: []
+      x-required-scopes:
+        - omie.pendencias.read
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: updatedSince
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: snapshotAt
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: projectCode
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: projectId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Página operacional por updatedAt e id, sem campos não contratados.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                  - page
+                  - generatedAt
+                  - schemaVersion
+                  - requestId
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required:
+                        - projectId
+                        - projectCode
+                        - aPagar
+                        - aReceber
+                        - atualizadoEm
+                      properties:
+                        projectId:
+                          type: string
+                        projectCode:
+                          type: string
+                        aPagar:
+                          type: object
+                          additionalProperties: false
+                          required:
+                            - quantidade
+                            - valorEmAberto
+                            - proximoVencimento
+                          properties:
+                            quantidade:
+                              type: integer
+                              minimum: 0
+                            valorEmAberto:
+                              type: string
+                              nullable: true
+                            proximoVencimento:
+                              type: string
+                              format: date-time
+                              nullable: true
+                        aReceber:
+                          type: object
+                          additionalProperties: false
+                          required:
+                            - quantidade
+                            - valorEmAberto
+                            - proximoVencimento
+                          properties:
+                            quantidade:
+                              type: integer
+                              minimum: 0
+                            valorEmAberto:
+                              type: string
+                              nullable: true
+                            proximoVencimento:
+                              type: string
+                              format: date-time
+                              nullable: true
+                        atualizadoEm:
+                          type: string
+                          format: date-time
+                  page:
+                    $ref: "#/components/schemas/IntegrationPageMeta"
+                  generatedAt:
+                    type: string
+                    format: date-time
+                  schemaVersion:
+                    type: string
+                    const: "1.0"
+                  requestId:
+                    type: string
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/InvalidIntegrationToken"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+      x-optional-scopes: []
+  /integracoes/v1/logistica/descargas:
+    get:
+      tags:
+        - IntegrationOperational
+      operationId: listIntegrationLogisticsUnloading
+      summary: Descargas confirmadas — histórico por romaneio
+      description: Histórico de descarga parcial e total, com e-mail do responsável e referência mínima ao CT-e.
+      security:
+        - IntegrationToken: []
+      x-required-scopes:
+        - logistica.descargas.read
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: updatedSince
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: snapshotAt
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: projectCode
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: projectId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Página operacional por updatedAt e id, sem campos não contratados.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                  - page
+                  - generatedAt
+                  - schemaVersion
+                  - requestId
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required:
+                        - id
+                        - romaneioId
+                        - projectId
+                        - projectCode
+                        - tipo
+                        - confirmadaEm
+                        - confirmadaPorEmail
+                        - cte
+                        - updatedAt
+                      properties:
+                        id:
+                          type: string
+                        romaneioId:
+                          type: string
+                        projectId:
+                          type: string
+                        projectCode:
+                          type: string
+                        tipo:
+                          type: string
+                        confirmadaEm:
+                          type: string
+                          format: date-time
+                        confirmadaPorEmail:
+                          type: string
+                        cte:
+                          type: object
+                          nullable: true
+                          additionalProperties: false
+                          required:
+                            - numero
+                            - emissao
+                            - transportadora
+                          properties:
+                            numero:
+                              type: string
+                            emissao:
+                              type: string
+                              format: date-time
+                            transportadora:
+                              type: string
+                        updatedAt:
+                          type: string
+                          format: date-time
+                  page:
+                    $ref: "#/components/schemas/IntegrationPageMeta"
+                  generatedAt:
+                    type: string
+                    format: date-time
+                  schemaVersion:
+                    type: string
+                    const: "1.0"
+                  requestId:
+                    type: string
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/InvalidIntegrationToken"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+      x-optional-scopes: []
+    post:
+      tags:
+        - IntegrationOperational
+      operationId: createIntegrationUnloading
+      summary: Confirmar descarga parcial ou total
+      security:
+        - IntegrationToken: []
+      x-required-scopes:
+        - logistica.descargas.create
+      description: "Histórico de descarga por romaneio de saída. Suporta Idempotency-Key, Prefer: validate-only e credencial SIMULATE."
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/PreferValidateOnly"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - romaneioId
+                - tipo
+                - confirmadaEm
+                - confirmadaPorEmail
+              properties:
+                romaneioId:
+                  type: string
+                tipo:
+                  type: string
+                  enum:
+                    - PARCIAL
+                    - TOTAL
+                confirmadaEm:
+                  type: string
+                  format: date-time
+                confirmadaPorEmail:
+                  type: string
+                  format: email
+            example:
+              romaneioId: romaneio-ficticio
+              tipo: TOTAL
+              confirmadaEm: 2026-10-29T12:00:00.000Z
+              confirmadaPorEmail: lider@example.test
+      responses:
+        "200":
+          description: Simulação validada; nenhuma escrita de domínio persistida. LIVE conserva sua resposta anterior.
+          headers:
+            Preference-Applied:
+              $ref: "#/components/headers/PreferenceApplied"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimulatedWriteResult"
+        "201":
+          description: Registro criado ou resposta original de reenvio idempotente.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - id
+                  - romaneioId
+                  - projectId
+                  - tipo
+                  - confirmadaEm
+                  - confirmadaPorEmail
+                  - requestId
+                properties:
+                  id:
+                    type: string
+                  romaneioId:
+                    type: string
+                  projectId:
+                    type: string
+                  tipo:
+                    type: string
+                  confirmadaEm:
+                    type: string
+                    format: date-time
+                  confirmadaPorEmail:
+                    type: string
+                  requestId:
+                    type: string
+        "400":
+          $ref: "#/components/responses/SimulatedValidationError"
+        "401":
+          $ref: "#/components/responses/SimulatedInvalidIntegrationToken"
+        "403":
+          $ref: "#/components/responses/SimulatedForbidden"
+        "404":
+          description: Romaneio inexistente ou indisponível.
+          headers:
+            Preference-Applied:
+              $ref: "#/components/headers/PreferenceApplied"
+        "409":
+          description: "IDEMPOTENCY_CONFLICT ou UNLOADING_COMPLETED: chave divergente ou descarga já encerrada."
+          headers:
+            Preference-Applied:
+              $ref: "#/components/headers/PreferenceApplied"
+        "422":
+          description: "CONFIRMING_USER_NOT_ALLOWED, OUTBOUND_REQUIRED ou data inválida: usuário sem acesso, romaneio de retorno ou confirmação fora de ordem/futura."
+          headers:
+            Preference-Applied:
+              $ref: "#/components/headers/PreferenceApplied"
+        "429":
+          $ref: "#/components/responses/SimulatedRateLimited"
+        "501":
+          $ref: "#/components/responses/SimulationNotSupported"
+      x-optional-scopes: []
+  /integracoes/v1/efetivo/projetos/{id}/medicao:
+    get:
+      tags:
+        - IntegrationOperational
+      operationId: getIntegrationProjectMeasurement
+      summary: Consultar medição do projeto
+      description: Resumo calculado no momento da consulta. O id é retornado pelo webhook de entrada ou por GET /integracoes/v1/projetos. Não
+        inclui pessoas, textos de pendências, documentos nem fatos comerciais originados no CRM.
+      security:
+        - IntegrationToken: []
+      x-required-scopes:
+        - efetivo.projetos.medicao.read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+      responses:
+        "200":
+          description: Estado operacional atual do projeto autorizado.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    additionalProperties: false
+                    required:
+                      - projectId
+                      - projectCode
+                      - preparedAt
+                      - sentAt
+                      - approvedAt
+                      - situacao
+                      - saldoPendente
+                      - updatedAt
+                      - generatedAt
+                      - schemaVersion
+                      - requestId
+                    properties:
+                      projectId:
+                        type: string
+                      projectCode:
+                        type: string
+                      preparedAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                      sentAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                      approvedAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                      situacao:
+                        type: string
+                      saldoPendente:
+                        type: boolean
+                        nullable: true
+                      updatedAt:
+                        type: string
+                        format: date-time
+                      generatedAt:
+                        type: string
+                        format: date-time
+                      schemaVersion:
+                        type: string
+                      requestId:
+                        type: string
+                  - type: object
+                    additionalProperties: false
+                    required:
+                      - projectId
+                      - projectCode
+                      - preparedAt
+                      - sentAt
+                      - approvedAt
+                      - situacao
+                      - saldoPendente
+                      - updatedAt
+                      - executedAmount
+                      - measuredAmount
+                      - approvedAmount
+                      - currency
+                      - generatedAt
+                      - schemaVersion
+                      - requestId
+                    properties:
+                      projectId:
+                        type: string
+                      projectCode:
+                        type: string
+                      preparedAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                      sentAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                      approvedAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                      situacao:
+                        type: string
+                      saldoPendente:
+                        type: boolean
+                        nullable: true
+                      updatedAt:
+                        type: string
+                        format: date-time
+                      executedAmount:
+                        type: string
+                        nullable: true
+                      measuredAmount:
+                        type: string
+                        nullable: true
+                      approvedAmount:
+                        type: string
+                        nullable: true
+                      currency:
+                        type: string
+                      generatedAt:
+                        type: string
+                        format: date-time
+                      schemaVersion:
+                        type: string
+                      requestId:
+                        type: string
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/InvalidIntegrationToken"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+      x-optional-scopes:
+        - efetivo.projetos.medicao.valores.read
 
 components:
   securitySchemes:

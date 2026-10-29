@@ -4,7 +4,7 @@ import { OPERATIONAL_DOWNLOADS } from './extended-operational-resources.js';
 import { describePlaygroundParameters } from './playground-parameters.js';
 import { CRM_PLANNING_EXAMPLE } from '../../../../shared/modules/crm-planning-example.js';
 
-export const API_CATALOG_VERSION = '2026-10-29.1';
+export const API_CATALOG_VERSION = '2026-10-29.2';
 export { API_DATA_DOMAINS, DATA_CATALOG_VERSION, flattenDataCatalogModels, futureScopeDefinitions } from './data-catalog.js';
 
 const QUALITY_RECORD_FIELDS = ['id', 'number', 'type', 'registeredAt', 'origin', 'project', 'eventDate', 'nature', 'subnature', 'description', 'impact', 'recurrence', 'linkedRnc', 'disposition', 'definedAction', 'actionOwner', 'actionDeadline', 'evidenceSummary', 'resultVerification', 'status', 'createdAt', 'updatedAt'];
@@ -17,6 +17,12 @@ const QUALITY_SCOPE_FIELDS = {
 };
 
 export const API_SCOPES = Object.freeze([
+  { code: 'efetivo.projetos.medicao.valores.read', domain: 'Planejamento de efetivo', label: 'Ler valores da medição',
+    description: 'Acrescenta valores executado, medido e aprovado em BRL à medição dos projetos autorizados.', sensitivity: 'FINANCIAL', status: 'AVAILABLE',
+    dependencies: ['efetivo.projetos.medicao.read'], models: ['ProjectWorkflowMeasurement'], exposedFields: ['executedAmount','measuredAmount','approvedAmount','currency'], excludedFields: ['observações', 'pessoas'] },
+  { code: 'logistica.descargas.create', domain: 'Romaneios', label: 'Confirmar descarga dos equipamentos',
+    description: 'Confirma descarga parcial ou total por usuário ativo com acesso ao projeto. Exige idempotência e suporta simulação.', sensitivity: 'PERSONAL',
+    status: 'AVAILABLE', dependencies: [], models: ['LogisticsUnloading'], exposedFields: ['id','romaneioId','projectId','tipo','confirmadaEm','confirmadaPorEmail'], excludedFields: ['dados completos do usuário'] },
   { code: 'rdo.relatorios.todos.read', domain: 'RDO e relatórios', label: 'Ler relatórios em todos os estados', description: 'Consulta relatórios enviados PENDING, RETURNED, APPROVED e SIGNED; inclui carimbos de envio, devolução, assinatura e liberação.', sensitivity: 'INTERNAL', status: 'AVAILABLE', dependencies: [], models: ['Report'], exposedFields: [...Object.keys(OPERATIONAL_RESOURCES.find(resource => resource.model === 'Report').fields), 'submittedAt', 'returnedAt', 'signedAt', 'clientReleasedAt'], excludedFields: ['rascunhos', 'tokens', 'imagens de assinatura'] },
   { code: 'qualidade.registros.create', domain: 'Qualidade', label: 'Criar registro de Qualidade pelo Omni', description: 'Cria desvio, incidente ou reclamação em triagem, com origem OMNI, responsável ativo e idempotência obrigatória.', sensitivity: 'INTERNAL', status: 'AVAILABLE', dependencies: [], models: ['QualityRecord'], exposedFields: ['id', 'number', 'status', 'createdAt'], excludedFields: ['usuário completo', 'dados internos de auditoria'] },
   { code: 'cargos.salarios.read', domain: 'Pessoas, cargos e acesso', label: 'Consultar salário por cargo', description: 'Salário base do cargo vigente na data de referência. Cadastro global compartilhado, independente do recorte de projetos.', sensitivity: 'PERSONAL', status: 'AVAILABLE', dependencies: [], models: ['JobRole', 'CostProfile', 'CostParameterSet'], exposedFields: ['jobRoleId', 'jobRoleName', 'salary', 'effectiveDate', 'version'], excludedFields: ['colaboradores', 'dados pessoais', 'parâmetros internos de custo', 'observações', 'identidade do editor'] },
@@ -50,6 +56,13 @@ export const API_SCOPES = Object.freeze([
 ].map(scope => QUALITY_SCOPE_FIELDS[scope.code] ? { ...scope, exposedFields: QUALITY_SCOPE_FIELDS[scope.code] } : scope));
 
 export const API_OPERATIONS = Object.freeze([
+  { operationId: 'efetivo.projects.measurement.get', openApiOperationId: 'getIntegrationProjectMeasurement', method: 'GET', path: '/efetivo/projetos/:id/medicao',
+    label: 'Consultar medição do projeto', requiredScopes: ['efetivo.projetos.medicao.read'], optionalScopes: ['efetivo.projetos.medicao.valores.read'],
+    pathParams: ['id'], queryParams: [], supportsPlayground: true },
+  { operationId: 'logistics.unloadings.create', openApiOperationId: 'createIntegrationUnloading', method: 'POST', path: '/logistica/descargas',
+    label: 'Confirmar descarga no projeto', requiredScopes: ['logistica.descargas.create'], optionalScopes: [], pathParams: [], queryParams: [],
+    headerParams: ['Idempotency-Key'], supportsPlayground: true, simulation: { strategy: 'rollback', testCase: 'logistics.unloadings.create' },
+    bodyExample: { romaneioId: 'romaneio-ficticio', tipo: 'TOTAL', confirmadaEm: '2026-10-29T12:00:00.000Z', confirmadaPorEmail: 'lider@example.test' } },
   {
     simulation: { strategy: 'rollback', testCase: 'quality.records.create' },
     operationId: 'quality.records.create', openApiOperationId: 'qualityRecordCreate', method: 'POST', path: '/qualidade/registros',

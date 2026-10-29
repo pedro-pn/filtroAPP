@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { getMissionGroupRomaneios, getProjectRomaneios, type ProjectRomaneio } from '../../api/acompanhamentoComercial';
 import { getEfetivoProjectRomaneios } from '../../api/projectWorkflow';
+import { RomaneioUnloading } from './RomaneioUnloading';
 import { Modal } from '../ui/Modal';
 import { Alert, Badge, Button, Card, DataTable, EmptyState, Skeleton } from '../ui/ds';
 import './ProjectRomaneiosDialog.ds.css';
@@ -19,7 +20,7 @@ function formatQuantity(value: string | number) {
   return Number.isFinite(number) ? number.toLocaleString('pt-BR', { maximumFractionDigits: 3 }) : String(value);
 }
 
-export function RomaneioItemsCard({ romaneio }: { romaneio: ProjectRomaneio }) {
+export function RomaneioItemsCard({ romaneio, logistics = false }: { romaneio: ProjectRomaneio; logistics?: boolean }) {
   return <Card variant="flat"
     title={`${romaneio.type === 'OUTBOUND' ? 'Saída' : 'Entrada'} · ${formatDate(romaneio.romaneioDate)}`}
     actions={romaneio.vehiclePlate ? <Badge tone="neutral">Placa {romaneio.vehiclePlate}</Badge> : undefined}>
@@ -48,6 +49,7 @@ export function RomaneioItemsCard({ romaneio }: { romaneio: ProjectRomaneio }) {
         ]
       }) }}
     />
+    {logistics && romaneio.type === 'OUTBOUND' ? <RomaneioUnloading romaneioId={romaneio.id} /> : null}
   </Card>;
 }
 
@@ -103,7 +105,7 @@ export function ProjectRomaneiosDialog({ projectId, groupId, missionLabel, sourc
                 <Badge tone="brand">{romaneios.length} romaneio{romaneios.length === 1 ? '' : 's'}</Badge>
                 <span>{itemCount} ite{itemCount === 1 ? 'm listado' : 'ns listados'}</span>
               </div>
-              {romaneios.map(romaneio => <RomaneioItemsCard key={romaneio.id} romaneio={romaneio} />)}
+              {romaneios.map(romaneio => <RomaneioItemsCard key={romaneio.id} logistics={source === 'efetivo'} romaneio={romaneio} />)}
             </>}
         </div>
       </Modal>

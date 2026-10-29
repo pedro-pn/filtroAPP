@@ -1,7 +1,7 @@
 # Feature Specification: Integração Omni — fase 2
 
 **Created**: 2026-10-28
-**Status**: Entrega A implementada e validada localmente, sem deploy; Entrega B em backlog
+**Status**: Entrega A implementada e validada localmente, sem deploy; Entrega B implementada e validada localmente, sem deploy
 **Input**: `../omni/docs/integracoes/prompt-filtroapp-omni.md`, Parte 2.
 
 ## User Scenarios & Testing
@@ -104,7 +104,7 @@ O filtroAPP registra vínculos estruturados para vendedor, documentação e mobi
 - **FR-007**: Expor somente as duas condições comerciais solicitadas em escopo mínimo independente de comercial.*.
 - **FR-008**: Liberar os sete escopos de Gestão definidos na US7 com projeções mínimas, cotas, paginação e isolamento por projeto; ponto somente agregado.
 - **FR-009**: Projetar os novos vínculos e data da US8 com validação, auditoria e estratégia de compatibilidade.
-- **FR-010**: Liberar apenas eventos.read, rdo.relatorios.todos.read e qualidade.registros.create na Entrega A. US5–US8 ficam para Entrega B; US4 não é necessária para o Omni.
+- **FR-010**: Liberar apenas eventos.read, rdo.relatorios.todos.read e qualidade.registros.create na Entrega A. Entrega B publica medição, notas, romaneios, pendências e US5; US6–US8 remanescentes ficam em backlog; US4 não é necessária para o Omni.
 
 ### Key Entities
 
@@ -120,3 +120,12 @@ Evento de saída, relatório em revisão/assinatura, registro de Qualidade de or
 ## Dependencies and Assumptions
 
 Entrega A contratada por `../omni/docs/integracoes/prompt-filtroapp-fase2.md`, detalhada em plan.md e contracts/omni-phase2.md. Entrega B depende de contratos de CT-e, agregações e migração de vínculos. O Omni mantém seu calendário; feriados só serão implementados por necessidade própria do filtroAPP.
+
+
+## Extensão Entrega B (2026-10-29)
+
+Input adicional: ../omni/docs/integracoes/prompt-filtroapp-entrega-b.md.
+Ordem e contrato em [delivery-b.md](contracts/delivery-b.md): B1 medição e valores
+condicionais; B2 notas ligadas por código Omie exato; B3 resumo dos romaneios;
+B4 pendências agregadas; B5 histórico de descarga idempotente e simulável, com
+importação de CT-e por ID conhecido. Demais itens US6–US8 permanecem planejados.

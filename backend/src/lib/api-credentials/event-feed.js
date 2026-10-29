@@ -11,7 +11,12 @@ export const EVENT_RESOURCE_SCOPES = Object.freeze({
   'workflow.etapa_alterada': ['efetivo.projetos.status.read'],
   'qualidade.criado': ['qualidade.registros.read'],
   'qualidade.alterado': ['qualidade.registros.read'],
-  'romaneio.emitido': ['romaneios.itens.read'],
+  'medicao.alterada': ['efetivo.projetos.medicao.read'],
+  'nota.emitida': ['omie.notas.read'],
+  'nota.recebimento_alterado': ['omie.notas.read'],
+  'pendencia.alterada': ['omie.pendencias.read'],
+  'descarga.confirmada': ['logistica.descargas.read'],
+  'romaneio.emitido': ['romaneios.read'],
   'projeto.responsaveis_alterados': ['projetos.responsaveis.read']
 });
 

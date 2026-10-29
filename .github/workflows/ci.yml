@@ -256,6 +256,7 @@ jobs:
         run: >-
           node --test test/integration-omni-phase2.test.js
           test/integration-omni-phase2-postgres.test.js test/integration-omni-projects.test.js
+          test/integration-omni-delivery-b.test.js
 
   notifications:
     name: Notifications (PostgreSQL)

@@ -105,3 +105,34 @@ test('PostgreSQL completo: Bearer HTTP, migração, Prisma, idempotência concor
   const ctx={credentialId:auth.credential.id,scopes:new Set(scopes),projectAccessMode:'SELECTED',projectIds:new Set([project.id]),projectCodes:new Set([project.code])};
   await assert.rejects(()=>createIntegrationQualityRecord(prisma,{...body,actionOwnerEmail:'missing@example.test'},randomUUID(),ctx),e=>e.statusCode===422);
 });
+
+test('Entrega B PostgreSQL: confirmações concorrentes por credenciais distintas não duplicam histórico/evento', {
+  skip: !process.env.TEST_OMNI_PHASE2_DATABASE_URL
+}, async t => {
+  const url = process.env.TEST_OMNI_PHASE2_DATABASE_URL;
+  assert.match(new URL(url).pathname, /^\/omni_phase2_test(?:_|$)/);
+  const pool = new pg.Pool({ connectionString: url, max: 8 });
+  const prisma = new PrismaClient({ adapter: new PrismaPg(pool, { disposeExternalPool: true }) });
+  t.after(() => prisma.$disconnect());
+  const { createUnloading } = await import('../src/lib/logistica/unloading.js');
+  const suffix = randomUUID();
+  const user = await prisma.user.create({ data: { username: suffix, name: 'Líder fictício', email: suffix+'@example.test', passwordHash: 'synthetic', role: 'COORDINATOR' } });
+  const project = await prisma.project.create({ data: { code: suffix, name: 'Projeto fictício', clientName: 'Cliente', clientCnpj: '12345678000195', contractCode: 'ficticio', location: 'Itajaí', workflow: { create: { leaderUserId: user.id } } } });
+  const romaneio = await prisma.romaneio.create({ data: { projectId: project.id, romaneioDate: new Date(), driverName: 'Fictício', vehiclePlate: 'ABC1D23' } });
+  const context = async () => {
+    const token = createApiToken({ key: 'synthetic-omni-delivery-b-postgres-key' });
+    const credential = await prisma.apiCredential.create({ data: { selector: token.selector, secretVerifier: token.verifier, secretLastFour: token.secretLastFour, hashKeyVersion: 1,
+      name: 'Teste B', purpose: 'Teste', recipientName: 'Omni', startsAt: new Date(0), projectAccessMode: 'ALL', createdByUserId: user.id, issuanceRequestId: randomUUID() } });
+    return { credentialId: credential.id, scopes: new Set(['logistica.descargas.create']), projectAccessMode: 'ALL' };
+  };
+  const first = await context(), second = await context();
+  const body = { romaneioId: romaneio.id, tipo: 'PARCIAL', confirmadaEm: '2026-10-01T12:00:00Z', confirmadaPorEmail: user.email };
+  const key = randomUUID();
+  const results = await Promise.all([createUnloading(prisma, body, key, first), createUnloading(prisma, body, key, first), createUnloading(prisma, body, randomUUID(), second)]);
+  assert.ok(results.every(result => result.id === results[0].id));
+  assert.equal(await prisma.logisticsUnloading.count({ where: { romaneioId: romaneio.id } }), 1);
+  assert.equal(await prisma.integrationEvent.count({ where: { type: 'descarga.confirmada', projectId: project.id } }), 1);
+  const total = await Promise.all([first,second].map(ctx => createUnloading(prisma, { ...body, tipo: 'TOTAL', confirmadaEm: '2026-10-02T12:00:00Z' }, randomUUID(), ctx)));
+  assert.equal(total[0].id, total[1].id);
+  assert.equal(await prisma.logisticsUnloading.count({ where: { romaneioId: romaneio.id } }), 2);
+});

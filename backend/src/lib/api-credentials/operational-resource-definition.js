@@ -4,7 +4,7 @@ export const publishedMaintenance = { status: 'APPROVED', OR: [{ reportId: null 
 // Projeções explícitas; nunca converter automaticamente o schema Prisma em API.
 export function resource(model, path, scope, label, domainCode, fields, options = {}) {
   const timestampField = options.timestampField === undefined ? 'updatedAt' : options.timestampField;
-  const common = timestampField === 'updatedAt' ? { id: 'string', createdAt: 'datetime', updatedAt: 'datetime' }
+  const common = options.commonFields === false ? {} : timestampField === 'updatedAt' ? { id: 'string', createdAt: 'datetime', updatedAt: 'datetime' }
     : timestampField === 'createdAt' ? { id: 'string', createdAt: 'datetime' } : {};
   const definition = {
     model, delegate: model[0].toLowerCase() + model.slice(1), path, scope, label, domainCode,

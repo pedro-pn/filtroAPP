@@ -129,8 +129,8 @@ function database() {
     },
     omieInvoice: {
       deleteMany: async () => { events.push('delete'); },
-      createMany: async args => { events.push(args.data); }
     },
+    $executeRaw: async query => { events.push(JSON.parse(query.values[0])); },
     $transaction: async fn => { events.push('transaction'); return fn(db); }
   };
   return { db, events };

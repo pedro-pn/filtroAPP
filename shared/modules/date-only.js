@@ -25,3 +25,12 @@ export function formatTimestampDate(value, fallback = '—') {
   const date = value instanceof Date ? value : new Date(value);
   return Number.isNaN(date.getTime()) ? fallback : timestampDateFormatter.format(date);
 }
+
+const timestampDateTimeFormatter = new Intl.DateTimeFormat('pt-BR', {
+  timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short'
+});
+export function formatTimestampDateTime(value, fallback = '—') {
+  if (!value) return fallback;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? fallback : timestampDateTimeFormatter.format(date);
+}

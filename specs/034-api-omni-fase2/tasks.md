@@ -48,3 +48,22 @@ Entrega B: US5 → US6/US7 → US8; US4 dispensada pelo Omni. Somente planejamen
   incluindo a corrida de duas conexões e os POSTs idempotentes simultâneos.
 - Auditorias npm no mesmo nível do CI (`--audit-level=high`): backend e frontend
   sem vulnerabilidades altas ou críticas.
+
+## Entrega B — 2026-10-29
+
+- [x] B001 Ler prompt B, convenções, specs 033–035, grafo e fontes.
+- [x] B002 Atualizar plano e contratos B1–B5 antes de codificar.
+- [x] B003 Implementar B1: medição coleção/detalhe, valores condicionais e evento.
+- [x] B004 Implementar B2: notas com ligação inequívoca e eventos estáveis.
+- [x] B005 Implementar B3: romaneios mínimos de saída/retorno e evento autorizado.
+- [x] B006 Implementar B4: pendências agregadas, watermark e evento.
+- [x] B007 Implementar B5: persistência/histórico, acesso, idempotência e simulação.
+- [x] B008 Integrar importação explícita CT-e Omie e confirmação na interface.
+- [x] B009 Atualizar catálogo, OpenAPI, Playground e API_INTEGRACOES.
+- [x] B010 Testar isolamento/403/projeções/eventos, migrations e regressões; arquitetura.
+- [x] B011 Revisar diff/grafo e registrar relatório final com escopos e limites.
+
+B6: US6, demais agregações US7, responsáveis US8 permanecem planejados; US4 dispensada.
+
+
+Resultado e limites da Entrega B: [implementation-report-b.md](implementation-report-b.md).

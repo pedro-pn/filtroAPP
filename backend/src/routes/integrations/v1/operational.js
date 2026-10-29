@@ -21,11 +21,31 @@ import {
   runMeteredApiOperation
 } from '../../../middleware/api-token-auth.js';
 
+import { getProjectMeasurement, validateProjectMeasurementRequest } from '../../../lib/api-credentials/project-measurement.js';
+import { createUnloading, validateUnloading } from '../../../lib/logistica/unloading.js';
+
 export function createOperationalRouter({
   prismaClient = prisma,
   envConfig = env
 } = {}) {
   const router = Router();
+  router.get('/efetivo/projetos/:id/medicao', requireApiOperation('efetivo.projects.measurement.get'), asyncHandler(async (req, res) => {
+    const context = { scopes: req.apiAuth.scopeCodes, projectAccessMode: req.apiAuth.credential.projectAccessMode, projectIds: req.apiAuth.projectIds };
+    validateProjectMeasurementRequest(req.params, req.query, context);
+    const result = await runMeteredApiOperation(req, { prismaClient, operationId: 'efetivo.projects.measurement.get', requestedRows: 1,
+      execute: async () => ({ rows: 1, body: { ...await getProjectMeasurement(prismaClient, req.params, req.query, context),
+        generatedAt: new Date().toISOString(), schemaVersion: '1.0', requestId: req.requestId } }) });
+    res.json(result.body);
+  }));
+  router.post('/logistica/descargas', requireApiOperation('logistics.unloadings.create'), asyncHandler(async (req, res) => {
+    const context = { credentialId: req.apiAuth.credentialId, scopes: req.apiAuth.scopeCodes,
+      projectAccessMode: req.apiAuth.credential.projectAccessMode, projectIds: req.apiAuth.projectIds };
+    validateUnloading(req.body, req.headers['idempotency-key'], context, req.query);
+    const result = await runMeteredApiOperation(req, { prismaClient, operationId: 'logistics.unloadings.create', requestedRows: 1,
+      execute: async database => ({ rows: 1, statusCode: 201, body: {
+        ...await createUnloading(database, req.body, req.headers['idempotency-key'], context), requestId: req.requestId } }) });
+    res.status(result.statusCode).json(result.body);
+  }));
   router.post('/acompanhamento/oportunidades', requireApiOperation('acompanhamento.opportunities.post'), asyncHandler(async (req, res) => {
     validateProjectWriteAccess(null, req.query, req.apiAuth.credential, { create: true });
     validateCrmOpportunity(req.body);

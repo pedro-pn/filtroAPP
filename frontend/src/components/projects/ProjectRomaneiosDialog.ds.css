@@ -19,3 +19,6 @@
 @media (max-width: 767.98px) {
   .acp-romaneios-ds .fv-card__header { flex-wrap: wrap; }
 }
+
+.acp-romaneios-ds__unloading { display: grid; gap: 12px; min-width: 0; overflow-wrap: anywhere; }
+.acp-romaneios-ds__unloading form, .acp-romaneios-ds__unloading > div { display: grid; gap: 8px; min-width: 0; }

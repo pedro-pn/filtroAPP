@@ -66,7 +66,7 @@ test('all administrative, quality and operational operations have unique IDs and
     readFile(new URL('../src/routes/integrations/v1/qualidade.js', import.meta.url), 'utf8')
   ]);
   const operations = operationEntries(YAML.parse(source));
-  assert.equal(operations.length, 23 + OPERATIONAL_RESOURCES.length + OPERATIONAL_DOWNLOADS.length);
+  assert.equal(operations.length, 25 + OPERATIONAL_RESOURCES.length + OPERATIONAL_DOWNLOADS.length);
   assert.equal(new Set(operations.map(item => item.operation.operationId)).size, operations.length);
 
   const handlers = {
@@ -89,7 +89,7 @@ test('all administrative, quality and operational operations have unique IDs and
   for (const { operation } of operations) {
     const resource = [...OPERATIONAL_RESOURCES, ...OPERATIONAL_DOWNLOADS].find(item => item.openApiOperationId === operation.operationId);
     if (resource) {
-      const route = createOperationalRouter().stack.find(layer => layer.route?.path === resource.path)?.route;
+      const route = createOperationalRouter().stack.find(layer => layer.route?.path === resource.path && layer.route?.methods.get)?.route;
       assert.equal(route?.methods.get, true, `Rota operacional ausente: ${resource.path}`);
       continue;
     }
@@ -98,13 +98,13 @@ test('all administrative, quality and operational operations have unique IDs and
       assert.equal(createOperationalRouter().stack.find(layer => layer.route?.path === path)?.route?.methods.get, true);
       continue;
     }
-    if (['getIntegrationEfetivoProjectStatus', 'getIntegrationJobRoleSalary'].includes(operation.operationId)) {
-      const path = operation.operationId === 'getIntegrationJobRoleSalary' ? '/cargos/:id/salario' : '/efetivo/projetos/:id/status';
+    if (['getIntegrationEfetivoProjectStatus', 'getIntegrationJobRoleSalary', 'getIntegrationProjectMeasurement'].includes(operation.operationId)) {
+      const path = operation.operationId === 'getIntegrationProjectMeasurement' ? '/efetivo/projetos/:id/medicao' : operation.operationId === 'getIntegrationJobRoleSalary' ? '/cargos/:id/salario' : '/efetivo/projetos/:id/status';
       const route = createOperationalRouter().stack.find(layer => layer.route?.path === path)?.route;
       assert.equal(route?.methods.get, true);
       continue;
     }
-    if (['createIntegrationEfetivoProject', 'postIntegrationEfetivoCommercialFact', 'postIntegrationEfetivoDocument', 'postIntegrationCrmOpportunity'].includes(operation.operationId)) {
+    if (['createIntegrationEfetivoProject', 'postIntegrationEfetivoCommercialFact', 'postIntegrationEfetivoDocument', 'postIntegrationCrmOpportunity', 'createIntegrationUnloading'].includes(operation.operationId)) {
       const path = operationEntries(YAML.parse(source)).find(item => item.operation.operationId === operation.operationId).path.replace('/integracoes/v1', '');
       const route = createOperationalRouter().stack.find(layer => layer.route?.path === path.replace('{id}', ':id'))?.route;
       assert.equal(route?.methods.post, true, `Rota de escrita ausente: ${path}`);

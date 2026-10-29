@@ -9,6 +9,8 @@ import { reportAttachmentWhere } from './extended-operational-resources.js';
 import { loadProjectResponsibleRows } from './project-responsibles.js';
 import { listIntegrationEvents } from './event-feed.js';
 
+import { loadInvoiceRows } from './invoice-rows.js';
+
 const querySchema = makeOperationalReadQuerySchema(z);
 
 export function prepareOperationalQuery(operationId, input, context) {
@@ -16,6 +18,9 @@ export function prepareOperationalQuery(operationId, input, context) {
   if (!resource) throw new IntegrationApiError(400, 'UNKNOWN_OPERATION', 'Operação indisponível.');
   if (!hasIntegrationScopes(resource, context.scopes)) throw new IntegrationApiError(403, 'INSUFFICIENT_SCOPE', 'A credencial não possui a permissão necessária.');
   const query = querySchema.parse(input);
+  if (resource.conditionalScope && context.scopes.has(resource.conditionalScope)) {
+    resource = { ...resource, fields: { ...resource.fields, ...resource.conditionalFields } };
+  }
   if (resource.model === 'Report') {
     const allStates = context.scopes.has('rdo.relatorios.todos.read');
     if (query.status && !allStates) throw new IntegrationApiError(403, 'INSUFFICIENT_SCOPE', 'O filtro de status exige rdo.relatorios.todos.read.');
@@ -104,6 +109,7 @@ export async function listOperationalResources(client, operationId, input, conte
       .map(field => [field, Array.isArray(query[field]) ? [...query[field]].sort() : query[field]])),
     ...(query.active !== undefined ? { active: query.active } : {}),
     ...(resource.model === 'Report' && context.scopes.has('rdo.relatorios.todos.read') ? { allStates: true } : {}),
+    ...(resource.conditionalScope ? { conditionalValues: context.scopes.has(resource.conditionalScope) } : {}),
     policyFingerprint: createHash('sha256').update(stableJson({
       projectAccessMode: context.projectAccessMode,
       projectIds: context.projectAccessMode === 'SELECTED' ? [...context.projectIds].sort() : []
@@ -128,7 +134,9 @@ export async function listOperationalResources(client, operationId, input, conte
   }
   const positionValue = field => field === timestamp ? new Date(position[field]) : position[field];
   const visibility = operationalVisibilityWhere(resource, query, context);
-  const rows = resource.collectionKind === 'PROJECT_RESPONSIBLES'
+  const rows = resource.collectionKind === 'OMIE_INVOICES'
+    ? await loadInvoiceRows(client, { query, context, snapshotAt, position })
+    : resource.collectionKind === 'PROJECT_RESPONSIBLES'
     ? await loadProjectResponsibleRows(client, { resource, query, visibility, snapshotAt, position })
     : await client[resource.delegate].findMany({
     select: resource.select,

@@ -995,6 +995,8 @@ model Project {
   historicalServiceReports   HistoricalServiceReport[]
   drafts                     ReportDraft[]
   surveys                    SatisfactionSurvey[]
+  unloadings                 LogisticsUnloading[]
+  logisticsCtes              LogisticsCte[]
   romaneios                  Romaneio[]
   budgets                    ProjectBudget[]
   commercialAppProposals      CommercialAppProposal[]
@@ -3050,6 +3052,7 @@ model ApiCredential {
   events                  ApiCredentialEvent[]
   requestLogs             ApiRequestLog[]
   usageBuckets            ApiUsageBucket[]
+  unloadingReceipts       IntegrationUnloadingReceipt[]
   qualityReceipts         IntegrationQualityReceipt[]
   qualityAuditLogs        QualityRecordAuditLog[]
 
@@ -3328,6 +3331,8 @@ model Romaneio {
   updatedAt                DateTime            @updatedAt
   project                  Project             @relation(fields: [projectId], references: [id], onDelete: Restrict)
   createdBy                User?               @relation("RomaneioCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  unloadings               LogisticsUnloading[]
+  ctes                     LogisticsCte[]
   items                    RomaneioItem[]
   checklists               RomaneioChecklist[]
   stockMovements           StockMovement[]
@@ -4193,7 +4198,9 @@ model OmieInvoice {
   receiptStatus    String // RECEIVED | PARTIAL | OVERDUE | OPEN | UNKNOWN
   installmentCount Int      @default(0)
   syncedAt         DateTime @default(now())
+  updatedAt        DateTime @default(now()) @updatedAt
 
+  @@index([updatedAt, id])
   @@index([codigoProjeto, dataEmissao])
 }
 
@@ -4502,4 +4509,68 @@ model QualityRecordAuditLog {
   actorCredential   ApiCredential? @relation(fields: [actorCredentialId], references: [id], onDelete: SetNull)
 
   @@index([recordId, createdAt])
+}
+
+
+// CT-e é documento logístico separado das notas fiscais de faturamento.
+model LogisticsCte {
+  id             String @id @default(cuid())
+  omieId         String @unique
+  projectId      String
+  romaneioId     String
+  numero         String
+  emissao        DateTime
+  transportadora String
+  invoiceId      String?
+  nfeKeys        String[]
+  createdByUserId String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  project        Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  romaneio       Romaneio @relation(fields: [romaneioId], references: [id], onDelete: Restrict)
+  unloadings     LogisticsUnloading[]
+
+  @@index([projectId])
+  @@index([romaneioId])
+}
+
+model LogisticsUnloading {
+  id                 String @id @default(cuid())
+  romaneioId         String
+  projectId          String
+  tipo               String
+  confirmadaEm       DateTime
+  confirmedByUserId  String
+  confirmadaPorEmail String
+  cteId              String?
+  actorCredentialId  String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  romaneio           Romaneio @relation(fields: [romaneioId], references: [id], onDelete: Restrict)
+  project            Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  cte                LogisticsCte? @relation(fields: [cteId], references: [id], onDelete: Restrict)
+
+  @@unique([romaneioId, tipo, confirmadaEm])
+  @@index([projectId, updatedAt, id])
+}
+
+model IntegrationUnloadingReceipt {
+  credentialId String
+  key          String
+  requestHash  String
+  projectId    String
+  response     Json
+  createdAt    DateTime @default(now())
+  credential   ApiCredential @relation(fields: [credentialId], references: [id], onDelete: Restrict)
+
+  @@id([credentialId, key])
+}
+
+// Conserva primeira publicação mesmo se a nota sair temporariamente do snapshot.
+model IntegrationInvoicePublication {
+  invoiceId String
+  projectId String
+  createdAt DateTime @default(now())
+
+  @@id([invoiceId, projectId])
 }
