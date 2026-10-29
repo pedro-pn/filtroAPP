@@ -5,6 +5,9 @@ const pick = (row, fields) => Object.fromEntries(fields.map(field => [field, row
 // Projeções explícitas, lidas antes do rollback, sem identificadores alocados
 // provisoriamente. Também representam corretamente replays e versões antigas.
 export async function projectWritePreview(tx, operationId, result) {
+  if (operationId === 'logistics.unloadings.create') {
+    return pick(result, ['romaneioId', 'tipo', 'confirmadaEm', 'confirmadaPorEmail']);
+  }
   if (operationId === 'quality.records.create') {
     const row = await tx.qualityRecord.findUniqueOrThrow({ where: { id: result.id },
       select: { type: true, status: true, origin: true, description: true, impact: true, externalRef: true,

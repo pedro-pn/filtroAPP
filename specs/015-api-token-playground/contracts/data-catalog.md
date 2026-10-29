@@ -2,7 +2,7 @@
 
 ## Finalidade e regra de publicação
 
-Este catálogo cobre os **173 modelos Prisma de negócio** existentes em `backend/prisma/schema.prisma` em 2026-10-26, excluindo os seis modelos da própria infraestrutura de credenciais de API. Ele responde quais dados podem ser avaliados para endpoint, quais exigem revisão reforçada e quais nunca devem ser expostos por tokens desta funcionalidade.
+Este catálogo cobre os **175 modelos Prisma de negócio** existentes em `backend/prisma/schema.prisma` em 2026-10-26, excluindo os seis modelos da própria infraestrutura de credenciais de API. Ele responde quais dados podem ser avaliados para endpoint, quais exigem revisão reforçada e quais nunca devem ser expostos por tokens desta funcionalidade.
 
 Mapeamento não concede acesso. Um escopo só aparece habilitado no painel quando estiver `DISPONÍVEL` e possuir contrato versionado, projeção por allowlist, autorização, limites, auditoria e testes de concessão/negação.
 
@@ -65,7 +65,7 @@ Quando um modelo mistura campos, a coluna descreve a classificação por subconj
 | 9 | **Estoque** — `StockItem`, `StockItemDocument`, `StockCategory`, `StockBatch`, `StockMovement` | Cadastro/categoria/lote/movimento: PLANEJADO; documentos e custos: SENSÍVEL | `estoque.itens.read`, `estoque.lotes.read`, `estoque.movimentos.read`, `estoque.documentos.metadata.read`, `estoque.documentos.download`, `estoque.custos.read` | item, unidade, categoria, lote, validade, quantidades e movimento | custo sem escopo financeiro, nota livre com PII, caminho/token de documento e identidade de ator por padrão |
 | 10 | **Qualidade** — `QualityNature`, `QualitySubnature`, `QualityRecord`, `QualityEvidence`, `QualityRecordSeq` | Natureza/subnatureza/registro: DISPONÍVEL; evidência: DISPONÍVEL por escopos separados; sequência: PROIBIDO | `qualidade.naturezas.read`, `qualidade.registros.read`, `qualidade.evidencias.metadata.read`, `qualidade.evidencias.download`, `qualidade.excluidos.read` | contrato detalhado na seção “Qualidade v1” | `storagePath`, `publicToken`, sequência interna, relações de usuário completas, hash/segredo e arquivo sem autorização |
 | 11 | **EPI** — `EpiCatalogItem`, `EpiRecord`, `EpiSignatureRequest`, `EpiCollaboratorProfile`, `EpiSignatureRequestAuditLog` | Catálogo e entrega minimizada: PLANEJADO/SENSÍVEL; perfil, solicitação e auditoria de assinatura: RESERVADO | `epi.catalogo.read`, `epi.entregas.read`, `epi.documentos.download` | EPI, quantidade, datas, colaborador por ID/nome operacional e situação de entrega | token/hash, assinatura/imagem, CPF, IP/user-agent, caminho de PDF, erro/log de envio e perfil de assinatura |
-| 12 | **Romaneios** — `Romaneio`, `RomaneioItem`, `RomaneioChecklist`, `RomaneioCatalogItem`, `RomaneioCatalogSyncState`, `RomaneioNotificationRecipient` | Romaneio/item/checklist/catálogo: PLANEJADO; estado de sync: PROIBIDO; destinatários: RESERVADO | `romaneios.read`, `romaneios.itens.read`, `romaneios.checklist.read`, `romaneios.catalogo.read`, `romaneios.documentos.download` | identificação, projeto, datas, itens, quantidades e checklist | sequência/estado técnico, e-mails de notificação, payload de sincronização e caminho/token de documento |
+| 12 | **Romaneios** — `LogisticsUnloading`, `LogisticsCte`, `Romaneio`, `RomaneioItem`, `RomaneioChecklist`, `RomaneioCatalogItem`, `RomaneioCatalogSyncState`, `RomaneioNotificationRecipient` | Romaneio/item/checklist/catálogo: PLANEJADO; estado de sync: PROIBIDO; destinatários: RESERVADO | `romaneios.read`, `romaneios.itens.read`, `romaneios.checklist.read`, `romaneios.catalogo.read`, `romaneios.documentos.download` | identificação, projeto, datas, itens, quantidades e checklist | sequência/estado técnico, e-mails de notificação, payload de sincronização e caminho/token de documento |
 | 13 | **Relatórios de alocação e entregas** — `AllocationReportRecipient`, `AllocationReportDelivery`, `AllocationReportRecipientDelivery` | Entrega agregada: PLANEJADO; destinatários e detalhe de envio: RESERVADO/SENSÍVEL | `alocacao.relatorios.read`, `alocacao.entregas.read` | período, projeto, situação, contagens e timestamps de entrega | e-mail/destinatário por padrão, mensagem de erro bruta, conteúdo do arquivo e configuração de distribuição |
 | 14 | **Operações, retenção e jobs** — `DataRetentionRun`, `JobRun`, `JobLock`, `IntegrationSyncRun`, `NotificationEvent`, `NotificationRead` | Estados sanitizados de execução/sync e notificações internas: RESERVADO; trava: PROIBIDO | `operacoes.jobs.read`, `operacoes.integracoes.read`, `operacoes.retencao.read` | nome conhecido, início/fim, situação, totais e erro redigido | lock/lease, stack trace, segredo/configuração, payload/raw metadata, comando, caminho de backup, conteúdo de notificações e histórico de leitura por usuário |
 | 15 | **Pesquisa de satisfação** — `SatisfactionSurvey`, `SatisfactionSurveyQuestion` | Agregados anônimos: PLANEJADO; respostas individuais/identidade: SENSÍVEL | `pesquisas.agregados.read`, `pesquisas.respostas.read` | pergunta, período, contagem e métricas; resposta individual apenas com base/finalidade aprovada | token/hash/material criptográfico, destinatário/contato, vínculo identificável, IP/user-agent e texto livre sem revisão |
@@ -179,3 +179,13 @@ Todos os itens precisam estar concluídos:
 - Payload/linha/arquivo bruto de importação ou integração e stack trace.
 - Imagem de assinatura, prova de identidade e documento pessoal sem especificação jurídica dedicada.
 - Campos novos do Prisma por padrão: adicionar coluna ao banco nunca adiciona campo à API automaticamente.
+
+
+## Entrega B — 2026-10-29
+
+Medição, notas e agregados de pendências publicados com projeções mínimas da spec 034.
+Romaneio e LogisticsUnloading possuem consultas operacionais; LogisticsCte é armazenado
+separadamente e somente sua referência mínima aparece em descargas. Recibos
+IntegrationUnloadingReceipt e ledger IntegrationInvoicePublication são infraestrutura
+interna, fora da matriz de modelos de negócio. Escopos financeiros não expõem pessoas.
+Ver [contrato](../../034-api-omni-fase2/contracts/delivery-b.md).

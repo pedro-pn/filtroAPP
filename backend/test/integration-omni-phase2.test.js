@@ -37,14 +37,14 @@ test('gatilhos: nove tipos, transições/no-op, datas, exclusão lógica, audito
       UPDATE "Project" SET "operatorId"='u1' WHERE id='p1';
     `);
     const events=await rows('IntegrationEvent');
-    assert.deepEqual(events.map(r=>r.type).sort(),Object.keys(EVENT_RESOURCE_SCOPES).sort());
+    assert.deepEqual(events.map(r=>r.type).sort(),Object.keys(EVENT_RESOURCE_SCOPES).filter(type => !['medicao.alterada', 'nota.emitida', 'nota.recebimento_alterado', 'pendencia.alterada', 'descarga.confirmada'].includes(type)).sort());
     assert.deepEqual(events.map(r=>String(r.sequence)),events.map((_,i)=>String(i+1)));
     assert.ok(events.every(r=>/^evt_[0-9a-f-]{36}$/.test(r.id)));
     assert.equal(new Set(events.map(r=>r.id)).size,events.length);
     assert.ok(events.every(r=>r.projectId==='p1'&&r.projectCode==='5850'));
     for(const scope of new Set(Object.values(EVENT_RESOURCE_SCOPES).flat())) {
       const page=await listOperationalResources(client,'integration.events.list',{},context({scopes:new Set(['eventos.read',scope])}));
-      const expected=Object.entries(EVENT_RESOURCE_SCOPES).filter(([,scopes])=>scopes.includes(scope)).map(([type])=>type);
+      const expected=Object.entries(EVENT_RESOURCE_SCOPES).filter(([type,scopes])=>events.some(event=>event.type===type)&&scopes.includes(scope)).map(([type])=>type);
       assert.deepEqual(page.items.map(r=>r.type).sort(),expected.sort(),scope);
     }
     const dates=(await rows('Report')).find(r=>r.id==='r1');

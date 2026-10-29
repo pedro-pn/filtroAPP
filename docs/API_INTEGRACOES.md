@@ -28,8 +28,9 @@ Todas as respostas usam `Cache-Control: no-store` e `X-Request-Id`. Registre o r
 
 Envie `Prefer: validate-only` em qualquer escrita de `/api/integracoes/v1` para
 executar as mesmas permissões, recorte de projetos, cotas, validações e regras da
-escrita real e desfazer a transação ao terminar. As cinco operações suportadas são
-Qualidade, oportunidades, criação de projetos, fatos comerciais e documentos CRM.
+escrita real e desfazer a transação ao terminar. As operações suportadas são
+Qualidade, oportunidades, criação de projetos, fatos comerciais, documentos CRM e
+confirmação de descarga.
 Uma operação futura sem suporte recusa com `501 SIMULATION_NOT_SUPPORTED`.
 
 Em **Administração → Tokens de API**, `writeMode: SIMULATE` obriga a simulação de
@@ -388,7 +389,7 @@ Resposta fictícia:
 ```
 
 O Playground inclui as operações e o campo Idempotency-Key; POST grava dados reais
-com a confirmação existente. Entrega B fica planejada; o Omni mantém seu calendário.
+com a confirmação existente. A Entrega B está documentada adiante; o Omni mantém seu calendário.
 Veja o [contrato e decisões](../specs/034-api-omni-fase2/contracts/omni-phase2.md).
 
 ### Como percorrer páginas
@@ -457,3 +458,105 @@ O catálogo do painel contém os 173 modelos de negócio em 20 domínios. Há 44
 
 O contrato de oportunidades sem número de projeto, exibição em Futuros e vínculo
 no fechamento está em [PRISMACRM_OPORTUNIDADES.md](PRISMACRM_OPORTUNIDADES.md).
+
+## Omni — Entrega B
+
+Consultas aditivas em `/api/integracoes/v1`; envelope e paginação permanecem em
+`schemaVersion: 1.0`. Todos os recursos abaixo respeitam o recorte do token antes
+da paginação e aceitam `updatedSince`, `projectId` ou `projectCode`, preservando
+zeros à esquerda. Não envie os dois filtros de projeto juntos.
+
+| Consulta | Escopo novo | Sensibilidade |
+|---|---|---|
+| `GET /efetivo/projetos/medicoes` e `GET /efetivo/projetos/{id}/medicao` | `efetivo.projetos.medicao.read` | INTERNAL |
+| Valores adicionais na medição | `efetivo.projetos.medicao.valores.read` (exige o base) | FINANCIAL |
+| `GET /omie/notas` | `omie.notas.read` | FINANCIAL |
+| `GET /romaneios` | `romaneios.read` | INTERNAL |
+| `GET /omie/projetos/pendencias` | `omie.pendencias.read` | FINANCIAL |
+| `GET /logistica/descargas` | `logistica.descargas.read` | PERSONAL |
+| `POST /logistica/descargas` | `logistica.descargas.create` | PERSONAL |
+
+A consulta individual de medição aceita somente o ID no caminho, sem filtros.
+Projetos sem medição retornam `SEM_MEDICAO`. As datas definem a situação:
+`approvedAt` → `APROVADA`; `sentAt` → `ENVIADA`; `preparedAt` → `PREPARADA`.
+`saldoPendente` compara aprovado com executado e é nulo quando faltar valor.
+Sem escopo financeiro, `executedAmount`, `measuredAmount`, `approvedAmount` e
+`currency` são omitidos. Com ele, valores são strings decimais ou nulos e currency
+é `BRL`. Exemplo fictício de item sem escopo financeiro:
+
+```json
+{"projectId":"projeto-ficticio","projectCode":"00501","preparedAt":"2026-10-01T00:00:00.000Z","sentAt":"2026-10-02T00:00:00.000Z","approvedAt":null,"situacao":"ENVIADA","saldoPendente":true,"updatedAt":"2026-10-29T12:00:00.000Z"}
+```
+
+Notas usam a ligação exata `OmieInvoice.codigoProjeto = OmieProject.codigo`,
+seguida de `OmieProject.projectId → Project.id`. Não há fallback por nome, OS ou
+código parecido. Nota sem vínculo atual ou com projeto excluído não aparece,
+mesmo com token ALL. `tipo` distingue NFSE, NFE e ND; CT-e fica separado.
+`situacaoRecebimento` traduz RECEIVED/PARTIAL/OPEN/OVERDUE/UNKNOWN para
+RECEBIDA/PARCIAL/EM_ABERTO/ATRASADA/DESCONHECIDA. `valor` é string decimal em BRL.
+Reimportar snapshot idêntico não altera o watermark nem repete emissão.
+
+Romaneios trazem saída e retorno (`tipo: SAIDA | RETORNO`), `data`, `emitidoEm`,
+`quantidadeItens` (quantidade de linhas), `pesoCarga`, `unidadePeso` e `updatedAt`,
+além de identificação/projeto. Peso é string decimal. Não incluem motorista,
+placa, assinatura nem URL. `romaneios.itens.read` continua futuro.
+
+Pendências incluem projetos zerados. Cada lado usa `{quantidade,valorEmAberto,
+proximoVencimento}`; valores em BRL como string decimal, vencimento ISO/null.
+Quitados e cancelados não contam. Um título parcial sem saldo conhecido torna
+`valorEmAberto` nulo; não interpretar como zero. Exemplo fictício:
+
+```json
+{"projectId":"projeto-ficticio","projectCode":"00501","aPagar":{"quantidade":0,"valorEmAberto":"0.00","proximoVencimento":null},"aReceber":{"quantidade":1,"valorEmAberto":"100.01","proximoVencimento":"2026-11-01T00:00:00.000Z"},"atualizadoEm":"2026-10-29T12:00:00.000Z"}
+```
+
+O feed exige `eventos.read` mais o escopo de leitura da família:
+`medicao.alterada`, `nota.emitida`, `nota.recebimento_alterado`,
+`romaneio.emitido` (agora com `romaneios.read`), `pendencia.alterada` e
+`descarga.confirmada`. Sem backfill. Notas mantêm ledger da primeira publicação
+por nota/projeto mesmo após cancelamento e reimportação. Mudança de vínculo não
+publica a nota no projeto anterior.
+
+Descarga exige romaneio OUTBOUND e usuário ativo identificado univocamente por
+e-mail, sem diferenciar caixa, com acesso ao projeto (líder, planejador, autorizado
+explicitamente ou administrador global). E-mail sem acesso retorna 422
+`CONFIRMING_USER_NOT_ALLOWED`. Datas futuras ou anteriores ao último marco são
+rejeitadas. Parcial seguida de total preserva o histórico. TOTAL repetido reaproveita
+a confirmação original; nova parcial após total retorna 409.
+
+```http
+POST /api/integracoes/v1/logistica/descargas
+Authorization: Bearer <token>
+Idempotency-Key: f68180e5-7c55-4b62-a74c-79feddd78329
+Prefer: validate-only
+Content-Type: application/json
+
+{"romaneioId":"romaneio-ficticio","tipo":"TOTAL","confirmadaEm":"2026-10-29T12:00:00.000Z","confirmadaPorEmail":"lider@example.test"}
+```
+
+Simulação segue integralmente a spec 035: HTTP 200, `Preference-Applied:
+validate-only`, `simulated: true`, operação `logistics.unloadings.create`, `would`
+com romaneioId/tipo/confirmadaEm/confirmadaPorEmail, sem ID temporário. Token
+SIMULATE força rollback mesmo sem Prefer. LIVE retorna 201 com id, romaneioId,
+projectId, tipo, confirmadaEm, confirmadaPorEmail e requestId. Mesma chave/corpo
+reproduz a resposta; corpo diferente retorna 409. Nenhum evento/recibo de domínio
+é persistido pela simulação.
+
+Na interface: **Efetivo → missão → Ver romaneios → Chegada e descarga**. Confirma
+com o usuário da sessão e horário atual. Antes de confirmar, pode importar o CT-e
+pelo ID conhecido no Omie e indicar uma NF do mesmo projeto. A importação consulta
+`ObterCTe` em `/produtos/dfedocs/`, valida o XML e preserva número, emissão,
+transportadora e referências de NF-e. A API Omie consultada não documenta listagem
+de CT-es; `ListarNFeTransp` lista NF-e. Por isso, esta entrega usa importação
+explícita por ID, sem descoberta automática. Referência oficial:
+[ObterCTe](https://app.omie.com.br/api/v1/produtos/dfedocs/).
+
+A leitura de descarga inclui `id`, `romaneioId`, `projectId`, `projectCode`, `tipo`,
+`confirmadaEm`, `confirmadaPorEmail`, `updatedAt` e `cte` nulo ou
+`{numero,emissao,transportadora}`. A confirmação captura o CT-e quando há exatamente
+um vinculado; sem referência inequívoca, cte é nulo. Não infere transportadora.
+
+US6, demais escopos de Gestão da US7, US8 e descoberta automática de CT-e ficam
+para depois. US4 continua dispensada pelo Omni. As novas permissões exigem
+concessão/rotação explícita; esta implementação não altera tokens reais nem publica.
+Contrato completo: [delivery-b.md](../specs/034-api-omni-fase2/contracts/delivery-b.md).

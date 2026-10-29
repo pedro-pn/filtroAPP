@@ -22,6 +22,9 @@ export async function apiSimulationDatabase() {
   await db.exec('ALTER TABLE "ApiCredential" DROP COLUMN "writeMode"; ALTER TABLE "ApiRequestLog" DROP COLUMN "simulated"; DROP TYPE "ApiWriteMode";');
   await db.exec(await readFile(new URL('../../prisma/migrations/20261029120000_api_write_simulation/migration.sql', import.meta.url), 'utf8'));
 
+  const deliveryB = await readFile(new URL('../../prisma/migrations/20261029160000_omni_delivery_b/migration.sql', import.meta.url), 'utf8');
+  await db.exec(deliveryB.slice(deliveryB.indexOf('-- Funções/gatilhos da Entrega B.')));
+
   // PrismaPg mantém suas conversões de tipos; somente o transporte pg usa WASM.
   class WasmPool extends pg.Pool {
     async query(query, values) {

@@ -16,7 +16,7 @@ Tipos e permissões: rdo.criado/devolvido/assinado → rdo.relatorios.todos.read
 rdo.aprovado → rdo.relatorios.read OU rdo.relatorios.todos.read;
 workflow.etapa_alterada → efetivo.projetos.status.read;
 qualidade.criado/alterado → qualidade.registros.read;
-romaneio.emitido → romaneios.itens.read (ainda bloqueado);
+romaneio.emitido → romaneios.read (liberado pela Entrega B);
 projeto.responsaveis_alterados → projetos.responsaveis.read.
 
 Alterações de evidências também geram qualidade.alterado; a transação evita duplicar
@@ -64,3 +64,9 @@ evento qualidade.criado é gravado pelo banco.
 Erros: 400 validação/chave ausente ou inválida, 403 escopo/recorte, 404 projeto
 indisponível, 409 IDEMPOTENCY_CONFLICT, 422 ACTION_OWNER_NOT_FOUND. Cotas existentes.
 Repetir POST após falha de rede/5xx usando exatamente a mesma chave e corpo.
+
+
+## Entrega B
+
+Contrato aditivo em [delivery-b.md](delivery-b.md): medição, notas, romaneios,
+pendências e descarga/CT-e. Sem alteração dos contratos anteriores de escrita.

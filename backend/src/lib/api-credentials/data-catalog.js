@@ -1,7 +1,7 @@
 import { OPERATIONAL_RESOURCES } from './operational-resources.js';
 import { OPERATIONAL_DOWNLOADS } from './extended-operational-resources.js';
 
-export const DATA_CATALOG_VERSION = '2026-10-28';
+export const DATA_CATALOG_VERSION = '2026-10-29';
 const publishedModels = new Set(OPERATIONAL_RESOURCES.map(item => item.model));
 const publishedScopes = new Set([...OPERATIONAL_RESOURCES, ...OPERATIONAL_DOWNLOADS].map(item => item.scope));
 
@@ -100,7 +100,7 @@ export const API_DATA_DOMAINS = Object.freeze([
   }),
   domain({
     code: 'packing-lists', label: 'Romaneios',
-    models: [...modelEntries(['Romaneio', 'RomaneioItem', 'RomaneioChecklist', 'RomaneioCatalogItem'], 'PLANNED'), ...modelEntries(['RomaneioCatalogSyncState'], 'PROHIBITED'), ...modelEntries(['RomaneioNotificationRecipient'], 'RESERVED')],
+    models: [...modelEntries(['LogisticsUnloading', 'LogisticsCte', 'Romaneio', 'RomaneioItem', 'RomaneioChecklist', 'RomaneioCatalogItem'], 'PLANNED'), ...modelEntries(['RomaneioCatalogSyncState'], 'PROHIBITED'), ...modelEntries(['RomaneioNotificationRecipient'], 'RESERVED')],
     candidateScopes: ['romaneios.read', 'romaneios.itens.read', 'romaneios.checklist.read', 'romaneios.catalogo.read', 'romaneios.documentos.download'], endpointFamilies: ['/romaneios', '/romaneios/catalogo'],
     excludedFields: ['sequência/estado técnico', 'e-mails', 'payload de sincronização', 'caminho/token de documento']
   }),
@@ -157,6 +157,8 @@ export const API_DATA_DOMAINS = Object.freeze([
 export const CATALOG_EXCLUDED_INFRASTRUCTURE_MODELS = Object.freeze([
   { model: 'IntegrationEvent', reason: 'Outbox publicado somente como feed de identificadores.' },
   { model: 'IntegrationEventSequence', reason: 'Contador transacional interno do feed.' },
+  { model: 'IntegrationUnloadingReceipt', reason: 'Recibos internos de idempotência logística.' },
+  { model: 'IntegrationInvoicePublication', reason: 'Ledger interno de primeira publicação de notas.' },
   { model: 'IntegrationQualityReceipt', reason: 'Recibos internos de idempotência.' },
   { model: 'QualityRecordAuditLog', reason: 'Trilha de auditoria interna de Qualidade.' },
   { model: 'ApiCredential', reason: 'Identidade e verificador da própria infraestrutura de integração.' },

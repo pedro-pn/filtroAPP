@@ -1,3 +1,5 @@
+import { Prisma } from '@prisma/client';
+
 const text = value => String(value ?? '').trim();
 const normalizeNumber = value => text(value).replace(/^0+(?=\d)/, '');
 const cents = value => Math.round(Number(value) * 100);
@@ -153,13 +155,28 @@ export async function syncOmieInvoices({ triggeredBy = 'SCRIPT', db = null, call
     // Publica somente após obter TODAS as páginas; falhas preservam a versão anterior.
     // Substituição atômica também retira notas canceladas/remapeadas desde o último ciclo.
     await db.$transaction(async tx => {
-      await tx.omieInvoice.deleteMany({});
-      if (invoices.length) await tx.omieInvoice.createMany({ data: invoices });
+      await tx.omieInvoice.deleteMany({ where: { id: { notIn: invoices.map(row => row.id) } } });
+      // Upsert em lotes mantém IDs/watermarks e evita uma ida ao banco por nota.
+      for (let offset = 0; offset < invoices.length; offset += 500) {
+        const payload = JSON.stringify(invoices.slice(offset, offset + 500));
+        await tx.$executeRaw(Prisma.sql`
+          INSERT INTO "OmieInvoice" (id,source,"codigoProjeto",numero,serie,"dataEmissao",valor,
+            "clienteNome","clienteCnpj","receiptStatus","installmentCount","syncedAt")
+          SELECT id,source,"codigoProjeto",numero,serie,"dataEmissao",valor,
+            "clienteNome","clienteCnpj","receiptStatus","installmentCount","syncedAt"
+          FROM jsonb_to_recordset(${payload}::jsonb) AS n(id text,source text,"codigoProjeto" text,
+            numero text,serie text,"dataEmissao" timestamp,valor numeric,"clienteNome" text,"clienteCnpj" text,
+            "receiptStatus" text,"installmentCount" integer,"syncedAt" timestamp)
+          ON CONFLICT(id) DO UPDATE SET source=EXCLUDED.source,"codigoProjeto"=EXCLUDED."codigoProjeto",
+            numero=EXCLUDED.numero,serie=EXCLUDED.serie,"dataEmissao"=EXCLUDED."dataEmissao",valor=EXCLUDED.valor,
+            "clienteNome"=EXCLUDED."clienteNome","clienteCnpj"=EXCLUDED."clienteCnpj",
+            "receiptStatus"=EXCLUDED."receiptStatus","installmentCount"=EXCLUDED."installmentCount","syncedAt"=EXCLUDED."syncedAt"`);
+      }
       await tx.integrationSyncRun.update({ where: { id: run.id }, data: {
         status: 'SUCCESS', finishedAt, recordsRead: nfse.length + nfe.length + receivables.length,
         recordsWritten: invoices.length, summary
       } });
-    });
+    }, { timeout: 60_000 });
     return { ...summary, invoices: invoices.length };
   } catch (error) {
     await db.integrationSyncRun.update({ where: { id: run.id }, data: { status: 'ERROR', finishedAt: new Date(), error: error.message } });
