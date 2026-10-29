@@ -547,6 +547,11 @@ enum ApiCredentialEventType {
   EXPIRED_NOTICE
 }
 
+enum ApiWriteMode {
+  LIVE
+  SIMULATE
+}
+
 model Collaborator {
   id                             String                           @id @default(cuid())
   code                           String                           @unique
@@ -3018,6 +3023,7 @@ model ApiCredential {
   expiresAt               DateTime?
   neverExpiresConfirmedAt DateTime?
   projectAccessMode       ApiProjectAccessMode
+  writeMode               ApiWriteMode           @default(LIVE)
   allowedIpCidrs          String[]               @default([])
   allowedFormats          String[]               @default(["JSON"])
   requestsPerMinute       Int                    @default(60)
@@ -3116,6 +3122,7 @@ model ApiRequestLog {
   pathTemplate  String
   statusCode    Int
   outcomeCode   String
+  simulated     Boolean       @default(false)
   responseRows  Int           @default(0)
   responseBytes Int           @default(0)
   durationMs    Int

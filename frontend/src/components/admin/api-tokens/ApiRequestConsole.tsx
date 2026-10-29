@@ -30,6 +30,7 @@ export function ApiRequestConsole({ result, loading }: { result: ApiPlaygroundRe
       </Card>
       <Card className="api-console-pane" header={<h3>Resposta</h3>} actions={result ? <Badge tone={statusTone}>{result.response.status ?? 'Falha de conexão'} · {result.response.durationMs} ms</Badge> : undefined}>
         {result ? <>
+          {result.response.headers?.['Preference-Applied'] ? <p>Preference-Applied: <code>{result.response.headers['Preference-Applied']}</code></p> : null}
           {isDownloadCheckResult(result) ? <Alert tone="info">Verificação de download concluída. Nenhum arquivo foi transferido pelo painel; use o cURL em um ambiente autorizado para baixar o conteúdo.</Alert> : null}
           {result.response.requestId ? <p className="api-console-request-id">requestId: <code>{result.response.requestId}</code></p> : null}
           {result.response.truncated ? <Alert tone="warning">Resultado truncado para visualização segura.</Alert> : null}

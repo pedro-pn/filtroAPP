@@ -5,7 +5,7 @@ import { getApiOperation, getApiScope } from './catalog.js';
 const ADMIN_EVENT_FIELDS = ['credentialId', 'actorUserId', 'type', 'reason', 'summary', 'requestId', 'actorIp', 'actorUserAgent'];
 const REQUEST_LOG_FIELDS = [
   'credentialId', 'requestId', 'operationId', 'scopeCode', 'pathTemplate', 'statusCode', 'outcomeCode',
-  'responseRows', 'responseBytes', 'durationMs', 'clientIp', 'userAgent', 'filterSummary'
+  'responseRows', 'responseBytes', 'durationMs', 'clientIp', 'userAgent', 'filterSummary', 'simulated'
 ];
 
 function pickDefined(input, fields) {
@@ -14,7 +14,7 @@ function pickDefined(input, fields) {
 
 const EVENT_SUMMARY_FIELDS = new Set([
   'scopeCount', 'projectCount', 'projectAccessMode', 'replacementId', 'revokePreviousAt',
-  'rotatedFromId', 'operationId', 'rows'
+  'rotatedFromId', 'operationId', 'rows', 'previousWriteMode', 'writeMode', 'simulated'
 ]);
 const FILTER_SUMMARY_FIELDS = new Set([
   'projectCode', 'projectId', 'reportType', 'natureId', 'updatedSince', 'updatedUntil', 'eventDateFrom', 'eventDateTo',

@@ -71,6 +71,7 @@ export async function reduceApiCredential(id: string, payload: Record<string, un
 }
 
 export interface ApiPlaygroundInput {
+  writeMode?: 'SIMULATE' | 'LIVE';
   operationId: string;
   pathParams: Record<string, string>;
   query: Record<string, string | number | boolean | string[]>;
@@ -80,7 +81,7 @@ export interface ApiPlaygroundInput {
 
 export interface ApiPlaygroundResult {
   request: { method: 'GET' | 'POST'; path: string; authorization: string; curl: string; body?: Record<string, unknown> | null; headers?: Record<string, string> } | null;
-  response: { status: number | null; durationMs: number; requestId: string | null; truncated: boolean; body: unknown };
+  response: { headers?: Record<string, string>; status: number | null; durationMs: number; requestId: string | null; truncated: boolean; body: unknown };
 }
 
 export async function testApiCredential(id: string, payload: ApiPlaygroundInput) {

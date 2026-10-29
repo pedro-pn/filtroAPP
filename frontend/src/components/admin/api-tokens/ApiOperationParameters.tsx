@@ -23,8 +23,10 @@ export function ApiOperationParameters({
   errors = {},
   scopes = [],
   maxPageSize = 20,
-  register
+  register,
+  credentialWriteMode
 }: {
+  credentialWriteMode?: 'SIMULATE' | 'LIVE';
   operation?: ApiOperationOption;
   value: ApiPlaygroundParameters;
   onChange: (value: ApiPlaygroundParameters) => void;
@@ -126,7 +128,7 @@ export function ApiOperationParameters({
               do token.
             </p>
           ) : operation.method === 'POST' ? (
-            <Alert tone="warning">Esta operação grava dados reais no FiltroAPP. Informe o ID do projeto quando solicitado e revise o corpo JSON antes de enviar.</Alert>
+            <Alert tone="warning">Escritas são simuladas por padrão. Revise o corpo JSON; para persistir dados, selecione escrita real abaixo.</Alert>
           ) : (
             <p>
               Esta operação lista registros. Não exige um ID individual; use os
@@ -151,6 +153,16 @@ export function ApiOperationParameters({
               ambiente do consumidor.
             </Alert>
           ) : null}
+          {operation.method === 'POST' ? <div className="field-group" data-api-write-mode>
+            <label htmlFor="playground-write-mode">Modo da escrita</label>
+            <Select id="playground-write-mode" {...register?.('writeMode')} value={String(value.writeMode || 'SIMULATE')}
+              disabled={credentialWriteMode === 'SIMULATE'} onChange={event => update('writeMode', event.target.value)}>
+              <option value="SIMULATE">Simular — validar sem salvar</option>
+              <option value="LIVE">Real — salvar dados no FiltroAPP</option>
+            </Select>
+            {credentialWriteMode === 'SIMULATE' ? <small>Esta credencial sempre simula, mesmo quando o cliente solicita escrita real.</small>
+              : value.writeMode === 'LIVE' ? <Alert tone="warning">Atenção: esta execução salvará dados reais no ambiente atual.</Alert> : <small>Executa as regras e desfaz a escrita ao terminar.</small>}
+          </div> : null}
           <div className="api-form-grid">
             {fields.filter((field) => !field.advanced).map(renderField)}
           </div>
@@ -160,7 +172,7 @@ export function ApiOperationParameters({
               <Textarea id="playground-body-json" className="api-body-json" {...register?.('bodyJson')} value={String(value.bodyJson ?? '')}
                 onChange={event => update('bodyJson', event.target.value)} rows={12} maxLength={10000}
                 invalid={Boolean(errors.bodyJson)} aria-describedby="playground-body-json-help playground-body-json-error" />
-              <small id="playground-body-json-help">O POST grava dados reais. O método, destino e headers são definidos pela operação.</small>
+              <small id="playground-body-json-help">O modo selecionado define se os dados serão salvos. O método e o destino são definidos pela operação.</small>
               <span id="playground-body-json-error" className="field-error">{errors.bodyJson || ''}</span>
             </div>
           ) : null}

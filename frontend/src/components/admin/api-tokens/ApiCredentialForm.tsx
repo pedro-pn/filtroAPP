@@ -45,7 +45,7 @@ export function ApiCredentialForm({ scopes, onSubmit, disabled = false, initialV
   const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schemas.create, { error: apiValidationError }) as Resolver<FormValues>,
     defaultValues: initialValues ? { ...initialValues, startsAt: localCredentialDate(initialValues.startsAt), expiresAt: initialValues.expiresAt ? localCredentialDate(initialValues.expiresAt) : null, neverExpiresConfirmation: '' } : {
-      name: '', purpose: '', recipientName: '',
+      name: '', purpose: '', recipientName: '', writeMode: 'LIVE',
       startsAt: localDateTime(now), expiresAt: localDateTime(new Date(now.getTime() + expiryDurations['30d'])), neverExpiresConfirmation: '',
       scopeCodes: [], projectAccess: { mode: 'ALL', projectIds: [] },
       allowedIpCidrs: [], allowedFormats: ['JSON'],
@@ -124,6 +124,11 @@ export function ApiCredentialForm({ scopes, onSubmit, disabled = false, initialV
                 <Input id="api-token-purpose" placeholder="Ex.: Consultar registros para análise mensal" {...register('purpose')} invalid={Boolean(field('purpose'))} aria-describedby="api-purpose-help" />
                 <small id="api-purpose-help" className={field('purpose') ? 'field-error' : ''}>{field('purpose') || 'Resuma o uso em uma frase (mínimo de 10 caracteres).'}</small>
               </div>
+              <div className="field-group" data-api-credential-write-mode>
+                <label htmlFor="api-token-write-mode">Modo das escritas</label>
+                <Select id="api-token-write-mode" {...register('writeMode')}><option value="LIVE">LIVE — permite salvar</option><option value="SIMULATE">SIMULATE — sempre simular</option></Select>
+                <small>SIMULATE executa as validações sem salvar dados de negócio.</small>
+              </div>
               <div className="field-group">
                 <label htmlFor="api-token-expiry-preset">Validade</label>
                 <Select id="api-token-expiry-preset" value={expiryPreset} onChange={event => {
@@ -198,6 +203,7 @@ export function ApiCredentialForm({ scopes, onSubmit, disabled = false, initialV
           <div><dt>Permissões</dt><dd>{scopes.filter(scope => pending.scopeCodes.includes(scope.code)).map(scope => scope.label).join(', ')}</dd></div>
           <div><dt>Validade</dt><dd>{pending.expiresAt ? `Até ${new Date(pending.expiresAt).toLocaleString('pt-BR')}` : 'Sem expiração'}</dd></div>
           <div><dt>Projetos e rede</dt><dd>{pending.projectAccess.mode === 'ALL' ? 'Todos os projetos' : `${pending.projectAccess.projectIds.length} projeto(s)`} · {pending.allowedIpCidrs.length ? `${pending.allowedIpCidrs.length} IP(s)/rede(s)` : 'Sem restrição de IP'}</dd></div>
+          <div><dt>Modo das escritas</dt><dd>{pending.writeMode}</dd></div>
           <div><dt>Finalidade</dt><dd>{pending.purpose}</dd></div>
           <div><dt>Início</dt><dd>{new Date(pending.startsAt).toLocaleString('pt-BR')}</dd></div>
           <div><dt>Limites</dt><dd>{pending.limits.requestsPerMinute} requisições/min · {pending.limits.requestsPerDay} requisições/dia · {pending.limits.rowsPerDay} registros/dia · {pending.limits.maxPageSize} por página</dd></div>

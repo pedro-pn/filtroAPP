@@ -11,6 +11,7 @@ import { ConfirmDialog } from '../../ui/ConfirmDialog';
 import { Modal } from '../../ui/Modal';
 import { ApiCredentialForm } from './ApiCredentialForm';
 import { ApiCredentialReductionForm } from './ApiCredentialReductionForm';
+import { ApiCredentialWriteMode } from './ApiCredentialWriteMode';
 import { createUuid } from '../../../utils/uuid';
 
 type Confirmation = { reason: string; confirmation: string; overlapMinutes?: number };
@@ -38,7 +39,8 @@ export function ApiCredentialActions({ credential, scopes, onChanged, onIssued }
     <div className={'field-group ' + (errors.confirmation ? 'field-invalid' : '')}><label htmlFor="action-confirmation">Digite {action === 'rotate' ? 'ROTACIONAR' : 'REVOGAR'} para confirmar</label><Input id="action-confirmation" {...form.register('confirmation')} autoComplete="off" invalid={Boolean(errors.confirmation)} aria-describedby="action-confirmation-error" /><span id="action-confirmation-error" className="field-error">{errors.confirmation?.message}</span></div>
   </section>;
   return <section className="page-card api-credential-actions">
-    <h3>Ações de ciclo de vida</h3><p>Ampliações exigem rotação; reduções têm efeito imediato.</p>
+    <ApiCredentialWriteMode key={credential.id + ':' + credential.version} credential={credential} onChanged={onChanged} />
+    <h3>Ações de ciclo de vida</h3><p>Ampliações de escopos exigem rotação; reduções têm efeito imediato.</p>
     <div className="api-review-actions"><Button variant="secondary" disabled={terminal} onClick={() => open('reduce')}>Reduzir acesso</Button><Button variant="secondary" disabled={terminal || Boolean(credential.replacementId)} onClick={() => open('rotate')}>Rotacionar</Button><Button variant="danger" disabled={terminal} onClick={() => open('revoke')}>Revogar</Button></div>
     <Modal open={action === 'reduce'} onClose={() => { if (!busy) setAction(null); }} closeOnEscape={!busy} appearance="design-system" size="full" title={`Reduzir acesso — ${credential.name}`} panelClassName="api-policy-modal">
       {action === 'reduce' ? <ApiCredentialReductionForm key={credential.id + ':' + credential.version} credential={credential} scopes={scopes} onCancel={() => setAction(null)} onSubmit={async payload => { setBusy(true); try { await reduceApiCredential(credential.id, payload); await complete(); } finally { setBusy(false); } }} /> : null}

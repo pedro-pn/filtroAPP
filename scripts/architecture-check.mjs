@@ -2,6 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { API_OPERATIONS } from '../backend/src/lib/api-credentials/catalog.js';
+import { API_WRITE_SIMULATION_CASES } from '../backend/test/fixtures/api-write-simulation-cases.js';
+import { integrationWriteSimulationFailures } from './check-integration-write-simulation.mjs';
 import {
   generatedFrontendRegistryPath,
   generatedRegistrySource,
@@ -330,6 +333,10 @@ checkRouteJobExports();
 checkModuleRegistry();
 checkBackendRuntimeAssets();
 checkFrontendVisualContract();
+failures.push(...integrationWriteSimulationFailures(API_OPERATIONS,
+  walkFiles(repoPath('backend/src/routes/integrations/v1'), file => file.endsWith('.js'))
+    .map(file => ({ path: toPosix(path.relative(repoRoot, file)), source: fs.readFileSync(file, 'utf8') })),
+  API_WRITE_SIMULATION_CASES, read('backend/test/api-write-simulation.test.js')));
 
 if (failures.length) {
   console.error('Architecture check failed:');

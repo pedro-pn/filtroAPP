@@ -1,5 +1,6 @@
 import { createKeyedTtlCache, createTtlCache } from './ttl-cache.js';
 import env from '../config/env.js';
+import { isApiWriteSimulation } from './api-credentials/write-context.js';
 import { registerCollaboratorCacheInvalidator } from './cache/invalidation.js';
 
 const MASTER_DATA_TTL_MS = env.resourceListCacheTtlMs;
@@ -20,6 +21,7 @@ export const projectCardsCache = createKeyedTtlCache(DASHBOARD_TTL_MS, 10);
 export const laborCostCache = createKeyedTtlCache(DASHBOARD_TTL_MS, 10);
 
 export function clearProjectDerivedCaches() {
+  if (isApiWriteSimulation()) return;
   statisticsProjectsCache.clear();
   commercialDashboardCache.clear();
   projectCardsCache.clear();

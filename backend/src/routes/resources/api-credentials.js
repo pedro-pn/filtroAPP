@@ -4,7 +4,7 @@ import { z } from 'zod';
 import env from '../../config/env.js';
 import asyncHandler from '../../lib/async-handler.js';
 import { API_CATALOG_VERSION, API_DATA_DOMAINS, API_OPERATIONS, API_SCOPES, futureScopeDefinitions, publicApiOperations } from '../../lib/api-credentials/catalog.js';
-import { createCredential, getCredential, getCredentialUsage, listCredentialEvents, listCredentials, reduceCredential, revokeCredential, rotateCredential, parseAdminCursor, validateCredentialId } from '../../lib/api-credentials/service.js';
+import { createCredential, getCredential, getCredentialUsage, listCredentialEvents, listCredentials, reduceCredential, updateCredentialWriteMode, revokeCredential, rotateCredential, parseAdminCursor, validateCredentialId } from '../../lib/api-credentials/service.js';
 import { adminCredentialRequestContext, adminCredentialErrorHandler } from '../../lib/api-credentials/admin-http.js';
 import { executePlaygroundOperation, validatePlaygroundRequest } from '../../lib/api-credentials/playground.js';
 import prisma from '../../lib/prisma.js';
@@ -78,7 +78,8 @@ router.get('/api-credentials/:id', asyncHandler(async (req, res) => {
 }));
 
 router.patch('/api-credentials/:id', asyncHandler(async (req, res) => {
-  res.json(await reduceCredential(prisma, req.params.id, req.body, {
+  const update = Object.hasOwn(req.body || {}, 'writeMode') ? updateCredentialWriteMode : reduceCredential;
+  res.json(await update(prisma, req.params.id, req.body, {
     actorUserId: req.auth.user.id,
     actorIp: req.ip,
     actorUserAgent: req.headers['user-agent']
@@ -86,6 +87,11 @@ router.patch('/api-credentials/:id', asyncHandler(async (req, res) => {
 }));
 
 router.post('/api-credentials/:id/test', asyncHandler(async (req, res) => {
+  const operation = API_OPERATIONS.find(item => item.operationId === req.body?.operationId);
+  if (operation?.method === 'POST') {
+    const credential = await getCredential(prisma, req.params.id);
+    if (credential.writeMode === 'SIMULATE' || req.body?.writeMode !== 'LIVE') res.setHeader('Preference-Applied', 'validate-only');
+  }
   const input = validatePlaygroundRequest(req.body);
   res.json(await executePlaygroundOperation(prisma, req.params.id, input, {
     actorUserId: req.auth.user.id,

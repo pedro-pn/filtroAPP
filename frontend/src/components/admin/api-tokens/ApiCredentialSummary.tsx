@@ -11,7 +11,8 @@ export function ApiCredentialSummary({ credential }: { credential: ApiCredential
     <p>{credential.purpose}</p>
     {credential.description ? <p className="api-summary-description">{credential.description}</p> : null}
     <dl className="api-summary-facts">
-      <div><dt>Destinatário</dt><dd>{credential.recipientName}</dd></div>
+      <div><dt>Escritas</dt><dd>{credential.writeMode === 'SIMULATE' ? 'SIMULATE — simuladas' : 'LIVE — reais permitidas'}</dd></div>
+          <div><dt>Destinatário</dt><dd>{credential.recipientName}</dd></div>
       <div><dt>Contato</dt><dd>{credential.recipientContact || '—'}</dd></div>
       <div><dt>Início</dt><dd>{apiCredentialDateLabel(credential.startsAt)}</dd></div>
       <div><dt>Validade</dt><dd>{credential.expiresAt ? apiCredentialDateLabel(credential.expiresAt) : 'Sem expiração'}</dd></div>

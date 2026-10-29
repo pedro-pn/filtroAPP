@@ -33,6 +33,7 @@ import { PageHeader } from '../../layout/PageHeader';
 import { AdminModuleAppShell } from './AdminModuleAppShell';
 import { isApiTokenPlaygroundNoveltyActive, markApiTokenPlaygroundNoveltySeen, shouldShowApiTokenPlaygroundNovelty } from './apiTokenPlaygroundNovelty';
 import { startApiTokenPlaygroundTour } from './apiTokenPlaygroundTour';
+import { startApiWriteSimulationNovelty } from './apiWriteSimulationNovelty';
 import './AdminTokensPage.ds.css';
 
 const STATUS_FILTER_LABELS: Record<string, string> = {
@@ -115,6 +116,10 @@ export function AdminTokensPage() {
   });
   const { reset: resetParameters } = parameterForm;
   useEffect(() => {
+    const timer = window.setTimeout(() => startApiWriteSimulationNovelty(user), 1000);
+    return () => window.clearTimeout(timer);
+  }, [user, etapa, selectedOperation, activityCredential, selectedCredential]);
+  useEffect(() => {
     resetParameters(playgroundParameterDefaults(selectedOperation, maxTestItems, testScope, scopeSignature.split('|')));
     testSequence.current += 1;
     setPlaygroundResult(null);
@@ -177,7 +182,7 @@ export function AdminTokensPage() {
   }
 
   function runPlayground(values: ApiPlaygroundParameters) {
-    if (selectedOperation?.method === 'POST') {
+    if (selectedOperation?.method === 'POST' && values.writeMode === 'LIVE' && selectedCredential?.writeMode !== 'SIMULATE') {
       setPendingPostParameters(values);
       return;
     }
@@ -215,7 +220,7 @@ export function AdminTokensPage() {
           <ApiOperationSelector operations={operations} scopes={scopesQuery.data?.items || []} scopeCode={testScope} credential={selectedCredential} value={operation}
             onScopeChange={value => replaceSafeParams({ etapa: 'playground', testScope: value, operation: value ? operationsForScope(operations, value)[0]?.operationId || '' : '' })}
             onChange={value => replaceSafeParams({ etapa: 'playground', operation: value })} />
-          <ApiOperationParameters operation={selectedOperation} value={parameterForm.watch()} register={parameterForm.register} maxPageSize={maxTestItems} scopes={grantedScopes}
+          <ApiOperationParameters credentialWriteMode={selectedCredential?.writeMode} operation={selectedOperation} value={parameterForm.watch()} register={parameterForm.register} maxPageSize={maxTestItems} scopes={grantedScopes}
             errors={Object.fromEntries(Object.entries(parameterForm.formState.errors).map(([name, error]) => [name, String(error?.message || '')]))}
             onChange={value => { for (const [name, item] of Object.entries(value)) parameterForm.setValue(name, item, { shouldValidate: parameterForm.formState.isSubmitted }); testSequence.current += 1; setTesting(false); setPlaygroundResult(null); }} />
           <div className="api-playground-run"><Button variant="primary" loading={testing} disabled={!canTest || testing} onClick={() => void parameterForm.handleSubmit(runPlayground)()}>{testing ? 'Executando…' : selectedOperation?.method === 'POST' ? 'Enviar POST' : selectedOperation?.responseKind === 'DOWNLOAD_CHECK' ? 'Verificar acesso ao arquivo' : 'Executar teste seguro'}</Button></div>

@@ -10,7 +10,8 @@ export function formatSafeCurl(path: string, download = false, method: 'GET' | '
     const qualityKey = typeof key === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(key) ? key : null;
     const idempotency = path === '/api/integracoes/v1/acompanhamento/oportunidades' && eventId ? ` -H "Idempotency-Key: ${eventId}"`
       : path === '/api/integracoes/v1/qualidade/registros' && qualityKey ? ` -H "Idempotency-Key: ${qualityKey}"` : '';
-    return `curl --fail-with-body -X POST -H "Authorization: Bearer $FILTRO_API_TOKEN" -H "Content-Type: application/json"${idempotency} --data-raw '${quotedBody}' "${url}"`;
+    const preference = headers?.Prefer === 'validate-only' ? ' -H "Prefer: validate-only"' : '';
+    return `curl --fail-with-body -X POST -H "Authorization: Bearer $FILTRO_API_TOKEN" -H "Content-Type: application/json"${idempotency}${preference} --data-raw '${quotedBody}' "${url}"`;
   }
   return `curl --fail-with-body -H "Authorization: Bearer $FILTRO_API_TOKEN" -H "Accept: application/json" "${url}"`;
 }

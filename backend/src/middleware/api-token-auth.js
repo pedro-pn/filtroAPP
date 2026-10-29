@@ -1,6 +1,6 @@
 import env from '../config/env.js';
 import asyncHandler from '../lib/async-handler.js';
-import { getApiOperation } from '../lib/api-credentials/catalog.js';
+import { getApiOperation, findApiOperationForRequest } from '../lib/api-credentials/catalog.js';
 import { recordApiRequest } from '../lib/api-credentials/audit.js';
 import { createPrismaQuotaStore, reserveCredentialQuota, settleCredentialQuota } from '../lib/api-credentials/quota.js';
 import { isIpAllowed, resolveEffectiveClientIp } from '../lib/api-credentials/restrictions.js';
@@ -8,6 +8,8 @@ import { parseApiToken, verifyApiToken } from '../lib/api-credentials/token.js';
 import prisma from '../lib/prisma.js';
 import { sendIntegrationError } from './api-request-context.js';
 import { hasIntegrationScopes } from '../../../shared/schemas/integration-api.js';
+import { applySimulationPreference, shouldSimulateWrite } from '../lib/api-credentials/write-mode.js';
+import { executeApiWrite } from '../lib/api-credentials/write-simulation.js';
 
 function bearerValue(header) {
   if (typeof header !== 'string' || !header.startsWith('Bearer ') || header.length > 256) return '';
@@ -22,6 +24,49 @@ function credentialIsUsable(credential, now) {
   if (credential.revokedAt && credential.revokedAt <= now) return false;
   if (credential.overlapEndsAt && credential.overlapEndsAt <= now) return false;
   return true;
+}
+
+async function requestCredential(req, prismaClient) {
+  const rawToken = bearerValue(req.headers?.authorization);
+  if (req.apiCredentialCandidate?.rawToken === rawToken) return req.apiCredentialCandidate.credential;
+  const parsed = parseApiToken(rawToken);
+  return parsed ? prismaClient.apiCredential.findUnique({ where: { selector: parsed.selector }, include: {
+    scopes: { where: { revokedAt: null }, select: { scopeCode: true } },
+    projects: { where: { revokedAt: null }, select: { projectId: true, project: { select: { code: true } } } }
+  } }) : null;
+}
+
+function observeUnmeteredRequest(req, res, prismaClient, credential) {
+  if (req.apiFailureObserver) return;
+  req.apiFailureObserver = true;
+  res.once?.('finish', () => {
+    const operation = req.apiOperation || findApiOperationForRequest(req.method, req.originalUrl || req.url);
+    if (req.apiRequestLogged || !operation || !credential) return;
+    req.apiRequestLogged = true;
+    recordApiRequest(prismaClient, {
+      credentialId: credential.id, requestId: req.requestId, operationId: operation.operationId,
+      scopeCode: operation.requiredScopes[0], pathTemplate: operation.path, statusCode: res.statusCode,
+      outcomeCode: req.apiOutcomeCode || 'REQUEST_FAILED', responseRows: 0, responseBytes: 0, durationMs: 0,
+      simulated: Boolean(req.apiSimulated), clientIp: resolveEffectiveClientIp(req)
+    }).catch(() => {});
+  });
+}
+
+// Antes do parser/boundary: reconhecer SIMULATE em JSON inválido/415 sem mudar
+// os erros legados. A autenticação completa e a política de IP continuam depois.
+export function createApiSimulationPreferenceResolver({ prismaClient = prisma, envConfig = env, now = () => new Date() } = {}) {
+  return asyncHandler(async (req, res, next) => {
+    if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return next();
+    const credential = await requestCredential(req, prismaClient);
+    const rawToken = bearerValue(req.headers?.authorization);
+    if (verifyApiToken({ rawToken, credential, keyResolver: version => envConfig.apiTokenHashKeys?.[version] || '' })
+      && credentialIsUsable(credential, now())) {
+      req.apiCredentialCandidate = { rawToken, credential };
+      applySimulationPreference(req, res, credential);
+      observeUnmeteredRequest(req, res, prismaClient, credential);
+    }
+    next();
+  });
 }
 
 export function createCoarseIpLimiter({ max = 300, windowMs = 60_000 } = {}) {
@@ -49,22 +94,15 @@ export function createCoarseIpLimiter({ max = 300, windowMs = 60_000 } = {}) {
 export function createApiTokenAuthenticator({ prismaClient = prisma, envConfig = env, now = () => new Date() } = {}) {
   return asyncHandler(async (req, res, next) => {
     const rawToken = bearerValue(req.headers?.authorization);
-    const parsed = parseApiToken(rawToken);
-    const credential = parsed
-      ? await prismaClient.apiCredential.findUnique({
-        where: { selector: parsed.selector },
-        include: {
-          scopes: { where: { revokedAt: null }, select: { scopeCode: true } },
-          projects: { where: { revokedAt: null }, select: { projectId: true, project: { select: { code: true } } } }
-        }
-      })
-      : null;
+    const credential = await requestCredential(req, prismaClient);
     const keyResolver = version => envConfig.apiTokenHashKeys?.[version] || '';
     const verified = verifyApiToken({ rawToken, credential, keyResolver });
     if (!verified || !credentialIsUsable(credential, now())) {
       return sendIntegrationError(res, req, 401, 'INVALID_TOKEN', 'Credencial de integração inválida.');
     }
 
+    applySimulationPreference(req, res, credential);
+    observeUnmeteredRequest(req, res, prismaClient, credential);
     const clientIp = resolveEffectiveClientIp(req);
     if (!isIpAllowed(clientIp, credential.allowedIpCidrs)) {
       return sendIntegrationError(res, req, 403, 'IP_NOT_ALLOWED', 'A origem desta requisição não está autorizada.');
@@ -85,6 +123,8 @@ export function requireApiOperation(operationId) {
   const operation = getApiOperation(operationId);
   if (!operation) throw new Error(`Operação de integração desconhecida: ${operationId}.`);
   return function operationAuthorization(req, res, next) {
+    applySimulationPreference(req, res);
+    req.apiOperation = operation;
     const granted = req.apiAuth?.scopeCodes || new Set();
     const missing = hasIntegrationScopes(operation, granted) ? [] : [...operation.requiredScopes];
     if (req.query?.includeDeleted === 'true' && !granted.has('qualidade.excluidos.read')) {
@@ -93,7 +133,9 @@ export function requireApiOperation(operationId) {
     if (missing.length) {
       return sendIntegrationError(res, req, 403, 'INSUFFICIENT_SCOPE', 'A credencial não possui o escopo necessário.');
     }
-    req.apiOperation = operation;
+    if (req.apiSimulated && operation.simulation?.strategy !== 'rollback') {
+      return sendIntegrationError(res, req, 501, 'SIMULATION_NOT_SUPPORTED', 'A operação não suporta simulação.');
+    }
     next();
   };
 }
@@ -111,6 +153,7 @@ export async function runMeteredApiOperation(req, {
   const operation = getApiOperation(operationId);
   if (!operation || !req.apiAuth?.credential) throw new Error('Contexto de operação inválido.');
   const credential = req.apiAuth.credential;
+  const simulated = shouldSimulateWrite(operation.method, req.headers, credential);
   const limits = {
     requestsPerMinute: credential.requestsPerMinute,
     requestsPerDay: credential.requestsPerDay,
@@ -129,7 +172,7 @@ export async function runMeteredApiOperation(req, {
       limits,
       requestedRows
     });
-    const result = await execute();
+    const result = await executeApiWrite(prismaClient, { operation, simulated, requestId: req.requestId, execute });
     statusCode = result.statusCode || 200;
     outcomeCode = result.outcomeCode || 'OK';
     const rows = Math.max(0, Number(result.rows) || 0);
@@ -137,6 +180,7 @@ export async function runMeteredApiOperation(req, {
       ? Math.max(0, Number(result.bytes)) : Buffer.byteLength(JSON.stringify(result.body ?? ''));
     await settleCredentialQuota({ store, reservation, actualRows: rows, responseBytes: bytes });
     settled = true;
+    req.apiRequestLogged = true;
     await recordApiRequest(prismaClient, {
       credentialId: credential.id,
       requestId: req.requestId,
@@ -144,6 +188,7 @@ export async function runMeteredApiOperation(req, {
       scopeCode: operation.requiredScopes[0],
       pathTemplate: operation.path,
       statusCode,
+      simulated,
       outcomeCode,
       responseRows: rows,
       responseBytes: bytes,
@@ -160,6 +205,7 @@ export async function runMeteredApiOperation(req, {
       try { await settleCredentialQuota({ store, reservation, actualRows: 0, responseBytes: 0 }); } catch { /* preserva o erro original */ }
     }
     try {
+      req.apiRequestLogged = true;
       await recordApiRequest(prismaClient, {
         credentialId: credential.id,
         requestId: req.requestId,
@@ -167,6 +213,7 @@ export async function runMeteredApiOperation(req, {
         scopeCode: operation.requiredScopes[0],
         pathTemplate: operation.path,
         statusCode,
+        simulated,
         outcomeCode,
         responseRows: 0,
         responseBytes: 0,
