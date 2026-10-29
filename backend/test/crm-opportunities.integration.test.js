@@ -248,7 +248,7 @@ test('planning-1.0: HTTP, histórico, concorrência, reconciliação e rollback 
     assert.equal(await prisma.crmOpportunity.count({ where: { externalId: input.externalId } }), 0);
     assert.equal(await prisma.crmProjectMapping.count({ where: { prismaMissionId: input.opportunity.project.prismaMissionId } }), 0);
   });
-  await t.test('escopos, ALL e playground usam as mesmas regras e respostas', async () => {
+  await t.test('escopos, ALL e playground simulam por padrão e preservam a escrita LIVE', async () => {
     const readOnly = await issue(['acompanhamento.oportunidades.read']);
     assert.equal((await post(initial, readOnly.token)).data.code, 'INSUFFICIENT_SCOPE');
     assert.equal((await get(`/por-origem/prismaCRM/${initial.externalId}`, readOnly.token)).status, 200);
@@ -257,7 +257,15 @@ test('planning-1.0: HTTP, histórico, concorrência, reconciliação e rollback 
     assert.equal((await post(initial, selected.token)).data.code, 'PROJECT_NOT_ALLOWED');
     assert.equal((await get('/vinculos', selected.token)).data.code, 'PROJECT_NOT_ALLOWED');
     await assert.rejects(() => executePlaygroundOperation(prisma, selected.credential.id, { operationId: 'acompanhamento.opportunities.post', body: initial }), error => error.code === 'PROJECT_NOT_ALLOWED');
-    const result = await executePlaygroundOperation(prisma, issued.credential.id, { operationId: 'acompanhamento.opportunities.post', body: event(0, 'playground') }, { actorUserId: users[0].id });
+    const body = event(0, 'playground');
+    const simulated = await executePlaygroundOperation(prisma, issued.credential.id, { operationId: 'acompanhamento.opportunities.post', body }, { actorUserId: users[0].id });
+    assert.equal(simulated.response.status, 200);
+    assert.equal(simulated.response.headers['Preference-Applied'], 'validate-only');
+    assert.equal(simulated.response.body.simulated, true);
+    assert.equal(simulated.response.body.would.disposition, 'applied');
+    assert.equal(await prisma.crmOpportunity.count({ where: { externalId: body.externalId } }), 0);
+    assert.equal(await prisma.crmPlanningReceipt.count({ where: { eventId: body.eventId } }), 0);
+    const result = await executePlaygroundOperation(prisma, issued.credential.id, { operationId: 'acompanhamento.opportunities.post', body, writeMode: 'LIVE' }, { actorUserId: users[0].id });
     assert.equal(result.response.status, 201); assert.equal(result.response.body.disposition, 'applied');
     assert.match(result.request.curl, /Idempotency-Key:/);
     const listed = await executePlaygroundOperation(prisma, issued.credential.id, { operationId: 'acompanhamento.opportunities.links.list', query: { limit: 2 } });

@@ -62,10 +62,17 @@ arquitetura exige registro, executor e caso na matriz para novas escritas.
   integrações preexistentes que exigem URLs de bancos externos específicos; todos
   os cenários novos de simulação executaram no banco descartável.
 - Frontend `npm test`: **854 passaram, 0 falhas**; lint e build passaram.
+- Validação adicional com PostgreSQL 16 nativo descartável: todas as migrações
+  aplicadas e **20 testes do PrismaCRM passaram**. O cenário do Playground
+  confirma HTTP 200 simulado, ausência de oportunidade/recibo persistido e
+  gravação HTTP 201 com LIVE explícito para o mesmo evento. Esse teste foi
+  atualizado durante a execução do CI, pois ainda pressupunha escrita padrão.
 - `git diff --check`: passou.
 
-Os testes locais usam `NODE_ENV=test` e DATABASE_URL fictícia, em porta sem banco,
-apenas para satisfazer a validação de configuração. Nenhum banco real foi usado.
+A suíte local sem integrações específicas usa `NODE_ENV=test` e DATABASE_URL
+fictícia, em porta sem banco, para satisfazer a validação de configuração. A
+validação adicional do CRM e das migrações usa PostgreSQL 16 em container
+descartável. Nenhum banco da aplicação foi acessado.
 
 ## Exemplos fictícios
 
