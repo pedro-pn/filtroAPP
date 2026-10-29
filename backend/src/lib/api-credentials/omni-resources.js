@@ -4,6 +4,14 @@ import { efetivoProjectWhere } from '../efetivo/project-visibility.js';
 const personSelect = { select: { id: true, name: true, email: true } };
 
 export const OMNI_RESOURCES = Object.freeze([
+  resource('IntegrationEvent', '/eventos', 'eventos.read', 'Eventos de integração — identificadores das mudanças', 'operations', {
+    id: 'string', type: 'string', occurredAt: 'datetime', projectId: 'string?', projectCode: 'string?', resource: 'string', resourceId: 'string'
+  }, {
+    operationId: 'integration.events.list', openApiOperationId: 'listIntegrationEvents',
+    timestampField: null, collectionKind: 'EVENT_FEED', projectPolicy: 'DIRECT',
+    queryParams: ['limit', 'cursor'], select: { sequence: true },
+    projectNotice: 'Feed dos últimos 30 dias, limitado aos projetos e escopos de leitura da credencial. Guarde o cursor mesmo sem mais páginas; cursor expirado retorna 410.'
+  }),
   resource('Project', '/projetos/responsaveis', 'projetos.responsaveis.read', 'Responsáveis dos projetos — identidade e e-mail corporativo', 'projects-clients', {}, {
     operationId: 'operational.ProjectResponsible.list', openApiOperationId: 'listIntegrationProjectResponsible',
     sensitivity: 'PERSONAL', projectPolicy: 'SELF', timestampField: null, keyFields: ['projectId', 'role'],

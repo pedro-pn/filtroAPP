@@ -1,4 +1,6 @@
 export type IntegrationPageMeta = { nextCursor: string | null; limit: number; hasMore: boolean; snapshotAt: string };
+export const INTEGRATION_REPORT_STATUSES: readonly ['PENDING', 'RETURNED', 'APPROVED', 'SIGNED'];
+export function hasIntegrationScopes(operation: { requiredScopes: string[]; scopeAlternatives?: string[][] }, scopes: Set<string> | string[]): boolean;
 export type IntegrationEnvelope<T> = { items: T[]; page: IntegrationPageMeta; generatedAt: string; schemaVersion: '1.0'; requestId: string };
 export type IntegrationError = { code: string; message: string; requestId: string; fields?: Array<{ path: string; message: string }> };
 export const INTEGRATION_REPORT_TYPES: readonly ['RDO', 'RDO_MAINTENANCE', 'RDO_PRODUCTION', 'RTP', 'RLQ', 'RCPU', 'RLM', 'RLF', 'RLI'];

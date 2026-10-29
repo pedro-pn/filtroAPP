@@ -11,7 +11,7 @@ import { executePlaygroundOperation } from '../src/lib/api-credentials/playgroun
 
 const key = 'synthetic-operational-cursor-key-at-least-32-chars';
 const stamp = new Date('2026-09-07T10:00:00.000Z');
-const context = (overrides = {}) => ({ scopes: new Set(API_SCOPES.map(item => item.code)), projectAccessMode: 'SELECTED', projectIds: new Set(['p1']), projectCodes: new Set(['05776']), maxPageSize: 100, cursorKey: key, snapshotAt: new Date('2026-09-08T10:00:00Z'), ...overrides });
+const context = (overrides = {}) => ({ scopes: new Set(API_SCOPES.map(item => item.code).filter(code => code !== 'rdo.relatorios.todos.read')), projectAccessMode: 'SELECTED', projectIds: new Set(['p1']), projectCodes: new Set(['05776']), maxPageSize: 100, cursorKey: key, snapshotAt: new Date('2026-09-08T10:00:00Z'), ...overrides });
 const definition = model => OPERATIONAL_RESOURCES.find(item => item.model === model);
 const approved = projectId => ({ projectId, status: 'APPROVED', deletedAt: null, project: { deletedAt: null } });
 const sample = (resource, extra = {}) => ({ ...Object.fromEntries(Object.entries(resource.fields).map(([field, type]) => [field,
@@ -135,8 +135,8 @@ test('project isolation covers self, direct, report and collaborator links; reje
 
 test('projectCode is available on every project-bound collection and covers every project policy', async () => {
   for (const resource of OPERATIONAL_RESOURCES) {
-    assert.equal(resource.queryParams.includes('projectCode'), resource.projectPolicy !== 'GLOBAL', resource.operationId);
-    assert.equal(resource.queryParams.includes('projectId'), resource.projectPolicy !== 'GLOBAL', resource.operationId);
+    assert.equal(resource.queryParams.includes('projectCode'), resource.projectPolicy !== 'GLOBAL' && resource.collectionKind !== 'EVENT_FEED', resource.operationId);
+    assert.equal(resource.queryParams.includes('projectId'), resource.projectPolicy !== 'GLOBAL' && resource.collectionKind !== 'EVENT_FEED', resource.operationId);
   }
 
   const parent = (projectId, code) => ({

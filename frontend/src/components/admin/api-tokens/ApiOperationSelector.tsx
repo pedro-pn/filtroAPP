@@ -3,6 +3,7 @@ import { SearchCombobox } from '../../ui/SearchCombobox';
 import { Alert, Badge, Card } from '../../ui/ds';
 import type { ApiOperationOption } from './apiOperations';
 import { operationsForScope } from './apiOperations';
+import { hasIntegrationScopes } from '../../../../../shared/schemas/integration-api.js';
 import type { ApiScopeDefinition } from '../../../api/apiCredentials';
 
 export function ApiOperationSelector({
@@ -28,7 +29,7 @@ export function ApiOperationSelector({
   const filtered = operationsForScope(operations, scopeCode);
   const selectedScope = scopes.find((scope) => scope.code === scopeCode);
   const missing =
-    selected?.requiredScopes.filter(
+    selected && hasIntegrationScopes(selected, credential?.scopeCodes || []) ? [] : selected?.requiredScopes.filter(
       (scope) => !credential?.scopeCodes.includes(scope)
     ) || [];
   return (

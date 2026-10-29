@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: FiltroApp - Administração e API de Integrações
-  version: 1.8.0
+  version: 1.9.0
   description: >-
     Contrato da gestão administrativa de credenciais, consultas externas e escrita
     contratada do CRM Prisma no Efetivo. Tokens de integração e sessões humanas
@@ -59,20 +59,70 @@ paths:
                     items:
                       type: object
                       additionalProperties: false
-                      required: [operationId, label, method, path, requiredScopes, optionalScopes, queryParams, pathParams, domain, responseKind, parameters, bodyExample]
+                      required:
+                        - operationId
+                        - label
+                        - method
+                        - path
+                        - requiredScopes
+                        - optionalScopes
+                        - queryParams
+                        - pathParams
+                        - domain
+                        - responseKind
+                        - parameters
+                        - bodyExample
+                        - scopeAlternatives
                       properties:
-                        operationId: { type: string }
-                        label: { type: string }
-                        method: { type: string, enum: [GET, POST] }
-                        path: { type: string }
-                        requiredScopes: { type: array, items: { type: string } }
-                        optionalScopes: { type: array, items: { type: string } }
-                        domain: { type: string }
-                        responseKind: { type: string, enum: [JSON, DOWNLOAD_CHECK] }
-                        parameters: { type: array, items: { $ref: '#/components/schemas/PlaygroundParameter' } }
-                        queryParams: { type: array, items: { type: string } }
-                        pathParams: { type: array, items: { type: string } }
-                        bodyExample: { type: [object, 'null'], additionalProperties: true }
+                        operationId:
+                          type: string
+                        label:
+                          type: string
+                        method:
+                          type: string
+                          enum:
+                            - GET
+                            - POST
+                        path:
+                          type: string
+                        requiredScopes:
+                          type: array
+                          items:
+                            type: string
+                        optionalScopes:
+                          type: array
+                          items:
+                            type: string
+                        domain:
+                          type: string
+                        responseKind:
+                          type: string
+                          enum:
+                            - JSON
+                            - DOWNLOAD_CHECK
+                        parameters:
+                          type: array
+                          items:
+                            $ref: "#/components/schemas/PlaygroundParameter"
+                        queryParams:
+                          type: array
+                          items:
+                            type: string
+                        pathParams:
+                          type: array
+                          items:
+                            type: string
+                        bodyExample:
+                          type:
+                            - object
+                            - "null"
+                          additionalProperties: true
+                        scopeAlternatives:
+                          type: array
+                          items:
+                            type: array
+                            items:
+                              type: string
         '401': { $ref: '#/components/responses/AdminUnauthorized' }
         '403': { $ref: '#/components/responses/AdminForbidden' }
 
@@ -326,31 +376,29 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [operationId, query]
+              required:
+                - operationId
+                - query
               properties:
                 operationId:
                   type: string
                   enum:
+                    - quality.records.create
+                    - acompanhamento.opportunities.post
+                    - acompanhamento.opportunities.links.list
+                    - acompanhamento.opportunities.get
+                    - jobRoles.salary.get
                     - quality.records.list
                     - quality.records.get
                     - quality.natures.list
                     - quality.evidence.download
-                    - jobRoles.salary.get
                     - efetivo.projects.status.get
                     - efetivo.projects.create
-                    - acompanhamento.opportunities.post
-                    - acompanhamento.opportunities.links.list
-                    - acompanhamento.opportunities.get
                     - efetivo.projects.commercialFact.post
                     - efetivo.projects.document.post
-                    - operational.ReportAttachment.download
-                    - operational.StockItemDocument.download
-                    - operational.MaintenanceAttachment.download
                     - operational.Collaborator.list
                     - operational.JobRole.list
                     - operational.Project.list
-                    - operational.ProjectResponsible.list
-                    - efetivo.projects.status.list
                     - operational.ClientSegment.list
                     - operational.Report.list
                     - operational.DdsTheme.list
@@ -376,9 +424,17 @@ paths:
                     - operational.MaintenanceThirdPartyService.list
                     - operational.MaintenanceAttachment.list
                     - operational.OperationalReviewAudit.list
+                    - integration.events.list
+                    - operational.ProjectResponsible.list
+                    - efetivo.projects.status.list
+                    - operational.ReportAttachment.download
+                    - operational.StockItemDocument.download
+                    - operational.MaintenanceAttachment.download
                 pathParams:
                   type: object
-                  additionalProperties: { type: string, maxLength: 100 }
+                  additionalProperties:
+                    type: string
+                    maxLength: 100
                   default: {}
                 query:
                   type: object
@@ -386,6 +442,15 @@ paths:
                 body:
                   type: object
                   additionalProperties: true
+                headers:
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - Idempotency-Key
+                  properties:
+                    Idempotency-Key:
+                      type: string
+                      format: uuid
       responses:
         '200':
           description: Requisição redigida e resposta limitada para visualização
@@ -402,67 +467,239 @@ paths:
 
   /integracoes/v1/qualidade/registros:
     get:
-      tags: [IntegrationQuality]
+      tags:
+        - IntegrationQuality
       operationId: qualityRecordsList
       summary: Lista registros de Qualidade para carga ou sincronização
       security:
         - IntegrationToken: []
-      x-required-scopes: [qualidade.registros.read]
+      x-required-scopes:
+        - qualidade.registros.read
       x-conditional-scopes:
         qualidade.evidencias.metadata.read: inclui o array `evidences`
         qualidade.excluidos.read: obrigatório quando `includeDeleted=true`
       parameters:
-        - $ref: '#/components/parameters/IntegrationCursor'
-        - $ref: '#/components/parameters/IntegrationLimit'
+        - $ref: "#/components/parameters/IntegrationCursor"
+        - $ref: "#/components/parameters/IntegrationLimit"
         - name: updatedSince
           in: query
-          schema: { type: string, format: date-time }
+          schema:
+            type: string
+            format: date-time
         - name: updatedUntil
           in: query
-          schema: { type: string, format: date-time }
+          schema:
+            type: string
+            format: date-time
         - name: snapshotAt
           in: query
-          schema: { type: string, format: date-time }
+          schema:
+            type: string
+            format: date-time
         - name: projectId
           in: query
-          schema: { type: string, minLength: 1, maxLength: 100 }
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
           description: Identificador interno mantido para compatibilidade; não combine com projectCode.
         - name: projectCode
           in: query
-          schema: { type: string, minLength: 1, maxLength: 100 }
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
           description: Código cadastrado do projeto, tratado como texto e com zeros à esquerda preservados; não combine com projectId.
         - name: type
           in: query
-          schema: { type: string, maxLength: 40 }
+          schema:
+            type: string
+            maxLength: 40
         - name: status
           in: query
-          schema: { type: string, maxLength: 40 }
+          schema:
+            type: string
+            maxLength: 40
         - name: natureId
           in: query
-          schema: { type: string, minLength: 1, maxLength: 100 }
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
         - name: eventDateFrom
           in: query
-          schema: { type: string, format: date }
+          schema:
+            type: string
+            format: date
         - name: eventDateTo
           in: query
-          schema: { type: string, format: date }
+          schema:
+            type: string
+            format: date
         - name: includeDeleted
           in: query
-          schema: { type: boolean, default: false }
+          schema:
+            type: boolean
+            default: false
           description: Exige também `qualidade.excluidos.read` quando true
       responses:
-        '200':
+        "200":
           description: Página ordenada por `updatedAt`, `id`
           headers:
-            Cache-Control: { $ref: '#/components/headers/NoStore' }
-            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/QualityRecordPage' }
-        '400': { $ref: '#/components/responses/ValidationError' }
-        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '429': { $ref: '#/components/responses/RateLimited' }
+              schema:
+                $ref: "#/components/schemas/QualityRecordPage"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/InvalidIntegrationToken"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+    post:
+      tags:
+        - IntegrationQuality
+      operationId: qualityRecordCreate
+      summary: Abrir registro de Qualidade pelo Omni
+      security:
+        - IntegrationToken: []
+      x-required-scopes:
+        - qualidade.registros.create
+      description: "Cria EM_TRIAGEM sem natureza, origem fixa OMNI, FK de User ativo e actionOwner textual. Idempotência por credencial e chave sem expiração: mesmo corpo/chave retorna o mesmo 201; outro corpo retorna 409. Trilha de Qualidade registra credencial e origem; evento transacional qualidade.criado. Projeto dentro do recorte. externalRef persistida internamente."
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - type
+                - eventDate
+                - description
+                - impact
+                - actionOwnerEmail
+                - externalRef
+              oneOf:
+                - required:
+                    - projectCode
+                - required:
+                    - projectId
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - DESVIO
+                    - INCIDENTE
+                    - RECLAMACAO_CLIENTE
+                projectCode:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                projectId:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                eventDate:
+                  type: string
+                  format: date
+                description:
+                  type: string
+                  minLength: 1
+                  maxLength: 10000
+                impact:
+                  type: string
+                  enum:
+                    - ALTO
+                    - MEDIO
+                    - BAIXO
+                actionOwnerEmail:
+                  type: string
+                  format: email
+                  maxLength: 254
+                externalRef:
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - system
+                    - url
+                    - reference
+                  properties:
+                    system:
+                      type: string
+                      minLength: 1
+                      maxLength: 100
+                    url:
+                      type: string
+                      format: uri
+                      pattern: ^https?://
+                      maxLength: 2000
+                    reference:
+                      type: string
+                      minLength: 1
+                      maxLength: 500
+              example:
+                type: DESVIO
+                projectCode: "5850"
+                eventDate: 2026-10-28
+                description: "Mobilização adiada: exemplo fictício."
+                impact: MEDIO
+                actionOwnerEmail: qualidade@filtrovali.com.br
+                externalRef:
+                  system: omni
+                  url: https://omni.filtrovali.com.br/exemplo
+                  reference: pergunta-ficticia
+      responses:
+        "201":
+          description: Registro criado ou resposta original de reenvio idempotente.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - id
+                  - number
+                  - status
+                  - createdAt
+                properties:
+                  id:
+                    type: string
+                  number:
+                    type: string
+                    example: D-012/26
+                  status:
+                    const: EM_TRIAGEM
+                  createdAt:
+                    type: string
+                    format: date-time
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/InvalidIntegrationToken"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Projeto inexistente ou indisponível.
+        "409":
+          description: "IDEMPOTENCY_CONFLICT: chave já usada com outro corpo."
+        "422":
+          description: "ACTION_OWNER_NOT_FOUND: email não identifica um único User ativo."
+        "429":
+          $ref: "#/components/responses/RateLimited"
 
   /integracoes/v1/qualidade/registros/{recordId}:
     get:
@@ -1000,41 +1237,288 @@ paths:
 
   /integracoes/v1/rdo/relatorios:
     get:
-      tags: [IntegrationOperational]
+      tags:
+        - IntegrationOperational
       operationId: listIntegrationReport
-      summary: "Relatórios aprovados — identificação, descrição e horas"
-      description: "Número do relatório e código/nome do projeto, descrição diária e motivo de horas extras. Somente relatórios aprovados, não excluídos e de projetos autorizados não excluídos."
-      security: [{ IntegrationToken: [] }]
-      x-required-scopes: [rdo.relatorios.read]
-      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Identificador interno mantido para compatibilidade; nao combine com projectCode."},{"name":"projectCode","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Codigo cadastrado do projeto, tratado como texto e com zeros a esquerda preservados; nao combine com projectId."},{"$ref":"#/components/parameters/IntegrationReportType"}]
+      summary: Relatórios aprovados — identificação, descrição e horas
+      description: Sem rdo.relatorios.todos.read preserva somente APPROVED e os campos anteriores. Com o novo escopo independente inclui PENDING, RETURNED, APPROVED, SIGNED (nunca rascunhos) e os quatro campos condicionais; approvedAt já existia. updatedSince reflete mudanças de status.
+      security:
+        - IntegrationToken: []
+      x-required-scopes:
+        - rdo.relatorios.read
+      parameters:
+        - $ref: "#/components/parameters/IntegrationLimit"
+        - $ref: "#/components/parameters/IntegrationCursor"
+        - name: updatedSince
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: snapshotAt
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: projectId
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+          description: Identificador interno mantido para compatibilidade; nao combine com projectCode.
+        - name: projectCode
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+          description: Codigo cadastrado do projeto, tratado como texto e com zeros a esquerda preservados; nao combine com projectId.
+        - $ref: "#/components/parameters/IntegrationReportType"
+        - name: status
+          in: query
+          description: Exige rdo.relatorios.todos.read; códigos separados por vírgula.
+          schema:
+            type: array
+            items:
+              type: string
+              enum:
+                - PENDING
+                - RETURNED
+                - APPROVED
+                - SIGNED
+          style: form
+          explode: false
       responses:
-        '200':
+        "200":
           description: Página operacional por updatedAt e id, sem campos não contratados.
           headers:
-            Cache-Control: { $ref: '#/components/headers/NoStore' }
-            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: false
-                required: [items, page, generatedAt, schemaVersion, requestId]
+                required:
+                  - items
+                  - page
+                  - generatedAt
+                  - schemaVersion
+                  - requestId
                 properties:
                   items:
                     type: array
                     items:
-                      type: object
-                      additionalProperties: false
-                      required: ["id","createdAt","updatedAt","projectId","reportType","sequenceNumber","status","reportDate","arrivalTime","departureTime","lunchBreak","daytimeCount","daytimeWorkedMinutes","nighttimeWorkedMinutes","daytimeOvertimeMinutes","nighttimeOvertimeMinutes","totalOvertimeMinutes","approvedAt","dailyDescription","overtimeReason","reportNumber","projectCode","projectName"]
-                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time"},"projectId":{"type":"string"},"reportType":{"type":"string"},"sequenceNumber":{"type":["integer","null"]},"status":{"type":"string"},"reportDate":{"type":"string","format":"date-time"},"arrivalTime":{"type":"string"},"departureTime":{"type":"string"},"lunchBreak":{"type":"string"},"daytimeCount":{"type":"integer"},"daytimeWorkedMinutes":{"type":"integer"},"nighttimeWorkedMinutes":{"type":"integer"},"daytimeOvertimeMinutes":{"type":"integer"},"nighttimeOvertimeMinutes":{"type":"integer"},"totalOvertimeMinutes":{"type":"integer"},"approvedAt":{"type":["string","null"],"format":"date-time"},"dailyDescription":{"type":["string","null"]},"overtimeReason":{"type":["string","null"]},"reportNumber":{"type":["string","null"]},"projectCode":{"type":"string"},"projectName":{"type":"string"}}
-                  page: { $ref: '#/components/schemas/IntegrationPageMeta' }
-                  generatedAt: { type: string, format: date-time }
-                  schemaVersion: { type: string, const: '1.0' }
-                  requestId: { type: string }
-        '400': { $ref: '#/components/responses/ValidationError' }
-        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '429': { $ref: '#/components/responses/RateLimited' }
+                      oneOf:
+                        - type: object
+                          additionalProperties: false
+                          required:
+                            - id
+                            - createdAt
+                            - updatedAt
+                            - projectId
+                            - reportType
+                            - sequenceNumber
+                            - status
+                            - reportDate
+                            - arrivalTime
+                            - departureTime
+                            - lunchBreak
+                            - daytimeCount
+                            - daytimeWorkedMinutes
+                            - nighttimeWorkedMinutes
+                            - daytimeOvertimeMinutes
+                            - nighttimeOvertimeMinutes
+                            - totalOvertimeMinutes
+                            - approvedAt
+                            - dailyDescription
+                            - overtimeReason
+                            - reportNumber
+                            - projectCode
+                            - projectName
+                          properties:
+                            id:
+                              type: string
+                            createdAt:
+                              type: string
+                              format: date-time
+                            updatedAt:
+                              type: string
+                              format: date-time
+                            projectId:
+                              type: string
+                            reportType:
+                              type: string
+                            sequenceNumber:
+                              type:
+                                - integer
+                                - "null"
+                            status:
+                              type: string
+                            reportDate:
+                              type: string
+                              format: date-time
+                            arrivalTime:
+                              type: string
+                            departureTime:
+                              type: string
+                            lunchBreak:
+                              type: string
+                            daytimeCount:
+                              type: integer
+                            daytimeWorkedMinutes:
+                              type: integer
+                            nighttimeWorkedMinutes:
+                              type: integer
+                            daytimeOvertimeMinutes:
+                              type: integer
+                            nighttimeOvertimeMinutes:
+                              type: integer
+                            totalOvertimeMinutes:
+                              type: integer
+                            approvedAt:
+                              type:
+                                - string
+                                - "null"
+                              format: date-time
+                            dailyDescription:
+                              type:
+                                - string
+                                - "null"
+                            overtimeReason:
+                              type:
+                                - string
+                                - "null"
+                            reportNumber:
+                              type:
+                                - string
+                                - "null"
+                            projectCode:
+                              type: string
+                            projectName:
+                              type: string
+                        - type: object
+                          additionalProperties: false
+                          required:
+                            - id
+                            - createdAt
+                            - updatedAt
+                            - projectId
+                            - reportType
+                            - sequenceNumber
+                            - status
+                            - reportDate
+                            - arrivalTime
+                            - departureTime
+                            - lunchBreak
+                            - daytimeCount
+                            - daytimeWorkedMinutes
+                            - nighttimeWorkedMinutes
+                            - daytimeOvertimeMinutes
+                            - nighttimeOvertimeMinutes
+                            - totalOvertimeMinutes
+                            - approvedAt
+                            - dailyDescription
+                            - overtimeReason
+                            - reportNumber
+                            - projectCode
+                            - projectName
+                            - submittedAt
+                            - returnedAt
+                            - signedAt
+                            - clientReleasedAt
+                          properties:
+                            id:
+                              source: a1
+                            createdAt:
+                              source: a2
+                            updatedAt:
+                              source: a3
+                            projectId:
+                              source: a4
+                            reportType:
+                              source: a5
+                            sequenceNumber:
+                              source: a6
+                            status:
+                              source: a7
+                            reportDate:
+                              source: a8
+                            arrivalTime:
+                              source: a9
+                            departureTime:
+                              source: a10
+                            lunchBreak:
+                              source: a11
+                            daytimeCount:
+                              source: a12
+                            daytimeWorkedMinutes:
+                              source: a13
+                            nighttimeWorkedMinutes:
+                              source: a14
+                            daytimeOvertimeMinutes:
+                              source: a15
+                            nighttimeOvertimeMinutes:
+                              source: a16
+                            totalOvertimeMinutes:
+                              source: a17
+                            approvedAt:
+                              source: a18
+                            dailyDescription:
+                              source: a19
+                            overtimeReason:
+                              source: a20
+                            reportNumber:
+                              source: a21
+                            projectCode:
+                              source: a22
+                            projectName:
+                              source: a23
+                            submittedAt:
+                              type:
+                                - string
+                                - "null"
+                              format: date-time
+                            returnedAt:
+                              type:
+                                - string
+                                - "null"
+                              format: date-time
+                            signedAt:
+                              type:
+                                - string
+                                - "null"
+                              format: date-time
+                            clientReleasedAt:
+                              type:
+                                - string
+                                - "null"
+                              format: date-time
+                      description: Primeira alternativa para escopo legado; segunda exclusivamente com rdo.relatorios.todos.read.
+                  page:
+                    $ref: "#/components/schemas/IntegrationPageMeta"
+                  generatedAt:
+                    type: string
+                    format: date-time
+                  schemaVersion:
+                    type: string
+                    const: "1.0"
+                  requestId:
+                    type: string
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/InvalidIntegrationToken"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+      x-optional-scopes:
+        - rdo.relatorios.todos.read
+      x-scope-alternatives:
+        - - rdo.relatorios.todos.read
 
   /integracoes/v1/rdo/dds:
     get:
@@ -2360,6 +2844,92 @@ paths:
         "429":
           $ref: "#/components/responses/RateLimited"
 
+  /integracoes/v1/eventos:
+    get:
+      tags:
+        - IntegrationOperational
+      operationId: listIntegrationEvents
+      summary: Eventos de integração — identificadores das mudanças
+      description: Feed vivo dos últimos 30 dias, sequência em ordem de commit. Exige eventos.read mais escopo do recurso e recorte do token. nextCursor também é retornado quando hasMore=false e deve ser usado no próximo polling. Cursor atrasado retorna 410 CURSOR_EXPIRED; reconciliar e reiniciar. Nenhum conteúdo no evento. Deduplicar por id.
+      security:
+        - IntegrationToken: []
+      x-required-scopes:
+        - eventos.read
+      parameters:
+        - $ref: "#/components/parameters/IntegrationLimit"
+        - $ref: "#/components/parameters/IntegrationCursor"
+      responses:
+        "200":
+          description: Página do feed; cursor terminal sempre presente.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                  - page
+                  - generatedAt
+                  - schemaVersion
+                  - requestId
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required:
+                        - id
+                        - type
+                        - occurredAt
+                        - projectId
+                        - projectCode
+                        - resource
+                        - resourceId
+                      properties:
+                        id:
+                          type: string
+                        type:
+                          type: string
+                        occurredAt:
+                          type: string
+                          format: date-time
+                        projectId:
+                          type:
+                            - string
+                            - "null"
+                        projectCode:
+                          type:
+                            - string
+                            - "null"
+                        resource:
+                          type: string
+                        resourceId:
+                          type: string
+                  page:
+                    $ref: "#/components/schemas/IntegrationPageMeta"
+                  generatedAt:
+                    type: string
+                    format: date-time
+                  schemaVersion:
+                    const: "1.0"
+                  requestId:
+                    type: string
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/InvalidIntegrationToken"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "410":
+          description: "CURSOR_EXPIRED: cursor fora da retenção de 30 dias; reconciliar recursos e reiniciar."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
 components:
   securitySchemes:
     AdminSession:
@@ -3438,20 +4008,50 @@ components:
     PlaygroundParameter:
       type: object
       additionalProperties: false
-      required: [name, in, label, type, required]
+      required:
+        - name
+        - in
+        - label
+        - type
+        - required
       properties:
-        name: { type: string }
-        in: { type: string, enum: [query, path] }
-        label: { type: string }
-        type: { type: string, enum: [text, integer, datetime, date, boolean, enum-list] }
-        required: { type: boolean }
-        help: { type: string }
-        min: { type: integer }
-        max: { type: integer }
-        maxLength: { type: integer }
-        options: { type: array, items: { type: string } }
-        advanced: { type: boolean }
-        requiredScope: { type: string }
+        name:
+          type: string
+        in:
+          type: string
+          enum:
+            - query
+            - path
+            - header
+        label:
+          type: string
+        type:
+          type: string
+          enum:
+            - text
+            - integer
+            - datetime
+            - date
+            - boolean
+            - enum-list
+        required:
+          type: boolean
+        help:
+          type: string
+        min:
+          type: integer
+        max:
+          type: integer
+        maxLength:
+          type: integer
+        options:
+          type: array
+          items:
+            type: string
+        advanced:
+          type: boolean
+        requiredScope:
+          type: string
     PlaygroundDownloadCheck:
       type: object
       additionalProperties: false
@@ -3476,13 +4076,41 @@ components:
         request:
           type: object
           additionalProperties: false
-          required: [method, path, authorization, curl, body]
+          required:
+            - method
+            - path
+            - authorization
+            - curl
+            - body
           properties:
-            method: { type: string, enum: [GET, POST] }
-            path: { type: string }
-            authorization: { type: string, example: 'Bearer ••••a9Qx' }
-            curl: { type: string, description: Usa `$FILTRO_API_TOKEN`, nunca o valor real. }
-            body: { type: [object, 'null'], additionalProperties: true }
+            method:
+              type: string
+              enum:
+                - GET
+                - POST
+            path:
+              type: string
+            authorization:
+              type: string
+              example: Bearer ••••a9Qx
+            curl:
+              type: string
+              description: Usa `$FILTRO_API_TOKEN`
+              nunca o valor real.: null
+            body:
+              type:
+                - object
+                - "null"
+              additionalProperties: true
+            headers:
+              type: object
+              additionalProperties: false
+              required:
+                - Idempotency-Key
+              properties:
+                Idempotency-Key:
+                  type: string
+                  format: uuid
         response:
           type: object
           additionalProperties: false

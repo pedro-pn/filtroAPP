@@ -1,12 +1,15 @@
 import type { ApiPlaygroundInput, ApiPlaygroundResult } from '../../../api/apiCredentials';
 
-export function formatSafeCurl(path: string, download = false, method: 'GET' | 'POST' = 'GET', body?: Record<string, unknown> | null) {
+export function formatSafeCurl(path: string, download = false, method: 'GET' | 'POST' = 'GET', body?: Record<string, unknown> | null, headers?: Record<string, string>) {
   const url = '$FILTRO_API_BASE_URL' + path;
   if (download) return `curl --fail -H "Authorization: Bearer $FILTRO_API_TOKEN" --output "arquivo-baixado.bin" "${url}"`;
   if (method === 'POST') {
     const quotedBody = JSON.stringify(body || {}).replaceAll("'", "'\\''");
     const eventId = typeof body?.eventId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.eventId) ? body.eventId : null;
-    const idempotency = path === '/api/integracoes/v1/acompanhamento/oportunidades' && eventId ? ` -H "Idempotency-Key: ${eventId}"` : '';
+    const key = headers?.['Idempotency-Key'];
+    const qualityKey = typeof key === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(key) ? key : null;
+    const idempotency = path === '/api/integracoes/v1/acompanhamento/oportunidades' && eventId ? ` -H "Idempotency-Key: ${eventId}"`
+      : path === '/api/integracoes/v1/qualidade/registros' && qualityKey ? ` -H "Idempotency-Key: ${qualityKey}"` : '';
     return `curl --fail-with-body -X POST -H "Authorization: Bearer $FILTRO_API_TOKEN" -H "Content-Type: application/json"${idempotency} --data-raw '${quotedBody}' "${url}"`;
   }
   return `curl --fail-with-body -H "Authorization: Bearer $FILTRO_API_TOKEN" -H "Accept: application/json" "${url}"`;
@@ -16,7 +19,7 @@ export function redactedRequestPreview(result: ApiPlaygroundResult | null, pendi
   if (result?.request) return {
     ...result.request,
     authorization: /^Bearer ••••[A-Za-z0-9_-]{4}$/.test(result.request.authorization) ? result.request.authorization : 'Bearer ••••',
-    curl: formatSafeCurl(result.request.path, isDownloadCheckResult(result), result.request.method === 'POST' ? 'POST' : 'GET', result.request.body)
+    curl: formatSafeCurl(result.request.path, isDownloadCheckResult(result), result.request.method === 'POST' ? 'POST' : 'GET', result.request.body, result.request.headers)
   };
   return pending ? { method: 'GET', path: '(gerado pelo catálogo)', authorization: 'Bearer ••••', curl: formatSafeCurl('(caminho gerado pelo catálogo)') } : null;
 }

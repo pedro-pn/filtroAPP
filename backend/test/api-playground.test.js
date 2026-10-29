@@ -12,8 +12,9 @@ test('every implemented scope and operation is testable with complete typed para
   for (const operation of operations) {
     assert.ok(operation.domain);
     assert.ok(['JSON', 'DOWNLOAD_CHECK'].includes(operation.responseKind));
-    assert.deepEqual(operation.parameters.map(p => `${p.in}:${p.name}`).sort(), [...operation.queryParams.map(p => `query:${p}`), ...operation.pathParams.map(p => `path:${p}`)].sort());
+    assert.deepEqual(operation.parameters.map(p => `${p.in}:${p.name}`).sort(), [...operation.queryParams.map(p => `query:${p}`), ...operation.pathParams.map(p => `path:${p}`), ...operation.parameters.filter(p => p.in === 'header').map(p => `header:${p.name}`)].sort());
     for (const param of operation.parameters) {
+      if (param.in === 'header') { assert.equal(operation.operationId, 'quality.records.create'); assert.equal(param.name, 'Idempotency-Key'); assert.equal(param.required, true); }
       assert.ok(param.label && param.type);
       if (param.in === 'query') assert.match(param.help, /Na URI:/);
     }

@@ -1,7 +1,7 @@
 # Feature Specification: Integração Omni — fase 2
 
 **Created**: 2026-10-28
-**Status**: Backlog — não implementar nesta entrega
+**Status**: Entrega A implementada e validada localmente, sem deploy; Entrega B em backlog
 **Input**: `../omni/docs/integracoes/prompt-filtroapp-omni.md`, Parte 2.
 
 ## User Scenarios & Testing
@@ -39,7 +39,9 @@ Uma resposta negativa a uma checagem da IA pode abrir um desvio rastreável no f
 3. **Given** tipo DESVIO, INCIDENTE ou RECLAMACAO_CLIENTE, **When** criar, **Then** aplicar validação e auditoria existentes, com ator/origem rastreáveis.
 4. **Given** ausência de escopo ou projeto fora do recorte, **When** criar, **Then** rejeitar sem efeitos persistidos.
 
-### User Story 4 - Reconhecer feriados por localidade (Priority: P2)
+### User Story 4 - Reconhecer feriados por localidade (opcional para o filtroAPP)
+
+Dispensada pelo Omni, que mantém calendário próprio. Fora das Entregas A/B do consumidor.
 
 O Omni identifica feriados nacionais, da empresa e municipais para interpretar o regime operacional.
 
@@ -93,16 +95,16 @@ O filtroAPP registra vínculos estruturados para vendedor, documentação e mobi
 
 ### Functional Requirements
 
-- **FR-001**: Preferir feed `GET /eventos?cursor=` a partir de NotificationEvent; webhook é alternativa com assinatura HMAC, replay protection, retries e confirmação de recebimento documentados.
-- **FR-002**: Contratar os oito tipos de mudanças da US1, com payload mínimo, cursor opaco e política de retenção/retomada explícita antes de implementar.
+- **FR-001**: Publicar feed `GET /eventos?cursor=` em tabela própria, gravado na mesma transação da mudança, independente de NotificationEvent; sem webhook na Entrega A.
+- **FR-002**: Aplicar o contrato [omni-phase2.md](contracts/omni-phase2.md): sequência crescente por banco, cursor assinado, retenção mínima de 30 dias e 410 CURSOR_EXPIRED; eventos.read mais escopo do recurso e recorte de projetos antes da paginação.
 - **FR-003**: Criar leitura de RDOs além de APPROVED com escopo próprio e compatibilidade com consumidores atuais.
 - **FR-004**: Criar escrita de Qualidade idempotente, origem OMNI, tipos definidos e responsável por usuário, preservando o campo legado actionOwner quando necessário à compatibilidade.
-- **FR-005**: Disponibilizar leitura de feriados e suporte municipal com cidade/UF.
+- **FR-005**: Leitura de feriados e suporte municipal são opcionais por necessidade própria do filtroAPP; não implementar para o Omni.
 - **FR-006**: Persistir confirmação de chegada/descarga e importar CT-e do Omie com relações fiscais/logísticas.
 - **FR-007**: Expor somente as duas condições comerciais solicitadas em escopo mínimo independente de comercial.*.
 - **FR-008**: Liberar os sete escopos de Gestão definidos na US7 com projeções mínimas, cotas, paginação e isolamento por projeto; ponto somente agregado.
 - **FR-009**: Projetar os novos vínculos e data da US8 com validação, auditoria e estratégia de compatibilidade.
-- **FR-010**: Nenhum escopo desta fase passa a AVAILABLE e nenhuma rota, migration, sincronização ou escrita é implementada na entrega da Parte 1.
+- **FR-010**: Liberar apenas eventos.read, rdo.relatorios.todos.read e qualidade.registros.create na Entrega A. US5–US8 ficam para Entrega B; US4 não é necessária para o Omni.
 
 ### Key Entities
 
@@ -117,4 +119,4 @@ Evento de saída, relatório em revisão/assinatura, registro de Qualidade de or
 
 ## Dependencies and Assumptions
 
-Backlog sujeito a priorização e planejamento próprio. Formato de eventos, retenção, regras de agregação de ponto e migração dos vínculos devem ser contratados antes de código; esta spec não escolhe sua implementação.
+Entrega A contratada por `../omni/docs/integracoes/prompt-filtroapp-fase2.md`, detalhada em plan.md e contracts/omni-phase2.md. Entrega B depende de contratos de CT-e, agregações e migração de vínculos. O Omni mantém seu calendário; feriados só serão implementados por necessidade própria do filtroAPP.

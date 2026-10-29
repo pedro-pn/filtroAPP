@@ -4,7 +4,7 @@ import { OPERATIONAL_DOWNLOADS } from './extended-operational-resources.js';
 import { describePlaygroundParameters } from './playground-parameters.js';
 import { CRM_PLANNING_EXAMPLE } from '../../../../shared/modules/crm-planning-example.js';
 
-export const API_CATALOG_VERSION = '2026-10-28.1';
+export const API_CATALOG_VERSION = '2026-10-28.2';
 export { API_DATA_DOMAINS, DATA_CATALOG_VERSION, flattenDataCatalogModels, futureScopeDefinitions } from './data-catalog.js';
 
 const QUALITY_RECORD_FIELDS = ['id', 'number', 'type', 'registeredAt', 'origin', 'project', 'eventDate', 'nature', 'subnature', 'description', 'impact', 'recurrence', 'linkedRnc', 'disposition', 'definedAction', 'actionOwner', 'actionDeadline', 'evidenceSummary', 'resultVerification', 'status', 'createdAt', 'updatedAt'];
@@ -17,6 +17,8 @@ const QUALITY_SCOPE_FIELDS = {
 };
 
 export const API_SCOPES = Object.freeze([
+  { code: 'rdo.relatorios.todos.read', domain: 'RDO e relatórios', label: 'Ler relatórios em todos os estados', description: 'Consulta relatórios enviados PENDING, RETURNED, APPROVED e SIGNED; inclui carimbos de envio, devolução, assinatura e liberação.', sensitivity: 'INTERNAL', status: 'AVAILABLE', dependencies: [], models: ['Report'], exposedFields: [...Object.keys(OPERATIONAL_RESOURCES.find(resource => resource.model === 'Report').fields), 'submittedAt', 'returnedAt', 'signedAt', 'clientReleasedAt'], excludedFields: ['rascunhos', 'tokens', 'imagens de assinatura'] },
+  { code: 'qualidade.registros.create', domain: 'Qualidade', label: 'Criar registro de Qualidade pelo Omni', description: 'Cria desvio, incidente ou reclamação em triagem, com origem OMNI, responsável ativo e idempotência obrigatória.', sensitivity: 'INTERNAL', status: 'AVAILABLE', dependencies: [], models: ['QualityRecord'], exposedFields: ['id', 'number', 'status', 'createdAt'], excludedFields: ['usuário completo', 'dados internos de auditoria'] },
   { code: 'cargos.salarios.read', domain: 'Pessoas, cargos e acesso', label: 'Consultar salário por cargo', description: 'Salário base do cargo vigente na data de referência. Cadastro global compartilhado, independente do recorte de projetos.', sensitivity: 'PERSONAL', status: 'AVAILABLE', dependencies: [], models: ['JobRole', 'CostProfile', 'CostParameterSet'], exposedFields: ['jobRoleId', 'jobRoleName', 'salary', 'effectiveDate', 'version'], excludedFields: ['colaboradores', 'dados pessoais', 'parâmetros internos de custo', 'observações', 'identidade do editor'] },
   { code: 'qualidade.registros.read', domain: 'Qualidade', label: 'Ler registros', description: 'Consulta registros de qualidade permitidos.', sensitivity: 'INTERNAL', status: 'AVAILABLE', dependencies: [] },
   { code: 'qualidade.naturezas.read', domain: 'Qualidade', label: 'Ler naturezas', description: 'Consulta o catálogo de naturezas e suas subnaturezas de qualidade.', sensitivity: 'INTERNAL', status: 'AVAILABLE', dependencies: [] },
@@ -48,6 +50,12 @@ export const API_SCOPES = Object.freeze([
 ].map(scope => QUALITY_SCOPE_FIELDS[scope.code] ? { ...scope, exposedFields: QUALITY_SCOPE_FIELDS[scope.code] } : scope));
 
 export const API_OPERATIONS = Object.freeze([
+  {
+    operationId: 'quality.records.create', openApiOperationId: 'qualityRecordCreate', method: 'POST', path: '/qualidade/registros',
+    label: 'Abrir registro de Qualidade pelo Omni', requiredScopes: ['qualidade.registros.create'], optionalScopes: [],
+    pathParams: [], queryParams: [], headerParams: ['Idempotency-Key'], supportsPlayground: true,
+    bodyExample: { type: 'DESVIO', projectCode: '5850', eventDate: '2026-10-28', description: 'Mobilização adiada: exemplo fictício.', impact: 'MEDIO', actionOwnerEmail: 'qualidade@filtrovali.com.br', externalRef: { system: 'omni', url: 'https://omni.filtrovali.com.br/exemplo', reference: 'pergunta-ficticia' } }
+  },
   {
     operationId: 'acompanhamento.opportunities.post', openApiOperationId: 'postIntegrationCrmOpportunity', method: 'POST', path: '/acompanhamento/oportunidades',
     label: 'Enviar planejamento do Prisma (planning-1.0)', requiredScopes: ['acompanhamento.oportunidades.write', 'efetivo.projetos.create'],
@@ -118,6 +126,7 @@ export const API_OPERATIONS = Object.freeze([
     operationId: resource.operationId, openApiOperationId: resource.openApiOperationId,
     label: resource.label, method: 'GET', path: resource.path,
     requiredScopes: resource.requiredScopes, optionalScopes: resource.optionalScopes || [], queryParams: resource.queryParams,
+    ...(resource.scopeAlternatives ? { scopeAlternatives: resource.scopeAlternatives } : {}),
     pathParams: [], supportsPlayground: true
   })),
   ...OPERATIONAL_DOWNLOADS.map(item => ({ operationId: item.operationId, openApiOperationId: item.openApiOperationId,
@@ -133,6 +142,7 @@ export function publicApiOperations() {
       'quality.natures.list': 'Listar naturezas de Qualidade'
     })[operation.operationId], method: operation.method, path: operation.path,
     requiredScopes: operation.requiredScopes, optionalScopes: operation.optionalScopes,
+    scopeAlternatives: operation.scopeAlternatives || [],
     domain: API_SCOPES.find(scope => scope.code === operation.requiredScopes[0])?.domain || 'Integrações',
     responseKind: operation.responseKind || 'JSON', parameters: describePlaygroundParameters(operation),
     queryParams: operation.queryParams, pathParams: operation.pathParams || [],

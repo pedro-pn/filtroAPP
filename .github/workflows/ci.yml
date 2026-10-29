@@ -217,6 +217,46 @@ jobs:
       - name: Verify planning contract, lifecycle, links and idempotency
         run: node --test test/crm-opportunities.test.js test/crm-opportunities.integration.test.js
 
+  omni-phase2:
+    name: Omni phase 2 (PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: omni_phase2_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d omni_phase2_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/omni_phase2_test
+      TEST_OMNI_PHASE2_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/omni_phase2_test
+      TRUST_PROXY: "false"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run prisma:generate
+      - run: npm run prisma:deploy
+      - name: Verify Omni events, all-state reports, idempotency and legacy contracts
+        run: >-
+          node --test test/integration-omni-phase2.test.js
+          test/integration-omni-phase2-postgres.test.js test/integration-omni-projects.test.js
+
   notifications:
     name: Notifications (PostgreSQL)
     runs-on: ubuntu-latest

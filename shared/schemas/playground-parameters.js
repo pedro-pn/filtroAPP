@@ -10,6 +10,8 @@ export function makePlaygroundParameterSchema(z, parameters, { maxPageSize = 20,
       if (field.type === 'datetime') schema = schema.refine(value => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value) && Number.isFinite(new Date(value).getTime()), 'Informe uma data e hora válidas.');
       if (field.type === 'date') schema = schema.refine(value => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value, 'Informe uma data válida.');
       if (field.type === 'enum-list') schema = schema.refine(value => value.split(',').every(item => field.options.includes(item.trim())), 'Escolha somente códigos da lista.');
+      if (field.type === 'enum-list' && field.requiredScope) schema = schema.refine(() => scopes.includes(field.requiredScope), 'O token não possui a permissão necessária.');
+      if (field.in === 'header' && field.name === 'Idempotency-Key') schema = schema.refine(value => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value), 'Informe um UUID válido.');
     }
     shape[field.name] = z.preprocess(value => value === '' || value === undefined || (typeof value === 'string' && !value.trim()) ? undefined : value,
       field.required ? schema : schema.optional());
@@ -33,18 +35,20 @@ export function playgroundParameterDefaults(operation, maxPageSize = 20, scopeCo
 }
 
 export function buildPlaygroundInput(operation, values) {
-  const query = {}, pathParams = {};
+  const query = {}, pathParams = {}, headers = {};
   for (const field of operation.parameters) {
     const value = values[field.name];
     if (value === undefined || value === null || value === '') continue;
     const normalized = typeof value === 'string' ? value.trim() : value;
     if (normalized === '') continue;
     if (field.in === 'path') pathParams[field.name] = String(normalized);
+    else if (field.in === 'header') headers[field.name] = String(normalized);
     else query[field.name] = field.type === 'datetime' ? new Date(normalized).toISOString()
       : field.type === 'integer' ? Number(normalized)
         : field.type === 'boolean' ? normalized === true || normalized === 'true'
           : field.type === 'enum-list' ? String(normalized).split(',').map(item => item.trim()) : normalized;
   }
   return { operationId: operation.operationId, pathParams, query,
+    ...(Object.keys(headers).length ? { headers } : {}),
     ...(operation.method === 'POST' ? { body: JSON.parse(values.bodyJson) } : {}) };
 }

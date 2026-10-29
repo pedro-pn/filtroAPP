@@ -51,7 +51,7 @@ test('all administrative, quality and operational operations have unique IDs and
     readFile(new URL('../src/routes/integrations/v1/qualidade.js', import.meta.url), 'utf8')
   ]);
   const operations = operationEntries(YAML.parse(source));
-  assert.equal(operations.length, 22 + OPERATIONAL_RESOURCES.length + OPERATIONAL_DOWNLOADS.length);
+  assert.equal(operations.length, 23 + OPERATIONAL_RESOURCES.length + OPERATIONAL_DOWNLOADS.length);
   assert.equal(new Set(operations.map(item => item.operation.operationId)).size, operations.length);
 
   const handlers = {
@@ -66,6 +66,7 @@ test('all administrative, quality and operational operations have unique IDs and
     getApiCredentialUsage: [adminRoutes, 'get', '/api-credentials/:id/usage'],
     testApiCredentialOperation: [adminRoutes, 'post', '/api-credentials/:id/test'],
     qualityRecordsList: [qualityRoutes, 'get', '/registros'],
+    qualityRecordCreate: [qualityRoutes, 'post', '/registros'],
     qualityRecordGet: [qualityRoutes, 'get', '/registros/:id'],
     qualityNaturesList: [qualityRoutes, 'get', '/naturezas'],
     qualityEvidenceDownload: [qualityRoutes, 'get', '/evidencias/:id/download']
@@ -107,7 +108,13 @@ test('operational response allowlists, query parameters and scope guards match e
     const operation = contract.paths[`/integracoes/v1${resource.path}`].get;
     assert.deepEqual(operation['x-required-scopes'], resource.requiredScopes);
     assert.deepEqual(operation.parameters.map(parameter => parameter.name || resolveLocalRef(contract, parameter.$ref).name).sort(), [...resource.queryParams].sort());
-    const schema = operation.responses['200'].content['application/json'].schema.properties.items.items;
+    const responseItem = operation.responses['200'].content['application/json'].schema.properties.items.items;
+    const schema = responseItem.oneOf?.[0] || responseItem;
+    if (resource.conditionalFields) {
+      const expanded = responseItem.oneOf[1];
+      assert.deepEqual(Object.keys(expanded.properties).sort(), [...Object.keys(resource.fields), ...Object.keys(resource.conditionalFields)].sort());
+      assert.deepEqual(operation['x-scope-alternatives'], resource.scopeAlternatives);
+    }
     assert.equal(schema.additionalProperties, false);
     assert.deepEqual(Object.keys(schema.properties).sort(), Object.keys(resource.fields).sort());
     assert.deepEqual([...schema.required].sort(), Object.keys(resource.fields).sort());

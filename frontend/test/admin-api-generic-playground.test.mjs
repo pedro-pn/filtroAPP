@@ -123,3 +123,28 @@ test('planning-1.0 inclui Idempotency-Key no comando copiado do console', () => 
   const preview = redactedRequestPreview({ request: { method: 'POST', path: '/api/integracoes/v1/acompanhamento/oportunidades', authorization: 'Bearer ••••demo', body: input.body }, response: { status: 201, body: {} } });
   assert.ok(preview.curl.includes(`Idempotency-Key: ${input.body.eventId}`));
 });
+
+test('Omni: novo escopo de RDO funciona sozinho e status exige essa permissão', () => {
+  const op = operation('operational.Report.list');
+  assert.equal(exampleOperationForCredential([op], ['rdo.relatorios.todos.read'])?.operationId, op.operationId);
+  assert.equal(operationsForScope(operations, 'rdo.relatorios.todos.read')[0].operationId, op.operationId);
+  assert.equal(schema(op, ['rdo.relatorios.read']).safeParse({ status: 'PENDING' }).success, false);
+  assert.equal(schema(op, ['rdo.relatorios.todos.read']).safeParse({ status: 'PENDING,RETURNED' }).success, true);
+  assert.equal(schema(op).safeParse({ status: 'DRAFT' }).success, false);
+});
+
+test('Omni: formulário e cURL preservam Idempotency-Key validada fora do corpo e da URI', () => {
+  const op = operation('quality.records.create');
+  const initial = playgroundParameterDefaults(op);
+  assert.equal(schema(op).safeParse(initial).success, false);
+  assert.equal(schema(op).safeParse({ ...initial, 'Idempotency-Key': 'invalid' }).success, false);
+  const key = 'a173d96f-2b08-4b0b-91cd-1c04ba5238a0';
+  const values = schema(op).parse({ ...initial, 'Idempotency-Key': key });
+  const input = buildPlaygroundInput(op, values);
+  assert.deepEqual(input.headers, { 'Idempotency-Key': key });
+  assert.deepEqual(input.query, {});
+  assert.equal('Idempotency-Key' in input.body, false);
+  const preview = redactedRequestPreview({ request: { method: 'POST', path: '/api/integracoes/v1/qualidade/registros', authorization: 'Bearer ••••demo', curl: 'untrusted', body: input.body, headers: input.headers }, response: { status: 201, body: {} } });
+  assert.ok(preview.curl.includes(`-H "Idempotency-Key: ${key}"`));
+  assert.doesNotMatch(preview.curl, /untrusted/);
+});

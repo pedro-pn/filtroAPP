@@ -44,15 +44,15 @@ test('browser CORS is closed by default while server-to-server GET remains allow
   assert.equal(continued, true);
 });
 
-test('allowed preflight and POST are limited to contracted CRM write paths', () => {
+test('allowed preflight and POST are limited to contracted CRM and Quality write paths', () => {
   const allowedOrigin = 'https://app.example';
-  const preflight = request({ method: 'OPTIONS', headers: { origin: allowedOrigin }, requestId: 'request-safe-123' });
+  const preflight = request({ method: 'OPTIONS', originalUrl: '/api/integracoes/v1/qualidade/naturezas', headers: { origin: allowedOrigin }, requestId: 'request-safe-123' });
   const preflightRes = responseDouble();
   integrationApiBoundary({ allowedOrigins: [allowedOrigin] })(preflight, preflightRes, () => assert.fail('preflight deveria terminar'));
   assert.equal(preflightRes.statusCode, 204);
   assert.equal(preflightRes.headers['access-control-allow-methods'], 'GET');
 
-  const post = request({ method: 'POST', requestId: 'request-safe-456' });
+  const post = request({ method: 'POST', originalUrl: '/api/integracoes/v1/qualidade/naturezas', requestId: 'request-safe-456' });
   const postRes = responseDouble();
   integrationApiBoundary()(post, postRes, () => assert.fail('POST não deveria continuar'));
   assert.equal(postRes.statusCode, 405);

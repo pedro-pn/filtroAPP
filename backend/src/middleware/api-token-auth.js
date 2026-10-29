@@ -7,6 +7,7 @@ import { isIpAllowed, resolveEffectiveClientIp } from '../lib/api-credentials/re
 import { parseApiToken, verifyApiToken } from '../lib/api-credentials/token.js';
 import prisma from '../lib/prisma.js';
 import { sendIntegrationError } from './api-request-context.js';
+import { hasIntegrationScopes } from '../../../shared/schemas/integration-api.js';
 
 function bearerValue(header) {
   if (typeof header !== 'string' || !header.startsWith('Bearer ') || header.length > 256) return '';
@@ -85,7 +86,7 @@ export function requireApiOperation(operationId) {
   if (!operation) throw new Error(`Operação de integração desconhecida: ${operationId}.`);
   return function operationAuthorization(req, res, next) {
     const granted = req.apiAuth?.scopeCodes || new Set();
-    const missing = operation.requiredScopes.filter(scope => !granted.has(scope));
+    const missing = hasIntegrationScopes(operation, granted) ? [] : [...operation.requiredScopes];
     if (req.query?.includeDeleted === 'true' && !granted.has('qualidade.excluidos.read')) {
       missing.push('qualidade.excluidos.read');
     }
