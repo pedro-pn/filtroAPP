@@ -3,7 +3,8 @@ import env from '../../config/env.js';
 import { z } from 'zod';
 
 import { makeApiCredentialSchemas } from '../../../../shared/schemas/api-credentials.js';
-import { makeIntegrationApiSchemas, makeOperationalReadQuerySchema } from '../../../../shared/schemas/integration-api.js';
+import { hasIntegrationScopes, makeIntegrationApiSchemas, makeOperationalReadQuerySchema } from '../../../../shared/schemas/integration-api.js';
+import { createIntegrationQualityRecord, validateIntegrationQualityCreate } from '../qualidade/integration-create.js';
 import { getIntegrationQualityRecord, listIntegrationQualityRecords } from '../qualidade/integration-service.js';
 import { listIntegrationQualityNatures } from '../qualidade/integration-natures.js';
 import { recordCredentialEvent } from './audit.js';
@@ -27,6 +28,7 @@ export function validatePlaygroundRequest(input) {
   const parsed = requestSchema.parse(input);
   const hasExplicitLimit = parsed.query.limit !== undefined;
   const operation = getApiOperation(parsed.operationId);
+  if (parsed.headers && operation?.operationId !== 'quality.records.create') throw new ApiCredentialServiceError(400, 'UNKNOWN_PARAMETER', 'Esta operação não aceita headers no playground.');
   if (!operation?.supportsPlayground) throw new ApiCredentialServiceError(400, 'UNKNOWN_OPERATION', 'Operação indisponível no playground.');
   if (operation.method === 'GET' && parsed.body !== undefined) throw new ApiCredentialServiceError(400, 'BODY_NOT_ALLOWED', 'Esta operação não aceita corpo.');
   if (operation.method === 'POST' && parsed.body === undefined) throw new ApiCredentialServiceError(400, 'MISSING_BODY', 'Informe o corpo JSON.');
@@ -45,6 +47,7 @@ export function validatePlaygroundRequest(input) {
   else if (operation.operationId === 'quality.natures.list') parsed.query = integrationSchemas.qualityNaturesQuery.parse(parsed.query);
   else if (operation.operationId === 'efetivo.projects.status.get') validateEfetivoProjectStatusRequest(parsed.pathParams, parsed.query, { projectAccessMode: 'ALL' });
   else if (operation.operationId === 'jobRoles.salary.get') validateJobRoleSalaryRequest(parsed.pathParams, parsed.query);
+  else if (operation.operationId === 'quality.records.create') validateIntegrationQualityCreate(parsed.body, parsed.headers?.['Idempotency-Key'], { scopes: new Set(['qualidade.registros.create']), projectAccessMode: 'ALL' });
   else if (operation.operationId === 'efetivo.projects.create') validateProjectCreation(parsed.body);
   else if (operation.operationId === 'acompanhamento.opportunities.post') validateCrmOpportunity(parsed.body);
   else if (operation.operationId === 'acompanhamento.opportunities.links.list') validatePlanningListQuery(parsed.query);
@@ -68,12 +71,13 @@ function requestPath(operation, pathParams, query) {
   return `/api/integracoes/v1${path}${suffix ? `?${suffix}` : ''}`;
 }
 
-function curlForPath(path, download = false, method = 'GET', body) {
+function curlForPath(path, download = false, method = 'GET', body, headers) {
   const url = '$FILTRO_API_BASE_URL' + path;
   if (download) return `curl --fail -H "Authorization: Bearer $FILTRO_API_TOKEN" --output "arquivo-baixado.bin" "${url}"`;
   if (method === 'POST') {
     const quotedBody = JSON.stringify(body).replaceAll("'", "'\\''");
-    const idempotency = path === '/api/integracoes/v1/acompanhamento/oportunidades' ? ` -H "Idempotency-Key: ${body.eventId}"` : '';
+    const idempotency = path === '/api/integracoes/v1/acompanhamento/oportunidades' ? ` -H "Idempotency-Key: ${body.eventId}"`
+      : headers?.['Idempotency-Key'] ? ` -H "Idempotency-Key: ${headers['Idempotency-Key']}"` : '';
     return `curl --fail-with-body -X POST -H "Authorization: Bearer $FILTRO_API_TOKEN" -H "Content-Type: application/json"${idempotency} --data-raw '${quotedBody}' "${url}"`;
   }
   return `curl --fail-with-body -H "Authorization: Bearer $FILTRO_API_TOKEN" -H "Accept: application/json" "${url}"`;
@@ -95,7 +99,7 @@ export async function executePlaygroundOperation(prisma, credentialId, input, op
   if (!['ALL', 'SELECTED'].includes(credential.projectAccessMode) || (credential.projectAccessMode === 'SELECTED' && !credential.projects.length)) {
     throw new ApiCredentialServiceError(403, 'PROJECT_NOT_ALLOWED', 'A credencial não possui um recorte de projetos válido.');
   }
-  if (operation.requiredScopes.some(scope => !scopes.has(scope))) {
+  if (!hasIntegrationScopes(operation, scopes)) {
     throw new ApiCredentialServiceError(403, 'INSUFFICIENT_SCOPE', 'A credencial não possui o escopo necessário.');
   }
   if (parsed.query.includeDeleted && !scopes.has('qualidade.excluidos.read')) {
@@ -111,6 +115,7 @@ export async function executePlaygroundOperation(prisma, credentialId, input, op
     query.limit = Math.min(PLAYGROUND_MAX_ITEMS, requestedLimit);
   }
   const context = {
+    credentialId,
     scopes,
     projectAccessMode: credential.projectAccessMode,
     projectIds: new Set(credential.projects.map(item => item.projectId)),
@@ -122,7 +127,8 @@ export async function executePlaygroundOperation(prisma, credentialId, input, op
   const started = process.hrtime.bigint();
   if (getOperationalResource(parsed.operationId)) prepareOperationalQuery(parsed.operationId, query, context);
   if (parsed.operationId === 'efetivo.projects.status.get') validateEfetivoProjectStatusRequest(parsed.pathParams, query, context);
-  if (operation.method === 'POST') validateProjectWriteAccess(parsed.pathParams.id, query, context, { create: ['efetivo.projects.create', 'acompanhamento.opportunities.post'].includes(parsed.operationId) });
+  if (operation.method === 'POST' && parsed.operationId !== 'quality.records.create') validateProjectWriteAccess(parsed.pathParams.id, query, context, { create: ['efetivo.projects.create', 'acompanhamento.opportunities.post'].includes(parsed.operationId) });
+  if (parsed.operationId === 'quality.records.create') validateIntegrationQualityCreate(parsed.body, parsed.headers?.['Idempotency-Key'], context, query);
   if (['acompanhamento.opportunities.links.list', 'acompanhamento.opportunities.get'].includes(parsed.operationId)) validatePlanningReadAccess(credential);
   const requestId = options.requestId || randomUUID();
   const isDownload = operation.responseKind === 'DOWNLOAD_CHECK';
@@ -144,6 +150,10 @@ export async function executePlaygroundOperation(prisma, credentialId, input, op
   try {
     if (isDownload) {
       body = await checkPlaygroundDownload(prisma, operation, parsed.pathParams, context, options.fileRoots);
+    } else if (parsed.operationId === 'quality.records.create') {
+      body = await createIntegrationQualityRecord(prisma, parsed.body, parsed.headers['Idempotency-Key'], context);
+      responseStatus = 201;
+      rows = 1;
     } else if (parsed.operationId === 'quality.records.list') {
       const result = await listIntegrationQualityRecords(prisma, integrationSchemas.qualityRecordsQuery.parse(query), context);
       body = { ...result, generatedAt: new Date().toISOString(), schemaVersion: '1.0', requestId };
@@ -205,7 +215,8 @@ export async function executePlaygroundOperation(prisma, credentialId, input, op
   });
   const path = requestPath(operation, parsed.pathParams, query);
   return {
-    request: { method: operation.method, path, authorization: `Bearer ••••${credential.secretLastFour}`, curl: curlForPath(path, isDownload, operation.method, parsed.body), body: operation.method === 'POST' ? parsed.body : null },
+    request: { method: operation.method, path, authorization: `Bearer ••••${credential.secretLastFour}`, curl: curlForPath(path, isDownload, operation.method, parsed.body, parsed.headers), body: operation.method === 'POST' ? parsed.body : null,
+      ...(parsed.headers ? { headers: parsed.headers } : {}) },
     response: {
       status: responseStatus ?? (operation.method === 'POST' && ['created', 'CREATED'].includes(body?.status || body?.outcome) ? 201 : 200),
       durationMs: Number((process.hrtime.bigint() - started) / 1_000_000n),

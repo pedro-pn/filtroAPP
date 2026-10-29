@@ -234,6 +234,86 @@ GET /api/integracoes/v1/efetivo/projetos/status?active=true&stage=EXECUTION&limi
 
 O Playground oferece as duas novas operações e seus parâmetros. O envelope continua em **schemaVersion 1.0**. Campos exatos, exemplos completos com dados fictícios e testes estão no [contrato/relatório Omni](../specs/033-api-omni-projetos/contracts/omni-read.md). Para acrescentar o novo escopo ao Omni, emita outro token ou rotacione a credencial; não há ampliação automática.
 
+### Omni fase 2 — Entrega A
+
+Escopos novos **AVAILABLE**: `eventos.read`, `rdo.relatorios.todos.read` e
+`qualidade.registros.create`. O envelope mantém **schemaVersion 1.0**. Tokens
+existentes precisam de rotação ou nova emissão para receber essas permissões.
+
+`GET /eventos?limit=100` lê identificadores das mudanças em feed vivo, gravado na
+mesma transação e independente das notificações de usuários. Exige eventos.read
+mais a permissão de leitura de cada recurso. Escopos e projetos filtram antes da
+paginação; não há contagem global. A janela pública é de **30 dias**; os eventos
+não são apagados automaticamente nesta entrega e não há backfill histórico.
+
+```json
+{
+  "items": [{ "id": "evt_123", "type": "rdo.aprovado", "occurredAt": "2026-10-28T12:00:00.000Z", "projectId": "projeto-ficticio", "projectCode": "5850", "resource": "rdo", "resourceId": "rdo-ficticio" }],
+  "page": { "limit": 100, "hasMore": false, "nextCursor": "cursor-assinado-ficticio", "snapshotAt": "2026-10-28T12:01:00.000Z" },
+  "generatedAt": "2026-10-28T12:01:00.000Z", "schemaVersion": "1.0", "requestId": "request-ficticio"
+}
+```
+
+Guarde nextCursor **mesmo quando hasMore=false**, para o próximo polling.
+SnapshotAt informa a leitura e não congela o feed. A sequência respeita a ordem
+de commit; deduplique pelo id. Cursor assinado vincula credencial, política e
+escopos. Cursor atrasado retorna **410 CURSOR_EXPIRED**: reconcilie os recursos e
+reinicie sem cursor. Limit aceita 1–500, padrão 100, limitado pela credencial.
+
+| Eventos | Permissão de recurso |
+|---|---|
+| `rdo.criado`, `rdo.devolvido`, `rdo.assinado` | `rdo.relatorios.todos.read` |
+| `rdo.aprovado` | `rdo.relatorios.read` ou `rdo.relatorios.todos.read` |
+| `workflow.etapa_alterada` | `efetivo.projetos.status.read` |
+| `qualidade.criado`, `qualidade.alterado` | `qualidade.registros.read` |
+| `romaneio.emitido` | `romaneios.itens.read` — ainda bloqueado; evento já persistido |
+| `projeto.responsaveis_alterados` | `projetos.responsaveis.read` |
+
+Envio inicial e reenvio para PENDING geram rdo.criado. ReportDraft fica fora.
+Qualidade inclui alterações de evidências e exclusão lógica, sem duplicar o evento
+quando o registro e suas evidências mudam juntos. Romaneio OUTBOUND é emitido ao receber PDF/DOCX;
+regenerar o documento não reemite o evento.
+
+`GET /rdo/relatorios` com `rdo.relatorios.todos.read` funciona sem o escopo antigo,
+inclui PENDING, RETURNED, APPROVED e SIGNED e aceita `status=PENDING,RETURNED`.
+Acrescenta submittedAt, returnedAt, signedAt e clientReleasedAt; approvedAt já
+existia. Sem o escopo novo, preserva apenas APPROVED e os campos anteriores; status
+exige o novo escopo. UpdatedSince reflete mudanças de status. SubmittedAt representa
+o envio mais recente (createdAt para legado); signedAt legado usa evidência de
+assinatura/auditoria disponível e pode ser nulo.
+
+`POST /qualidade/registros` exige `qualidade.registros.create` e header
+`Idempotency-Key` UUID. Mesma chave/corpo/credencial retorna o mesmo **201**;
+corpo diferente retorna **409 IDEMPOTENCY_CONFLICT**. Após falha de rede/5xx, repita
+com a mesma chave e corpo. Os recibos não expiram nesta entrega.
+
+```json
+{
+  "type": "DESVIO", "projectCode": "5850", "eventDate": "2026-10-28",
+  "description": "Mobilização adiada: exemplo fictício.", "impact": "MEDIO",
+  "actionOwnerEmail": "qualidade@filtrovali.com.br",
+  "externalRef": { "system": "omni", "url": "https://omni.filtrovali.com.br/exemplo", "reference": "pergunta-ficticia" }
+}
+```
+
+Tipos: DESVIO, INCIDENTE, RECLAMACAO_CLIENTE. Impactos: ALTO, MEDIO, BAIXO.
+Informe projectCode ou projectId no recorte. Email deve resolver um único User ativo,
+sem diferenciar caixa; ausência/ambiguidade retorna **422 ACTION_OWNER_NOT_FOUND**.
+Grava FK actionOwnerUserId e actionOwner textual. Origem fixa **OMNI**; não envie
+origin no corpo. Cria em **EM_TRIAGEM, sem natureza**, para classificação posterior.
+ExternalRef é preservada internamente. A auditoria comum registra a credencial
+como ator e a origem; qualidade.criado é emitido na mesma transação.
+
+Resposta fictícia:
+
+```json
+{ "id": "qualidade-ficticia", "number": "D-012/26", "status": "EM_TRIAGEM", "createdAt": "2026-10-28T12:00:00.000Z" }
+```
+
+O Playground inclui as operações e o campo Idempotency-Key; POST grava dados reais
+com a confirmação existente. Entrega B fica planejada; o Omni mantém seu calendário.
+Veja o [contrato e decisões](../specs/034-api-omni-fase2/contracts/omni-phase2.md).
+
 ### Como percorrer páginas
 
 Coleções retornam `items`, `page`, `generatedAt`, `schemaVersion` e `requestId`. Use `page.nextCursor` exatamente como recebido. O cursor é assinado, fixa `snapshotAt`, inclui a posição de ordenação da coleção e está vinculado à operação, filtros e política de projetos; não o edite nem reutilize com outros filtros.
@@ -254,6 +334,8 @@ Para sincronização incremental, informe `updatedSince` em UTC. Em Qualidade, p
 - `403 INSUFFICIENT_SCOPE`, `PROJECT_NOT_ALLOWED` ou `IP_NOT_ALLOWED`: a política da credencial não permite a operação.
 - `404 NOT_FOUND`: o recurso não existe ou não pertence ao recorte permitido.
 - `409`: conflito administrativo de versão/idempotência.
+- `410 CURSOR_EXPIRED`: cursor do feed fora da retenção; reconciliar e reiniciar.
+- `422 ACTION_OWNER_NOT_FOUND`: responsável não resolve um único User ativo.
 - `413 FILE_TOO_LARGE`: arquivo excede 50 MiB.
 - `429 RATE_LIMITED`/`QUOTA_EXCEEDED`: respeite `Retry-After` e aplique backoff com jitter.
 - `5xx`: repita apenas operações `GET`, com backoff e o mesmo cursor.
@@ -292,7 +374,7 @@ O painel lista status efetivo, prefixo/últimos quatro caracteres, escopos, proj
 
 Uma edição só pode reduzir acesso. Para ampliar escopo, projetos, CIDRs, validade ou limites, use **Rotacionar**, armazene o novo segredo no cofre e encerre a sobreposição em até 60 minutos. **Revogar** é terminal e exige motivo; nunca cole o segredo no motivo.
 
-O catálogo do painel contém os 126 modelos de negócio em 20 domínios. Há 41 permissões disponíveis, selecionáveis dentro de cada domínio, incluindo o escopo próprio de responsáveis e as operações do CRM; candidatos sem contrato implementado continuam bloqueados. Campos e endpoints podem ser consultados na própria linha. Somente as projeções e arquivos explicitamente contratados são publicados. Tokens antigos não recebem permissões novas automaticamente: emita outro ou rotacione com as permissões desejadas.
+O catálogo do painel contém os 173 modelos de negócio em 20 domínios. Há 44 permissões disponíveis, selecionáveis dentro de cada domínio, incluindo o escopo próprio de responsáveis e as operações do CRM; candidatos sem contrato implementado continuam bloqueados. Campos e endpoints podem ser consultados na própria linha. Somente as projeções e arquivos explicitamente contratados são publicados. Tokens antigos não recebem permissões novas automaticamente: emita outro ou rotacione com as permissões desejadas.
 
 ## Oportunidades quentes do PrismaCRM
 

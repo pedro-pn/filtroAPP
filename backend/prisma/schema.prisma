@@ -2041,6 +2041,8 @@ model Report {
   reportType                 ReportType                        @default(RDO)
   sequenceNumber             Int?
   status                     ReportStatus                      @default(PENDING)
+  submittedAt                DateTime?
+  signedAt                   DateTime?
   clientReleasedAt           DateTime?
   clientReleasedByUserId     String?
   physicalSignedAt           DateTime?
@@ -2890,6 +2892,7 @@ model User {
   createdAcompanhamentoMissionGroups   AcompanhamentoMissionGroup[]        @relation("AcompanhamentoMissionGroupCreatedBy")
   dissolvedAcompanhamentoMissionGroups AcompanhamentoMissionGroup[]        @relation("AcompanhamentoMissionGroupDissolvedBy")
   createdQualityRecords                QualityRecord[]                     @relation("QualityRecordCreator")
+  assignedQualityRecords               QualityRecord[]                     @relation("QualityActionOwner")
   updatedQualityRecords                QualityRecord[]                     @relation("QualityRecordUpdater")
   deletedQualityRecords                QualityRecord[]                     @relation("QualityRecordDeletedBy")
   responsibleEfetivoMissions           EfetivoMissionPlan[]                @relation("EfetivoMissionResponsibleUser")
@@ -2959,6 +2962,8 @@ model QualityRecord {
   disposition        QualityDisposition?
   definedAction      String?
   actionOwner        String?
+  actionOwnerUserId  String?
+  externalRef       Json?
   actionDeadline     DateTime?
   evidence           String?
   resultVerification String?
@@ -2975,11 +2980,14 @@ model QualityRecord {
   createdBy          User?                   @relation("QualityRecordCreator", fields: [createdById], references: [id], onDelete: SetNull)
   updatedBy          User?                   @relation("QualityRecordUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
   deletedBy          User?                   @relation("QualityRecordDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+  actionOwnerUser    User?                   @relation("QualityActionOwner", fields: [actionOwnerUserId], references: [id], onDelete: SetNull)
+  auditLogs          QualityRecordAuditLog[]
   evidences          QualityEvidence[]
   projectPostJob     ProjectWorkflowPostJob?
 
   @@unique([type, year, seq])
   @@index([projectId, type])
+  @@index([actionOwnerUserId])
   @@index([natureId, eventDate])
   @@index([subnatureId])
   @@index([status])
@@ -3036,6 +3044,8 @@ model ApiCredential {
   events                  ApiCredentialEvent[]
   requestLogs             ApiRequestLog[]
   usageBuckets            ApiUsageBucket[]
+  qualityReceipts         IntegrationQualityReceipt[]
+  qualityAuditLogs        QualityRecordAuditLog[]
 
   @@index([revokedAt, expiresAt])
   @@index([createdByUserId])
@@ -3294,6 +3304,7 @@ model Romaneio {
   createdByUserId          String?
   type                     RomaneioType        @default(OUTBOUND)
   romaneioDate             DateTime
+  emittedAt                DateTime?
   driverName               String
   vehiclePlate             String
   cargoWeight              Decimal?            @db.Decimal(12, 3)
@@ -4435,4 +4446,53 @@ model NotificationRead {
 
   @@id([userId, notificationId])
   @@index([notificationId])
+}
+
+// Outbox independente de notificações. Sem FK para preservar a identidade histórica.
+model IntegrationEvent {
+  id          String   @id
+  sequence    BigInt   @unique
+  type        String
+  occurredAt  DateTime @default(now())
+  projectId   String?
+  projectCode String?
+  resource    String
+  resourceId  String
+
+  @@index([occurredAt])
+  @@index([projectId, sequence])
+  @@index([type, sequence])
+}
+
+// Uma linha global; update transacional garante ordem de commit do feed.
+model IntegrationEventSequence {
+  id    Int    @id
+  value BigInt @default(0)
+}
+
+model IntegrationQualityReceipt {
+  credentialId String
+  key          String
+  requestHash  String
+  projectId    String
+  response     Json
+  createdAt    DateTime @default(now())
+  credential   ApiCredential @relation(fields: [credentialId], references: [id], onDelete: Restrict)
+
+  @@id([credentialId, key])
+}
+
+model QualityRecordAuditLog {
+  id                String   @id @default(cuid())
+  recordId          String
+  action            String
+  origin            String?
+  actorUserId       String?
+  actorCredentialId String?
+  actorReference    String?
+  createdAt         DateTime @default(now())
+  record            QualityRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  actorCredential   ApiCredential? @relation(fields: [actorCredentialId], references: [id], onDelete: SetNull)
+
+  @@index([recordId, createdAt])
 }

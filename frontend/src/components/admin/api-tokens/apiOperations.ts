@@ -1,4 +1,5 @@
 import type { PlaygroundParameter } from '../../../../../shared/schemas/playground-parameters.js';
+import { hasIntegrationScopes } from '../../../../../shared/schemas/integration-api.js';
 
 export interface ApiOperationOption {
   operationId: string;
@@ -6,6 +7,7 @@ export interface ApiOperationOption {
   method: 'GET' | 'POST';
   path: string;
   requiredScopes: string[];
+  scopeAlternatives?: string[][];
   optionalScopes: string[];
   domain: string;
   responseKind: 'JSON' | 'DOWNLOAD_CHECK';
@@ -23,5 +25,5 @@ export function exampleOperationForCredential(operations: ApiOperationOption[], 
   return operations.find(operation => operation.method === 'GET' && operation.responseKind === 'JSON'
     && operation.pathParams.length === 0
     && operation.parameters.every(parameter => !parameter.required)
-    && operation.requiredScopes.every(scope => scopeCodes.includes(scope)));
+    && hasIntegrationScopes(operation, scopeCodes));
 }

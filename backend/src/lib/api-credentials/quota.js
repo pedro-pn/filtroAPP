@@ -45,12 +45,14 @@ export function createPrismaQuotaStore(prisma) {
         const minute = await tx.apiUsageBucket.upsert({
           where: { credentialId_windowKind_windowStart: { credentialId, windowKind: 'MINUTE', windowStart: minuteStart } },
           create: { credentialId, windowKind: 'MINUTE', windowStart: minuteStart },
-          update: {}
+          // Update explícito permite ON CONFLICT nativo do Prisma. Update vazio
+          // pode virar SELECT+INSERT e colidir na primeira chamada concorrente.
+          update: { requests: { increment: 0 } }
         });
         const day = await tx.apiUsageBucket.upsert({
           where: { credentialId_windowKind_windowStart: { credentialId, windowKind: 'DAY', windowStart: dayStart } },
           create: { credentialId, windowKind: 'DAY', windowStart: dayStart },
-          update: {}
+          update: { requests: { increment: 0 } }
         });
         const minuteResult = await tx.apiUsageBucket.updateMany({
           where: { id: minute.id, requests: { lt: limits.requestsPerMinute } },

@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { makePlaygroundParameterSchema, buildPlaygroundInput, playgroundParameterDefaults } from '../../../../shared/schemas/playground-parameters.js';
+import { hasIntegrationScopes } from '../../../../shared/schemas/integration-api.js';
 import { apiValidationError } from '../../../../shared/schemas/api-validation-messages.js';
 import { operationsForScope } from '../../components/admin/api-tokens/apiOperations';
 import { createUuid } from '../../utils/uuid';
@@ -104,7 +105,7 @@ export function AdminTokensPage() {
   const credentialOptions = selectedCredential && !credentials.some(item => item.id === selectedCredential.id) ? [selectedCredential, ...credentials] : credentials;
   const operations = scopesQuery.data?.operations || [];
   const selectedOperation = operations.find(item => item.operationId === operation);
-  const canTest = Boolean(selectedCredential && ['ACTIVE', 'NEAR_EXPIRY'].includes(selectedCredential.effectiveStatus) && selectedOperation && selectedOperation.requiredScopes.every(scope => selectedCredential.scopeCodes.includes(scope))
+  const canTest = Boolean(selectedCredential && ['ACTIVE', 'NEAR_EXPIRY'].includes(selectedCredential.effectiveStatus) && selectedOperation && hasIntegrationScopes(selectedOperation, selectedCredential.scopeCodes)
     && (!testScope || (selectedCredential.scopeCodes.includes(testScope) && operationsForScope(operations, testScope).includes(selectedOperation))));
   const maxTestItems = Math.min(20, selectedCredential?.limits.maxPageSize || 20);
   const grantedScopes = selectedCredential?.scopeCodes || [];

@@ -5,6 +5,14 @@ export const INTEGRATION_REPORT_TYPES = Object.freeze([
   'RDO', 'RDO_MAINTENANCE', 'RDO_PRODUCTION', 'RTP', 'RLQ', 'RCPU', 'RLM', 'RLF', 'RLI'
 ]);
 
+export const INTEGRATION_REPORT_STATUSES = Object.freeze(['PENDING', 'RETURNED', 'APPROVED', 'SIGNED']);
+
+export function hasIntegrationScopes(operation, scopes) {
+  const granted = scopes instanceof Set ? scopes : new Set(scopes || []);
+  return [operation.requiredScopes, ...(operation.scopeAlternatives || [])]
+    .some(group => group.every(scope => granted.has(scope)));
+}
+
 function optionalText(z, max = 500) {
   return z.preprocess(value => value === undefined || value === null || value === '' ? undefined : String(value), z.string().trim().max(max).optional());
 }
@@ -35,6 +43,7 @@ export function makeOperationalReadQuerySchema(z, { maxPageSize = 500 } = {}) {
     maintenanceId: z.string().trim().min(1).max(100).optional(),
     itemId: z.string().trim().min(1).max(100).optional(),
     reportType: optionalCsvEnum(z, INTEGRATION_REPORT_TYPES),
+    status: optionalCsvEnum(z, INTEGRATION_REPORT_STATUSES),
     stage: z.enum(PROJECT_WORKFLOW_STAGES).optional(),
     snapshotAt: z.string().datetime({ offset: true }).optional(),
     projectId: z.string().trim().min(1).max(100).optional(),

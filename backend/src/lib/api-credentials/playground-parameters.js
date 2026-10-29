@@ -1,5 +1,5 @@
 import { QUALITY_RECORD_TYPES, QUALITY_STATUSES } from '../../../../shared/schemas/qualidade.js';
-import { INTEGRATION_REPORT_TYPES } from '../../../../shared/schemas/integration-api.js';
+import { INTEGRATION_REPORT_TYPES, INTEGRATION_REPORT_STATUSES } from '../../../../shared/schemas/integration-api.js';
 import { PROJECT_WORKFLOW_STAGES } from '../../../../shared/schemas/project-workflow.js';
 
 const queryDefinitions = {
@@ -40,6 +40,8 @@ export function describePlaygroundParameters(operation) {
         ? { label: 'ID do documento de estoque', help: 'Copie id de um item retornado em Documentos técnicos de estoque — metadados globais.' }
         : { label: operation.path.startsWith('/manutencao/') ? 'ID do anexo de manutenção' : 'ID do anexo do relatório', help: 'Copie id de um item retornado na listagem de metadados de anexos do mesmo módulo.' };
   return [
+    ...(operation.headerParams || []).map(name => ({ name, in: 'header', type: 'text', required: true, maxLength: 36,
+      label: 'Chave de idempotência (UUID)', help: 'Use o mesmo UUID ao repetir o mesmo envio. Outro corpo com a mesma chave retorna 409.' })),
     ...(operation.pathParams || []).map(name => {
       if (name === 'externalId') return { name, in: 'path', type: 'text', required: true, maxLength: 180,
         label: 'ID da oportunidade no Prisma', help: 'Use o externalId estável enviado nos eventos de planejamento.' };
@@ -48,7 +50,9 @@ export function describePlaygroundParameters(operation) {
     }),
     ...operation.queryParams.map(name => {
       if (!queryDefinitions[name]) throw new Error(`Parâmetro sem descritor: ${name}`);
-      return { name, in: 'query', required: false, ...queryDefinitions[name] };
+      return { name, in: 'query', required: false, ...queryDefinitions[name],
+        ...(name === 'status' && operation.operationId === 'operational.Report.list'
+          ? { options: INTEGRATION_REPORT_STATUSES, requiredScope: 'rdo.relatorios.todos.read' } : {}) };
     })
   ];
 }

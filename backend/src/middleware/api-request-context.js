@@ -3,8 +3,9 @@ import { randomUUID } from 'node:crypto';
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/;
 const SENSITIVE_ERROR_TEXT = /fva_[A-Za-z0-9_-]{16}_[A-Za-z0-9_-]{20,}|\bBearer\s+\S+|\b(?:hmac|secret|password|authorization)\b|\b[a-f0-9]{64}\b|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|(?:\/home\/|\/var\/|\/tmp\/|[A-Za-z]:\\)/i;
 
-function isCrmWritePath(path) {
-  return path === '/api/integracoes/v1/efetivo/projetos'
+function isIntegrationWritePath(path) {
+  return path === '/api/integracoes/v1/qualidade/registros'
+    || path === '/api/integracoes/v1/efetivo/projetos'
     || path === '/api/integracoes/v1/acompanhamento/oportunidades'
     || /^\/api\/integracoes\/v1\/efetivo\/projetos\/[^/]+\/(?:fatos-comerciais|documentos)$/.test(path);
 }
@@ -64,7 +65,7 @@ export function integrationApiBoundary({ allowedOrigins = [], requireHttps = fal
     if (req.integrationBoundaryApplied) return next();
     req.integrationBoundaryApplied = true;
     const requestPath = String(req.originalUrl || req.url || '').split('?')[0];
-    const writePath = isCrmWritePath(requestPath);
+    const writePath = isIntegrationWritePath(requestPath);
     const postAllowed = req.method === 'POST' && writePath;
     const origin = typeof req.headers?.origin === 'string' ? req.headers.origin : '';
     if (origin) {

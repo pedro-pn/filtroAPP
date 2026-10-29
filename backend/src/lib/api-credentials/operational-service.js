@@ -1,20 +1,30 @@
 import { z } from 'zod';
 import { createHash } from 'node:crypto';
-import { makeOperationalReadQuerySchema } from '../../../../shared/schemas/integration-api.js';
+import { hasIntegrationScopes, makeOperationalReadQuerySchema } from '../../../../shared/schemas/integration-api.js';
 import { IntegrationApiError } from '../../middleware/api-request-context.js';
 import { createSignedCursor, readSignedCursor, stableJson } from './cursor.js';
 import { getOperationalResource } from './operational-resources.js';
 import { enrichOperationalRows, serializeOperationalResource } from './operational-serialization.js';
 import { reportAttachmentWhere } from './extended-operational-resources.js';
 import { loadProjectResponsibleRows } from './project-responsibles.js';
+import { listIntegrationEvents } from './event-feed.js';
 
 const querySchema = makeOperationalReadQuerySchema(z);
 
 export function prepareOperationalQuery(operationId, input, context) {
-  const resource = getOperationalResource(operationId);
+  let resource = getOperationalResource(operationId);
   if (!resource) throw new IntegrationApiError(400, 'UNKNOWN_OPERATION', 'Operação indisponível.');
-  if (resource.requiredScopes.some(scope => !context.scopes.has(scope))) throw new IntegrationApiError(403, 'INSUFFICIENT_SCOPE', 'A credencial não possui a permissão necessária.');
+  if (!hasIntegrationScopes(resource, context.scopes)) throw new IntegrationApiError(403, 'INSUFFICIENT_SCOPE', 'A credencial não possui a permissão necessária.');
   const query = querySchema.parse(input);
+  if (resource.model === 'Report') {
+    const allStates = context.scopes.has('rdo.relatorios.todos.read');
+    if (query.status && !allStates) throw new IntegrationApiError(403, 'INSUFFICIENT_SCOPE', 'O filtro de status exige rdo.relatorios.todos.read.');
+    if (allStates) resource = { ...resource,
+      fields: { ...resource.fields, ...resource.conditionalFields },
+      select: { ...resource.select, ...Object.fromEntries(Object.keys(resource.conditionalFields).map(field => [field, true])) },
+      where: { status: { in: ['PENDING', 'RETURNED', 'APPROVED', 'SIGNED'] }, deletedAt: null, project: { deletedAt: null } }
+    };
+  }
   if (Object.keys(query).some(key => !resource.queryParams.includes(key))) {
     throw new IntegrationApiError(400, 'UNKNOWN_PARAMETER', 'Parâmetro não disponível nesta operação.');
   }
@@ -65,6 +75,7 @@ export function operationalVisibilityWhere(resource, query, context) {
   return { AND: [resource.where, projectWhere(resource, query, context),
     ...resource.filterFields.filter(field => query[field]).map(field => {
       if (field === 'stage') return { workflow: { is: { stage: query.stage } } };
+      if (field === 'status') return { status: { in: query.status } };
       if (field === 'reportId' && resource.projectPolicy === 'REPORT_ATTACHMENT') {
         return { OR: [{ reportId: query[field] }, { reportService: { reportId: query[field] } }] };
       }
@@ -83,6 +94,7 @@ export function operationalVisibilityWhere(resource, query, context) {
 
 export async function listOperationalResources(client, operationId, input, context) {
   const { resource, query } = prepareOperationalQuery(operationId, input, context);
+  if (resource.collectionKind === 'EVENT_FEED') return listIntegrationEvents(client, query, context);
   const filters = {
     ...(query.projectCode ? { projectCode: query.projectCode } : {}),
     ...(query.projectId ? { projectId: query.projectId } : {}),
@@ -91,6 +103,7 @@ export async function listOperationalResources(client, operationId, input, conte
     ...Object.fromEntries(resource.filterFields.filter(field => query[field])
       .map(field => [field, Array.isArray(query[field]) ? [...query[field]].sort() : query[field]])),
     ...(query.active !== undefined ? { active: query.active } : {}),
+    ...(resource.model === 'Report' && context.scopes.has('rdo.relatorios.todos.read') ? { allStates: true } : {}),
     policyFingerprint: createHash('sha256').update(stableJson({
       projectAccessMode: context.projectAccessMode,
       projectIds: context.projectAccessMode === 'SELECTED' ? [...context.projectIds].sort() : []
