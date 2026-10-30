@@ -94,7 +94,7 @@ export interface PublicSignatureConfirmPayload {
 }
 
 export interface PublicSignatureEmailDelivery {
-  status: 'sent' | 'failed' | 'skipped';
+  status: 'queued' | 'sent' | 'failed' | 'skipped';
   reportCount?: number;
 }
 

@@ -9,6 +9,9 @@ import { z } from 'zod';
 import { cleaningChemicalOptions, materialSelection, selectedChemicalProducts } from '../../../../shared/modules/rdo-material.js';
 
 import asyncHandler from '../../lib/async-handler.js';
+import { createSerialQueue } from '../../lib/operations/serial-queue.js';
+import { configureReportEmailProcessor } from '../../lib/reports/email-jobs.js';
+import { createReportEmailProcessor } from '../../lib/reports/email-delivery.js';
 import { createReportSearchMatcher, reportSearchSelect } from '../../lib/reports/search.js';
 import { reportSummaryProjectSelect } from '../../lib/reports/summary-project-select.js';
 import { removeSubmittedRdoDrafts } from '../../lib/reports/drafts.js';
@@ -31,8 +34,6 @@ import {
   buildReportReapprovedEmailTemplate,
   buildReportRejectedByClientEmailTemplate,
   buildReportSignatureRequestEmailTemplate,
-  buildReportSignatureCompletedEmailTemplate,
-  buildReportSignatureReceivedEmailTemplate,
   buildReleasedServiceReportsEmailTemplate
 } from '../../lib/email-templates.js';
 import { clientEmailsEnabled, getMissingMailerConfig, sendClientMail, sendMail } from '../../lib/mailer.js';
@@ -79,7 +80,7 @@ import {
   reportCollaboratorPrefillHandler,
   reportPlanningContextHandler
 } from '../../lib/reports/planning-context-handler.js';
-import { coordinatorNotificationEmails, NotificationEmailCategory, notificationRecipientsForEmails } from '../../lib/notification-preferences.js';
+import { NotificationEmailCategory, notificationRecipientsForEmails } from '../../lib/notification-preferences.js';
 import { createMemoryRateLimit } from '../../lib/rate-limit.js';
 import prisma from '../../lib/prisma.js';
 import { logSlowOperation } from '../../lib/performance-logging.js';
@@ -212,7 +213,7 @@ const publicSignatureLimiter = createMemoryRateLimit({
   message: 'Muitas tentativas. Tente novamente mais tarde.'
 });
 const pdfDownloadJobs = new Map();
-let activeGeneratedPdfDownloads = 0;
+const serializeGeneratedPdf = createSerialQueue();
 async function uniqueSignatureValidationCode() {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const code = createSignatureValidationCode();
@@ -389,68 +390,6 @@ function clientReviewerLabel(report, user) {
   return name || email || 'Cliente';
 }
 
-function reportManagerEmail(report) {
-  const reviewedByEmail = String(report.reviewedBy?.email || '').trim().toLowerCase();
-  if (reviewedByEmail) return reviewedByEmail;
-  if (report.createdBy?.role === 'MANAGER') {
-    return String(report.createdBy?.email || '').trim().toLowerCase();
-  }
-  return '';
-}
-
-function queueInternalSignatureNotification(report, version, signer, completed) {
-  const managerEmail = reportManagerEmail(report);
-
-  const missingMailerConfig = getMissingMailerConfig();
-  if (missingMailerConfig.length) {
-    console.warn('SMTP não configurado; notificação de assinatura interna não enviada.', missingMailerConfig.join(', '));
-    return;
-  }
-
-  const required = (version?.signatures || []).filter(signature => signature.isRequired !== false);
-  const signedCount = required.filter(signature => signature.status === 'SIGNED').length;
-  const requiredCount = required.length;
-  const common = {
-    projectCode: report.project?.code || '---',
-    projectName: report.project?.name || 'Sem projeto',
-    reportType: report.reportType,
-    reportNumber: reportNumberLabel(report),
-    reportDate: formatDatePtBr(report.reportDate),
-    signerName: signer?.name || 'Cliente',
-    signerEmail: signer?.email || '',
-    appUrl: env.appUrl || ''
-  };
-  const template = completed
-    ? buildReportSignatureCompletedEmailTemplate({
-      ...common,
-      finalDocumentHash: version?.finalDocumentHash || ''
-    })
-    : buildReportSignatureReceivedEmailTemplate({
-      ...common,
-      signedCount,
-      requiredCount
-    });
-
-  setImmediate(async () => {
-    try {
-      const coordinatorEmails = await coordinatorNotificationEmails();
-      const recipients = await notificationRecipientsForEmails(
-        [managerEmail, ...coordinatorEmails],
-        NotificationEmailCategory.SIGNATURES
-      );
-      await Promise.all(recipients.map(recipient => sendMail({
-        to: recipient.email,
-        ...addNotificationPreferencesLink(template, recipient.notificationPreferencesUrl)
-      })));
-    } catch (error) {
-      console.error('Falha ao enviar notificação de assinatura interna.', {
-        reportId: report.id,
-        error: error?.message || error
-      });
-    }
-  });
-}
-
 function publicSignatureUrl(token) {
   const base = String(env.appUrl || '').replace(/\/+$/, '');
   const pathPart = `/assinar/${encodeURIComponent(token)}`;
@@ -607,15 +546,17 @@ export async function deliverIssuedSignatureRequestEmails(report, tokens, option
 
 export async function releasedServiceReportEmailAttachments(serviceReports, options = {}) {
   const getPdfDownload = options.getPdfDownload || getReportPdfDownload;
-  return Promise.all((serviceReports || []).map(async report => {
+  const attachments = [];
+  for (const report of serviceReports || []) {
     const file = await getPdfDownload(report);
     const fallbackFileName = buildReportFileName(report, 'pdf');
-    return {
+    attachments.push({
       filename: safePath(file.fileName || fallbackFileName) || fallbackFileName,
       content: file.buffer,
       contentType: 'application/pdf'
-    };
-  }));
+    });
+  }
+  return attachments;
 }
 
 export async function sendReleasedServiceReportsEmail(rdo, serviceReports, options = {}) {
@@ -1834,7 +1775,6 @@ export async function reconcileProjectClientSignatureRequirements(projectId, opt
   if (!projectId) return { updatedReports: 0, finalizedReports: 0 };
   const evidence = options.evidence || {};
   const userId = options.userId || null;
-  const sendReleasedEmails = options.sendReleasedEmails !== false;
   const reports = await prisma.report.findMany({
     where: {
       projectId,
@@ -2015,60 +1955,10 @@ export async function reconcileProjectClientSignatureRequirements(projectId, opt
     if (allRequiredSignaturesCompleted(reconciled.version)) {
       const finalized = await finalizeInternalSignatureRound(report, reconciled.version, evidence, userId);
       finalizedReports += finalized?.status === ReportStatus.SIGNED ? 1 : 0;
-      if (sendReleasedEmails && finalized?.status === ReportStatus.SIGNED) {
-        const released = await releasedServiceReportsAfterRdoSignature(finalized);
-        if (released.length) queueReleasedServiceReportsEmailAfterRdoSignature(finalized, released, { userId, evidence });
-      }
     }
   }
 
   return { updatedReports, finalizedReports };
-}
-
-function queueReleasedServiceReportsEmailAfterRdoSignature(rdo, releasedReports = null, options = {}) {
-  if (!rdo || rdo.reportType !== ReportType.RDO || rdo.status !== ReportStatus.SIGNED) return;
-
-  setImmediate(async () => {
-    try {
-      const released = Array.isArray(releasedReports)
-        ? releasedReports
-        : await releasedServiceReportsAfterRdoSignature(rdo);
-      const releasedIds = released.map(report => report.id).filter(Boolean);
-      if (!releasedIds.length) return;
-
-      const serviceReports = await prisma.report.findMany({
-        where: {
-          id: { in: releasedIds },
-          deletedAt: null
-        },
-        include
-      });
-      const emailRdo = await prisma.report.findUnique({
-        where: { id: rdo.id },
-        include
-      });
-      if (!emailRdo) return;
-      const byId = new Map(serviceReports.map(report => [report.id, report]));
-      const orderedReports = releasedIds.map(id => byId.get(id)).filter(Boolean);
-      if (!orderedReports.length) return;
-
-      if (emailRdo.project?.requireServiceReportSignatures === true) {
-        for (const report of orderedReports) {
-          await ensureInternalSignatureRoundAndNotify(report, options.userId || null, options.evidence || {}, {
-            allowLinkedServiceReport: true
-          });
-        }
-      }
-
-      await sendReleasedServiceReportsEmail(emailRdo, orderedReports);
-    } catch (error) {
-      console.error('Falha ao processar relatórios de serviço liberados após assinatura do RDO.', {
-        reportId: rdo?.id,
-        projectId: rdo?.projectId,
-        error: error?.message || error
-      });
-    }
-  });
 }
 
 function assertReportMutable(report) {
@@ -2486,29 +2376,16 @@ async function getFreshGeneratedReportPdf(report) {
 }
 
 async function generateReportPdfDownload(report) {
-  if (activeGeneratedPdfDownloads > 0) {
-    const error = new Error('Outra geração de PDF está em andamento. Tente novamente em alguns segundos.');
-    error.statusCode = 503;
-    throw error;
-  }
-  activeGeneratedPdfDownloads += 1;
-  const startedAt = Date.now();
-  try {
+  return serializeGeneratedPdf(async () => {
+    const startedAt = Date.now();
     const saved = await generateReportPdfAsset(report);
     await writePdfCacheMetadata(saved.targetPath, report);
     const buffer = await fs.readFile(saved.targetPath);
     logSlowOperation('reports.pdf.generate', Date.now() - startedAt, {
-      reportId: report.id,
-      reportType: report.reportType,
-      bytes: buffer.length
+      reportId: report.id, reportType: report.reportType, bytes: buffer.length
     });
-    return {
-      fileName: saved.fileName,
-      buffer
-    };
-  } finally {
-    activeGeneratedPdfDownloads = Math.max(0, activeGeneratedPdfDownloads - 1);
-  }
+    return { fileName: saved.fileName, buffer };
+  });
 }
 
 async function getOrCreateGeneratedReportPdf(report) {
@@ -6087,8 +5964,7 @@ registerReportReleaseRoutes(router, {
   requireRdoManager, include, isReportUnavailable, hasActiveClientRejection,
   projectReportsForClientVisibility, previousRdosSignedForServiceReport,
   saveManualReportPdf, supersedeActiveReportVersions, createManualReportVersion,
-  releasedServiceReportsAfterRdoSignature, queueReleasedServiceReportsEmailAfterRdoSignature,
-  sendReleasedServiceReportsEmail
+  releasedServiceReportsAfterRdoSignature
 });
 
 registerReportPublicViewRoutes(router, {
@@ -6136,6 +6012,13 @@ const publicSignaturePdfDownload = createPublicSignaturePdfDownload({
   currentSourceVersion: version => signatureSourceHashCurrent(version, prisma, { repairUnsigned: true }),
   verifiedFinalPdfBuffer, verifiedSourcePdfBuffer, currentSignatureEvidencePdfDownload
 });
+configureReportEmailProcessor(createReportEmailProcessor({
+  database: prisma, include, canClientSeeReport, releasedServiceReportsAfterRdoSignature,
+  getReportPdfDownload,
+  getSignedPdf: async signature => appendReportPdfAttachments(signature.report, await publicSignaturePdfDownload(signature)),
+  finalizeSignature: (report, version) => finalizeInternalSignatureRound(report, version, {}, null),
+  ensureSignatureRound: report => ensureInternalSignatureRoundAndNotify(report, null, {}, { allowLinkedServiceReport: true })
+}));
 const publicSignatureFiles = createPublicSignatureFiles({
   loadSignature: (token, signatureId) => publicSignatureForTokenScopeOrThrow(token, signatureId, prisma, { allowSigned: true }),
   getPdfDownload: async signature => appendReportPdfAttachments(signature.report, await publicSignaturePdfDownload(signature))
@@ -6200,28 +6083,11 @@ async function confirmPublicReportSignature(token, data, evidence) {
     }
   }
 
-  if (completed || !signatureResult.alreadySigned) {
-    const finalVersion = completed && item.versions?.[0]
-      ? { ...signedVersion, finalDocumentHash: item.versions[0].finalDocumentHash }
-      : signedVersion;
-    const signedSignature = signatureResult.signedSignature
-      || finalVersion?.signatures?.find(signature => data.signatureId ? signature.id === data.signatureId : internalSignatureTokenHash(token) === signature.tokenHash);
-    queueInternalSignatureNotification(item, finalVersion, {
-      name: signedSignature?.signerName,
-      email: signedSignature?.signerEmail
-    }, completed);
-  }
-
   if (completed) {
     await reconcileProjectClientSignatureRequirements(item.projectId, {
       userId: null,
-      evidence,
-      sendReleasedEmails: false
+      evidence
     });
-    const releasedServiceReports = await releasedServiceReportsAfterRdoSignature(item);
-    if (releasedServiceReports.length) {
-      queueReleasedServiceReportsEmailAfterRdoSignature(item, releasedServiceReports, { userId: null, evidence });
-    }
   }
 
   return { success: true, completed, signatureId: signatureResult.signedSignature.id, report: withInternalSignatureProgress(item) };
@@ -6231,7 +6097,7 @@ router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(
   const data = publicSignatureConfirmSchema.parse(req.body || {});
   await assertRenderableReportSignatureImageDataUrl(data.signatureImageDataUrl);
   const result = await confirmPublicReportSignature(req.params.token, data, signatureEvidenceFromRequest(req));
-  const emailDelivery = await publicSignatureFiles.sendSignedCopies(req.params.token, [result.signatureId]);
+  const emailDelivery = { status: 'queued', reportCount: 1 };
   res.json({ ...result, emailDelivery });
 }));
 
@@ -6253,7 +6119,7 @@ router.post('/public-sign/:token/confirm-batch', publicSignatureLimiter, asyncHa
       results.push({ signatureId, success: false, error: error?.statusCode < 500 ? error.message : 'Não foi possível assinar este RDO. Tente novamente.' });
     }
   }
-  const emailDelivery = await publicSignatureFiles.sendSignedCopies(req.params.token, results.filter(result => result.success).map(result => result.signatureId));
+  const emailDelivery = { status: 'queued', reportCount: results.filter(result => result.success).length };
   res.json({ results, emailDelivery });
 }));
 
@@ -7336,28 +7202,18 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
     });
   }
 
-  if (completed || !signatureResult.alreadySigned) {
-    const finalVersion = completed && item.versions?.[0]
-      ? { ...signedVersion, finalDocumentHash: item.versions[0].finalDocumentHash }
-      : signedVersion;
-    queueInternalSignatureNotification(item, finalVersion, signer, completed);
-  }
   const signatureEmailDelivery = issuedTokens.length
     ? await deliverIssuedSignatureRequestEmails(item, issuedTokens)
     : null;
   if (item.status === ReportStatus.SIGNED) {
     await reconcileProjectClientSignatureRequirements(item.projectId, {
       userId: req.auth.user.id,
-      evidence,
-      sendReleasedEmails: false
+      evidence
     });
   }
   const releasedServiceReports = item.status === ReportStatus.SIGNED
     ? await releasedServiceReportsAfterRdoSignature(item)
     : [];
-  if (releasedServiceReports.length) {
-    queueReleasedServiceReportsEmailAfterRdoSignature(item, releasedServiceReports, { userId: req.auth.user.id, evidence });
-  }
 
   res.json({
     ok: true,

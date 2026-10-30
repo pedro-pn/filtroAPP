@@ -155,6 +155,7 @@ export const API_DATA_DOMAINS = Object.freeze([
 ]);
 
 export const CATALOG_EXCLUDED_INFRASTRUCTURE_MODELS = Object.freeze([
+  { model: 'ReportEmailJob', reason: 'Fila interna de entrega SMTP e comprovantes por destinatário.' },
   { model: 'IntegrationEvent', reason: 'Outbox publicado somente como feed de identificadores.' },
   { model: 'IntegrationEventSequence', reason: 'Contador transacional interno do feed.' },
   { model: 'IntegrationUnloadingReceipt', reason: 'Recibos internos de idempotência logística.' },

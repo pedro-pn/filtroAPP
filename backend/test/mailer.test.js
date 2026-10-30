@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import nodemailer from 'nodemailer';
 
 import env from '../src/config/env.js';
 import {
@@ -24,6 +25,29 @@ const oauthConfig = {
   microsoftClientId: 'client-id',
   microsoftClientSecret: 'client-secret'
 };
+
+test('all sendMail callers share one SMTP slot and a failed delivery releases it', async t => {
+  const originalTransport = nodemailer.createTransport;
+  const originalEnv = { ...env };
+  t.after(() => { nodemailer.createTransport = originalTransport; Object.assign(env, originalEnv); });
+  Object.assign(env, { ...oauthConfig, smtpAuthMode: 'password', smtpPass: 'test', sendClientEmails: true });
+  let active = 0;
+  let peak = 0;
+  const sent = [];
+  nodemailer.createTransport = () => ({ async sendMail(message) {
+    active += 1;
+    peak = Math.max(peak, active);
+    await new Promise(resolve => setImmediate(resolve));
+    active -= 1;
+    if (message.to === 'fail@example.com') throw new Error('432 concurrent connections');
+    sent.push(message.to);
+    return { accepted: [message.to] };
+  } });
+  const results = await Promise.allSettled(['first@example.com', 'fail@example.com', 'last@example.com'].map(to => sendMail({ to })));
+  assert.equal(peak, 1);
+  assert.equal(results[1].status, 'rejected');
+  assert.deepEqual(sent, ['first@example.com', 'last@example.com']);
+});
 
 test('client email feature flag disables client mail delivery before SMTP transport', async t => {
   const original = env.sendClientEmails;

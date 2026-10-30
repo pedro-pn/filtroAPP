@@ -147,6 +147,38 @@ sincronizações e lembretes disputem o event loop HTTP. Os pools são limitados
 `BACKEND_DATABASE_CONNECTION_LIMIT` e `WORKER_DATABASE_CONNECTION_LIMIT` apenas
 depois de observar `dbPool.waiting` nos logs de operações lentas.
 
+### Entrega dos e-mails de assinatura e liberação de relatórios
+
+A migration `20261030180000_report_email_outbox` grava as intenções de envio
+em `ReportEmailJob`, na mesma transação das assinaturas e liberações (inclusive
+assinaturas físicas). Publique a API e o worker da mesma versão após aplicar a
+migration. O worker consulta a fila a cada 10 segundos; falhas de PDF, SMTP ou
+configuração permanecem pendentes, com espera crescente até uma hora, sem
+limite de tentativas. Tarefas interrompidas são retomadas após a expiração da
+trava de 15 minutos. Não é necessário pedir outra assinatura para tentar de novo.
+
+Os envios SMTP e as gerações de PDF são serializados em cada processo.
+Cada relatório de serviço/revisão possui uma entrega própria; cada RDO assinado
+é enviado individualmente ao signatário. O worker registra os destinatários
+concluídos para não repeti-los quando outro destinatário falhar. Antes de enviar,
+ele reconfirma as permissões, a revisão e eventual revogação da liberação.
+`SEND_CLIENT_EMAILS=false` preserva as tarefas pendentes sem enviar mensagens.
+
+Para consultar a fila sem enviar nada:
+
+```sql
+SELECT id, kind, status, attempts, "nextAttemptAt", "lockedUntil", "lastError"
+FROM "ReportEmailJob"
+WHERE status <> 'COMPLETED'
+ORDER BY "createdAt";
+```
+
+A migration não reenvia eventos anteriores à sua instalação. Falhas históricas
+precisam de recuperação explícita, após conferir os logs e o rastreamento SMTP.
+O registro de entrega confirma a aceitação pelo servidor SMTP. Uma interrupção
+entre essa aceitação e a gravação do comprovante pode causar duplicação na
+retomada; não existe transação compartilhada entre SMTP e PostgreSQL.
+
 O PostgreSQL inicia com `pg_stat_statements`, `track_io_timing` e log de
 statements acima de 1 s habilitados. A migration cria a extensão; depois do
 deploy, confirme com `SELECT * FROM pg_extension WHERE extname = 'pg_stat_statements'`

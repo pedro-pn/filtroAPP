@@ -1,4 +1,5 @@
 import env from '../config/env.js';
+import { startReportEmailJob } from '../lib/reports/email-jobs.js';
 import { startMonthlyAllocationReportJob } from '../lib/allocation-monthly-report.js';
 import { startAssinaturasJobs } from '../lib/assinaturas/jobs.js';
 import { startCalibrationReminderJob } from '../lib/calibration-reminders.js';
@@ -26,6 +27,7 @@ export function startBackgroundJobs({ keepAlive = false } = {}) {
   startOmieSyncJob();
   startPontoMaisSyncJob();
   startReportApprovalPostProcessingJob({ keepAlive });
+  startReportEmailJob({ keepAlive });
   startDatabookJob({ keepAlive });
   startAssinaturasJobs();
   startOperationalAlertJob();
