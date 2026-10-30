@@ -1,3 +1,4 @@
+import { projectChannelWhere, assertProjectChannel } from '../projects/distribution.js';
 import { z } from 'zod';
 
 import { PROJECT_WORKFLOW_COMMERCIAL_FACTS, PROJECT_WORKFLOW_COMMERCIAL_FACT_STATUSES, makeProjectWorkflowCommercialFactSchema } from '../../../../shared/schemas/project-workflow.js';
@@ -57,6 +58,7 @@ export async function createCrmProject(database, input) {
 
 export async function createCrmDocument(database, projectId, input) {
   const parsed = validateCrmDocument(input);
+  assertProjectChannel(await database.project.findFirst({ where: { id: projectId } }), 'api');
   return upsertCrmProjectDocument(database, { ...parsed, projectId });
 }
 
@@ -68,7 +70,7 @@ function versionOrder(left, right) {
 export async function upsertCrmCommercialFact(database, projectId, rawInput, { now = new Date() } = {}) {
   const input = validateCommercialFact(rawInput);
   const project = await database.project.findFirst({
-    where: { id: projectId, isActive: true, deletedAt: null },
+    where: { ...projectChannelWhere('api'), id: projectId, isActive: true },
     select: { id: true, workflow: { select: { projectId: true } } }
   });
   if (!project) throw new IntegrationApiError(404, 'NOT_FOUND', 'Projeto não encontrado.');

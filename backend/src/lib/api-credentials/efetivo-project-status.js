@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { projectChannelWhere } from '../projects/distribution.js';
 
 import { computeProgressForProjects } from '../acompanhamento/avanco.js';
 import { getProjectWorkflow } from '../efetivo/project-workflow/service.js';
@@ -47,7 +48,7 @@ export function projectEfetivoStatus({ project, workflow }, progress = {}) {
 export async function getEfetivoProjectStatus(client, id, context) {
   validateEfetivoProjectStatusRequest({ id }, {}, context);
   const record = await client.project.findFirst({
-    where: { id, deletedAt: null, isActive: true },
+    where: { ...projectChannelWhere('api'), id, isActive: true },
     select: { id: true }
   });
   if (!record) throw new IntegrationApiError(404, 'NOT_FOUND', 'Projeto não encontrado.');

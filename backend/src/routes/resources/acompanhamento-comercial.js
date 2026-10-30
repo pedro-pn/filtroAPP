@@ -1,3 +1,4 @@
+import { projectChannelWhere } from '../../lib/projects/distribution.js';
 import { assignReportContribution } from '../../lib/acompanhamento/proposal-scopes.js';
 import { getProposalScopeTracking } from '../../lib/acompanhamento/proposal-scope-tracking.js';
 /*
@@ -135,7 +136,7 @@ router.post('/comercialapp/propostas', requireComercialAppToken, asyncHandler(as
 router.get('/comercialapp/projetos', requireComercialAppToken, asyncHandler(async (req, res) => {
   const { busca } = z.object({ busca: z.string().trim().min(2).max(100) }).parse(req.query);
   const items = await prisma.project.findMany({
-    where: { deletedAt: null, isActive: true,
+    where: { ...projectChannelWhere('commercial'), isActive: true,
       OR: [
         { code: { contains: busca, mode: 'insensitive' } },
         { name: { contains: busca, mode: 'insensitive' } },

@@ -1,3 +1,4 @@
+import { projectDistributionDefaults } from '../src/lib/projects/distribution.js';
 import assert from 'node:assert/strict';
 import { PassThrough, Readable, Writable } from 'node:stream';
 import test from 'node:test';
@@ -216,6 +217,36 @@ test('cadastro e revisão manual agendam os anexos sem desfazer uma revisão já
   assert.equal(project.commercialProposalSyncNextAttemptAt, null);
 });
 
+test('destinos são salvos no projeto; edições parciais preservam exceções e mudança de modo repõe os padrões', async t => {
+  stubAuthenticatedManager(t);
+  const originalTransaction = prisma.$transaction;
+  let project;
+  prisma.$transaction = async callback => callback({
+    project: {
+      create: async ({ data }) => (project = { ...data, id: 'distribution', authorizedUsers: [], reportSequences: [] }),
+      findUniqueOrThrow: async () => ({ ...project }),
+      update: async ({ data }) => (project = { ...project, ...data })
+    },
+    report: { findMany: async () => [] }
+  });
+  t.after(() => { prisma.$transaction = originalTransaction; });
+  const created = await dispatchApp('POST', '/api/projects', {
+    code: 'PRIVATE', name: 'Projeto', clientName: 'Cliente', clientCnpj: '11222333000144', contractCode: '1',
+    location: 'Local', managerOnly: true
+  });
+  assert.equal(created.statusCode, 201);
+  assert.deepEqual(created.json.distributionSettings, projectDistributionDefaults({ managerOnly: true }));
+  const custom = { ...project.distributionSettings, api: true };
+  assert.equal((await dispatchApp('PUT', '/api/projects/distribution', { distributionSettings: custom })).statusCode, 200);
+  assert.deepEqual(project.distributionSettings, custom);
+  await dispatchApp('PUT', '/api/projects/distribution', { name: 'Novo nome' });
+  assert.deepEqual(project.distributionSettings, custom);
+  await dispatchApp('PUT', '/api/projects/distribution', { managerOnly: false });
+  assert.deepEqual(project.distributionSettings, projectDistributionDefaults());
+  const invalid = await dispatchApp('PUT', '/api/projects/distribution', { distributionSettings: { ...custom, api: 'true' } });
+  assert.equal(invalid.statusCode, 400);
+});
+
 function stubAuthenticatedClient(t) {
   const originalFindUnique = prisma.userSession.findUnique;
   prisma.userSession.findUnique = async () => ({
@@ -374,6 +405,7 @@ test('PUT /projects/:id invalidates pending internal signature rounds when proje
     'report.findMany'
   ]);
   assert.deepEqual(calls[1][1].data, {
+    distributionSettings: projectDistributionDefaults({ managerOnly: true }),
     managerOnly: true,
     visibleToCollaborators: false
   });

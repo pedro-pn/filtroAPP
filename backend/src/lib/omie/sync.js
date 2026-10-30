@@ -1,3 +1,4 @@
+import { projectAllowsChannel, projectChannelWhere } from '../projects/distribution.js';
 /*
  * Sincronização Omie: projetos (cache codigo→OS), categorias, compras (contas a pagar)
  * e receitas/faturamento (contas a receber).
@@ -185,10 +186,12 @@ export async function syncOmieProjects({ triggeredBy = 'SCRIPT' } = {}) {
   try {
     // Mapa OS -> projectId do app (resolve o vínculo).
     const [projects, cachedProjects] = await Promise.all([
-      prisma.project.findMany({ where: { deletedAt: null }, select: { id: true, code: true } }),
+      prisma.project.findMany({ where: { deletedAt: null }, select: { id: true, code: true, managerOnly: true, distributionSettings: true } }),
       prisma.omieProject.findMany({ select: { codigo: true, projectId: true } })
     ]);
-    const projectByCode = new Map(projects.map(p => [String(p.code).trim(), p.id]));
+    const projectByCode = new Map(projects.filter(p => projectAllowsChannel(p, 'omie')).map(p => [String(p.code).trim(), p.id]));
+    const blockedCodes = new Set(projects.filter(p => !projectAllowsChannel(p, 'omie')).map(p => String(p.code).trim()));
+    const blockedIds = new Set(projects.filter(p => !projectAllowsChannel(p, 'omie')).map(p => p.id));
     const cachedByCodigo = new Map(cachedProjects.map(project => [project.codigo, project]));
 
     let written = 0;
@@ -198,6 +201,7 @@ export async function syncOmieProjects({ triggeredBy = 'SCRIPT' } = {}) {
       for (const r of records) {
         const codigo = String(r.codigo);
         const osNumber = osNumberFromName(r.nome);
+        if (blockedCodes.has(osNumber) || blockedIds.has(cachedByCodigo.get(codigo)?.projectId)) continue;
         const projectId = osNumber ? projectByCode.get(osNumber) ?? null : null;
         if (projectId) matched += 1;
         const data = { codigo, osNumber, nome: r.nome ?? null, inativo: r.inativo === 'S', projectId, syncedAt: new Date() };
@@ -271,6 +275,7 @@ export async function syncOmiePurchases({ triggeredBy = 'SCRIPT', sinceDays = nu
 
     const linked = await prisma.omieProject.findMany({
       where: {
+        AND: [{ OR: [{ projectId: null }, { project: projectChannelWhere('omie') }] }],
         OR: [
           { projectId: { not: null } },
           { osNumber: { in: SEDE_OMIE_CODES } },
@@ -431,7 +436,7 @@ export async function syncOmieReceivables({ triggeredBy = 'SCRIPT', sinceDays = 
     const categoryName = new Map(categories.map(c => [c.codigo, c.descricao]));
 
     const linked = await prisma.omieProject.findMany({
-      where: { projectId: { not: null } },
+      where: { projectId: { not: null }, project: projectChannelWhere('omie') },
       select: { codigo: true, osNumber: true, projectId: true }
     });
     const linkedByCodigo = new Map(linked.map(op => [op.codigo, op]));

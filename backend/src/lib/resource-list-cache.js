@@ -2,6 +2,15 @@ import { createKeyedTtlCache, createTtlCache } from './ttl-cache.js';
 import env from '../config/env.js';
 import { isApiWriteSimulation } from './api-credentials/write-context.js';
 import { registerCollaboratorCacheInvalidator } from './cache/invalidation.js';
+import { projectAccessCacheKey } from './projects/access-scope.js';
+
+function scopedProjectCache(ttl, maxEntries) {
+  const cache = createKeyedTtlCache(ttl, maxEntries);
+  return {
+    get: (key, loader) => cache.get(JSON.stringify([projectAccessCacheKey(), key]), loader),
+    clear: () => cache.clear()
+  };
+}
 
 const MASTER_DATA_TTL_MS = env.resourceListCacheTtlMs;
 const DASHBOARD_TTL_MS = env.dashboardCacheTtlMs;
@@ -15,10 +24,10 @@ export const unitsCache = createTtlCache(MASTER_DATA_TTL_MS);
 export const unitCategoriesCache = createTtlCache(MASTER_DATA_TTL_MS);
 export const companyEquipmentCache = createTtlCache(MASTER_DATA_TTL_MS);
 export const equipmentCategoriesCache = createTtlCache(MASTER_DATA_TTL_MS);
-export const statisticsProjectsCache = createKeyedTtlCache(DASHBOARD_TTL_MS);
-export const commercialDashboardCache = createKeyedTtlCache(DASHBOARD_TTL_MS, 50);
-export const projectCardsCache = createKeyedTtlCache(DASHBOARD_TTL_MS, 10);
-export const laborCostCache = createKeyedTtlCache(DASHBOARD_TTL_MS, 10);
+export const statisticsProjectsCache = scopedProjectCache(DASHBOARD_TTL_MS);
+export const commercialDashboardCache = scopedProjectCache(DASHBOARD_TTL_MS, 50);
+export const projectCardsCache = scopedProjectCache(DASHBOARD_TTL_MS, 10);
+export const laborCostCache = scopedProjectCache(DASHBOARD_TTL_MS, 10);
 
 export function clearProjectDerivedCaches() {
   if (isApiWriteSimulation()) return;

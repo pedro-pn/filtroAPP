@@ -1,3 +1,4 @@
+import { projectChannelWhere } from '../projects/distribution.js';
 import prisma from '../prisma.js';
 
 export const isPresentationCopyId = id => /^presentation-[a-zA-Z0-9-]+$/.test(id ?? '');
@@ -8,11 +9,17 @@ export async function getPresentationCopy(id, client = prisma) {
   if (!isPresentationCopyId(id)) return null;
   const [row] = await client.$queryRaw`
     SELECT * FROM "ProjectPresentationCopy" WHERE "id" = ${id} AND "endedAt" IS NULL`;
-  return row ?? null;
+  if (!row) return null;
+  const visible = await client.project.findFirst({ where: { id: row.sourceProjectId, ...projectChannelWhere('acompanhamento') }, select: { id: true } });
+  return visible ? row : null;
 }
 
 export async function listPresentationCopies(client = prisma) {
-  return client.$queryRaw`SELECT * FROM "ProjectPresentationCopy" WHERE "endedAt" IS NULL ORDER BY "createdAt"`;
+  const copies = await client.$queryRaw`SELECT * FROM "ProjectPresentationCopy" WHERE "endedAt" IS NULL ORDER BY "createdAt"`;
+  if (!copies.length) return copies;
+  const projects = await client.project.findMany({ where: { id: { in: copies.map(copy => copy.sourceProjectId) }, ...projectChannelWhere('acompanhamento') }, select: { id: true } });
+  const visibleIds = new Set(projects.map(project => project.id));
+  return copies.filter(copy => visibleIds.has(copy.sourceProjectId));
 }
 
 export function presentationMetadata(copy) {

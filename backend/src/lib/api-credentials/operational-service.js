@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { projectChannelWhere } from '../projects/distribution.js';
 import { createHash } from 'node:crypto';
 import { hasIntegrationScopes, makeOperationalReadQuerySchema } from '../../../../shared/schemas/integration-api.js';
 import { IntegrationApiError } from '../../middleware/api-request-context.js';
@@ -48,29 +49,30 @@ export function prepareOperationalQuery(operationId, input, context) {
 function projectWhere(resource, query, context) {
   const ids = query.projectId ? [query.projectId] : context.projectAccessMode === 'SELECTED' ? [...context.projectIds] : null;
   const code = query.projectCode;
-  if ((!ids && !code) || resource.projectPolicy === 'GLOBAL') return {};
+  if (resource.projectPolicy === 'GLOBAL') return {};
+  const visibleProject = { ...projectChannelWhere('api'), ...(code ? { code } : {}) };
   const projectId = ids ? { in: ids } : null;
   const direct = {
     ...(projectId ? { projectId } : {}),
-    ...(code ? { project: { code } } : {})
+    project: visibleProject
   };
   const report = {
     ...(projectId ? { projectId } : {}),
-    ...(code ? { project: { code } } : {})
+    project: visibleProject
   };
   switch (resource.projectPolicy) {
-    case 'SELF': return { ...(projectId ? { id: projectId } : {}), ...(code ? { code } : {}) };
-    case 'DIRECT': return direct;
-    case 'REPORT': return { report,
+    case 'SELF': return { ...visibleProject, ...(projectId ? { id: projectId } : {}) };
+    case 'DIRECT': return !ids && !code && resource.model === 'StockMovement' ? { OR: [{ projectId: null }, direct] } : direct;
+    case 'REPORT': return { ...(!ids && !code && resource.model === 'MaintenanceRecord' ? { OR: [{ reportId: null }, { report }] } : { report }),
       ...(['ReportSignature', 'ReportAuditLog'].includes(resource.model) ? { OR: [{ versionId: null }, { version: { report } }] } : {}) };
-    case 'MAINTENANCE': return { maintenance: { report } };
-    case 'STOCK_BATCH': return { movements: { some: {
-      ...(projectId ? { projectId } : {}), project: { deletedAt: null, ...(code ? { code } : {}) }
+    case 'MAINTENANCE': return { maintenance: !ids && !code ? { OR: [{ reportId: null }, { report }] } : { report } };
+    case 'STOCK_BATCH': return !ids && !code ? {} : { movements: { some: {
+      ...(projectId ? { projectId } : {}), project: visibleProject
     } } };
     case 'REPORT_ATTACHMENT': return reportAttachmentWhere(report);
-    case 'COLLABORATOR_REPORT': return { reportLinks: { some: { report: {
+    case 'COLLABORATOR_REPORT': return !ids && !code ? {} : { reportLinks: { some: { report: {
       ...(projectId ? { projectId } : {}), status: 'APPROVED', deletedAt: null,
-      project: { deletedAt: null, ...(code ? { code } : {}) }
+      project: visibleProject
     } } } };
     default: throw new IntegrationApiError(403, 'PROJECT_NOT_ALLOWED', 'Política de projeto indisponível.');
   }
@@ -78,6 +80,7 @@ function projectWhere(resource, query, context) {
 
 export function operationalVisibilityWhere(resource, query, context) {
   return { AND: [resource.where, projectWhere(resource, query, context),
+    ...(resource.projectChannel ? [projectChannelWhere(resource.projectChannel)] : []),
     ...resource.filterFields.filter(field => query[field]).map(field => {
       if (field === 'stage') return { workflow: { is: { stage: query.stage } } };
       if (field === 'status') return { status: { in: query.status } };

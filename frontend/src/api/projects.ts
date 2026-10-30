@@ -1,3 +1,4 @@
+import type { ProjectDistributionSettings } from '../../../shared/modules/project-distribution.js';
 import { apiClient, rdoApiPath } from './client';
 import type { ClientSigner, Project, ProjectReportSequence } from '../types/domain';
 
@@ -10,6 +11,7 @@ export interface ProjectPayload {
   isActive?: boolean;
   visibleToCollaborators?: boolean;
   managerOnly?: boolean;
+  distributionSettings?: ProjectDistributionSettings;
   inhibitionServiceEnabled?: boolean;
   requireServiceReportSignatures?: boolean;
   clientName: string;

@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { API_SCOPES, API_OPERATIONS, futureScopeDefinitions } from '../src/lib/api-credentials/catalog.js';
@@ -21,7 +22,11 @@ function matches(row, where) {
   return Object.entries(where).every(([key, value]) => {
     if (key === 'AND') return value.every(w => matches(row, w));
     if (key === 'OR') return value.some(w => matches(row, w));
-    const actual = row?.[key];
+    const actual = row?.[key] === undefined
+      ? key === 'managerOnly' ? false : key === 'distributionSettings' ? null : undefined
+      : row[key];
+    if (value?.equals === Prisma.DbNull) return actual === null;
+    if (value?.path) return value.path.reduce((current, field) => current?.[field], actual) === value.equals;
     if (value === null || typeof value !== 'object' || value instanceof Date) return actual instanceof Date ? actual.getTime() === new Date(value).getTime() : actual === value;
     if ('not' in value) return actual !== value.not;
     if ('some' in value) return (actual || []).some(r => matches(r, value.some));

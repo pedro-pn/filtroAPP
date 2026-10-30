@@ -1,3 +1,4 @@
+import { assertProjectChannel, projectChannelWhere } from '../projects/distribution.js';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import prisma from '../prisma.js';
@@ -283,7 +284,7 @@ export async function receiveCommercialAppProposal(raw) {
   let result;
   try {
     result = await commercialTransaction(async tx => {
-      await lockCommercialProject(tx, data.projectId);
+      assertProjectChannel(await lockCommercialProject(tx, data.projectId), 'commercial');
       const delivered = await tx.commercialAppDelivery.findUnique({ where: { eventId: data.eventId } });
       if (delivered) {
         const existing = await tx.commercialAppProposal.findUnique({ where: { externalId: data.proposalId } });
@@ -311,7 +312,7 @@ export async function receiveCommercialAppProposal(raw) {
           projectId: existing?.projectId, scopeImport };
       }
       const project = await tx.project.findFirst({
-        where: { id: data.projectId, deletedAt: null, isActive: true }
+        where: { ...projectChannelWhere('commercial'), id: data.projectId, isActive: true }
       });
       if (!project) throw new CommercialAppBridgeError(422, 'Projeto informado pelo CRM não existe no FiltroAPP.');
       const proposal = await storeCommercialAppProposal(tx, data);
@@ -414,6 +415,8 @@ export async function selectCommercialAppRevision(projectId, externalId, userId,
 
 async function receiveAdditionalProposal(data, raw) {
   const result = await commercialTransaction(async tx => {
+    const project = await lockCommercialProject(tx, data.projectId);
+    assertProjectChannel(project, 'commercial');
     const delivered = await tx.commercialAppDelivery.findUnique({ where: { eventId: data.eventId } });
     if (delivered) {
       if (delivered.snapshotHash !== hash(raw) || delivered.externalId !== data.proposalId) {
@@ -431,7 +434,6 @@ async function receiveAdditionalProposal(data, raw) {
       }
       return { ...delivered.acknowledgement, duplicate: true };
     }
-    const project = await lockCommercialProject(tx, data.projectId);
     const proposal = await storeCommercialAppProposal(tx, data);
     const selection = await selectContribution(tx, project, proposal, 'COMERCIAL_APP', { automatic: true });
     const acknowledgement = { contractVersion: 3, budgetStatus: selection.budgetStatus,

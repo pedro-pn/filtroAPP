@@ -1,3 +1,4 @@
+import { projectChannelWhere } from '../src/lib/projects/distribution.js';
 import assert from 'node:assert/strict';
 import { PassThrough, Readable, Writable } from 'node:stream';
 import test from 'node:test';
@@ -159,7 +160,7 @@ test('Efetivo consulta romaneios de projeto visível sem exigir papel do Romanei
   }));
   stub(prisma.project, 'findFirst', async query => {
     assert.equal(query.where.isActive, true);
-    assert.equal(query.where.managerOnly, false);
+    assert.deepEqual(query.where.AND, projectChannelWhere('efetivo').AND);
     assert.equal(query.where.deletedAt, null);
     return query.where.id === 'missing' ? null : { id: query.where.id };
   });

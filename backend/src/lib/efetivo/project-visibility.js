@@ -1,11 +1,9 @@
-import { SEDE_OMIE_CODES, SEDE_OPERATIONAL_CODES } from '../acompanhamento/sede-cost-centers.js';
-
-const sedeProjectCodes = [...new Set([...SEDE_OMIE_CODES, ...SEDE_OPERATIONAL_CODES])];
+import { efetivoProjectBaseWhere } from './project-visibility-rules.js';
+import { projectChannelWhere } from '../projects/distribution.js';
 
 export function efetivoProjectWhere() {
   return {
-    deletedAt: null,
-    managerOnly: false,
-    code: { notIn: sedeProjectCodes }
+    ...efetivoProjectBaseWhere(),
+    ...projectChannelWhere('efetivo'),
   };
 }

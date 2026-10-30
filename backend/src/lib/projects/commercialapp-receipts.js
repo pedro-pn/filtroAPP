@@ -1,3 +1,4 @@
+import { projectAllowsChannel, projectChannelWhere } from './distribution.js';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import prisma from '../prisma.js';
@@ -60,7 +61,8 @@ async function claimReceipt(database, eventId, now) {
   return commercialTransaction(async tx => {
     const row = await tx.commercialAppReceipt.findUnique({ where: { eventId } });
     if (!row || !pending.includes(row.status)) return null;
-    await lockCommercialProject(tx, row.projectId);
+    const project = await lockCommercialProject(tx, row.projectId);
+    if (!projectAllowsChannel(project, 'commercial')) return null;
     const oldest = await tx.commercialAppReceipt.findFirst({ where: { externalId: row.externalId, status: { in: pending } },
       orderBy: [{ importedAt: 'asc' }, { eventId: 'asc' }] });
     if (oldest?.eventId !== eventId || row.nextAttemptAt > now
@@ -80,7 +82,7 @@ export async function processCommercialReceipts(options = {}) {
   const now = options.now || new Date();
   const rows = await database.commercialAppReceipt.findMany({ where: {
     status: { in: pending }, nextAttemptAt: { lte: now },
-    project: { isActive: true, deletedAt: null }
+    project: { ...projectChannelWhere('commercial'), isActive: true }
   }, orderBy: [{ importedAt: 'asc' }, { eventId: 'asc' }], take: 20 });
   const results = [];
   for (const row of rows) {

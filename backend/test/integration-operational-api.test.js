@@ -22,7 +22,11 @@ function matches(row, where) {
   return Object.entries(where).every(([key, value]) => {
     if (key === 'AND') return value.every(item => matches(row, item));
     if (key === 'OR') return value.some(item => matches(row, item));
-    const actual = row?.[key];
+    const actual = row?.[key] === undefined
+      ? key === 'managerOnly' ? false : key === 'distributionSettings' ? null : undefined
+      : row[key];
+    if (value?.equals === Prisma.DbNull) return actual === null;
+    if (value?.path) return value.path.reduce((current, field) => current?.[field], actual) === value.equals;
     if (value === null || typeof value !== 'object' || value instanceof Date) return actual instanceof Date ? actual.getTime() === new Date(value).getTime() : actual === value;
     if ('some' in value) return (actual || []).some(item => matches(item, value.some));
     if ('in' in value) return value.in.includes(actual);
@@ -84,7 +88,7 @@ test('stored fields and explicit relation selects match Prisma; derived fields a
 
 test('every operational collection is grantable, routable, selectable in playground and absent from future candidates', () => {
   const router = createOperationalRouter();
-  assert.equal(router.stack.length, OPERATIONAL_RESOURCES.length + 13);
+  assert.equal(router.stack.filter(layer => layer.route).length, OPERATIONAL_RESOURCES.length + 13);
   for (const resource of OPERATIONAL_RESOURCES) {
     assert.ok(API_SCOPES.some(scope => scope.code === resource.scope && scope.status === 'AVAILABLE'));
     assert.ok(API_OPERATIONS.some(operation => operation.operationId === resource.operationId && operation.path === resource.path));

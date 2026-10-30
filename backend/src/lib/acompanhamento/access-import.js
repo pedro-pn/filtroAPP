@@ -1,3 +1,4 @@
+import { projectChannelWhere } from '../projects/distribution.js';
 /*
  * Importação do banco comercial Access (propostas_bd.accdb) — módulo Acompanhamento de Projetos.
  *
@@ -917,8 +918,7 @@ async function listCommercialDashboardUncached({
     }),
     prisma.project.findMany({
       where: {
-        deletedAt: null,
-        managerOnly: false,
+        ...projectChannelWhere('acompanhamento'),
         ...(projectIds ? { id: { in: projectIds } } : {})
       },
       select: {
@@ -1205,7 +1205,7 @@ export async function listCommercialPendencias() {
       _count: { _all: true }
     }),
     prisma.project.findMany({
-      where: { deletedAt: null, managerOnly: false },
+      where: { ...projectChannelWhere('acompanhamento') },
       select: { id: true, code: true, contractCode: true, commercialProposalCode: true }
     }),
     prisma.projectAdditionalProposal.findMany({

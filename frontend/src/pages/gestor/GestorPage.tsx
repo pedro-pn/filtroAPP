@@ -1,6 +1,7 @@
 import { todayDateOnly } from '../../utils/dateOnly';
 import { ProjectEditDialog } from './ProjectEditDialog';
 import { ProjectServiceCategoryFields } from '../../components/projects/ProjectServiceCategoryFields';
+import { ProjectDistributionFields } from '../../components/projects/ProjectDistributionFields';
 import { ProjectWorkLocationsFields } from '../../components/projects/ProjectWorkLocationsFields';
 import { useProjectEditor } from './useProjectEditor';
 import { BrandLoading } from '../../components/brand/BrandLoading';
@@ -737,6 +738,7 @@ export function GestorPage() {
       additionalWorkLocations: projectForm.additionalWorkLocations.map(value => value.trim()).filter(value => value !== projectForm.location.trim()),
       visibleToCollaborators: projectForm.visibleToCollaborators,
       managerOnly: projectForm.managerOnly,
+      distributionSettings: projectForm.distributionSettings,
       inhibitionServiceEnabled: projectForm.inhibitionServiceEnabled,
       requireServiceReportSignatures: projectForm.requireServiceReportSignatures,
       isActive: projectForm.isActive,
@@ -2414,6 +2416,8 @@ export function GestorPage() {
             <option value="all-authorized">Gestor, coordenador e colaboradores responsáveis</option>
             <option value="manager-only">Somente gestor</option>
           </select>
+          {projectForm.managerOnly ? <ProjectDistributionFields value={projectForm.distributionSettings}
+            onChange={distributionSettings => setProjectForm(current => ({ ...current, distributionSettings }))} /> : null}
         </div>
         <div className="field-group">
           <label htmlFor={`project-inhibition-service-${project.id}`}>Serviço de inibição</label>
@@ -2591,6 +2595,8 @@ export function GestorPage() {
                   <option value="all-authorized">Gestor, coordenador e colaboradores responsáveis</option>
                   <option value="manager-only">Somente gestor</option>
                 </select>
+                {projectForm.managerOnly ? <ProjectDistributionFields value={projectForm.distributionSettings}
+                  onChange={distributionSettings => setProjectForm(current => ({ ...current, distributionSettings }))} /> : null}
               </div>
               <div className="field-group">
                 <label htmlFor="project-inhibition-service">Serviço de inibição</label>

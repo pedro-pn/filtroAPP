@@ -4,6 +4,7 @@ import pg from 'pg';
 
 import env from '../config/env.js';
 import { buildDatabasePoolConfig } from './prisma-pool-config.js';
+import { projectAccessExtension } from './projects/access-scope.js';
 
 const { Pool } = pg;
 
@@ -16,7 +17,14 @@ export function createPrismaClient({ pool = new Pool(buildDatabasePoolConfig(env
     options.log = [{ emit: 'event', level: 'query' }];
   }
 
-  return new PrismaClient(options);
+  const client = new PrismaClient(options);
+  if (env.prismaSlowQueryMs > 0) {
+    client.$on('query', event => {
+      if (event.duration < env.prismaSlowQueryMs) return;
+      console.warn('[SLOW PRISMA QUERY]', { durationMs: event.duration, target: event.target });
+    });
+  }
+  return client.$extends(projectAccessExtension);
 }
 
 const databasePool = new Pool(buildDatabasePoolConfig(env));
@@ -29,16 +37,6 @@ export function getDatabasePoolMetrics() {
     waiting: databasePool.waitingCount,
     max: databasePool.options.max
   };
-}
-
-if (env.prismaSlowQueryMs > 0) {
-  prisma.$on('query', event => {
-    if (event.duration < env.prismaSlowQueryMs) return;
-    console.warn('[SLOW PRISMA QUERY]', {
-      durationMs: event.duration,
-      target: event.target
-    });
-  });
 }
 
 export default prisma;

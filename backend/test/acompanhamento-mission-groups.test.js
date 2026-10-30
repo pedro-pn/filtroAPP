@@ -13,6 +13,7 @@ import {
 } from '../src/lib/acompanhamento/mission-groups.js';
 import { parseMissionGroupUpdate } from '../src/routes/resources/acompanhamento-comercial.js';
 import { requireAcompanhamentoManager } from '../src/middleware/auth.js';
+import { projectAllowsChannel } from '../src/lib/projects/distribution.js';
 
 function createFakeDb({ projects = [], groups = [], members = [], reports = [], purchases = [], receivables = [] } = {}) {
   const state = {
@@ -30,7 +31,8 @@ function createFakeDb({ projects = [], groups = [], members = [], reports = [], 
 
   function matchesProject(project, where = {}) {
     return (where.managerOnly !== false || !project?.managerOnly)
-      && (where.deletedAt !== null || project?.deletedAt == null);
+      && (where.deletedAt !== null || project?.deletedAt == null)
+      && (!where.AND || projectAllowsChannel(project, 'acompanhamento'));
   }
 
   function hydrateGroup(group, include) {

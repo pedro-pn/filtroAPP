@@ -1,3 +1,4 @@
+import { projectAllowsChannel } from './distribution.js';
 import { IntegrationApiError } from '../../middleware/api-request-context.js';
 import { projectIntakeSchema, receiveProjectIntake } from './project-intake.js';
 import { commercialProposalReference } from './commercial-proposal-sync-state.js';
@@ -71,7 +72,7 @@ export async function resolvePlanningProject(tx, input, existing, { allowCreate 
   let projectId = mapping?.projectId || ref.filtroappProjectId || existing?.projectId || existing?.targetProjectId;
   let project = projectId ? await tx.project.findUnique({ where: { id: projectId } }) : null;
   if (projectId && !project) throw conflict('PROJECT_REFERENCE_CONFLICT', 'Identificador de projeto informado não existe.');
-  if (project && (!project.isActive || project.deletedAt)) return pending(existing, 'NEEDS_REVIEW', 'PROJECT_UNAVAILABLE', existing?.targetProjectId ?? null);
+  if (project && (!projectAllowsChannel(project, 'commercial') || !project.isActive || project.deletedAt)) return pending(existing, 'NEEDS_REVIEW', 'PROJECT_UNAVAILABLE', existing?.targetProjectId ?? null);
   if (project) validateProjectIdentity(project, op);
   if (op.scope.kind === 'ADDITIONAL' && op.scope.primaryOpportunityExternalId) {
     if (op.scope.primaryOpportunityExternalId === input.externalId) throw conflict('SCOPE_IDENTITY_CONFLICT', 'Uma oportunidade não pode ser seu próprio escopo principal.');

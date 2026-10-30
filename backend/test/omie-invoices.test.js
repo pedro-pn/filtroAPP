@@ -123,6 +123,8 @@ test('NF-e de venda entra; remessa, cancelamento, denegação e homologação fi
 function database() {
   const events = [];
   const db = {
+    project: { findMany: async () => [] },
+    omieProject: { findMany: async () => [] },
     integrationSyncRun: {
       create: async () => ({ id: 'run' }),
       update: async args => { events.push(args.data.status); }

@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { API_SCOPES, publicApiOperations } from '../src/lib/api-credentials/catalog.js';
@@ -44,6 +45,11 @@ function matches(row, where) {
     const actual = row?.[key] ?? null;
     if (expected === null || typeof expected !== 'object' || expected instanceof Date) {
       return actual instanceof Date && expected instanceof Date ? +actual === +expected : actual === expected;
+    }
+    if (expected.equals === Prisma.DbNull) return actual === null;
+    if (expected.path) {
+      const value = expected.path.reduce((current, key) => current?.[key], actual);
+      return value === expected.equals;
     }
     return Object.entries(expected).every(([op, target]) => {
       if (op === 'in') return target.includes(actual);

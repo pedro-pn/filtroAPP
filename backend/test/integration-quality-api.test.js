@@ -1,3 +1,4 @@
+import { projectChannelWhere } from '../src/lib/projects/distribution.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
@@ -35,7 +36,7 @@ test('projectCode filters by the public project code and respects the credential
     cursorKey: key, snapshotAt: new Date('2026-09-04T12:00:00Z'), scopes: new Set(['qualidade.registros.read']),
     projectAccessMode: 'SELECTED', projectIds: new Set(['p1']), projectCodes: new Set(['05776'])
   });
-  assert.deepEqual(clientWithRows.lastArgs.where.project, { code: '05776' });
+  assert.deepEqual(clientWithRows.lastArgs.where.project, { ...projectChannelWhere('api'), code: '05776' });
   await assert.rejects(() => listIntegrationQualityRecords(client, { limit: 10, projectCode: '9999' }, {
     cursorKey: key, scopes: new Set(['qualidade.registros.read']), projectAccessMode: 'SELECTED',
     projectIds: new Set(['p1']), projectCodes: new Set(['05776'])

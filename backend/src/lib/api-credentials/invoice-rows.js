@@ -2,7 +2,9 @@ import { Prisma } from '@prisma/client';
 
 // JOIN e recorte anteriores a LIMIT: notas sem ligação não consomem página nem contagem.
 export async function loadInvoiceRows(client, { query, context, snapshotAt, position }) {
-  const clauses = [Prisma.sql`n.source IN ('NFSE','NFE','ND')`, Prisma.sql`p."deletedAt" IS NULL`, Prisma.sql`n."updatedAt" <= ${snapshotAt}`];
+  const clauses = [Prisma.sql`n.source IN ('NFSE','NFE','ND')`, Prisma.sql`p."deletedAt" IS NULL`,
+    Prisma.sql`(p."distributionSettings"->'api' = 'true'::jsonb OR (p."distributionSettings" IS NULL AND p."managerOnly" = false))`,
+    Prisma.sql`n."updatedAt" <= ${snapshotAt}`];
   if (context.projectAccessMode === 'SELECTED') clauses.push(Prisma.sql`p.id IN (${Prisma.join([...context.projectIds])})`);
   if (query.projectId) clauses.push(Prisma.sql`p.id = ${query.projectId}`);
   if (query.projectCode) clauses.push(Prisma.sql`p.code = ${query.projectCode}`);

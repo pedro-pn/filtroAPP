@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { withProjectChannel } from '../../../lib/projects/access-scope.js';
 import { pipeline } from 'node:stream/promises';
 import env from '../../../config/env.js';
 import asyncHandler from '../../../lib/async-handler.js';
@@ -29,6 +30,7 @@ export function createOperationalRouter({
   envConfig = env
 } = {}) {
   const router = Router();
+  router.use((_req, _res, next) => withProjectChannel('api', next));
   router.get('/efetivo/projetos/:id/medicao', requireApiOperation('efetivo.projects.measurement.get'), asyncHandler(async (req, res) => {
     const context = { scopes: req.apiAuth.scopeCodes, projectAccessMode: req.apiAuth.credential.projectAccessMode, projectIds: req.apiAuth.projectIds };
     validateProjectMeasurementRequest(req.params, req.query, context);

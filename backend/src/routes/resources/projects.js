@@ -13,6 +13,8 @@ import { clearPendingProjectLegacyExternalSignatureState, shouldProvisionProject
 import { clearProjectDerivedCaches } from '../../lib/resource-list-cache.js';
 import { commercialProposalReference, commercialProposalSyncData } from '../../lib/projects/commercial-proposal-sync-state.js';
 import { manualIntegrationDefaults, projectIntegrationSelect } from '../../lib/projects/integration-defaults.js';
+import { projectDistributionDefaults } from '../../lib/projects/distribution.js';
+import { PROJECT_DISTRIBUTION_CHANNELS } from '../../../../shared/modules/project-distribution.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireManager, requireModuleRole } from '../../middleware/auth.js';
 import { ensureProjectReleasedServiceReportSignatureRounds, reconcileProjectClientSignatureRequirements } from './reports.js';
 
@@ -31,6 +33,7 @@ const schema = z.object({
   isActive: z.boolean().default(true),
   visibleToCollaborators: z.boolean().default(true),
   managerOnly: z.boolean().default(false),
+  distributionSettings: z.object(Object.fromEntries(PROJECT_DISTRIBUTION_CHANNELS.map(({ key }) => [key, z.boolean()]))).strict().optional(),
   inhibitionServiceEnabled: z.boolean().default(false),
   requireServiceReportSignatures: z.boolean().default(false),
   clientName: z.string().min(1),
@@ -318,6 +321,7 @@ router.post('/', requireAuth, requireRdoAccess, requireManager, asyncHandler(asy
     const created = await tx.project.create({
       data: {
         ...projectData,
+        distributionSettings: projectData.distributionSettings ?? projectDistributionDefaults(projectData),
         ...manualIntegrationDefaults({}, projectData),
         ...commercialProposalSyncData(commercialProposalReference(projectData.contractCode)),
         authorizedUsers: {
@@ -426,6 +430,8 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
         commercialProposalSync: true,
         location: true,
         managerOnly: true,
+        visibleToCollaborators: true,
+        distributionSettings: true,
         registrationPending: true,
         isActive: true
       }
@@ -449,6 +455,10 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
     }
     const projectUpdateData = {
       ...projectData,
+      ...((projectData.managerOnly !== undefined && projectData.managerOnly !== previousProject.managerOnly
+        || projectData.visibleToCollaborators !== undefined && projectData.visibleToCollaborators !== previousProject.visibleToCollaborators)
+        && projectData.distributionSettings === undefined
+        ? { distributionSettings: projectDistributionDefaults({ ...previousProject, ...projectData }) } : {}),
       ...manualIntegrationDefaults(previousProject, projectData),
       ...((projectData.serviceCategory ?? previousProject.serviceCategory) === 'RENTAL'
         ? { operatorId: null, defaultReportResponsibleUserId: null, visibleToCollaborators: false, requireServiceReportSignatures: false } : {}),

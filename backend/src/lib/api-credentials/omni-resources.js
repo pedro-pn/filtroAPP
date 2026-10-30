@@ -1,5 +1,5 @@
 import { resource } from './operational-resource-definition.js';
-import { efetivoProjectWhere } from '../efetivo/project-visibility.js';
+import { efetivoProjectBaseWhere } from '../efetivo/project-visibility-rules.js';
 
 const personSelect = { select: { id: true, name: true, email: true } };
 
@@ -27,7 +27,7 @@ export const OMNI_RESOURCES = Object.freeze([
   resource('Project', '/efetivo/projetos/status', 'efetivo.projetos.status.read', 'Situação operacional dos projetos — coleção completa', 'workforce-planning', {}, {
     operationId: 'efetivo.projects.status.list', openApiOperationId: 'listIntegrationEfetivoProjectStatus',
     projectPolicy: 'SELF', timestampField: null, snapshotField: 'createdAt', collectionKind: 'PROJECT_STATUS',
-    where: efetivoProjectWhere(), filterFields: ['stage'],
+    where: efetivoProjectBaseWhere(), projectChannel: 'efetivo', filterFields: ['stage'],
     projectNotice: 'Resumo de projetos elegíveis no Efetivo. Leitura completa: o avanço de RDO não possui watermark confiável; updatedSince não é aceito.',
     queryParams: ['limit', 'cursor', 'snapshotAt', 'projectCode', 'projectId', 'active', 'stage'],
     derivedFields: {
