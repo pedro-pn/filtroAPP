@@ -31,6 +31,8 @@ test('dashboard integrado preserva indicadores, consultas e permissões', async 
     client.setQueryData(['qualidade', 'project-deviations', 'p'], []);
     setDetail(true);
     const manager = render(ProjectDetailDashboard, { projectId: 'p', canManage: true, canManageManualCosts: true, canManageProjectNotes: true });
+    assert.match(manager, /<h1>Limpeza química da tubulação<\/h1>/);
+    assert.match(manager, /Cliente <strong>Companhia Industrial de Desenvolvimento e Tratamento de Fluidos<\/strong>/);
     // Resumo de reunião: selo de saúde, quatro indicadores, leitura e atenção; o detalhe abre sob demanda.
     for (const value of ['Saúde do projeto', 'Atenção', 'Nota 0,90 de 2', 'Gastos', 'Avanço do escopo', 'Relatórios assinados', 'Prazo',
       '105.000,00', '62,5', 'Último RDO', 'Meta semanal', 'Leitura para a reunião', 'Pontos de atenção', '5.000,00 acima do previsto',

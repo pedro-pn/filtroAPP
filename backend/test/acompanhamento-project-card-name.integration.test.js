@@ -66,7 +66,13 @@ test('HTTP + PostgreSQL: apelido do card é persistido só no Acompanhamento e e
   const card = cards.data.find(item => item.projectId === project.id);
   assert.equal(card?.name, 'Nome oficial');
   assert.equal(card?.cardName, 'Apelido local');
+  const renamedDetail = await request(`/projetos/${project.id}/detalhe`, 1);
+  assert.equal(renamedDetail.status, 200, JSON.stringify(renamedDetail.data));
+  assert.equal(renamedDetail.data.header.name, 'Apelido local');
   assert.equal((await request('/projetos/inexistente/card-name', 0, 'PATCH', { name: 'Apelido' })).status, 404);
   assert.deepEqual((await request(path, 0, 'PATCH', { name: 'Nome oficial' })).data,
     { projectId: project.id, cardName: null });
+  const restoredDetail = await request(`/projetos/${project.id}/detalhe`, 1);
+  assert.equal(restoredDetail.status, 200, JSON.stringify(restoredDetail.data));
+  assert.equal(restoredDetail.data.header.name, 'Nome oficial');
 });

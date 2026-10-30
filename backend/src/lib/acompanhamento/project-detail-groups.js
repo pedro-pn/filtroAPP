@@ -467,6 +467,7 @@ export function groupProjectDetails(group, memberDetails = []) {
     },
     header: {
       code: groupCode(visibleMembers),
+      name: group.name,
       clientName: sameClientName(visibleMembers),
       proposalCode: proposalCode(details),
       lastRdoDate: maxIsoDate(details.map(item => item.detail.header.lastRdoDate)),

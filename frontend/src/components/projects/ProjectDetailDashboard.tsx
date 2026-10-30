@@ -394,8 +394,9 @@ export function ProjectDetailDashboard({
       <Card padding="sm" className="acp-detail-header">
         <div className="acp-detail-hero-copy">
           <p className="acp-detail-eyebrow">Acompanhamento · {isGroup ? 'Grupo' : 'Missão'} {h.code}</p>
-          <h1>{h.clientName || `${isGroup ? 'Grupo' : 'Missão'} ${h.code}`}</h1>
+          <h1>{h.name?.trim() || `${isGroup ? 'Grupo' : 'Missão'} ${h.code}`}</h1>
           <div className="acp-detail-header-meta">
+            {h.clientName ? <span>Cliente <strong>{h.clientName}</strong></span> : null}
             {h.proposalCode ? <span>Proposta <strong>{h.proposalCode}</strong></span> : null}
             {!data.rentalTracking ? <span>Último RDO <strong>{fmtDate(h.lastRdoDate)}</strong></span> : <Badge tone="neutral">Locação de equipamentos</Badge>}
             <span>{data.division ? 'Início do escopo' : 'Início'} <strong>{fmtDate(data.footer.startDate)}</strong></span>

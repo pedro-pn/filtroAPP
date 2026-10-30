@@ -369,6 +369,7 @@ test('groupProjectDetails returns one consolidated project detail shape', () => 
 
   assert.equal(result.group.id, 'g1');
   assert.equal(result.header.code, '1001 + 1002');
+  assert.equal(result.header.name, group().name);
   assert.equal(result.header.clientName, 'Cliente A');
   assert.equal(result.header.proposalCode, 'PROP-1 + PROP-2');
   assert.deepEqual(result.group.members.map(member => member.progressPct), [25, 75]);
