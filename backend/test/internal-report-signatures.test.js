@@ -2869,7 +2869,7 @@ test('partially signed public RDO downloads include signature evidence while oth
   assert.equal(anchor.version.finalDocumentHash, null);
 });
 
-test('public batch sends copies only of successful RDO signatures to the stored signer email', async t => {
+test('public batch queues copies without contacting SMTP while preserving signature results', async t => {
   const { anchor, sibling, input } = await mockPublicProjectBatch(t, { failSecond: true });
   const document = await PDFDocument.create();
   document.addPage();
@@ -2890,15 +2890,11 @@ test('public batch sends copies only of successful RDO signatures to the stored 
   assert.equal(response.statusCode, 200);
   assert.equal(response.json.results[0].success, true);
   assert.equal(response.json.results[1].success, false);
-  assert.deepEqual(response.json.emailDelivery, { status: 'sent', reportCount: 1 });
-  assert.equal(messages.length, 1);
-  assert.equal(messages[0].to, anchor.signerEmail);
-  const attachment = messages[0].attachments.find(item => item.contentType === 'application/pdf');
-  const signedPdf = await PDFDocument.load(attachment.content);
-  assert.equal(signedPdf.getPageCount(), 2);
+  assert.deepEqual(response.json.emailDelivery, { status: 'queued', reportCount: 1 });
+  assert.equal(messages.length, 0);
 });
 
-test('single public confirmation keeps a successful signature when sending its copy fails', async t => {
+test('single public confirmation queues a copy even when SMTP is unavailable', async t => {
   const { anchor, input } = await mockPublicProjectBatch(t);
   const document = await PDFDocument.create();
   document.addPage();
@@ -2916,5 +2912,5 @@ test('single public confirmation keeps a successful signature when sending its c
   assert.equal(response.statusCode, 200);
   assert.equal(response.json.success, true);
   assert.equal(anchor.status, 'SIGNED');
-  assert.deepEqual(response.json.emailDelivery, { status: 'failed' });
+  assert.deepEqual(response.json.emailDelivery, { status: 'queued', reportCount: 1 });
 });

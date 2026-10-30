@@ -36,18 +36,6 @@ export async function processManualReleasedServiceReportEmail(reportId, released
   await options.sendEmail(parent, [report], { ...options, manualRelease: true });
 }
 
-function queueManualReleasedServiceReportEmail(report, options) {
-  setImmediate(() => {
-    processManualReleasedServiceReportEmail(report.id, report.clientReleasedAt, options).catch(error => {
-      console.error('Falha ao enviar relatório de serviço liberado manualmente.', {
-        reportId: report.id,
-        projectId: report.projectId,
-        error: error?.message || error
-      });
-    });
-  });
-}
-
 export function registerReportReleaseRoutes(router, {
   requireRdoManager,
   include,
@@ -58,9 +46,7 @@ export function registerReportReleaseRoutes(router, {
   saveManualReportPdf,
   supersedeActiveReportVersions,
   createManualReportVersion,
-  releasedServiceReportsAfterRdoSignature,
-  queueReleasedServiceReportsEmailAfterRdoSignature,
-  sendReleasedServiceReportsEmail
+  releasedServiceReportsAfterRdoSignature
 }) {
   router.patch('/:id/client-release', requireAuth, requireRdoManager, asyncHandler(async (req, res) => {
     const { release } = clientReleaseSchema.parse(req.body || {});
@@ -118,7 +104,7 @@ export function registerReportReleaseRoutes(router, {
       return tx.report.findUniqueOrThrow({ where: { id: existing.id }, include });
     });
     clearProjectDerivedCaches();
-    if (release) queueManualReleasedServiceReportEmail(item, { include, sendEmail: sendReleasedServiceReportsEmail });
+    // The release transition trigger persists delivery before this transaction commits.
     res.json(item);
   }));
 
@@ -202,9 +188,6 @@ export function registerReportReleaseRoutes(router, {
     }
 
     const releasedServiceReports = await releasedServiceReportsAfterRdoSignature(item);
-    if (releasedServiceReports.length) {
-      queueReleasedServiceReportsEmailAfterRdoSignature(item, releasedServiceReports, { userId: req.auth.user.id, evidence });
-    }
     clearProjectDerivedCaches();
     res.json({ report: item, releasedServiceReports });
   }));

@@ -212,6 +212,7 @@ export function PublicSignaturePage({ readOnly = false }: { readOnly?: boolean }
               {reportLabel(reportItems.find(item => item.signatureId === result.signatureId))}: {result.error}
             </li>)}</ul> : 'Obrigado! Seus relatórios assinados estão disponíveis para download abaixo.'}
           </Alert> : null}
+          {emailDeliveries.some(delivery => delivery.status === 'queued') ? <Alert tone="success">Uma cópia dos relatórios assinados será enviada para {signer?.email}.</Alert> : null}
           {emailDeliveries.some(delivery => delivery.status === 'sent') ? <Alert tone="success">Uma cópia dos relatórios assinados foi enviada para {signer?.email}.</Alert> : null}
           {emailDeliveries.some(delivery => delivery.status === 'failed') ? <Alert tone="warning">Sua assinatura foi registrada, mas não foi possível enviar todas as cópias por e-mail. Baixe os relatórios abaixo.</Alert> : null}
           {confirmMutation.isError ? <Alert tone="danger" title="Não foi possível confirmar todas as assinaturas">

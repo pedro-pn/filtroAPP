@@ -4,7 +4,10 @@ import { fileURLToPath } from 'node:url';
 import nodemailer from 'nodemailer';
 
 import env from '../config/env.js';
+import { createSerialQueue } from './operations/serial-queue.js';
 import { EMAIL_LOGO_CID } from './email-templates.js';
+
+const serializeSmtp = createSerialQueue();
 
 const commonRequiredConfig = ['smtpHost', 'smtpPort', 'smtpUser', 'smtpFrom'];
 const authRequiredConfig = {
@@ -68,6 +71,7 @@ export async function requestMicrosoftSmtpAccessToken({
     grant_type: 'client_credentials'
   });
   const response = await fetchImpl(endpoint, {
+    signal: AbortSignal.timeout(30_000),
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body
@@ -132,6 +136,9 @@ export function createMailerTransport({ envConfig = env, fetchImpl = globalThis.
     host: envConfig.smtpHost,
     port: envConfig.smtpPort,
     secure: envConfig.smtpSecure,
+    connectionTimeout: 30_000,
+    greetingTimeout: 30_000,
+    socketTimeout: 120_000,
     auth: authMode === 'oauth2'
       ? { type: 'OAuth2', user: envConfig.smtpUser }
       : { user: envConfig.smtpUser, pass: envConfig.smtpPass },
@@ -158,7 +165,11 @@ export async function verifyMailer() {
   return transporter;
 }
 
-export async function sendMail(message) {
+export function sendMail(message) {
+  return serializeSmtp(() => deliverMail(message));
+}
+
+async function deliverMail(message) {
   if (!outboundEmailsEnabled()) {
     return outboundEmailDisabledResult();
   }

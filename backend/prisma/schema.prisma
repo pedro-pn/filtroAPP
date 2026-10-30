@@ -4574,3 +4574,23 @@ model IntegrationInvoicePublication {
 
   @@id([invoiceId, projectId])
 }
+
+// Durable delivery intents. No FK: delivery history survives resource removal.
+model ReportEmailJob {
+  id             String   @id
+  kind           String
+  payload        Json
+  status         String   @default("PENDING")
+  attempts       Int      @default(0)
+  nextAttemptAt  DateTime @default(now())
+  lockToken      String?
+  lockedUntil    DateTime?
+  deliveredKeys  String[] @default([])
+  lastError      String?
+  completedAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([status, lockedUntil])
+}
