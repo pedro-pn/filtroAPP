@@ -1,5 +1,5 @@
 export const detail = {
-  header: { code: '4069', clientName: 'Companhia Industrial de Desenvolvimento e Tratamento de Fluidos', proposalCode: 'PROP-2026-4069', lastRdoDate: '2026-09-09T12:00:00Z', segment: 'Papel e celulose' },
+  header: { code: '4069', name: 'Limpeza química da tubulação', clientName: 'Companhia Industrial de Desenvolvimento e Tratamento de Fluidos', proposalCode: 'PROP-2026-4069', lastRdoDate: '2026-09-09T12:00:00Z', segment: 'Papel e celulose' },
   alerts: [{ level: 'warn', label: 'Prazo previsto próximo do encerramento' }],
   avancoMethod: 'SCOPE', avancoPct: 62.5,
   diasCorridos: { elapsed: 9, planned: 30, pct: 30 },

@@ -753,6 +753,7 @@ export async function getProjectDetail(projectId, {
     rentalTracking: rentalTracking(project),
     header: {
       code: row.code,
+      name: row.cardName || row.name,
       clientName: row.clientName,
       clientCnpj: row.clientCnpj ?? null,
       proposalCode: row.proposalCode,

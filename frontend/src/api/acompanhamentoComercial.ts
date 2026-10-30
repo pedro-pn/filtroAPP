@@ -1045,6 +1045,7 @@ export interface ProjectDetail {
   };
   header: {
     code: string;
+    name: string;
     clientName: string;
     clientCnpj?: string | null;
     proposalCode: string | null;
