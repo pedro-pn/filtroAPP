@@ -152,11 +152,22 @@ export function serviceOngoingKeys(report: ReportSummary, service: ReportService
     String(extra.__serviceLinkKey || '').trim(),
     String(extra.__sourceServiceId || '').trim()
   ].filter(Boolean);
+  const chainIds = explicitKeys.filter(key => !key.includes('||'));
   const hasSemanticExplicitKey = explicitKeys.some(key => key.includes('||'));
 
   return Array.from(new Set([
+    ...chainIds,
     ...(hasSemanticExplicitKey ? [semanticKey, ...explicitKeys] : [...explicitKeys, semanticKey])
   ].filter(Boolean)));
+}
+
+function sharesServiceContinuity(leftKeys: string[], rightKeys: string[]) {
+  // Chaves antigas baseadas nos campos do serviço contêm "||". Quando os dois
+  // registros têm IDs de continuidade, campos iguais não unem serviços distintos.
+  const leftIds = leftKeys.filter(key => !key.includes('||'));
+  const rightIds = rightKeys.filter(key => !key.includes('||'));
+  if (leftIds.length && rightIds.length) return leftIds.some(key => rightIds.includes(key));
+  return leftKeys.some(key => rightKeys.includes(key));
 }
 
 function reportTime(report: ReportSummary) {
@@ -238,9 +249,9 @@ export function collectPendingProjectServices(reports: ReportSummary[]): Pending
     .forEach(report => {
       (report.services || []).forEach(service => {
         const keys = serviceOngoingKeys(report, service);
-        const previous = Array.from(items.values()).find(item => item.keys.some(key => keys.includes(key)));
+        const previous = Array.from(items.values()).find(item => sharesServiceContinuity(item.keys, keys));
         for (const [itemKey, item] of items.entries()) {
-          if (item.keys.some(key => keys.includes(key))) items.delete(itemKey);
+          if (sharesServiceContinuity(item.keys, keys)) items.delete(itemKey);
         }
         if (isServiceFinalized(service)) return;
         const key = keys[0] || service.id;
@@ -259,7 +270,7 @@ export function pendingProjectServicesForDate(reports: ReportSummary[], reportDa
   // Preserva o estado pendente na data editada mesmo que tenha sido finalizado depois.
   const futureStarted = collectPendingProjectServices(reports)
     .filter(item => isPendingServiceFromLaterDay(item, reportDate))
-    .filter(item => !upToCurrentDay.some(previous => previous.keys.some(key => item.keys.includes(key))));
+    .filter(item => !upToCurrentDay.some(previous => sharesServiceContinuity(previous.keys, item.keys)));
   return [...upToCurrentDay, ...futureStarted]
     .sort((a, b) => reportTime(b.report) - reportTime(a.report));
 }
