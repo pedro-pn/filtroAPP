@@ -1,3 +1,4 @@
+import { projectChannelWhere } from '../projects/distribution.js';
 import { getActiveMissionGroup } from './mission-groups.js';
 
 async function getDb(db) {
@@ -8,7 +9,7 @@ async function listInvoices(db, projects) {
   const projectById = new Map(projects.map(project => [project.id, project]));
   const [links, latestRun, lastSuccess] = await Promise.all([
     db.omieProject.findMany({
-      where: { projectId: { in: [...projectById.keys()] }, project: { deletedAt: null, managerOnly: false } },
+      where: { projectId: { in: [...projectById.keys()] }, project: { ...projectChannelWhere('acompanhamento') } },
       select: { codigo: true, projectId: true }
     }),
     db.integrationSyncRun.findFirst({ where: { integration: 'OMIE', scope: 'invoices' }, orderBy: { startedAt: 'desc' }, select: { status: true } }),
@@ -47,7 +48,7 @@ async function listInvoices(db, projects) {
 export async function getProjectInvoices(projectId, { db = null } = {}) {
   db = await getDb(db);
   const project = await db.project.findFirst({
-    where: { id: projectId, deletedAt: null, managerOnly: false },
+    where: { id: projectId, ...projectChannelWhere('acompanhamento') },
     select: { id: true, code: true, name: true, clientCnpj: true }
   });
   if (!project) return null;

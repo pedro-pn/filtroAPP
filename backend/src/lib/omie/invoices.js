@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { projectChannelWhere } from '../projects/distribution.js';
 
 const text = value => String(value ?? '').trim();
 const normalizeNumber = value => text(value).replace(/^0+(?=\d)/, '');
@@ -150,12 +151,20 @@ export async function syncOmieInvoices({ triggeredBy = 'SCRIPT', db = null, call
     const nfe = await listAll(call, '/produtos/nfconsultar/', 'ListarNF', 'nfCadastro', { tpNF: '1', tpAmb: '1', cDetalhesPedido: 'S' });
     const receivables = await listAll(call, '/financas/contareceber/', 'ListarContasReceber', 'conta_receber_cadastro', { apenas_importado_api: 'N' });
     const finishedAt = new Date();
-    const invoices = buildInvoiceSnapshot({ nfse, nfe, receivables, syncedAt: finishedAt });
+    const blockedProjects = await db.project.findMany({ where: { NOT: projectChannelWhere('omie') }, select: { code: true } });
+    const blockedLinks = await db.omieProject.findMany({ where: { OR: [
+      { project: { is: { NOT: projectChannelWhere('omie') } } },
+      { osNumber: { in: blockedProjects.map(project => project.code) } }
+    ] }, select: { codigo: true } });
+    const blockedCodes = blockedLinks.map(project => project.codigo);
+    const blocked = new Set(blockedCodes);
+    const invoices = buildInvoiceSnapshot({ nfse, nfe, receivables, syncedAt: finishedAt })
+      .filter(invoice => !blocked.has(invoice.codigoProjeto));
     const summary = { nfseRead: nfse.length, nfeRead: nfe.length, receivablesRead: receivables.length };
     // Publica somente após obter TODAS as páginas; falhas preservam a versão anterior.
     // Substituição atômica também retira notas canceladas/remapeadas desde o último ciclo.
     await db.$transaction(async tx => {
-      await tx.omieInvoice.deleteMany({ where: { id: { notIn: invoices.map(row => row.id) } } });
+      await tx.omieInvoice.deleteMany({ where: { id: { notIn: invoices.map(row => row.id) }, codigoProjeto: { notIn: blockedCodes } } });
       // Upsert em lotes mantém IDs/watermarks e evita uma ida ao banco por nota.
       for (let offset = 0; offset < invoices.length; offset += 500) {
         const payload = JSON.stringify(invoices.slice(offset, offset + 500));

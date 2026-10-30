@@ -53,6 +53,15 @@ test('busca somente a revisão solicitada e confere os dois arquivos', async () 
   assert.ok(f.calls.every(call => call.request.redirect === 'error'));
 });
 
+test('uma busca já agendada não envia dados quando o projeto passa a somente gestor', async () => {
+  const f = fixture();
+  const project = { ...f.project, isActive: true, managerOnly: true,
+    commercialProposalSync: { ...f.state, requestId: 'queued-before-visibility-change' } };
+  const database = { project: { findUnique: async () => project } };
+  assert.deepEqual(await syncCommercialProposal(project.id, { ...f.options, database }), { status: 'SKIPPED' });
+  assert.equal(f.calls.length, 0);
+});
+
 test('locação exige somente o PDF comercial; serviço operacional continua exigindo os dois', async () => {
   const f = fixture();
   f.bundle.documents = f.bundle.documents.filter(document => document.kind === 'COMERCIAL');

@@ -1,4 +1,5 @@
 import prisma from '../prisma.js';
+import { projectChannelWhere, projectAllowsChannel } from '../projects/distribution.js';
 import {
   buildDailyProjectWeights,
   allocationDecisionRequiresAction,
@@ -49,6 +50,7 @@ function getOfficialEffectiveAllocations(database) {
     where: {
       deletedAt: null,
       mission: {
+        project: projectChannelWhere('pontomais'),
         deletedAt: null,
         scheduleStatus: 'CONFIRMED',
         plan: { kind: 'OFFICIAL', status: 'ACTIVE' }
@@ -84,7 +86,8 @@ function getOfficialEffectiveMissionProjectIds(database) {
     where: {
       deletedAt: null,
       scheduleStatus: 'CONFIRMED',
-      plan: { kind: 'OFFICIAL', status: 'ACTIVE' }
+      plan: { kind: 'OFFICIAL', status: 'ACTIVE' },
+      project: projectChannelWhere('pontomais')
     },
     select: { projectId: true }
   }).then(missions => missions.map(mission => mission.projectId));
@@ -530,16 +533,19 @@ export function createPontoMaisSyncService({
           select: { externalEmployeeId: true, collaboratorId: true }
         }),
         db.project.findMany({
+          where: projectChannelWhere('pontomais'),
           select: {
             id: true, code: true, name: true, isActive: true, deletedAt: true,
             mobilizationDate: true, demobilizationDate: true, operatorId: true, laborCollaboratorIds: true
           }
         }),
         db.pontoProjectTagAlias.findMany({
+          where: { project: projectChannelWhere('pontomais') },
           select: { normalizedTag: true, projectId: true }
         }),
         db.report.findMany({
           where: {
+            project: projectChannelWhere('pontomais'),
             deletedAt: null,
             OR: [
               { reportType: 'RDO' },
@@ -566,6 +572,7 @@ export function createPontoMaisSyncService({
         }),
         db.pontoDayProjectOverride.findMany({
           where: {
+            project: projectChannelWhere('pontomais'),
             workDate: {
               gte: dateFromKey(startDate),
               lt: new Date(dateFromKey(endDate).getTime() + 86400000)
@@ -580,7 +587,7 @@ export function createPontoMaisSyncService({
               id: true,
               laborAllocationMode: true,
               primaryLaborProjectId: true,
-              members: { select: { projectId: true } }
+              members: { where: { project: projectChannelWhere('pontomais') }, select: { projectId: true } }
             }
           })
           : Promise.resolve([]),
@@ -814,6 +821,7 @@ export function createPontoMaisSyncService({
         select: { externalEmployeeId: true }
       }),
       db.pontoProjectTagAlias.findMany({
+        where: { project: projectChannelWhere('pontomais') },
         select: { normalizedTag: true, projectId: true }
       }),
       db.pontoExternalEmployee.findMany({
@@ -838,6 +846,7 @@ export function createPontoMaisSyncService({
         }
       }),
       db.project.findMany({
+        where: projectChannelWhere('pontomais'),
         select: {
           id: true, code: true,
           mobilizationDate: true, demobilizationDate: true, operatorId: true, laborCollaboratorIds: true
@@ -850,7 +859,7 @@ export function createPontoMaisSyncService({
             id: true,
             laborAllocationMode: true,
             primaryLaborProjectId: true,
-            members: { select: { projectId: true } }
+            members: { where: { project: projectChannelWhere('pontomais') }, select: { projectId: true } }
           }
         })
         : Promise.resolve([]),
@@ -890,6 +899,7 @@ export function createPontoMaisSyncService({
       ? await Promise.all([
         db.report.findMany({
           where: {
+            project: projectChannelWhere('pontomais'),
             deletedAt: null,
             OR: reportScope
           },
@@ -907,6 +917,7 @@ export function createPontoMaisSyncService({
         collaboratorIds.length
           ? db.pontoDayProjectOverride.findMany({
             where: {
+              project: projectChannelWhere('pontomais'),
               collaboratorId: { in: collaboratorIds },
               workDate: { in: reportDates }
             },
@@ -1076,7 +1087,7 @@ export function createPontoMaisSyncService({
 
   async function linkProjectTag({ rawTag, projectId, createdByUserId = null }) {
     const project = await db.project.findUnique({ where: { id: projectId } });
-    if (!project) throw new PontoSyncError('Projeto não encontrado.', { code: 'PROJECT_NOT_FOUND' });
+    if (!projectAllowsChannel(project, 'pontomais')) throw new PontoSyncError('Projeto não encontrado.', { code: 'PROJECT_NOT_FOUND' });
     const normalizedTag = normalizeProjectTag(rawTag);
     if (!normalizedTag) throw new PontoSyncError('Etiqueta inválida.', { code: 'INVALID_TAG' });
     if (isPontoTravelTag(rawTag)) {
@@ -1117,7 +1128,7 @@ export function createPontoMaisSyncService({
     const projects = await Promise.all(selectedProjectIds.map(selectedProjectId => (
       db.project.findUnique({ where: { id: selectedProjectId } })
     )));
-    if (projects.some(project => !project)) {
+    if (projects.some(project => !projectAllowsChannel(project, 'pontomais'))) {
       throw new PontoSyncError('Projeto não encontrado.', { code: 'PROJECT_NOT_FOUND' });
     }
     if (projects.some(project => !item.projectCodes.includes(String(project.code)))) {

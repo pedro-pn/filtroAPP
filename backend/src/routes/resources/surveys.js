@@ -459,7 +459,10 @@ router.get('/dashboard', requireAuth, requireManagerOrCoordinator, asyncHandler(
         project: { select: { code: true, name: true, clientName: true, operator: { select: { name: true } } } }
       }
     }),
-    prisma.$queryRaw`SELECT DISTINCT EXTRACT(YEAR FROM "sentAt")::int AS year FROM "SatisfactionSurvey" ORDER BY year DESC`
+    prisma.$queryRaw`SELECT DISTINCT EXTRACT(YEAR FROM s."sentAt")::int AS year
+      FROM "SatisfactionSurvey" s JOIN "Project" p ON p.id = s."projectId"
+      WHERE p."deletedAt" IS NULL AND (${req.auth.user.accountType === 'ADMIN'} OR p."managerOnly" = false)
+      ORDER BY year DESC`
   ]);
 
   const availableYears = yearRows.map(row => Number(row.year)).filter(Number.isFinite);

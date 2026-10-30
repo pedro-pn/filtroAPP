@@ -1,3 +1,4 @@
+import { projectChannelWhere } from '../projects/distribution.js';
 import { createSignedCursor, readSignedCursor } from '../api-credentials/cursor.js';
 import { IntegrationApiError } from '../../middleware/api-request-context.js';
 import { calculateQualityRecurrence } from './recurrence.js';
@@ -64,6 +65,11 @@ function normalizedFilters(query) {
   };
 }
 
+function visibleQualityProject(context) {
+  const visible = { project: projectChannelWhere('api') };
+  return context.projectAccessMode === 'ALL' ? { OR: [{ projectId: null }, visible] } : visible;
+}
+
 async function recurrenceForRows(client, rows, context) {
   const natureIds = [...new Set(rows.map(row => row.natureId).filter(Boolean))];
   const eventTimes = rows.map(row => new Date(row.eventDate).getTime()).filter(Number.isFinite);
@@ -74,6 +80,7 @@ async function recurrenceForRows(client, rows, context) {
   const candidates = await client.qualityRecord.findMany({
     where: {
       deletedAt: null,
+      AND: [visibleQualityProject(context)],
       natureId: { in: natureIds },
       eventDate: { gte: from, lte: to },
       ...(context.projectAccessMode === 'SELECTED' ? { projectId: { in: [...context.projectIds] } } : {})
@@ -110,12 +117,13 @@ export async function listIntegrationQualityRecords(client, query, context) {
   const accessWhere = context.projectAccessMode === 'SELECTED' ? { projectId: { in: [...context.projectIds] } } : {};
   const where = {
     ...accessWhere,
+    AND: [visibleQualityProject(context)],
+    ...(query.projectCode ? { project: { ...projectChannelWhere('api'), code: query.projectCode } } : {}),
     ...(!query.includeDeleted ? { deletedAt: null } : {}),
     updatedAt: {
       lte: snapshotAt,
       ...(query.updatedSince ? { gte: new Date(query.updatedSince) } : {})
     },
-    ...(query.projectCode ? { project: { code: query.projectCode } } : {}),
     ...(query.projectId ? { projectId: query.projectId } : {}),
     ...(query.natureId ? { natureId: query.natureId } : {}),
     ...((query.eventDateFrom || query.eventDateTo) ? { eventDate: {
@@ -160,6 +168,7 @@ export async function getIntegrationQualityRecord(client, id, { includeDeleted =
   const row = await client.qualityRecord.findFirst({
     where: {
       id,
+      AND: [visibleQualityProject(context)],
       ...(!includeDeleted ? { deletedAt: null } : {}),
       ...(context.projectAccessMode === 'SELECTED' ? { projectId: { in: [...context.projectIds] } } : {})
     },

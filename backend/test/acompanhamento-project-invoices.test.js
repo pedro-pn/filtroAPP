@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { getProjectInvoices, getMissionGroupInvoices } from '../src/lib/acompanhamento/project-invoices.js';
+import { projectChannelWhere } from '../src/lib/projects/distribution.js';
 
 function database({ project = { id: 'p1', code: '5800', name: 'Reframax', clientCnpj: '11.111.111/0001-11' }, run = 'SUCCESS', synced = true } = {}) {
   const calls = [];
@@ -26,8 +27,8 @@ test('consulta isola a missão pelo vínculo Omie e explicita tomador diferente'
   assert.equal(result.total, 770355.60);
   assert.equal(result.invoices[0].customerDiffers, true);
   assert.equal(result.invoices[0].project.code, '5800');
-  assert.deepEqual(calls[0].where, { id: 'p1', deletedAt: null, managerOnly: false });
-  assert.deepEqual(calls[1].where.project, { deletedAt: null, managerOnly: false });
+  assert.deepEqual(calls[0].where, { id: 'p1', ...projectChannelWhere('acompanhamento') });
+  assert.deepEqual(calls[1].where.project, projectChannelWhere('acompanhamento'));
   assert.deepEqual(calls[2].where, { codigoProjeto: { in: ['30'] } });
   assert.equal(result.syncStatus, 'READY');
 });
@@ -76,7 +77,7 @@ test('ausência de histórico, atualização e falha ficam distintas de zero fat
 test('grupo consulta membros visíveis ativos sem duplicar e mantém identificação da missão', async () => {
   const { db, calls } = database();
   db.acompanhamentoMissionGroup = { findUnique: async args => {
-    assert.equal(args.include.members.where.project.managerOnly, false);
+    assert.deepEqual(args.include.members.where.project, projectChannelWhere('acompanhamento'));
     return { status: 'ACTIVE', members: [
       { projectId: 'p1', project: { id: 'p1', code: '5800', name: 'Reframax' } },
       { projectId: 'p1', project: { id: 'p1', code: '5800', name: 'Reframax' } },

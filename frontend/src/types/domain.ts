@@ -1,3 +1,4 @@
+import type { ProjectDistributionSettings } from '../../../shared/modules/project-distribution.js';
 import type { AccountType, AcompanhamentoExtraPermission, ModuleRole, RdoExtraPermission, ReportEmissionPermission, UserRole } from './auth';
 
 export type UnitCategory = string;
@@ -93,6 +94,7 @@ export interface Project {
   isActive: boolean;
   visibleToCollaborators: boolean;
   managerOnly: boolean;
+  distributionSettings?: ProjectDistributionSettings | null;
   registrationPending?: boolean;
   commercialProposalCode?: string | null;
   inhibitionServiceEnabled: boolean;

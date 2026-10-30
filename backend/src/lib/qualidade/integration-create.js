@@ -1,3 +1,4 @@
+import { projectChannelWhere } from '../projects/distribution.js';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { IntegrationApiError } from '../../middleware/api-request-context.js';
@@ -36,11 +37,14 @@ export async function createIntegrationQualityRecord(client, body, key, context)
       where: { credentialId_key: { credentialId: context.credentialId, key: validated.key } }
     });
     if (receipt) {
+      if (!await tx.project.findFirst({ where: { id: receipt.projectId, ...projectChannelWhere('api') }, select: { id: true } })) {
+        throw new IntegrationApiError(404, 'NOT_FOUND', 'Projeto não encontrado.');
+      }
       assertProjectAllowed(receipt.projectId, context);
       if (receipt.requestHash !== requestHash) throw new IntegrationApiError(409, 'IDEMPOTENCY_CONFLICT', 'A chave já foi usada com outro corpo.');
       return receipt.response;
     }
-    const project = await tx.project.findFirst({ where: { deletedAt: null,
+    const project = await tx.project.findFirst({ where: { ...projectChannelWhere('api'),
       ...(validated.data.projectId ? { id: validated.data.projectId } : { code: validated.data.projectCode }),
       ...(context.projectAccessMode === 'SELECTED' ? { id: { in: [...context.projectIds], ...(validated.data.projectId ? { equals: validated.data.projectId } : {}) } } : {}) },
     select: { id: true } });

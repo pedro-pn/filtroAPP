@@ -1,3 +1,4 @@
+import { projectChannelWhere } from '../src/lib/projects/distribution.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
@@ -9,7 +10,7 @@ import prisma from '../src/lib/prisma.js';
 
 function assertEfetivoVisibility(where) {
   assert.equal(where.deletedAt, null, 'Projetos excluídos devem ficar fora de todas as telas do Efetivo');
-  assert.equal(where.managerOnly, false, 'Somente gestor deve ficar fora do Efetivo');
+  assert.deepEqual(where.AND, projectChannelWhere('efetivo').AND, 'Efetivo respeita os destinos configurados no projeto');
   assert.deepEqual([...where.code.notIn].sort(), ['5000', '5002', '5003', '5004']);
 }
 
@@ -109,7 +110,7 @@ test('dashboard e pendências do Acompanhamento ocultam Somente gestor sem exclu
   assert.deepEqual(await listCommercialDashboard({ projectIds: ['project-1'] }), []);
   assert.equal(projectQueries.length, 3);
   projectQueries.forEach(where => {
-    assert.equal(where.managerOnly, false);
+    assert.deepEqual(where.AND, projectChannelWhere('acompanhamento').AND);
     assert.equal(where.deletedAt, null);
     assert.equal(where.code, undefined);
   });

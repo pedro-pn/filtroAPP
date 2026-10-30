@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { projectChannelWhere } from '../projects/distribution.js';
 import { IntegrationApiError } from '../../middleware/api-request-context.js';
 import { createSignedCursor, readSignedCursor, stableJson } from './cursor.js';
 
@@ -41,8 +42,10 @@ export async function listIntegrationEvents(client, query, context) {
     sequence = cursor.position.sequence;
   }
   const types = Object.entries(EVENT_RESOURCE_SCOPES).filter(([, scopes]) => scopes.some(scope => context.scopes.has(scope))).map(([type]) => type);
+  const projects = await client.project.findMany({ where: projectChannelWhere('api'), select: { id: true } });
   const rows = await client.integrationEvent.findMany({
     where: { sequence: { gt: BigInt(sequence) }, occurredAt: { gte: cutoff }, type: { in: types },
+      OR: [{ projectId: null }, { projectId: { in: projects.map(project => project.id) } }],
       ...(context.projectAccessMode === 'SELECTED' ? { projectId: { in: [...context.projectIds] } } : {}) },
     orderBy: { sequence: 'asc' }, take: query.limit + 1,
     select: { id: true, sequence: true, type: true, occurredAt: true, projectId: true, projectCode: true, resource: true, resourceId: true }

@@ -941,6 +941,7 @@ model Project {
   isActive                       Boolean   @default(true)
   visibleToCollaborators         Boolean   @default(true)
   managerOnly                    Boolean   @default(false)
+  distributionSettings           Json?
   registrationPending            Boolean   @default(false)
   commercialProposalSync         Json?
   commercialProposalSyncNextAttemptAt DateTime?

@@ -1,3 +1,4 @@
+import { projectAllowsChannel, projectChannelWhere } from './distribution.js';
 import { createHash } from 'node:crypto';
 import { commercialAppConnection, readLimitedCommercialResponse } from './commercialapp-client.js';
 export { commercialAppConnection, readLimitedCommercialResponse } from './commercialapp-client.js';
@@ -121,7 +122,7 @@ export async function syncCommercialProposal(projectId, options = {}) {
   const job = options.jobId ? await database.commercialProposalSyncJob.findUnique({ where: { id: options.jobId } }) : null;
   if (options.jobId && job?.projectId !== projectId) return { status: 'SKIPPED' };
   const state = job?.state ?? project?.commercialProposalSync;
-  if (!project?.isActive || project.deletedAt || project.workflow?.stage === 'FINISHED' ||
+  if (!projectAllowsChannel(project, 'commercial') || !project?.isActive || project.deletedAt || project.workflow?.stage === 'FINISHED' ||
       !state?.requestId || state.status === 'SYNCED') return { status: 'SKIPPED' };
   const staged = [];
   const usedFiles = new Set();
@@ -213,14 +214,14 @@ export async function processCommercialProposalSyncs(options = {}) {
   const database = options.database || prisma;
   commercialAppConnection(options);
   const due = await database.project.findMany({
-    where: { isActive: true, deletedAt: null, commercialProposalSyncNextAttemptAt: { lte: new Date() },
+    where: { ...projectChannelWhere('commercial'), isActive: true, commercialProposalSyncNextAttemptAt: { lte: new Date() },
       OR: [{ workflow: { is: null } }, { workflow: { is: { stage: { not: 'FINISHED' } } } }] },
     select: { id: true }, orderBy: [{ commercialProposalSyncNextAttemptAt: 'asc' }, { id: 'asc' }], take: 2
   });
   const results = [];
   for (const project of due) results.push(await syncCommercialProposal(project.id, options));
   const additionalJobs = await database.commercialProposalSyncJob.findMany({
-    where: { nextAttemptAt: { lte: new Date() }, project: { isActive: true, deletedAt: null,
+    where: { nextAttemptAt: { lte: new Date() }, project: { ...projectChannelWhere('commercial'), isActive: true,
       OR: [{ workflow: { is: null } }, { workflow: { is: { stage: { not: 'FINISHED' } } } }] } },
     orderBy: [{ nextAttemptAt: 'asc' }, { id: 'asc' }], take: 5
   });

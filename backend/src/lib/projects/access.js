@@ -3,6 +3,7 @@ import { clientProjectAccessWhereWithSigners } from '../client-project-access.js
 
 export async function projectListWhereForAuth(auth, activeParam, prismaClient = prisma, options = {}) {
   const where = { deletedAt: null };
+  if (auth.user.accountType !== 'ADMIN' && auth.user.accountType !== undefined) where.managerOnly = false;
   if (options.includeRegistrationPending === false) {
     where.registrationPending = false;
   }

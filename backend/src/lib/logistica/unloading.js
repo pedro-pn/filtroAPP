@@ -1,3 +1,4 @@
+import { projectChannelWhere } from '../projects/distribution.js';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { IntegrationApiError } from '../../middleware/api-request-context.js';
@@ -34,6 +35,9 @@ export async function createUnloading(client, body, key, context) {
       await tx.$queryRaw`SELECT id FROM "ApiCredential" WHERE id=${context.credentialId} FOR UPDATE`;
       const receipt = await tx.integrationUnloadingReceipt.findUnique({ where: { credentialId_key: { credentialId: context.credentialId, key: validated.key } } });
       if (receipt) {
+        if (!await tx.project.findFirst({ where: { id: receipt.projectId, ...projectChannelWhere('api') }, select: { id: true } })) {
+          throw new IntegrationApiError(404, 'NOT_FOUND', 'Projeto não encontrado.');
+        }
         assertProjectAllowed(receipt.projectId, context);
         if (receipt.requestHash !== hash) throw new IntegrationApiError(409, 'IDEMPOTENCY_CONFLICT', 'A chave já foi usada com outro corpo.');
         // Revalida o usuário, inclusive em replay: acesso removido não pode confirmar.
@@ -42,7 +46,7 @@ export async function createUnloading(client, body, key, context) {
       }
     }
     await tx.$queryRaw`SELECT id FROM "Romaneio" WHERE id=${validated.data.romaneioId} FOR UPDATE`;
-    const romaneio = await tx.romaneio.findFirst({ where: { id: validated.data.romaneioId, project: { deletedAt: null } },
+    const romaneio = await tx.romaneio.findFirst({ where: { id: validated.data.romaneioId, project: projectChannelWhere('api') },
       select: { id: true, type: true, projectId: true, ctes: { select: { id: true }, orderBy: { createdAt: 'desc' }, take: 2 } } });
     if (!romaneio) throw new IntegrationApiError(404, 'NOT_FOUND', 'Romaneio não encontrado.');
     assertProjectAllowed(romaneio.projectId, context);

@@ -1,3 +1,4 @@
+import { withProjectChannel } from '../projects/access-scope.js';
 import { randomUUID } from 'node:crypto';
 import env from '../../config/env.js';
 import { z } from 'zod';
@@ -91,6 +92,10 @@ function curlForPath(path, download = false, method = 'GET', body, headers) {
 }
 
 export async function executePlaygroundOperation(prisma, credentialId, input, options = {}) {
+  return withProjectChannel('api', () => executeScopedPlaygroundOperation(prisma, credentialId, input, options));
+}
+
+async function executeScopedPlaygroundOperation(prisma, credentialId, input, options = {}) {
   credentialId = validateCredentialId(credentialId);
   const parsed = validatePlaygroundRequest(input);
   const operation = getApiOperation(parsed.operationId);

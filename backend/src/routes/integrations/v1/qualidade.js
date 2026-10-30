@@ -1,3 +1,4 @@
+import { withProjectChannel } from '../../../lib/projects/access-scope.js';
 import fs from 'node:fs/promises';
 import { Router } from 'express';
 import { z } from 'zod';
@@ -14,6 +15,7 @@ import { createIntegrationQualityRecord, validateIntegrationQualityCreate } from
 
 export function createIntegrationQualityRouter({ prismaClient = prisma, envConfig = env } = {}) {
   const router = Router();
+  router.use((_req, _res, next) => withProjectChannel('api', next));
   const schemas = makeIntegrationApiSchemas(z, { globalMaxPageSize: envConfig.apiTokenGlobalMaxPageSize });
 
   function context(req) {

@@ -1,3 +1,4 @@
+import { projectAllowsChannel } from './distribution.js';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import prisma from '../prisma.js';
@@ -13,7 +14,7 @@ export async function prepareStoredCommercialReceipt(projectId, options = {}) {
   const database = options.database || prisma;
   const project = await database.project.findUnique({ where: { id: projectId }, include: { workflow: true } });
   const state = project?.commercialProposalSync;
-  if (!project?.isActive || project.deletedAt || project.workflow?.stage === 'FINISHED' || state?.status !== 'SYNCED') {
+  if (!projectAllowsChannel(project, 'commercial') || !project?.isActive || project.deletedAt || project.workflow?.stage === 'FINISHED' || state?.status !== 'SYNCED') {
     return { status: 'SKIPPED' };
   }
   const { bundle } = await fetchCommercialProposal(project, state, options);

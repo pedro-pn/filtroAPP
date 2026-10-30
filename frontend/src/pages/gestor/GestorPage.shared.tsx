@@ -1,3 +1,4 @@
+import { projectDistributionDefaults, projectDistributionSettings, type ProjectDistributionSettings } from '../../../../shared/modules/project-distribution.js';
 import { todayDateOnly } from '../../utils/dateOnly';
 /* eslint-disable react-refresh/only-export-components */
 import type { Dispatch, KeyboardEvent, ReactNode, SetStateAction } from 'react';
@@ -122,6 +123,7 @@ export interface ProjectFormState {
   authorizedUserIds: string[];
   visibleToCollaborators: boolean;
   managerOnly: boolean;
+  distributionSettings: ProjectDistributionSettings;
   inhibitionServiceEnabled: boolean;
   requireServiceReportSignatures: boolean;
   isActive: boolean;
@@ -206,6 +208,7 @@ export const emptyProjectForm: ProjectFormState = {
   authorizedUserIds: [],
   visibleToCollaborators: true,
   managerOnly: false,
+  distributionSettings: projectDistributionDefaults(),
   inhibitionServiceEnabled: false,
   requireServiceReportSignatures: false,
   isActive: true,
@@ -464,10 +467,9 @@ export function projectVisibilityMode(form: Pick<ProjectFormState, 'managerOnly'
   return form.visibleToCollaborators ? 'all-authorized' : 'manager-coordinator';
 }
 
-export function applyProjectVisibilityMode(mode: ProjectVisibilityMode): Pick<ProjectFormState, 'managerOnly' | 'visibleToCollaborators'> {
-  if (mode === 'manager-only') return { managerOnly: true, visibleToCollaborators: false };
-  if (mode === 'all-authorized') return { managerOnly: false, visibleToCollaborators: true };
-  return { managerOnly: false, visibleToCollaborators: false };
+export function applyProjectVisibilityMode(mode: ProjectVisibilityMode): Pick<ProjectFormState, 'managerOnly' | 'visibleToCollaborators' | 'distributionSettings'> {
+  const managerOnly = mode === 'manager-only';
+  return { managerOnly, visibleToCollaborators: mode === 'all-authorized', distributionSettings: projectDistributionDefaults({ managerOnly }) };
 }
 
 export function segmentSlugFromLabel(label: string) {
@@ -508,6 +510,7 @@ export function projectToForm(project: Project): ProjectFormState {
     authorizedUserIds: (project.authorizedUsers || []).map(link => link.userId).filter(Boolean),
     visibleToCollaborators: project.visibleToCollaborators,
     managerOnly: project.managerOnly,
+    distributionSettings: projectDistributionSettings(project),
     inhibitionServiceEnabled: project.inhibitionServiceEnabled ?? false,
     requireServiceReportSignatures: project.requireServiceReportSignatures ?? false,
     isActive: project.isActive,

@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { randomUUID } from 'node:crypto';
@@ -132,8 +133,8 @@ test('Qualidade: 403/404/422, usuário inativo/ambíguo, corpo/chave inválidos 
 
 test('RDO: escopo independente, quatro estados, filtro múltiplo, timestamps, legado idêntico e cursor vinculado',async()=>{
   const stamp=new Date('2026-10-01T00:00:00Z');
-  const rows=['PENDING','RETURNED','APPROVED','SIGNED'].map((status,i)=>({id:`r${i}`,status,projectId:'p1',project:{deletedAt:null,code:'5850',name:'Fictício'},deletedAt:null,reportType:'RDO',createdAt:stamp,updatedAt:stamp,submittedAt:stamp,returnedAt:stamp,signedAt:stamp,clientReleasedAt:stamp}));
-  function matches(row,where){return Object.entries(where).every(([k,v])=>k==='AND'?v.every(part=>matches(row,part)):k==='OR'?v.some(part=>matches(row,part)):v&&typeof v==='object'&&!(v instanceof Date)?('in'in v?v.in.includes(row[k]):'lte'in v?row[k]<=v.lte&&(!v.gte||row[k]>=v.gte):'gt'in v?row[k]>v.gt:matches(row[k],v)):v instanceof Date?+row[k]===+v:row[k]===v);}
+  const rows=['PENDING','RETURNED','APPROVED','SIGNED'].map((status,i)=>({id:`r${i}`,status,projectId:'p1',project:{deletedAt:null,managerOnly:false,distributionSettings:null,code:'5850',name:'Fictício'},deletedAt:null,reportType:'RDO',createdAt:stamp,updatedAt:stamp,submittedAt:stamp,returnedAt:stamp,signedAt:stamp,clientReleasedAt:stamp}));
+  function matches(row,where){if(where?.equals===Prisma.DbNull)return row==null;if(where?.path)return where.path.reduce((value,key)=>value?.[key],row)===where.equals;if(!row)return false;return Object.entries(where).every(([k,v])=>k==='AND'?v.every(part=>matches(row,part)):k==='OR'?v.some(part=>matches(row,part)):v&&typeof v==='object'&&!(v instanceof Date)?('in'in v?v.in.includes(row[k]):'lte'in v?row[k]<=v.lte&&(!v.gte||row[k]>=v.gte):'gt'in v?row[k]>v.gt:matches(row[k],v)):v instanceof Date?+row[k]===+v:row[k]===v);}
   const calls=[];const client={report:{async findMany(args){calls.push(args);return rows.filter(row=>matches(row,args.where)).slice(0,args.take);}}};
   const legacy=await listOperationalResources(client,'operational.Report.list',{},context({scopes:new Set(['rdo.relatorios.read'])}));assert.deepEqual(legacy.items.map(r=>r.status),['APPROVED']);assert.deepEqual(Object.keys(legacy.items[0]).sort(),Object.keys(OPERATIONAL_RESOURCES.find(r=>r.model==='Report').fields).sort());
   const ctx=context({scopes:new Set(['rdo.relatorios.todos.read'])});const all=await listOperationalResources(client,'operational.Report.list',{},ctx);assert.equal(all.items.length,4);

@@ -8,6 +8,7 @@ import {
   isClientPrivacyConsentAllowedRoute
 } from '../lib/privacy-consent.js';
 import prisma from '../lib/prisma.js';
+import { withProjectAccess } from '../lib/projects/access-scope.js';
 
 export const RDO_INTERNAL_ROLES = publicModuleRolesForModule('rdo', { includeClient: false });
 export const RDO_ACCESS_ROLES = publicModuleRolesForModule('rdo');
@@ -92,7 +93,7 @@ export const requireAuth = asyncHandler(async (req, res, next) => {
     });
   }
 
-  next();
+  withProjectAccess(user, next);
 });
 
 export function requireManager(req, res, next) {

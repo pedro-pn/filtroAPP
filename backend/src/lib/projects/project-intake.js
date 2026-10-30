@@ -1,3 +1,4 @@
+import { assertProjectChannel } from './distribution.js';
 import { z } from 'zod';
 
 import {
@@ -74,7 +75,8 @@ export const projectIntakePublicSelect = {
   contractCode: true,
   location: true,
   commercialProposalSync: true,
-  registrationPending: true
+  registrationPending: true,
+  managerOnly: true, distributionSettings: true, deletedAt: true
 };
 
 const PROJECT_INTAKE_COMPARISON_FIELDS = [
@@ -134,6 +136,8 @@ export function projectMatchesIntake(project, intake) {
 }
 
 async function resolveExistingProject(project, intake, client, attempts = 0, selectAccessRevision = true) {
+  if (project.deletedAt) throw new ProjectIntakeConflictError();
+  assertProjectChannel(project, 'commercial');
   let status = 'already_exists';
   if (!projectMatchesIntake(project, intake)) {
     const previousReference = commercialProposalReference(project.contractCode);
@@ -179,6 +183,9 @@ function projectIntakeResult(status, project, commercialRevision) {
   const publicProject = { ...project, proposalCode: project.contractCode };
   delete publicProject.contractCode;
   delete publicProject.commercialProposalSync;
+  delete publicProject.managerOnly;
+  delete publicProject.distributionSettings;
+  delete publicProject.deletedAt;
   return { status, project: publicProject, commercialRevision };
 }
 
@@ -193,7 +200,9 @@ export async function receiveProjectIntake(rawInput, client = prisma, { inTransa
     select: projectIntakePublicSelect
   });
 
-  if (existing) return resolveExistingProject(existing, intake, client, 0, selectAccessRevision);
+  if (existing) {
+    return resolveExistingProject(existing, intake, client, 0, selectAccessRevision);
+  }
 
   try {
     const clientSegment = intake.clientSegment ? await resolveClientSegment(client, intake.clientSegment) : null;

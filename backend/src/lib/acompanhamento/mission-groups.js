@@ -1,3 +1,4 @@
+import { projectChannelWhere } from '../projects/distribution.js';
 import { hasSameClient, sameClientName } from './client-identity.js';
 
 const ACTIVE = 'ACTIVE';
@@ -36,11 +37,11 @@ const groupInclude = {
 const visibleGroupInclude = {
   members: {
     ...groupInclude.members,
-    where: { project: { managerOnly: false, deletedAt: null } }
+    where: { project: { ...projectChannelWhere('acompanhamento') } }
   }
 };
 
-const visibleGroupWhere = { members: { some: { project: { managerOnly: false, deletedAt: null } } } };
+const visibleGroupWhere = { members: { some: { project: { ...projectChannelWhere('acompanhamento') } } } };
 
 export class MissionGroupError extends Error {
   constructor(code, message) {

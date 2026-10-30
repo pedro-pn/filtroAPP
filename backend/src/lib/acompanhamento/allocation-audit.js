@@ -1,3 +1,4 @@
+import { projectAccessCacheKey } from '../projects/access-scope.js';
 /*
  * Auditoria da alocação diária do ponto.
  *
@@ -62,7 +63,7 @@ export function invalidateAllocationAudit() {
 }
 
 async function loadTrails() {
-  const fingerprint = await currentFingerprint();
+  const fingerprint = `${projectAccessCacheKey()}:${await currentFingerprint()}`;
   if (cache.fingerprint === fingerprint && cache.value) return cache.value;
 
   const [{ rates }, projects, ignoredTags] = await Promise.all([
