@@ -116,6 +116,110 @@ function rdoReport(id, reportDate, services, sequenceNumber = 1) {
   };
 }
 
+function flushingService(id, link, finalized = false) {
+  return {
+    id,
+    serviceType: 'flushing',
+    system: 'Mancal Escora',
+    finalized,
+    extraData: {
+      __serviceLinkKey: link,
+      'Equipamento(s)': 'Unidade Geradora 14',
+      Sistema: 'Mancal Escora',
+      'Tipo de óleo': 'Lubrax Turbina 68',
+      'Volume de óleo': '550 L',
+      'Flushing em tubulação?': 'Sim',
+      'Tipo de flushing': 'Primário'
+    }
+  };
+}
+
+test('a finalized flushing does not hide another chain from next-day creation or review', async () => {
+  const { pendingProjectServicesForDate } = await loadOngoingServices();
+  const pending = { ...flushingService('pending', 'chain-pending'), startTime: '14:34', endTime: '17:00' };
+  pending.extraData['Diâmetros e comprimentos'] = [{ d: '3/4', c: '73.55', unit: 'pol', lengthUnit: 'm' }];
+  const finished = { ...flushingService('finished', 'chain-finished', true), startTime: '07:40', endTime: '09:04' };
+  finished.extraData['Diâmetros e comprimentos'] = [
+    { d: '4', c: '3.76', unit: 'pol', lengthUnit: 'm' },
+    { d: '8', c: '3.02', unit: 'pol', lengthUnit: 'm' }
+  ];
+
+  for (const services of [[pending, finished], [finished, pending]]) {
+    const history = [rdoReport('rdo-137', '2026-10-28', services, 137)];
+    for (const canReview of [false, true]) {
+      const items = pendingProjectServicesForDate(history, '2026-10-29', canReview);
+      assert.deepEqual(items.map(item => item.service.id), ['pending']);
+      assert.equal(items[0].key, 'chain-pending');
+    }
+  }
+});
+
+test('identical pending services keep separate histories and finalize only their own chain', async () => {
+  const { collectPendingProjectServices } = await loadOngoingServices();
+  const first = flushingService('first', 'chain-first');
+  const second = flushingService('second', 'chain-second');
+  const firstReport = rdoReport('rdo-1', '2026-10-27', [first], 1);
+  const secondReport = rdoReport('rdo-2', '2026-10-28', [second], 2);
+  const items = collectPendingProjectServices([secondReport, firstReport]);
+  assert.deepEqual(items.map(item => item.service.id).sort(), ['first', 'second']);
+  assert.equal(items.find(item => item.service.id === 'second').startedReport.id, 'rdo-2');
+
+  const continuation = flushingService('continued', 'chain-first', true);
+  continuation.extraData.__ongoingKey = 'chain-first';
+  continuation.system = 'Sistema corrigido';
+  const closed = collectPendingProjectServices([
+    firstReport, secondReport, rdoReport('rdo-3', '2026-10-29', [continuation], 3)
+  ]);
+  assert.deepEqual(closed.map(item => item.service.id), ['second']);
+});
+
+test('reviewers also see a later independent chain with the same service details', async () => {
+  const { pendingProjectServicesForDate, isPendingServiceFromLaterDay } = await loadOngoingServices();
+  const history = [
+    rdoReport('rdo-1', '2026-10-28', [flushingService('first', 'chain-first')], 1),
+    rdoReport('rdo-2', '2026-10-30', [flushingService('second', 'chain-second')], 2)
+  ];
+  assert.deepEqual(pendingProjectServicesForDate(history, '2026-10-29', false).map(item => item.service.id), ['first']);
+  const items = pendingProjectServicesForDate(history, '2026-10-29', true);
+  assert.deepEqual(items.map(item => item.service.id).sort(), ['first', 'second']);
+  assert.equal(isPendingServiceFromLaterDay(items.find(item => item.service.id === 'second'), '2026-10-29'), true);
+});
+
+test('legacy services retain semantic continuity when one occurrence has no explicit chain ID', async () => {
+  const { collectPendingProjectServices, serviceOngoingKeys } = await loadOngoingServices();
+  const initial = flushingService('legacy');
+  const firstReport = rdoReport('rdo-1', '2026-10-27', [initial], 1);
+  const semanticKey = serviceOngoingKeys(firstReport, initial)[0];
+
+  for (const link of [undefined, semanticKey, 'chain-migrated']) {
+    const continued = flushingService('continued', link);
+    const secondReport = rdoReport('rdo-2', '2026-10-28', [continued], 2);
+    const items = collectPendingProjectServices([firstReport, secondReport]);
+    assert.deepEqual(items.map(item => item.service.id), ['continued']);
+    assert.equal(items[0].startedReport.id, 'rdo-1');
+    assert.deepEqual(collectPendingProjectServices([
+      firstReport, { ...secondReport, services: [{ ...continued, finalized: true }] }
+    ]), []);
+  }
+});
+
+test('explicit chain IDs take precedence over shared legacy semantic aliases', async () => {
+  const { collectPendingProjectServices, collectOngoingServices, serviceOngoingKeys } = await loadOngoingServices();
+  const first = flushingService('first', 'chain-first');
+  const second = flushingService('second', 'chain-second');
+  const report = rdoReport('rdo-1', '2026-10-28', [first, second]);
+  const sharedAlias = serviceOngoingKeys(report, flushingService('legacy'))[0];
+  first.extraData.__ongoingKey = sharedAlias;
+  second.extraData.__ongoingKey = sharedAlias;
+  const history = [report];
+
+  assert.deepEqual(collectPendingProjectServices(history).map(item => item.key).sort(), ['chain-first', 'chain-second']);
+  assert.deepEqual(collectOngoingServices(history, '2026-10-29').map(item => item.key).sort(), ['chain-first', 'chain-second']);
+  second.finalized = true;
+  assert.deepEqual(collectPendingProjectServices(history).map(item => item.key), ['chain-first']);
+  assert.deepEqual(collectOngoingServices(history, '2026-10-29').map(item => item.key), ['chain-first']);
+});
+
 test('pending project services keep the latest occurrence of a chain and drop it once finalized', async () => {
   const { collectPendingProjectServices } = await loadOngoingServices();
 
