@@ -11,6 +11,7 @@ import { loadProjectResponsibleRows } from './project-responsibles.js';
 import { listIntegrationEvents } from './event-feed.js';
 
 import { loadInvoiceRows } from './invoice-rows.js';
+import { listManagementResources } from './management-service.js';
 
 const querySchema = makeOperationalReadQuerySchema(z);
 
@@ -103,6 +104,7 @@ export function operationalVisibilityWhere(resource, query, context) {
 export async function listOperationalResources(client, operationId, input, context) {
   const { resource, query } = prepareOperationalQuery(operationId, input, context);
   if (resource.collectionKind === 'EVENT_FEED') return listIntegrationEvents(client, query, context);
+  if (resource.collectionKind === 'MANAGEMENT') return listManagementResources(client, resource, query, context, operationalVisibilityWhere(resource, query, context));
   const filters = {
     ...(query.projectCode ? { projectCode: query.projectCode } : {}),
     ...(query.projectId ? { projectId: query.projectId } : {}),

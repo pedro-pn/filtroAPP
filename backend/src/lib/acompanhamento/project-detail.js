@@ -418,12 +418,14 @@ export async function getProjectDetail(projectId, {
   includeAdminOnlyCategories = true,
   progressDetails: preloadedProgressDetails = null,
   plannedHoursByProject: preloadedPlannedHoursByProject = null,
-  division = null
+  division = null,
+  projectChannel = 'acompanhamento',
+  includeUnlinked = false
 } = {}) {
   const rows = await listCommercialDashboard({
     includeAdminOnlyCategories,
     projectIds: [projectId],
-    includeProgress: false
+    includeProgress: false, projectChannel, includeUnlinked
   });
   const row = rows.find(r => r.projectId === projectId);
   if (!row) throw new Error('Projeto não encontrado no acompanhamento comercial.');

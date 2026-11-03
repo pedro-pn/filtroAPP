@@ -67,7 +67,7 @@ test('stored fields and explicit relation selects match Prisma; derived fields a
     for (const [name, type] of Object.entries(resource.fields)) {
       if (Object.hasOwn(resource.derivedFields || {}, name)) {
         // SQL loaders already select derived aliases; real DB coverage verifies these joins.
-        if (!['OMIE_INVOICES'].includes(resource.collectionKind) && !['Romaneio', 'LogisticsUnloading'].includes(resource.model) && resource.operationId !== 'operational.ProjectPending.list') {
+        if (!['OMIE_INVOICES', 'MANAGEMENT'].includes(resource.collectionKind) && !['Romaneio', 'LogisticsUnloading'].includes(resource.model) && resource.operationId !== 'operational.ProjectPending.list') {
           assert.notEqual(serializeOperationalResource(resource, { [name]: 'UNPROJECTED' })[name], 'UNPROJECTED', `${resource.model}.${name} must be projected`);
         }
         if (type === 'object') assert.equal(resource.fieldSchemas[name].additionalProperties, false);

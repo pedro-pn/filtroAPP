@@ -38,7 +38,7 @@ test('gatilhos: nove tipos, transições/no-op, datas, exclusão lógica, audito
       UPDATE "Project" SET "operatorId"='u1' WHERE id='p1';
     `);
     const events=await rows('IntegrationEvent');
-    assert.deepEqual(events.map(r=>r.type).sort(),Object.keys(EVENT_RESOURCE_SCOPES).filter(type => !['medicao.alterada', 'nota.emitida', 'nota.recebimento_alterado', 'pendencia.alterada', 'descarga.confirmada'].includes(type)).sort());
+    assert.deepEqual(events.map(r=>r.type).sort(),Object.keys(EVENT_RESOURCE_SCOPES).filter(type => !['medicao.alterada', 'nota.emitida', 'nota.recebimento_alterado', 'pendencia.alterada', 'descarga.confirmada', 'acompanhamento.meta_alterada', 'acompanhamento.revisao_concluida', 'alocacao.alterada'].includes(type)).sort());
     assert.deepEqual(events.map(r=>String(r.sequence)),events.map((_,i)=>String(i+1)));
     assert.ok(events.every(r=>/^evt_[0-9a-f-]{36}$/.test(r.id)));
     assert.equal(new Set(events.map(r=>r.id)).size,events.length);

@@ -5,6 +5,9 @@ import { createSignedCursor, readSignedCursor, stableJson } from './cursor.js';
 
 export const INTEGRATION_EVENT_RETENTION_DAYS = 30;
 export const EVENT_RESOURCE_SCOPES = Object.freeze({
+  'acompanhamento.meta_alterada': ['acompanhamento.progresso.read'],
+  'acompanhamento.revisao_concluida': ['acompanhamento.progresso.read'],
+  'alocacao.alterada': ['efetivo.alocacoes.read'],
   'rdo.criado': ['rdo.relatorios.todos.read'],
   'rdo.aprovado': ['rdo.relatorios.read', 'rdo.relatorios.todos.read'],
   'rdo.devolvido': ['rdo.relatorios.todos.read'],

@@ -63,7 +63,39 @@ Entrega B: US5 → US6/US7 → US8; US4 dispensada pelo Omni. Somente planejamen
 - [x] B010 Testar isolamento/403/projeções/eventos, migrations e regressões; arquitetura.
 - [x] B011 Revisar diff/grafo e registrar relatório final com escopos e limites.
 
-B6: US6, demais agregações US7, responsáveis US8 permanecem planejados; US4 dispensada.
+B6 Gestão: US6 e agregações contratadas US7 implementadas nas tarefas G001–G011 abaixo. Responsáveis US8 e leituras não contratadas permanecem planejados; US4 dispensada.
 
 
 Resultado e limites da Entrega B: [implementation-report-b.md](implementation-report-b.md).
+
+## B6 — Gestão (2026-11-03)
+
+- [x] G001 Ler prompt, specs 033–035, relatório B, grafo e serviços/fontes do painel.
+- [x] G002 Atualizar spec, plano, tarefas e contrato antes da implementação.
+- [x] G003 G1: progresso semanal, metas de projeto/grupo e revisão sem nota livre.
+- [x] G004 G2: custos e avanço calculados pelos serviços do detalhe do painel.
+- [x] G005 G3: condições mínimas e diária protegida por escopo financeiro adicional.
+- [x] G006 G4: alocações oficiais, tombstones e projeção sem dados pessoais.
+- [x] G007 G5: ponto semanal agregado com atribuição existente e supressão <2 pessoas.
+- [x] G008 Migration/eventos transacionais, sem backfill e com autorização por família.
+- [x] G009 Catálogo, OpenAPI, Playground e docs com exemplos fictícios.
+- [x] G010 Testes de paridade, HTTP, recorte, escopos, privacidade, paginação e rollback.
+- [x] G011 Executar verificações, revisar diff/grafo e registrar relatório final B6.
+
+## Resultado B6 — 2026-11-03
+
+- Backend completo em PostgreSQL 16 descartável: 2.599 testes, 2.565 aprovados,
+  34 opcionais ignorados, nenhuma falha. Os testes reais Omni de concorrência e
+  ordem de commit foram habilitados. Prisma Client regenerado com o schema atual.
+- B6 + OpenAPI: 15 aprovados, sem skips; inclui avanço manual/RDO, alterações
+  somente na fonte, adicionais/percentual, orçamento zerado/ausente, privacidade,
+  supressão antes da paginação, recorte, escopos, cursor e rollback/eventos.
+- Frontend completo: 871 aprovados, nenhuma falha. Lint e build aprovados.
+- Todo o histórico de migrations aplicado ao banco PostgreSQL descartável; Prisma
+  validate/generate, architecture:check e git diff --check aprovados.
+- Revisão de impacto/diff/fluxos pelo grafo e conferência na fonte concluídas.
+  A nova suíte também está no job Omni do CI.
+- Nenhum item G1–G5 adiado; US8 e leituras não contratadas continuam em backlog.
+  Sem deploy, migration no banco real ou alteração de token.
+
+Relatório final: [implementation-report-b6.md](implementation-report-b6.md).

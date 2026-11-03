@@ -180,12 +180,12 @@ function pontoImportScopeFromRows(imports) {
   };
 }
 
-async function getPontoImportScope(importId) {
+async function getPontoImportScope(importId, database = prisma) {
   if (importId) {
-    const item = await prisma.pontoImport.findUnique({ where: { id: importId } });
+    const item = await database.pontoImport.findUnique({ where: { id: importId } });
     return item ? pontoImportScopeFromRows([item]) : null;
   }
-  const imports = await prisma.pontoImport.findMany({ orderBy: { createdAt: 'asc' } });
+  const imports = await database.pontoImport.findMany({ orderBy: { createdAt: 'asc' } });
   return pontoImportScopeFromRows(imports);
 }
 
@@ -542,12 +542,12 @@ export function buildCollaboratorRoleCostSegments({ collaborator, roleParams, st
   ));
 }
 
-export async function getRoleParamsResolver() {
+export async function getRoleParamsResolver(database = prisma) {
   const [roles, models] = await Promise.all([
-    prisma.jobRole.findMany({
+    database.jobRole.findMany({
       include: { costProfile: { include: { parameterSets: true } } }
     }),
-    prisma.costProfile.findMany({
+    database.costProfile.findMany({
       where: { jobRoleId: null },
       include: { parameterSets: true }
     })
@@ -636,8 +636,8 @@ export function rdoDataByCollaboratorFromReports(reports) {
 }
 
 // RDO por colaborador: por projeto (offshore) e o projeto/horas de cada dia.
-async function getRdoDataByCollaborator(periodStart, periodEndExclusive) {
-  const reports = await prisma.report.findMany({
+async function getRdoDataByCollaborator(periodStart, periodEndExclusive, database = prisma) {
+  const reports = await database.report.findMany({
     where: {
       deletedAt: null,
       OR: [
@@ -667,9 +667,9 @@ async function getRdoDataByCollaborator(periodStart, periodEndExclusive) {
   return rdoDataByCollaboratorFromReports(reports);
 }
 
-async function getProjectAllocationContext() {
+async function getProjectAllocationContext(database = prisma) {
   const [projects, tagAliases, missionGroups, effectiveAllocations, effectiveMissions] = await Promise.all([
-    prisma.project.findMany({
+    database.project.findMany({
       select: {
         id: true,
         code: true,
@@ -682,10 +682,10 @@ async function getProjectAllocationContext() {
         deletedAt: true
       }
     }),
-    prisma.pontoProjectTagAlias.findMany({
+    database.pontoProjectTagAlias.findMany({
       select: { normalizedTag: true, projectId: true }
     }),
-    prisma.acompanhamentoMissionGroup.findMany({
+    database.acompanhamentoMissionGroup.findMany({
       where: { status: 'ACTIVE' },
       select: {
         id: true,
@@ -694,7 +694,7 @@ async function getProjectAllocationContext() {
         members: { select: { projectId: true } }
       }
     }),
-    prisma.efetivoMissionAllocation.findMany({
+    database.efetivoMissionAllocation.findMany({
       where: {
         deletedAt: null,
         mission: {
@@ -725,7 +725,7 @@ async function getProjectAllocationContext() {
         }
       }
     }),
-    prisma.efetivoMissionPlan.findMany({
+    database.efetivoMissionPlan.findMany({
       where: {
         deletedAt: null,
         scheduleStatus: 'CONFIRMED',
@@ -1321,6 +1321,7 @@ export function classifyProjectHours(
       minimumNormalHoursApplied: dayTotalHours > 0 && dayCostNormalHours > dayNormalHours,
       he70Hours: dayHe70Hours,
       he100Hours: dayHe100Hours,
+      nightHours: Math.max(0, Number(row.nightHours) || 0),
       tags: uniqueStrings([...(row.tags || []), ...(noActivityContext ? ['Dia sem atividade/viagem'] : [])]),
       tagProjectIds: [...new Set((row.tags || []).map(resolveTag).filter(Boolean))].sort(),
       rdoProjects: [...rdoProjects.values()].map(item => ({
@@ -1434,6 +1435,7 @@ function monthRowsFromMonthlyData(monthKey, monthData, schemaVersion = 1) {
           : numberValue(day.extrasMinutes)) / 60,
         he70Horas: (schemaVersion >= 2 ? numberValue(day.he70Minutes) : 0) / 60,
         he100Horas: (schemaVersion >= 2 ? numberValue(day.he100Minutes) : 0) / 60,
+        nightHours: numberValue(day.nightMinutes) / 60,
         tags: uniqueStrings(day.tags),
         explicitOvertime: schemaVersion >= 2
       }))
@@ -1456,6 +1458,53 @@ function monthRowsFromMonthlyData(monthKey, monthData, schemaVersion = 1) {
       explicitOvertime: false
     }))
     .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// Horas efetivas e decisões do mesmo motor do painel, sem custo ou piso financeiro.
+// A carga integral preserva o merge de imports e o teto mensal de extras; o chamador
+// aplica o recorte público antes de agregar/paginar e nunca publica estas linhas.
+export async function loadAllocatedAttendanceDays({ database = prisma } = {}) {
+  const scope = await getPontoImportScope(null, database);
+  if (!scope) return [];
+  const end = endExclusive(scope.periodEnd);
+  const [periodRows, ignored, roleParams, rdoData, context, overrides] = await Promise.all([
+    database.pontoPeriodSummary.findMany({
+      where: { importId: { in: scope.pontoImports.map(row => row.id) }, collaboratorId: { not: null } },
+      include: { import: { select: { createdAt: true } }, collaborator: { select: {
+        jobRole: { select: { name: true } }, jobRoleHistory: { select: {
+          effectiveDate: true, jobRoleId: true, jobRole: { select: { id: true, name: true } }
+        }, orderBy: { effectiveDate: 'asc' } }
+      } } }
+    }),
+    database.pontoExternalEmployee.findMany({ where: { ignoredAt: { not: null } }, select: { externalEmployeeId: true } }),
+    getRoleParamsResolver(database), getRdoDataByCollaborator(scope.periodStart, end, database),
+    getProjectAllocationContext(database),
+    database.pontoDayProjectOverride.findMany({ where: { workDate: { gte: scope.periodStart, lt: end } },
+      select: { collaboratorId: true, workDate: true, projectId: true } })
+  ]);
+  const periods = mergePontoPeriods(filterIgnoredPontoPeriods(periodRows, ignored.map(row => row.externalEmployeeId)));
+  const manual = manualProjectsByCollaborator(overrides);
+  const eligible = buildScheduleWindowEligibility(context.scheduleWindows, rdoData);
+  const output = [];
+  for (const period of periods) {
+    const days = monthsOf(period).flatMap(month => splitOvertimeDays(month.days || [],
+      Number(roleParams.paramsFor(collaboratorRoleAtDate(period.collaborator, `${month.monthKey}-01`)?.roleName
+        || period.collaborator?.jobRole?.name, `${month.monthKey}-01`)?.he70LimiteHoras) || 30));
+    const classified = classifyProjectHours(days, rdoData.get(period.collaboratorId), context.resolveTag,
+      projectMetaForCollaborator(context.projects, period.collaboratorId), manual.get(period.collaboratorId) || new Map(),
+      context.missionGroupProjectsByProjectId, 'ANALYTICAL', { windows: context.scheduleWindows,
+        eligibleByProject: eligible, effectiveAllocationIndex: context.effectiveAllocationIndex, collaboratorId: period.collaboratorId });
+    for (const day of classified.dayTrail) {
+      if (day.normalHours + day.he70Hours + day.he100Hours + day.nightHours <= 0) continue;
+      for (const allocation of day.allocations) {
+        output.push({ projectId: allocation.projectId, collaboratorId: period.collaboratorId, date: day.date,
+          normalMinutes: day.normalHours * 60 * allocation.weight,
+          he70Minutes: day.he70Hours * 60 * allocation.weight, he100Minutes: day.he100Hours * 60 * allocation.weight,
+          nightMinutes: day.nightHours * 60 * allocation.weight });
+      }
+    }
+  }
+  return output;
 }
 
 // Detalhe por mês do colaborador: usa os dias do ponto quando disponíveis; se ausentes (imports

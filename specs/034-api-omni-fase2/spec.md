@@ -1,7 +1,7 @@
 # Feature Specification: Integração Omni — fase 2
 
 **Created**: 2026-10-28
-**Status**: Entrega A implementada e validada localmente, sem deploy; Entrega B implementada e validada localmente, sem deploy
+**Status**: Entregas A, B e B6 Gestão implementadas e validadas localmente; sem deploy.
 **Input**: `../omni/docs/integracoes/prompt-filtroapp-omni.md`, Parte 2.
 
 ## User Scenarios & Testing
@@ -104,7 +104,7 @@ O filtroAPP registra vínculos estruturados para vendedor, documentação e mobi
 - **FR-007**: Expor somente as duas condições comerciais solicitadas em escopo mínimo independente de comercial.*.
 - **FR-008**: Liberar os sete escopos de Gestão definidos na US7 com projeções mínimas, cotas, paginação e isolamento por projeto; ponto somente agregado.
 - **FR-009**: Projetar os novos vínculos e data da US8 com validação, auditoria e estratégia de compatibilidade.
-- **FR-010**: Liberar apenas eventos.read, rdo.relatorios.todos.read e qualidade.registros.create na Entrega A. Entrega B publica medição, notas, romaneios, pendências e US5; US6–US8 remanescentes ficam em backlog; US4 não é necessária para o Omni.
+- **FR-010**: Liberar apenas eventos.read, rdo.relatorios.todos.read e qualidade.registros.create na Entrega A. Entrega B publica medição, notas, romaneios, pendências e US5; B6 publica condições e Gestão (G1–G5); US8 e demais leituras não contratadas ficam em backlog; US4 não é necessária para o Omni.
 
 ### Key Entities
 
@@ -128,4 +128,19 @@ Input adicional: ../omni/docs/integracoes/prompt-filtroapp-entrega-b.md.
 Ordem e contrato em [delivery-b.md](contracts/delivery-b.md): B1 medição e valores
 condicionais; B2 notas ligadas por código Omie exato; B3 resumo dos romaneios;
 B4 pendências agregadas; B5 histórico de descarga idempotente e simulável, com
-importação de CT-e por ID conhecido. Demais itens US6–US8 permanecem planejados.
+importação de CT-e por ID conhecido. A extensão B6 abaixo implementa US6 e as agregações contratadas da US7; US8 permanece planejada.
+
+## Extensão B6 — Gestão (2026-11-03)
+
+Origem: `../omni/docs/integracoes/prompt-filtroapp-gestao.md`. Implementar G1–G5,
+nesta ordem, conforme [delivery-b6.md](contracts/delivery-b6.md): progresso e meta
+semanal/revisão (P1), custos × avanço (P1), condições mínimas (P2), alocações (P2)
+e ponto semanal agregado (P3). Esta extensão substitui o backlog de US6 e das
+agregações correspondentes da US7; US8 e demais leituras financeiras não
+contratadas permanecem futuras.
+
+Aceitação: paridade com o detalhe do Acompanhamento, sem novo motor de cálculo;
+projeto autorizado antes de paginar; 403 sem escopo; BRL decimal apenas financeiro;
+nenhum nome/CPF/salário em alocações/ponto; supressão de semanas com <2 pessoas;
+eventos por escopo de recurso, na mesma transação e com rollback; OpenAPI,
+Playground, testes node --test e architecture:check aprovados.

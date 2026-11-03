@@ -24,6 +24,7 @@ export async function apiSimulationDatabase() {
 
   const deliveryB = await readFile(new URL('../../prisma/migrations/20261029160000_omni_delivery_b/migration.sql', import.meta.url), 'utf8');
   await db.exec(deliveryB.slice(deliveryB.indexOf('-- Funções/gatilhos da Entrega B.')));
+  await db.exec(await readFile(new URL('../../prisma/migrations/20261103160000_omni_management_b6/migration.sql', import.meta.url), 'utf8'));
 
   // PrismaPg mantém suas conversões de tipos; somente o transporte pg usa WASM.
   class WasmPool extends pg.Pool {

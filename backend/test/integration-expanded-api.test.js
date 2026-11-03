@@ -69,8 +69,8 @@ test('16 requested scopes are grantable with dependencies and real operations', 
     assert.ok(API_OPERATIONS.some(op => op.requiredScopes.includes(code)), code);
     assert.ok(!futureScopeDefinitions().some(s => s.code === code), code);
   }
-  assert.equal(API_SCOPES.length, 51);
-  assert.equal(API_OPERATIONS.length, 54);
+  assert.equal(API_SCOPES.length, 57);
+  assert.equal(API_OPERATIONS.length, 59);
 });
 
 test('team pagination uses real composite key without fictitious timestamps', async () => {

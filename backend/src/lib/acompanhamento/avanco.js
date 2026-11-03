@@ -703,18 +703,18 @@ export async function computeProgressHistoryForProjects(projectIds, { daily = fa
 // Antes desta função o detalhe buscava escopo, projeto e serviços realizados separadamente para o
 // avanço atual, o histórico e os recortes. Em grupos de missões esse trabalho ainda era repetido
 // para calcular o peso de cada membro.
-export async function computeProgressDetailsForProjects(projectIds) {
+export async function computeProgressDetailsForProjects(projectIds, { database = prisma } = {}) {
   const ids = [...new Set((projectIds ?? []).map(String).filter(Boolean))];
   const result = new Map();
   if (ids.length === 0) return result;
 
   const [plannedServices, projects, servicesByProject, manualProgressHistory] = await Promise.all([
-    prisma.projectPlannedService.findMany({
+    database.projectPlannedService.findMany({
       where: { projectId: { in: ids } },
       orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
       include: { systems: { orderBy: [{ order: 'asc' }], include: { projectSystem: true } } }
     }),
-    prisma.project.findMany({
+    database.project.findMany({
       where: { id: { in: ids } },
       select: {
         id: true,
@@ -731,8 +731,8 @@ export async function computeProgressDetailsForProjects(projectIds) {
         laborSleepModeByCollaborator: true
       }
     }),
-    loadReportServicesByProject(ids),
-    prisma.projectManualProgressHistory.findMany({
+    loadReportServicesByProject(ids, { database }),
+    database.projectManualProgressHistory.findMany({
       where: { projectId: { in: ids } },
       select: { projectId: true, progressPct: true, recordedAt: true },
       orderBy: [{ recordedAt: 'asc' }, { createdAt: 'asc' }]
@@ -795,8 +795,8 @@ export async function computeProgressDetailsForProjects(projectIds) {
   return result;
 }
 
-export async function computeProjectProgressDetails(projectId) {
-  const details = (await computeProgressDetailsForProjects([projectId])).get(projectId);
+export async function computeProjectProgressDetails(projectId, options = {}) {
+  const details = (await computeProgressDetailsForProjects([projectId], options)).get(projectId);
   if (!details) throw new Error('Projeto não encontrado.');
   return details;
 }

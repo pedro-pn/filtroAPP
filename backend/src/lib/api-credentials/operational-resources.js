@@ -3,6 +3,7 @@ import { EXTENDED_OPERATIONAL_RESOURCES } from './extended-operational-resources
 import { RDO_PROJECT_SELECT, RDO_REPORT_DERIVED_FIELDS } from './rdo-resource-definition.js';
 import { DELIVERY_B_RESOURCES } from './delivery-b-resources.js';
 import { OMNI_RESOURCES } from './omni-resources.js';
+import { MANAGEMENT_RESOURCES } from './management-resources.js';
 
 export const BASE_OPERATIONAL_RESOURCES = Object.freeze([
   resource('Collaborator', '/colaboradores', 'colaboradores.operacional.read', 'Colaboradores — identificação operacional', 'people-access',
@@ -45,7 +46,7 @@ export const BASE_OPERATIONAL_RESOURCES = Object.freeze([
   resource('StockCategory', '/estoque/categorias', 'estoque.itens.read', 'Categorias de estoque', 'stock', { type: 'string', name: 'string', isActive: 'boolean' })
 ]);
 
-export const OPERATIONAL_RESOURCES = Object.freeze([...BASE_OPERATIONAL_RESOURCES, ...EXTENDED_OPERATIONAL_RESOURCES, ...OMNI_RESOURCES, ...DELIVERY_B_RESOURCES]);
+export const OPERATIONAL_RESOURCES = Object.freeze([...BASE_OPERATIONAL_RESOURCES, ...EXTENDED_OPERATIONAL_RESOURCES, ...OMNI_RESOURCES, ...DELIVERY_B_RESOURCES, ...MANAGEMENT_RESOURCES]);
 
 export function getOperationalResource(operationId) {
   return OPERATIONAL_RESOURCES.find(item => item.operationId === operationId) || null;
