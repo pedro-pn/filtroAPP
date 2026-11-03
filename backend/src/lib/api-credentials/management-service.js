@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { Prisma } from '@prisma/client';
-import { corporateToday, dateOnlyKey, weekStartKey, effectiveWeeklyProgressTarget } from '../../../../shared/modules/mission-weekly-progress.js';
+import { buildWeeklyProgressComparison, corporateToday, dateOnlyKey, weekStartKey, effectiveWeeklyProgressTarget } from '../../../../shared/modules/mission-weekly-progress.js';
 import { projectCostSummary } from '../../../../shared/modules/project-cost-summary.js';
 import { PROJECT_EXECUTION_WEEKLY_CHECKS } from '../../../../shared/schemas/project-execution.js';
 import { addDays, isWeeklyReviewComplete, normalizeWeeklyChecks } from '../efetivo/project-workflow/weekly-review.js';
@@ -11,6 +11,9 @@ import { IntegrationApiError } from '../../middleware/api-request-context.js';
 import { createSignedCursor, readSignedCursor, stableJson } from './cursor.js';
 import { serializeOperationalResource } from './operational-serialization.js';
 import { CONDITIONS_VALUE_SCOPE } from './management-resources.js';
+import { buildWeeklyComparisonHistories, loadWeeklyComparisonSources } from '../acompanhamento/weekly-service-history.js';
+import { weeklyTargetsNeedAttendance } from '../acompanhamento/weekly-progress-targets.js';
+import { projectWeeklyTarget } from './weekly-target-projection.js';
 
 const invalid = message => new IntegrationApiError(400, 'VALIDATION_ERROR', message);
 const money = value => value == null ? null : new Prisma.Decimal(value).toFixed(2);
@@ -43,8 +46,8 @@ export function projectWeeklyReview(row) {
 async function projectWeeks(client, candidates, snapshotAt) {
   const ids = [...new Set(candidates.map(row => row.projectId))];
   if (!ids.length) return [];
-  const [details, targets, members, reviews] = await Promise.all([
-    computeProgressDetailsForProjects(ids, { database: client }),
+  const [sources, targets, members, reviews] = await Promise.all([
+    loadWeeklyComparisonSources(ids, { client, includeProgress: true }),
     client.missionWeeklyProgressTarget.findMany({ where: { projectId: { in: ids }, createdAt: { lte: snapshotAt } },
       select: { projectId: true, weekStartDate: true, plannedPctPoints: true, definition: true, isDeleted: true, revision: true } }),
     client.acompanhamentoMissionGroupMember.findMany({ where: { projectId: { in: ids }, activeProjectId: { not: null }, group: { status: 'ACTIVE' } },
@@ -57,8 +60,22 @@ async function projectWeeks(client, candidates, snapshotAt) {
     where: { groupId: { in: groupIds }, createdAt: { lte: snapshotAt } },
     select: { groupId: true, weekStartDate: true, plannedPctPoints: true, definition: true, isDeleted: true, revision: true }
   }) : [];
+  const comparisons = new Map();
+  for (const id of ids) {
+    const ownTargets = targets.filter(target => target.projectId === id);
+    const groupId = members.find(member => member.projectId === id)?.groupId;
+    const inheritedTargets = groupTargets.filter(target => target.groupId === groupId);
+    const histories = buildWeeklyComparisonHistories([id], sources, { includeAttendance: weeklyTargetsNeedAttendance([...ownTargets, ...inheritedTargets]) });
+    const input = { ...histories, progressHistory: sources.progressDetails.get(id)?.dailyProgressHistory ?? [], today: corporateToday(snapshotAt) };
+    // Cada proprietário é resolvido por inteiro, preservando repetição e cortes
+    // de períodos adjacentes, inclusive fora das semanas pedidas nesta página.
+    comparisons.set(id, {
+      own: new Map(buildWeeklyProgressComparison({ ...input, targets: ownTargets }).map(row => [row.weekStartDate, row])),
+      group: new Map(buildWeeklyProgressComparison({ ...input, targets: inheritedTargets }).map(row => [row.weekStartDate, row]))
+    });
+  }
   return candidates.map(row => {
-    const detail = details.get(row.projectId);
+    const detail = sources.progressDetails.get(row.projectId);
     const history = detail?.dailyProgressHistory || [];
     const end = [addDays(row.weekStart, 6), corporateToday(snapshotAt)].sort()[0];
     const pointAt = (day, inclusive) => history.filter(point => inclusive ? dateOnlyKey(point.date) <= day : dateOnlyKey(point.date) < day).at(-1)?.progressPct ?? null;
@@ -69,6 +86,7 @@ async function projectWeeks(client, candidates, snapshotAt) {
     return { ...row, avancoInicio: pointAt(row.weekStart, false), avancoFim: pointAt(end, true),
       metaPontos: target?.plannedPctPoints == null ? null : Number(target.plannedPctPoints),
       metaDefinidaPor: target ? (own ? 'PROJETO' : 'GRUPO') : null,
+      meta: projectWeeklyTarget(comparisons.get(row.projectId)[own ? 'own' : 'group'].get(row.weekStart)),
       revisao: projectWeeklyReview(reviews.find(review => review.projectId === row.projectId && dateOnlyKey(review.weekStartDate) === row.weekStart)),
       updatedAt: snapshotAt };
   });

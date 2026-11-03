@@ -1,6 +1,6 @@
 import { isWeeklyTargetGoalList, WEEKLY_TARGET_SERVICES, WEEKLY_TARGET_WORKDAYS, weeklyTargetDefinition, weeklyTargetGoalMetric, weeklyTargetScenarioSettings, type WeeklyProgressComparison, type WeeklyProgressTarget } from '../../../../shared/modules/mission-weekly-progress.js';
 
-import { attendanceBalanceLabel, weeklyGoalLabel, weeklyGoalSentence, weeklyValueLabel } from './weeklyTargetPresentation';
+import { attendanceBalanceLabel, weeklyGoalLabel, weeklyGoalSentence, weeklyScenarioGoalDescription, weeklyValueLabel } from './weeklyTargetPresentation';
 import { formatDateOnly } from '../../utils/dateOnly';
 
 const format = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 });
@@ -64,8 +64,7 @@ export function WeeklyTargetConfiguration({ target }: { target: WeeklyProgressTa
     return <li key={index}>
     <strong>{scenario.name}</strong><small>{scenario.condition.kind === 'ALWAYS' ? 'Regra geral' : scenario.condition.kind === 'SERVICE_COUNT'
       ? `${scenario.condition.count} tipo(s) de serviço` : `Somente ${scenario.condition.serviceTypes.map(type => WEEKLY_TARGET_SERVICES[type]).join(' + ')}`}</small>
-    {scenario.goals.map(goal => <small key={goal.serviceType ?? 'GLOBAL'}>{goal.serviceType ? WEEKLY_TARGET_SERVICES[goal.serviceType] : 'Total geral'}: {weeklyValueLabel(goal.value, weeklyTargetGoalMetric(settings.metric, goal, scenario.condition))}
-      {settings.basis === 'PER_PRODUCTIVE_DAY' ? '/colaborador por dia · Equipe registrada em cada RDO' : ''}</small>)}
+    {scenario.goals.map(goal => <small key={goal.serviceType ?? 'GLOBAL'}>{weeklyScenarioGoalDescription({ ...goal, metric: weeklyTargetGoalMetric(settings.metric, goal, scenario.condition), basis: settings.basis })}</small>)}
     {settings.metric === 'COLLABORATORS' ? <small>Dias de trabalho: {[1, 2, 3, 4, 5, 6, 0].filter(day => (settings.workdays ?? [1, 2, 3, 4, 5]).includes(day)).map(day => WEEKLY_TARGET_WORKDAYS[day]).join(', ')}</small> : null}
   </li>;
   })}</ul></div>;

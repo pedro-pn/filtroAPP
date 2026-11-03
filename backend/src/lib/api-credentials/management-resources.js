@@ -1,4 +1,5 @@
 import { resource } from './operational-resource-definition.js';
+import { weeklyTargetSchema } from './weekly-target-schema.js';
 
 export const CONDITIONS_VALUE_SCOPE = 'projetos.condicoes.valores.read';
 const commonQuery = ['limit', 'cursor', 'updatedSince', 'snapshotAt', 'projectId', 'projectCode'];
@@ -21,9 +22,9 @@ export const MANAGEMENT_RESOURCES = Object.freeze([
   management('Project', '/acompanhamento/projetos/semanas', 'acompanhamento.progresso.read',
     'Avanço, meta e revisão semanal por projeto', 'project-tracking', {
       projectId: 'string', projectCode: 'string', weekStart: 'date', avancoInicio: 'number?', avancoFim: 'number?',
-      metaPontos: 'number?', metaDefinidaPor: 'string?', revisao: 'object?', updatedAt: 'datetime'
+      metaPontos: 'number?', metaDefinidaPor: 'string?', meta: 'object?', revisao: 'object?', updatedAt: 'datetime'
     }, { operationId: 'acompanhamento.projects.weeks.list', openApiOperationId: 'listIntegrationProjectWeeks', queryParams: weeklyQuery,
-      fieldSchemas: { revisao: review }, projectNotice: 'Avanço do detalhe e metas/revisões por projeto e semana, de segunda a domingo em São Paulo. Até 12 semanas; sem notas ou autores.' }),
+      fieldSchemas: { revisao: review, meta: weeklyTargetSchema }, projectNotice: 'Avanço do detalhe e metas/revisões por projeto e semana em São Paulo. Meta na unidade cadastrada, com o mesmo comparativo do painel e período próprio de contagem. Até 12 semanas; sem notas ou autores.' }),
   management('Project', '/acompanhamento/projetos/custos', 'acompanhamento.custos.read',
     'Custos realizados e avanço por projeto', 'project-tracking', {
       projectId: 'string', projectCode: 'string', orcamento: 'object?', custoRealizado: 'object',

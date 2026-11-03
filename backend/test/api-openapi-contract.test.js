@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import YAML from 'yaml';
+import Ajv from 'ajv';
 
 import { API_OPERATIONS, publicApiOperations } from '../src/lib/api-credentials/catalog.js';
 import { OPERATIONAL_DOWNLOADS } from '../src/lib/api-credentials/extended-operational-resources.js';
@@ -137,6 +138,21 @@ test('operational response allowlists, query parameters and scope guards match e
       assert.deepEqual(schema.properties[field], fieldSchema, `${resource.model}.${field} nested contract`);
     }
     assert.deepEqual(operation['x-optional-scopes'] || [], resource.optionalScopes || []);
+  }
+});
+
+test('G1 documenta exemplos válidos de todas as formas de meta sem campos individuais', async () => {
+  const contract = YAML.parse(await readFile(contractUrl, 'utf8'));
+  const response = contract.paths['/integracoes/v1/acompanhamento/projetos/semanas'].get.responses['200'].content['application/json'];
+  const validate = new Ajv({ strict: false, formats: { date: true, 'date-time': true } }).compile(response.schema.properties.items.items);
+  assert.deepEqual(Object.keys(response.examples).sort(), ['pontosPercentuais','servicosE','servicosOU','cenario','diaProdutivoPendente','colaboradoresPorDia'].sort());
+  for (const example of Object.values(response.examples)) {
+    for (const row of example.value.items) {
+      assert.ok(validate(row), JSON.stringify(validate.errors));
+      assert.ok(validate({ ...row, meta: null }), JSON.stringify(validate.errors));
+      for (const day of row.meta.colaboradoresPorDia) assert.deepEqual(Object.keys(day).sort(), ['data','planejado','presentes']);
+      assert.doesNotMatch(JSON.stringify(row.meta), /collaboratorId|author|createdBy|currency/);
+    }
   }
 });
 

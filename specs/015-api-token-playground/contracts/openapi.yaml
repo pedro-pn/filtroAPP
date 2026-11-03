@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: FiltroApp - Administração e API de Integrações
-  version: "1.11.0"
+  version: "1.12.0"
   description: >-
     Contrato da gestão administrativa de credenciais, consultas externas e escrita
     contratada do CRM Prisma no Efetivo. Tokens de integração e sessões humanas
@@ -3969,12 +3969,13 @@ paths:
         - IntegrationOperational
       operationId: listIntegrationProjectWeeks
       summary: Avanço, meta e revisão semanal por projeto
-      description: Avanço do detalhe e metas/revisões por projeto e semana, de segunda
-        a domingo em São Paulo. Até 12 semanas; sem notas ou autores. Agregados
-        usam watermark de leitura; updatedSince pode repetir linhas. Snapshot não
-        reconstrói histórico de custos/fontes. Dias civis do motor existente;
-        histórico manual conserva o dia UTC de recordedAt para paridade com o
-        detalhe.
+      description: Avanço do detalhe e metas/revisões por projeto e semana em São Paulo. Meta na unidade
+        cadastrada, calculada por buildWeeklyProgressComparison com as fontes do painel. O período de
+        contagem de meta pode diferir de segunda a domingo. Até 12 semanas; sem notas, autores,
+        identidades da equipe ou reais. Agregados usam watermark de leitura; updatedSince pode repetir
+        linhas. Snapshot não reconstrói fontes históricas. Histórico manual conserva o dia UTC de
+        recordedAt. A semana consultada não pode ser futura; PLANNED pode ocorrer quando seu período
+        de contagem ainda não começou.
       security:
         - IntegrationToken: []
       x-required-scopes:
@@ -4009,26 +4010,26 @@ paths:
           schema:
             type: string
             format: date
-          description: "Segunda a domingo em America/Sao_Paulo; weekStart ou from/to, até
-            12 semanas. Padrão: semana atual."
+          description: "Segunda a domingo em America/Sao_Paulo; weekStart ou from/to, até 12 semanas. Padrão:
+            semana atual."
         - name: from
           in: query
           schema:
             type: string
             format: date
-          description: "Segunda a domingo em America/Sao_Paulo; weekStart ou from/to, até
-            12 semanas. Padrão: semana atual."
+          description: "Segunda a domingo em America/Sao_Paulo; weekStart ou from/to, até 12 semanas. Padrão:
+            semana atual."
         - name: to
           in: query
           schema:
             type: string
             format: date
-          description: "Segunda a domingo em America/Sao_Paulo; weekStart ou from/to, até
-            12 semanas. Padrão: semana atual."
+          description: "Segunda a domingo em America/Sao_Paulo; weekStart ou from/to, até 12 semanas. Padrão:
+            semana atual."
       responses:
         "200":
-          description: Página no recorte autorizado; sem totais globais. Veja o contrato
-            B6 para convenções e supressão de grupos pequenos.
+          description: Página no recorte autorizado; sem totais globais. Veja o contrato B6 para convenções e
+            supressão de grupos pequenos.
           headers:
             Cache-Control:
               $ref: "#/components/headers/NoStore"
@@ -4059,6 +4060,7 @@ paths:
                         - avancoFim
                         - metaPontos
                         - metaDefinidaPor
+                        - meta
                         - revisao
                         - updatedAt
                       properties:
@@ -4080,6 +4082,139 @@ paths:
                           nullable: true
                         metaDefinidaPor:
                           type: string
+                          nullable: true
+                        meta:
+                          type: object
+                          additionalProperties: false
+                          required:
+                            - situacao
+                            - rotuloSituacao
+                            - emAndamento
+                            - periodoInicio
+                            - periodoFim
+                            - regra
+                            - cenario
+                            - atingimentoPct
+                            - itens
+                            - colaboradoresPorDia
+                          properties:
+                            situacao:
+                              type: string
+                              enum:
+                                - PLANNED
+                                - NO_DATA
+                                - NO_RULE
+                                - BELOW
+                                - PARTIAL
+                                - ON_TARGET
+                                - ABOVE
+                            rotuloSituacao:
+                              type: string
+                            emAndamento:
+                              type: boolean
+                            periodoInicio:
+                              type: string
+                              format: date
+                            periodoFim:
+                              type: string
+                              format: date
+                            regra:
+                              type: string
+                              enum:
+                                - ALL
+                                - ANY
+                            cenario:
+                              type: string
+                              nullable: true
+                            atingimentoPct: &a1
+                              type: number
+                              nullable: true
+                            itens:
+                              type: array
+                              items:
+                                type: object
+                                additionalProperties: false
+                                required:
+                                  - tipo
+                                  - servico
+                                  - rotuloServico
+                                  - unidade
+                                  - rotuloUnidade
+                                  - base
+                                  - valorCadastrado
+                                  - planejado
+                                  - realizado
+                                  - diferenca
+                                  - resultado
+                                  - pendenciasBase
+                                  - descricao
+                                properties:
+                                  tipo:
+                                    type: string
+                                    enum:
+                                      - PROGRESS
+                                      - SERVICE
+                                      - ATTENDANCE
+                                  servico:
+                                    type: string
+                                    nullable: true
+                                  rotuloServico:
+                                    type: string
+                                    nullable: true
+                                  unidade:
+                                    type: string
+                                    enum:
+                                      - PCT_POINTS
+                                      - M
+                                      - L
+                                      - UN
+                                      - COLLABORATORS
+                                  rotuloUnidade:
+                                    type: string
+                                  base:
+                                    type: string
+                                    enum:
+                                      - WEEK_TOTAL
+                                      - PER_PRODUCTIVE_DAY
+                                      - PER_WORKDAY
+                                  valorCadastrado:
+                                    type: number
+                                  planejado: *a1
+                                  realizado: *a1
+                                  diferenca: *a1
+                                  resultado:
+                                    type: string
+                                    enum:
+                                      - MET
+                                      - BELOW
+                                      - NO_DATA
+                                      - PLANNED
+                                  pendenciasBase:
+                                    type: array
+                                    items:
+                                      type: string
+                                  descricao:
+                                    type: string
+                            colaboradoresPorDia:
+                              type: array
+                              items:
+                                type: object
+                                additionalProperties: false
+                                required:
+                                  - data
+                                  - planejado
+                                  - presentes
+                                properties:
+                                  data:
+                                    type: string
+                                    format: date
+                                  planejado:
+                                    type: integer
+                                    minimum: 1
+                                  presentes:
+                                    type: integer
+                                    minimum: 0
+                                    nullable: true
                           nullable: true
                         revisao:
                           type: object
@@ -4126,25 +4261,325 @@ paths:
                     const: "1.0"
                   requestId:
                     type: string
-              example:
-                items:
-                  - projectId: projeto-ficticio
-                    projectCode: "00501"
-                    weekStart: 2026-09-28
-                    avancoInicio: 10
-                    avancoFim: 25
-                    metaPontos: 20
-                    metaDefinidaPor: PROJETO
-                    revisao: null
-                    updatedAt: 2026-11-03T12:00:00.000Z
-                page:
-                  limit: 100
-                  hasMore: false
-                  nextCursor: null
-                  snapshotAt: 2026-11-03T12:00:00.000Z
-                generatedAt: 2026-11-03T12:00:00.000Z
-                schemaVersion: "1.0"
-                requestId: requisicao-ficticia
+              examples:
+                pontosPercentuais:
+                  summary: p.p. legado
+                  value:
+                    items:
+                      - projectId: projeto-ficticio
+                        projectCode: "00501"
+                        weekStart: 2026-09-28
+                        avancoInicio: 10
+                        avancoFim: 35
+                        metaPontos: 20
+                        metaDefinidaPor: PROJETO
+                        meta:
+                          situacao: ABOVE
+                          rotuloSituacao: Acima da meta
+                          emAndamento: false
+                          periodoInicio: 2026-09-28
+                          periodoFim: 2026-10-04
+                          regra: ALL
+                          cenario: Meta geral
+                          atingimentoPct: 125
+                          itens:
+                            - tipo: PROGRESS
+                              servico: null
+                              rotuloServico: null
+                              unidade: PCT_POINTS
+                              rotuloUnidade: p.p.
+                              base: WEEK_TOTAL
+                              valorCadastrado: 20
+                              planejado: 20
+                              realizado: 25
+                              diferenca: 5
+                              resultado: MET
+                              pendenciasBase: []
+                              descricao: "Total geral: 20 p.p."
+                          colaboradoresPorDia: []
+                        revisao: null
+                        updatedAt: 2026-11-03T12:00:00.000Z
+                    page:
+                      limit: 100
+                      hasMore: false
+                      nextCursor: null
+                      snapshotAt: 2026-11-03T12:00:00.000Z
+                    generatedAt: 2026-11-03T12:00:00.000Z
+                    schemaVersion: "1.0"
+                    requestId: exemplo-ficticio
+                servicosE:
+                  summary: Lista por serviço com regra E
+                  value:
+                    items:
+                      - projectId: projeto-ficticio
+                        projectCode: "00501"
+                        weekStart: 2026-09-28
+                        avancoInicio: null
+                        avancoFim: null
+                        metaPontos: null
+                        metaDefinidaPor: PROJETO
+                        meta:
+                          situacao: PARTIAL
+                          rotuloSituacao: Meta parcial
+                          emAndamento: false
+                          periodoInicio: 2026-09-28
+                          periodoFim: 2026-10-04
+                          regra: ALL
+                          cenario: null
+                          atingimentoPct: 80
+                          itens:
+                            - tipo: SERVICE
+                              servico: FLUSHING
+                              rotuloServico: Flushing
+                              unidade: M
+                              rotuloUnidade: m
+                              base: WEEK_TOTAL
+                              valorCadastrado: 100
+                              planejado: 100
+                              realizado: 100
+                              diferenca: 0
+                              resultado: MET
+                              pendenciasBase: []
+                              descricao: A equipe deve fazer 100 m de flushing na semana.
+                            - tipo: SERVICE
+                              servico: FILTRAGEM
+                              rotuloServico: Filtragem
+                              unidade: L
+                              rotuloUnidade: L
+                              base: WEEK_TOTAL
+                              valorCadastrado: 500
+                              planejado: 500
+                              realizado: 400
+                              diferenca: -100
+                              resultado: BELOW
+                              pendenciasBase: []
+                              descricao: A equipe deve fazer 500 L de óleo filtrado na semana.
+                          colaboradoresPorDia: []
+                        revisao: null
+                        updatedAt: 2026-11-03T12:00:00.000Z
+                    page:
+                      limit: 100
+                      hasMore: false
+                      nextCursor: null
+                      snapshotAt: 2026-11-03T12:00:00.000Z
+                    generatedAt: 2026-11-03T12:00:00.000Z
+                    schemaVersion: "1.0"
+                    requestId: exemplo-ficticio
+                servicosOU:
+                  summary: Lista por serviço com regra OU
+                  value:
+                    items:
+                      - projectId: projeto-ficticio
+                        projectCode: "00501"
+                        weekStart: 2026-09-28
+                        avancoInicio: null
+                        avancoFim: null
+                        metaPontos: null
+                        metaDefinidaPor: PROJETO
+                        meta:
+                          situacao: ON_TARGET
+                          rotuloSituacao: Dentro da meta
+                          emAndamento: false
+                          periodoInicio: 2026-09-28
+                          periodoFim: 2026-10-04
+                          regra: ANY
+                          cenario: null
+                          atingimentoPct: 100
+                          itens:
+                            - tipo: SERVICE
+                              servico: FLUSHING
+                              rotuloServico: Flushing
+                              unidade: M
+                              rotuloUnidade: m
+                              base: WEEK_TOTAL
+                              valorCadastrado: 100
+                              planejado: 100
+                              realizado: 100
+                              diferenca: 0
+                              resultado: MET
+                              pendenciasBase: []
+                              descricao: A equipe deve fazer 100 m de flushing na semana.
+                            - tipo: SERVICE
+                              servico: TESTE_PRESSAO
+                              rotuloServico: Teste de pressão
+                              unidade: UN
+                              rotuloUnidade: un
+                              base: WEEK_TOTAL
+                              valorCadastrado: 2
+                              planejado: 2
+                              realizado: 0
+                              diferenca: -2
+                              resultado: BELOW
+                              pendenciasBase: []
+                              descricao: A equipe deve fazer 2 unidades de teste de pressão na semana.
+                          colaboradoresPorDia: []
+                        revisao: null
+                        updatedAt: 2026-11-03T12:00:00.000Z
+                    page:
+                      limit: 100
+                      hasMore: false
+                      nextCursor: null
+                      snapshotAt: 2026-11-03T12:00:00.000Z
+                    generatedAt: 2026-11-03T12:00:00.000Z
+                    schemaVersion: "1.0"
+                    requestId: exemplo-ficticio
+                cenario:
+                  summary: Cenário por combinação exata
+                  value:
+                    items:
+                      - projectId: projeto-ficticio
+                        projectCode: "00501"
+                        weekStart: 2026-09-28
+                        avancoInicio: null
+                        avancoFim: null
+                        metaPontos: null
+                        metaDefinidaPor: PROJETO
+                        meta:
+                          situacao: ABOVE
+                          rotuloSituacao: Acima da meta
+                          emAndamento: false
+                          periodoInicio: 2026-09-28
+                          periodoFim: 2026-10-04
+                          regra: ALL
+                          cenario: Limpeza e filtragem
+                          atingimentoPct: 110.00000000000001
+                          itens:
+                            - tipo: SERVICE
+                              servico: LIMPEZA_QUIMICA
+                              rotuloServico: Limpeza química
+                              unidade: M
+                              rotuloUnidade: m
+                              base: WEEK_TOTAL
+                              valorCadastrado: 100
+                              planejado: 100
+                              realizado: 120
+                              diferenca: 20
+                              resultado: MET
+                              pendenciasBase: []
+                              descricao: "Limpeza química: 100 m"
+                            - tipo: SERVICE
+                              servico: FILTRAGEM
+                              rotuloServico: Filtragem
+                              unidade: L
+                              rotuloUnidade: L
+                              base: WEEK_TOTAL
+                              valorCadastrado: 500
+                              planejado: 500
+                              realizado: 550
+                              diferenca: 50
+                              resultado: MET
+                              pendenciasBase: []
+                              descricao: "Filtragem: 500 L"
+                          colaboradoresPorDia: []
+                        revisao: null
+                        updatedAt: 2026-11-03T12:00:00.000Z
+                    page:
+                      limit: 100
+                      hasMore: false
+                      nextCursor: null
+                      snapshotAt: 2026-11-03T12:00:00.000Z
+                    generatedAt: 2026-11-03T12:00:00.000Z
+                    schemaVersion: "1.0"
+                    requestId: exemplo-ficticio
+                diaProdutivoPendente:
+                  summary: Por dia produtivo sem RDO-base
+                  value:
+                    items:
+                      - projectId: projeto-ficticio
+                        projectCode: "00501"
+                        weekStart: 2026-09-28
+                        avancoInicio: null
+                        avancoFim: null
+                        metaPontos: null
+                        metaDefinidaPor: PROJETO
+                        meta:
+                          situacao: NO_DATA
+                          rotuloSituacao: Sem dados suficientes
+                          emAndamento: false
+                          periodoInicio: 2026-09-28
+                          periodoFim: 2026-10-04
+                          regra: ALL
+                          cenario: null
+                          atingimentoPct: null
+                          itens:
+                            - tipo: SERVICE
+                              servico: FLUSHING
+                              rotuloServico: Flushing
+                              unidade: M
+                              rotuloUnidade: m
+                              base: PER_PRODUCTIVE_DAY
+                              valorCadastrado: 50
+                              planejado: null
+                              realizado: 80
+                              diferenca: null
+                              resultado: NO_DATA
+                              pendenciasBase:
+                                - MISSING_RDO_BASE
+                                - NO_PRODUCTIVE_TIME
+                              descricao: Cada colaborador deve fazer 50 m de flushing por dia trabalhado. Cada pessoa da equipe do
+                                RDO conta 1 por dia com RDO deste serviço.
+                          colaboradoresPorDia: []
+                        revisao: null
+                        updatedAt: 2026-11-03T12:00:00.000Z
+                    page:
+                      limit: 100
+                      hasMore: false
+                      nextCursor: null
+                      snapshotAt: 2026-11-03T12:00:00.000Z
+                    generatedAt: 2026-11-03T12:00:00.000Z
+                    schemaVersion: "1.0"
+                    requestId: exemplo-ficticio
+                colaboradoresPorDia:
+                  summary: Equipe mínima por dia
+                  value:
+                    items:
+                      - projectId: projeto-ficticio
+                        projectCode: "00501"
+                        weekStart: 2026-09-28
+                        avancoInicio: null
+                        avancoFim: null
+                        metaPontos: null
+                        metaDefinidaPor: PROJETO
+                        meta:
+                          situacao: BELOW
+                          rotuloSituacao: Abaixo da meta
+                          emAndamento: false
+                          periodoInicio: 2026-09-28
+                          periodoFim: 2026-10-04
+                          regra: ALL
+                          cenario: null
+                          atingimentoPct: 66.66666666666666
+                          itens:
+                            - tipo: ATTENDANCE
+                              servico: null
+                              rotuloServico: null
+                              unidade: COLLABORATORS
+                              rotuloUnidade: colab./dia
+                              base: PER_WORKDAY
+                              valorCadastrado: 3
+                              planejado: 3
+                              realizado: 2
+                              diferenca: -1
+                              resultado: BELOW
+                              pendenciasBase: []
+                              descricao: Pelo menos 3 colaboradores no RDO em cada dia de trabalho do projeto (seg, ter).
+                          colaboradoresPorDia:
+                            - data: 2026-09-28
+                              planejado: 3
+                              presentes: 3
+                            - data: 2026-09-29
+                              planejado: 3
+                              presentes: 2
+                        revisao: null
+                        updatedAt: 2026-11-03T12:00:00.000Z
+                    page:
+                      limit: 100
+                      hasMore: false
+                      nextCursor: null
+                      snapshotAt: 2026-11-03T12:00:00.000Z
+                    generatedAt: 2026-11-03T12:00:00.000Z
+                    schemaVersion: "1.0"
+                    requestId: exemplo-ficticio
         "400":
           $ref: "#/components/responses/ValidationError"
         "401":
@@ -4153,7 +4588,6 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "429":
           $ref: "#/components/responses/RateLimited"
-
   /integracoes/v1/acompanhamento/projetos/custos:
     get:
       tags:

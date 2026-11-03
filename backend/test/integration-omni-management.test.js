@@ -118,6 +118,8 @@ test('B6: HTTP, paridade com painel, privacidade e gatilhos transacionais em Pos
     const detail = await computeProjectProgressDetails(p1.id, { database: prisma });
     assert.equal(row.avancoFim, detail.dailyProgressHistory.find(point => point.date === '2026-10-04').progressPct);
     assert.equal(row.metaPontos, 15); assert.equal(row.metaDefinidaPor, 'PROJETO'); assert.equal(row.revisao.pendencias, 0);
+    assert.equal(row.meta.itens[0].valorCadastrado, 15); assert.equal(row.meta.itens[0].realizado, 35);
+    assert.equal(row.meta.situacao, 'ABOVE');
     assert.deepEqual(row.revisao.itens.map(item => item.rotulo), PROJECT_EXECUTION_WEEKLY_CHECKS.map(item => item.label));
     assert.equal(JSON.stringify(row).includes('PRIVATE'), false); assert.equal(JSON.stringify(row).includes(hidden.id), false);
     assert.equal(result.body.page.hasMore, true);
@@ -129,6 +131,7 @@ test('B6: HTTP, paridade com painel, privacidade e gatilhos transacionais em Pos
     await prisma.missionWeeklyProgressTarget.create({ data: { projectId: p1.id, weekStartDate: new Date(week), revision: 3, isDeleted: true, createdByName: 'PRIVATE_AUTHOR' } });
     const inherited = (await request(`/acompanhamento/projetos/semanas?weekStart=${week}&projectId=${p1.id}`, operational)).body.items[0];
     assert.equal(inherited.metaPontos, 9); assert.equal(inherited.metaDefinidaPor, 'GRUPO');
+    assert.equal(inherited.meta.itens[0].valorCadastrado, 9); assert.equal(inherited.meta.itens[0].realizado, 35);
   });
   await t.test('G3 mínimo independente de comercial; valores somente com escopo financeiro', async () => {
     let row = (await request('/projetos/condicoes?projectCode=00501', operational)).body.items[0];

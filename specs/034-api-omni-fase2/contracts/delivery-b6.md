@@ -37,7 +37,7 @@ visibilidade e vínculos. Snapshot antigo não reconstrói custos históricos.
 
 Uma linha por projeto/semana: projectId, projectCode, weekStart, avancoInicio,
 avancoFim (número % ou null), metaPontos (número de p.p. ou null), metaDefinidaPor
-(PROJETO/GRUPO ou null), revisao, updatedAt. Avanço calculado pelo mesmo serviço
+(PROJETO/GRUPO ou null), meta (objeto ou null), revisao, updatedAt. Avanço calculado pelo mesmo serviço
 de histórico diário do detalhe; início usa último ponto anterior à segunda e fim
 usa último ponto até domingo (ou leitura na semana atual). Sem evidência anterior,
 null; não inventar avanço zero nem retroagir avanço atual sobre semana passada.
@@ -49,6 +49,114 @@ revisao é null sem linha, ou {concluidaEm, pendencias, itens:[{codigo,rotulo,ok
 pendencias é a quantidade de checks pendentes; checks e rótulos vêm do filtroAPP.
 Conclusões legadas continuam válidas quando anteriores a checks novos.
 Nota livre e identidade do revisor/autor ficam fora.
+
+## G1 — meta na unidade cadastrada
+
+Extensão aditiva, OpenAPI 1.12.0, catálogo 2026-11-03.2; mesmo envelope 1.0 e
+mesmo escopo `acompanhamento.progresso.read`. `metaPontos` e `metaDefinidaPor`
+continuam com a seleção e os valores anteriores.
+
+`meta` é null para `NO_TARGET`. Nos demais casos contém todos os campos abaixo.
+Números são JSON numbers ou null; nenhuma conversão monetária ou de unidade.
+
+| Campo | Contrato |
+|---|---|
+| situacao | PLANNED, NO_DATA, NO_RULE, BELOW, PARTIAL, ON_TARGET ou ABOVE, do status do comparativo |
+| rotuloSituacao | Rótulo pt-BR compartilhado com o painel |
+| emAndamento | inProgress do comparativo |
+| periodoInicio, periodoFim | Datas civis inclusivas da contagem, que podem atravessar a semana civil |
+| regra | ALL (E) ou ANY (OU); cenários legados usam ALL |
+| cenario | Nome do cenário selecionado ou null |
+| atingimentoPct | achievementPct, número ou null, sem substituir as medidas dos itens |
+| itens | Uma entrada por goal do cenário selecionado ou da lista; vazio em NO_RULE |
+| colaboradoresPorDia | Lista `{data,planejado,presentes}`, só para dias contratados do período; vazia sem meta de presença |
+
+Cada entrada de `itens` contém:
+
+| Campo | Contrato |
+|---|---|
+| tipo | PROGRESS, SERVICE ou ATTENDANCE, conforme weeklyTargetGoalKind |
+| servico, rotuloServico | serviceType e rótulo de WEEKLY_TARGET_SERVICES, ambos null para meta sem serviço específico |
+| unidade | PCT_POINTS, M, L, UN ou COLLABORATORS |
+| rotuloUnidade | p.p., m, L, un ou colab./dia, conforme weeklyTargetUnit |
+| base | WEEK_TOTAL, PER_PRODUCTIVE_DAY ou PER_WORKDAY |
+| valorCadastrado | Valor digitado; não é multiplicado pela base produtiva |
+| planejado, realizado, diferenca | plannedValue, actualValue e differenceValue do mesmo cálculo do painel |
+| resultado | MET, BELOW, NO_DATA ou PLANNED; listas usam outcome, cenários traduzem os valores já calculados para o mesmo vocabulário |
+| pendenciasBase | Apenas códigos de productivityIssues, como MISSING_RDO_BASE, MISSING_TEAM e UNCONFIRMED_TEAM |
+| descricao | Mesma frase de configuração da linha no painel, com unidade e base cadastradas |
+
+`presentes` é uma contagem de pessoas distintas nos RDOs, incluindo turnos e
+sem duplicar pessoas. É null para dia futuro, sem RDO ou com equipe não confirmada;
+RDO confirmado sem equipe conta zero. Não inclui nomes, ids ou dados individuais.
+A lista contém somente dias de trabalho da meta dentro do período (o mesmo
+`dailyAttendance` do painel), inclusive dias futuros desse período.
+
+O cálculo é exclusivamente `buildWeeklyProgressComparison`, com alvos completos
+para resolver repetição, revisão, exclusão e limites entre períodos adjacentes.
+Não recortar alvos/históricos nas semanas solicitadas antes do cálculo.
+`loadWeeklyComparisonSources` e `buildWeeklyComparisonHistories` montam as
+fontes compartilhadas com o carregador de serviços do painel: medições corrigidas,
+serviços importados, equipe produtiva e presença dos RDOs. O histórico de avanço
+é o diário do detalhe, também fornecido ao painel. Descrições e rótulos residem em
+`shared/modules/weekly-target-presentation.js` e são usados pelos dois consumidores.
+
+O recurso tem uma linha por projeto. A precedência projeto/grupo continua igual
+a B6: quando só existe regra de grupo, aplica-a às fontes do projeto da linha.
+Não soma dados de outros membros (inclusive os fora do recorte do token).
+Portanto essa linha não representa o painel agregado do grupo, cujo histórico é
+ponderado por dados de todos os membros. Essa diferença de granularidade é
+preservada para respeitar o contrato e o recorte; não há segundo cálculo de meta.
+
+Semanas futuras continuam inválidas nos filtros de G1/G5. `PLANNED` pode aparecer
+quando a contagem da semana atual começa depois de hoje (por exemplo, quarta a
+terça consultada na segunda). O comparativo também suporta semanas futuras;
+esta extensão não amplia o intervalo permitido pelo endpoint.
+
+Sincronização: releitura das últimas quatro semanas a cada 30 minutos.
+O realizado é derivado e não gera evento novo. A mudança da meta continua usando
+`acompanhamento.meta_alterada`. As fontes são carregadas em lote só para os
+projetos da página; os serviços carregados são reutilizados no avanço, sem N+1.
+O watermark de leitura e as limitações de snapshot descritas acima permanecem.
+
+Exemplos inteiramente fictícios do campo `meta` (os demais campos da linha e o
+envelope estão nos exemplos completos do OpenAPI):
+
+### p.p. legado
+
+```json
+{"situacao":"ABOVE","rotuloSituacao":"Acima da meta","emAndamento":false,"periodoInicio":"2026-09-28","periodoFim":"2026-10-04","regra":"ALL","cenario":"Meta geral","atingimentoPct":125,"itens":[{"tipo":"PROGRESS","servico":null,"rotuloServico":null,"unidade":"PCT_POINTS","rotuloUnidade":"p.p.","base":"WEEK_TOTAL","valorCadastrado":20,"planejado":20,"realizado":25,"diferenca":5,"resultado":"MET","pendenciasBase":[],"descricao":"Total geral: 20 p.p."}],"colaboradoresPorDia":[]}
+```
+
+### Lista por serviço com regra E
+
+```json
+{"situacao":"PARTIAL","rotuloSituacao":"Meta parcial","emAndamento":false,"periodoInicio":"2026-09-28","periodoFim":"2026-10-04","regra":"ALL","cenario":null,"atingimentoPct":80,"itens":[{"tipo":"SERVICE","servico":"FLUSHING","rotuloServico":"Flushing","unidade":"M","rotuloUnidade":"m","base":"WEEK_TOTAL","valorCadastrado":100,"planejado":100,"realizado":100,"diferenca":0,"resultado":"MET","pendenciasBase":[],"descricao":"A equipe deve fazer 100 m de flushing na semana."},{"tipo":"SERVICE","servico":"FILTRAGEM","rotuloServico":"Filtragem","unidade":"L","rotuloUnidade":"L","base":"WEEK_TOTAL","valorCadastrado":500,"planejado":500,"realizado":400,"diferenca":-100,"resultado":"BELOW","pendenciasBase":[],"descricao":"A equipe deve fazer 500 L de óleo filtrado na semana."}],"colaboradoresPorDia":[]}
+```
+
+### Lista por serviço com regra OU
+
+```json
+{"situacao":"ON_TARGET","rotuloSituacao":"Dentro da meta","emAndamento":false,"periodoInicio":"2026-09-28","periodoFim":"2026-10-04","regra":"ANY","cenario":null,"atingimentoPct":100,"itens":[{"tipo":"SERVICE","servico":"FLUSHING","rotuloServico":"Flushing","unidade":"M","rotuloUnidade":"m","base":"WEEK_TOTAL","valorCadastrado":100,"planejado":100,"realizado":100,"diferenca":0,"resultado":"MET","pendenciasBase":[],"descricao":"A equipe deve fazer 100 m de flushing na semana."},{"tipo":"SERVICE","servico":"TESTE_PRESSAO","rotuloServico":"Teste de pressão","unidade":"UN","rotuloUnidade":"un","base":"WEEK_TOTAL","valorCadastrado":2,"planejado":2,"realizado":0,"diferenca":-2,"resultado":"BELOW","pendenciasBase":[],"descricao":"A equipe deve fazer 2 unidades de teste de pressão na semana."}],"colaboradoresPorDia":[]}
+```
+
+### Cenário por combinação exata
+
+```json
+{"situacao":"ABOVE","rotuloSituacao":"Acima da meta","emAndamento":false,"periodoInicio":"2026-09-28","periodoFim":"2026-10-04","regra":"ALL","cenario":"Limpeza e filtragem","atingimentoPct":110.00000000000001,"itens":[{"tipo":"SERVICE","servico":"LIMPEZA_QUIMICA","rotuloServico":"Limpeza química","unidade":"M","rotuloUnidade":"m","base":"WEEK_TOTAL","valorCadastrado":100,"planejado":100,"realizado":120,"diferenca":20,"resultado":"MET","pendenciasBase":[],"descricao":"Limpeza química: 100 m"},{"tipo":"SERVICE","servico":"FILTRAGEM","rotuloServico":"Filtragem","unidade":"L","rotuloUnidade":"L","base":"WEEK_TOTAL","valorCadastrado":500,"planejado":500,"realizado":550,"diferenca":50,"resultado":"MET","pendenciasBase":[],"descricao":"Filtragem: 500 L"}],"colaboradoresPorDia":[]}
+```
+
+### Por dia produtivo sem RDO-base
+
+```json
+{"situacao":"NO_DATA","rotuloSituacao":"Sem dados suficientes","emAndamento":false,"periodoInicio":"2026-09-28","periodoFim":"2026-10-04","regra":"ALL","cenario":null,"atingimentoPct":null,"itens":[{"tipo":"SERVICE","servico":"FLUSHING","rotuloServico":"Flushing","unidade":"M","rotuloUnidade":"m","base":"PER_PRODUCTIVE_DAY","valorCadastrado":50,"planejado":null,"realizado":80,"diferenca":null,"resultado":"NO_DATA","pendenciasBase":["MISSING_RDO_BASE","NO_PRODUCTIVE_TIME"],"descricao":"Cada colaborador deve fazer 50 m de flushing por dia trabalhado. Cada pessoa da equipe do RDO conta 1 por dia com RDO deste serviço."}],"colaboradoresPorDia":[]}
+```
+
+### Equipe mínima por dia
+
+```json
+{"situacao":"BELOW","rotuloSituacao":"Abaixo da meta","emAndamento":false,"periodoInicio":"2026-09-28","periodoFim":"2026-10-04","regra":"ALL","cenario":null,"atingimentoPct":66.66666666666666,"itens":[{"tipo":"ATTENDANCE","servico":null,"rotuloServico":null,"unidade":"COLLABORATORS","rotuloUnidade":"colab./dia","base":"PER_WORKDAY","valorCadastrado":3,"planejado":3,"realizado":2,"diferenca":-1,"resultado":"BELOW","pendenciasBase":[],"descricao":"Pelo menos 3 colaboradores no RDO em cada dia de trabalho do projeto (seg, ter)."}],"colaboradoresPorDia":[{"data":"2026-09-28","planejado":3,"presentes":3},{"data":"2026-09-29","planejado":3,"presentes":2}]}
+```
 
 ## G2
 

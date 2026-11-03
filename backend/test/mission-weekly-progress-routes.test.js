@@ -44,7 +44,7 @@ test('APIs das duas áreas compartilham metas, validam entradas e preservam perm
   }]);
   stub(prisma.report, 'findMany', async ({ where }) => {
     assert.deepEqual(where, { projectId: { in: ['p1'] }, reportType: 'RDO', deletedAt: null });
-    return [{ reportType: 'RDO', reportDate: '2026-09-28', arrivalTime: '08:00', departureTime: '16:00', lunchBreak: 'sem intervalo',
+    return [{ projectId: 'p1', reportType: 'RDO', reportDate: '2026-09-28', arrivalTime: '08:00', departureTime: '16:00', lunchBreak: 'sem intervalo',
       collaborators: attendanceCrew.map(collaboratorId => ({ collaboratorId, jobRoleSnapshot: { isOperational: true } })),
       services: [{ serviceType: 'Filtragem', startTime: '08:00', endTime: productiveEndTime, extraData: { serviceCollaboratorIds: ['c1'] } }] }];
   });
