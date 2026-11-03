@@ -703,7 +703,7 @@ export async function computeProgressHistoryForProjects(projectIds, { daily = fa
 // Antes desta função o detalhe buscava escopo, projeto e serviços realizados separadamente para o
 // avanço atual, o histórico e os recortes. Em grupos de missões esse trabalho ainda era repetido
 // para calcular o peso de cada membro.
-export async function computeProgressDetailsForProjects(projectIds, { database = prisma } = {}) {
+export async function computeProgressDetailsForProjects(projectIds, { database = prisma, servicesByProject: preloadedServices } = {}) {
   const ids = [...new Set((projectIds ?? []).map(String).filter(Boolean))];
   const result = new Map();
   if (ids.length === 0) return result;
@@ -731,7 +731,7 @@ export async function computeProgressDetailsForProjects(projectIds, { database =
         laborSleepModeByCollaborator: true
       }
     }),
-    loadReportServicesByProject(ids, { database }),
+    preloadedServices ?? loadReportServicesByProject(ids, { database }),
     database.projectManualProgressHistory.findMany({
       where: { projectId: { in: ids } },
       select: { projectId: true, progressPct: true, recordedAt: true },

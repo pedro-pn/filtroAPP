@@ -564,7 +564,7 @@ Contrato completo: [delivery-b.md](../specs/034-api-omni-fase2/contracts/deliver
 ## Omni — B6 Gestão
 
 Cinco consultas aditivas, disponíveis também no Playground. Catálogo
-`2026-11-03.1`, OpenAPI `1.11.0`, envelope `schemaVersion: 1.0`. Todas respeitam
+`2026-11-03.2`, OpenAPI `1.12.0`, envelope `schemaVersion: 1.0`. Todas respeitam
 projetos e escopos antes da paginação. Não alteram credenciais existentes.
 
 | GET (base `/api/integracoes/v1`) | Escopo | Sensibilidade |
@@ -592,10 +592,34 @@ painel (um registro após 21h de São Paulo pode cair no dia UTC seguinte).
 resolvedor do painel. Projeto precede o grupo ativo; `metaDefinidaPor` é
 `PROJETO`, `GRUPO` ou null. Meta estruturada sem `plannedPctPoints` retorna null.
 
-Exemplo fictício de item G1:
+O campo aditivo `meta` entrega o comparativo de `buildWeeklyProgressComparison`,
+na unidade cadastrada, com os rótulos e descrições compartilhados com o painel.
+É null quando não há meta; contém `situacao`, `rotuloSituacao`, `emAndamento`,
+`periodoInicio`, `periodoFim`, `regra`, `cenario`, `atingimentoPct`, `itens` e
+`colaboradoresPorDia`. Cada item conserva tipo, serviço, unidade, base,
+`valorCadastrado`, `planejado`, `realizado`, `diferenca`, `resultado`,
+`pendenciasBase` (códigos) e `descricao`. Presença traz apenas
+`{data,planejado,presentes}` por dia contratado, sem pessoas identificáveis;
+`presentes: null` significa dia futuro ou sem base confirmada. Não interpretar
+como zero. Sem meta de presença, a lista é vazia.
+
+A contagem pode atravessar semanas civis. Use `meta.periodoInicio/periodoFim`,
+sem derivá-los de `weekStart`. Um período ainda não iniciado pode ser PLANNED
+mesmo na semana atual. Semanas futuras continuam recusadas. `metaPontos` e
+`metaDefinidaPor` preservam o contrato anterior. Quando a regra vem do grupo,
+o realizado continua restrito ao projeto da linha, sem agregar outros membros.
+A API não é uma consulta de totais do grupo.
+
+Releia as últimas quatro semanas a cada 30 minutos: o realizado muda com os
+RDOs sem evento novo. `acompanhamento.meta_alterada` cobre edições de meta.
+Os dados são carregados em lote por página, reutilizando os serviços do avanço.
+Exemplos completos de p.p., listas E/OU, cenário, base produtiva pendente e
+presença estão no [contrato B6](../specs/034-api-omni-fase2/contracts/delivery-b6.md#g1--meta-na-unidade-cadastrada).
+
+Exemplo fictício de item G1 sem meta cadastrada:
 
 ```json
-{"projectId":"projeto-ficticio","projectCode":"00501","weekStart":"2026-09-28","avancoInicio":10,"avancoFim":25,"metaPontos":20,"metaDefinidaPor":"PROJETO","revisao":null,"updatedAt":"2026-11-03T12:00:00.000Z"}
+{"projectId":"projeto-ficticio","projectCode":"00501","weekStart":"2026-09-28","avancoInicio":10,"avancoFim":25,"metaPontos":null,"metaDefinidaPor":null,"meta":null,"revisao":null,"updatedAt":"2026-11-03T12:00:00.000Z"}
 ```
 
 `revisao`, quando existe, tem `concluidaEm`, `pendencias` (quantidade) e
