@@ -4,7 +4,7 @@ import { OPERATIONAL_DOWNLOADS } from './extended-operational-resources.js';
 import { describePlaygroundParameters } from './playground-parameters.js';
 import { CRM_PLANNING_EXAMPLE } from '../../../../shared/modules/crm-planning-example.js';
 
-export const API_CATALOG_VERSION = '2026-10-29.2';
+export const API_CATALOG_VERSION = '2026-11-03.1';
 export { API_DATA_DOMAINS, DATA_CATALOG_VERSION, flattenDataCatalogModels, futureScopeDefinitions } from './data-catalog.js';
 
 const QUALITY_RECORD_FIELDS = ['id', 'number', 'type', 'registeredAt', 'origin', 'project', 'eventDate', 'nature', 'subnature', 'description', 'impact', 'recurrence', 'linkedRnc', 'disposition', 'definedAction', 'actionOwner', 'actionDeadline', 'evidenceSummary', 'resultVerification', 'status', 'createdAt', 'updatedAt'];
@@ -17,6 +17,10 @@ const QUALITY_SCOPE_FIELDS = {
 };
 
 export const API_SCOPES = Object.freeze([
+  { code: 'projetos.condicoes.valores.read', domain: 'Projetos, clientes e configurações', label: 'Ler diária de stand-by dos equipamentos',
+    description: 'Acrescenta exclusivamente a diária da proposta vinculada e a moeda BRL às condições dos projetos autorizados.',
+    sensitivity: 'FINANCIAL', status: 'AVAILABLE', dependencies: ['projetos.condicoes.read'], models: ['CommercialProposal'],
+    exposedFields: ['diariaStandByEquipamento', 'currency'], excludedFields: ['demais preços', 'margens', 'componentes livres'] },
   { code: 'efetivo.projetos.medicao.valores.read', domain: 'Planejamento de efetivo', label: 'Ler valores da medição',
     description: 'Acrescenta valores executado, medido e aprovado em BRL à medição dos projetos autorizados.', sensitivity: 'FINANCIAL', status: 'AVAILABLE',
     dependencies: ['efetivo.projetos.medicao.read'], models: ['ProjectWorkflowMeasurement'], exposedFields: ['executedAmount','measuredAmount','approvedAmount','currency'], excludedFields: ['observações', 'pessoas'] },

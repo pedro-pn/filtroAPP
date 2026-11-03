@@ -46,6 +46,9 @@ export function makeOperationalReadQuerySchema(z, { maxPageSize = 500 } = {}) {
     status: optionalCsvEnum(z, INTEGRATION_REPORT_STATUSES),
     stage: z.enum(PROJECT_WORKFLOW_STAGES).optional(),
     snapshotAt: z.string().datetime({ offset: true }).optional(),
+    weekStart: z.string().date().optional(),
+    from: z.string().date().optional(),
+    to: z.string().date().optional(),
     projectId: z.string().trim().min(1).max(100).optional(),
     projectCode: z.string().trim().min(1).max(100).optional(),
     active: z.preprocess(value => value === 'true' ? true : value === 'false' ? false : value, z.boolean().optional())

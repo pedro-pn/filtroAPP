@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: FiltroApp - Administração e API de Integrações
-  version: "1.10.0"
+  version: "1.11.0"
   description: >-
     Contrato da gestão administrativa de credenciais, consultas externas e escrita
     contratada do CRM Prisma no Efetivo. Tokens de integração e sessões humanas
@@ -430,6 +430,11 @@ paths:
                     - operational.Romaneio.list
                     - operational.ProjectPending.list
                     - operational.LogisticsUnloading.list
+                    - ponto.projects.weeks.list
+                    - efetivo.allocations.list
+                    - projects.conditions.list
+                    - acompanhamento.projects.costs.list
+                    - acompanhamento.projects.weeks.list
                 pathParams:
                   type: object
                   additionalProperties:
@@ -2905,7 +2910,7 @@ paths:
         - IntegrationOperational
       operationId: listIntegrationEvents
       summary: Eventos de integração — identificadores das mudanças
-      description: Feed vivo dos últimos 30 dias, sequência em ordem de commit. Exige eventos.read mais escopo do recurso e recorte do token. nextCursor também é retornado quando hasMore=false e deve ser usado no próximo polling. Cursor atrasado retorna 410 CURSOR_EXPIRED; reconciliar e reiniciar. Nenhum conteúdo no evento. Deduplicar por id. Inclui medicao.alterada, nota.emitida, nota.recebimento_alterado, romaneio.emitido, pendencia.alterada e descarga.confirmada conforme o escopo de leitura de cada recurso.
+      description: Feed vivo dos últimos 30 dias, sequência em ordem de commit. Exige eventos.read mais escopo do recurso e recorte do token. nextCursor também é retornado quando hasMore=false e deve ser usado no próximo polling. Cursor atrasado retorna 410 CURSOR_EXPIRED; reconciliar e reiniciar. Nenhum conteúdo no evento. Deduplicar por id. B6 acrescenta acompanhamento.meta_alterada e acompanhamento.revisao_concluida (acompanhamento.progresso.read), e alocacao.alterada (efetivo.alocacoes.read). Inclui medicao.alterada, nota.emitida, nota.recebimento_alterado, romaneio.emitido, pendencia.alterada e descarga.confirmada conforme o escopo de leitura de cada recurso.
       security:
         - IntegrationToken: []
       x-required-scopes:
@@ -3957,6 +3962,830 @@ paths:
           $ref: "#/components/responses/RateLimited"
       x-optional-scopes:
         - efetivo.projetos.medicao.valores.read
+
+  /integracoes/v1/acompanhamento/projetos/semanas:
+    get:
+      tags:
+        - IntegrationOperational
+      operationId: listIntegrationProjectWeeks
+      summary: Avanço, meta e revisão semanal por projeto
+      description: Avanço do detalhe e metas/revisões por projeto e semana, de segunda
+        a domingo em São Paulo. Até 12 semanas; sem notas ou autores. Agregados
+        usam watermark de leitura; updatedSince pode repetir linhas. Snapshot não
+        reconstrói histórico de custos/fontes. Dias civis do motor existente;
+        histórico manual conserva o dia UTC de recordedAt para paridade com o
+        detalhe.
+      security:
+        - IntegrationToken: []
+      x-required-scopes:
+        - acompanhamento.progresso.read
+      parameters:
+        - $ref: "#/components/parameters/IntegrationLimit"
+        - $ref: "#/components/parameters/IntegrationCursor"
+        - name: updatedSince
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: snapshotAt
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: projectId
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+        - name: projectCode
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+        - name: weekStart
+          in: query
+          schema:
+            type: string
+            format: date
+          description: "Segunda a domingo em America/Sao_Paulo; weekStart ou from/to, até
+            12 semanas. Padrão: semana atual."
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+          description: "Segunda a domingo em America/Sao_Paulo; weekStart ou from/to, até
+            12 semanas. Padrão: semana atual."
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+          description: "Segunda a domingo em America/Sao_Paulo; weekStart ou from/to, até
+            12 semanas. Padrão: semana atual."
+      responses:
+        "200":
+          description: Página no recorte autorizado; sem totais globais. Veja o contrato
+            B6 para convenções e supressão de grupos pequenos.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                  - page
+                  - generatedAt
+                  - schemaVersion
+                  - requestId
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required:
+                        - projectId
+                        - projectCode
+                        - weekStart
+                        - avancoInicio
+                        - avancoFim
+                        - metaPontos
+                        - metaDefinidaPor
+                        - revisao
+                        - updatedAt
+                      properties:
+                        projectId:
+                          type: string
+                        projectCode:
+                          type: string
+                        weekStart:
+                          type: string
+                          format: date
+                        avancoInicio:
+                          type: number
+                          nullable: true
+                        avancoFim:
+                          type: number
+                          nullable: true
+                        metaPontos:
+                          type: number
+                          nullable: true
+                        metaDefinidaPor:
+                          type: string
+                          nullable: true
+                        revisao:
+                          type: object
+                          additionalProperties: false
+                          required:
+                            - concluidaEm
+                            - pendencias
+                            - itens
+                          properties:
+                            concluidaEm:
+                              type: string
+                              format: date-time
+                              nullable: true
+                            pendencias:
+                              type: integer
+                              minimum: 0
+                            itens:
+                              type: array
+                              items:
+                                type: object
+                                additionalProperties: false
+                                required:
+                                  - codigo
+                                  - rotulo
+                                  - ok
+                                properties:
+                                  codigo:
+                                    type: string
+                                  rotulo:
+                                    type: string
+                                  ok:
+                                    type: boolean
+                          nullable: true
+                        updatedAt:
+                          type: string
+                          format: date-time
+                  page:
+                    $ref: "#/components/schemas/IntegrationPageMeta"
+                  generatedAt:
+                    type: string
+                    format: date-time
+                  schemaVersion:
+                    type: string
+                    const: "1.0"
+                  requestId:
+                    type: string
+              example:
+                items:
+                  - projectId: projeto-ficticio
+                    projectCode: "00501"
+                    weekStart: 2026-09-28
+                    avancoInicio: 10
+                    avancoFim: 25
+                    metaPontos: 20
+                    metaDefinidaPor: PROJETO
+                    revisao: null
+                    updatedAt: 2026-11-03T12:00:00.000Z
+                page:
+                  limit: 100
+                  hasMore: false
+                  nextCursor: null
+                  snapshotAt: 2026-11-03T12:00:00.000Z
+                generatedAt: 2026-11-03T12:00:00.000Z
+                schemaVersion: "1.0"
+                requestId: requisicao-ficticia
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/InvalidIntegrationToken"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
+  /integracoes/v1/acompanhamento/projetos/custos:
+    get:
+      tags:
+        - IntegrationOperational
+      operationId: listIntegrationProjectCosts
+      summary: Custos realizados e avanço por projeto
+      description: "Valores em BRL e avanço iguais ao detalhe do Acompanhamento: Omie,
+        estoque, manuais e mão de obra; previsto inclui adicionais e percentual da
+        proposta. Agregados usam watermark de leitura; updatedSince pode repetir
+        linhas. Snapshot não reconstrói histórico de custos/fontes."
+      security:
+        - IntegrationToken: []
+      x-required-scopes:
+        - acompanhamento.custos.read
+      parameters:
+        - $ref: "#/components/parameters/IntegrationLimit"
+        - $ref: "#/components/parameters/IntegrationCursor"
+        - name: updatedSince
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: snapshotAt
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: projectId
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+        - name: projectCode
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+      responses:
+        "200":
+          description: Página no recorte autorizado; sem totais globais. Veja o contrato
+            B6 para convenções e supressão de grupos pequenos.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                  - page
+                  - generatedAt
+                  - schemaVersion
+                  - requestId
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required:
+                        - projectId
+                        - projectCode
+                        - orcamento
+                        - custoRealizado
+                        - avancoFisico
+                        - consumoDoCusto
+                        - currency
+                        - atualizadoEm
+                      properties:
+                        projectId:
+                          type: string
+                        projectCode:
+                          type: string
+                        orcamento:
+                          type: object
+                          additionalProperties: false
+                          required:
+                            - precoVenda
+                            - custoPrevisto
+                            - margemPrevista
+                            - diasPrevistos
+                          properties:
+                            precoVenda: &a1
+                              type: string
+                              pattern: ^-?\d+\.\d{2}$
+                              nullable: true
+                            custoPrevisto: *a1
+                            margemPrevista: &a2
+                              type: number
+                              nullable: true
+                            diasPrevistos: *a2
+                          nullable: true
+                        custoRealizado:
+                          type: object
+                          additionalProperties: false
+                          required:
+                            - total
+                            - porCategoria
+                            - ate
+                          properties:
+                            total:
+                              type: string
+                              pattern: ^-?\d+\.\d{2}$
+                              nullable: false
+                            porCategoria:
+                              type: array
+                              items:
+                                type: object
+                                additionalProperties: false
+                                required:
+                                  - codigo
+                                  - rotulo
+                                  - valor
+                                properties:
+                                  codigo:
+                                    type: string
+                                  rotulo:
+                                    type: string
+                                  valor:
+                                    type: string
+                                    pattern: ^-?\d+\.\d{2}$
+                                    nullable: false
+                            ate:
+                              type: string
+                              format: date
+                        avancoFisico:
+                          type: number
+                          nullable: true
+                        consumoDoCusto:
+                          type: number
+                          nullable: true
+                        currency:
+                          type: string
+                        atualizadoEm:
+                          type: string
+                          format: date-time
+                  page:
+                    $ref: "#/components/schemas/IntegrationPageMeta"
+                  generatedAt:
+                    type: string
+                    format: date-time
+                  schemaVersion:
+                    type: string
+                    const: "1.0"
+                  requestId:
+                    type: string
+              example:
+                items:
+                  - projectId: projeto-ficticio
+                    projectCode: "00501"
+                    orcamento:
+                      precoVenda: "2000.00"
+                      custoPrevisto: "1000.00"
+                      margemPrevista: 50
+                      diasPrevistos: 20
+                    custoRealizado:
+                      total: "620.00"
+                      porCategoria:
+                        - codigo: COMPRAS_OMIE
+                          rotulo: Compras (Omie)
+                          valor: "200.00"
+                        - codigo: ESTOQUE
+                          rotulo: Estoque (químicos/filtros)
+                          valor: "80.00"
+                        - codigo: CUSTOS_MANUAIS
+                          rotulo: Custos manuais
+                          valor: "40.00"
+                        - codigo: MAO_DE_OBRA
+                          rotulo: Mão de obra
+                          valor: "300.00"
+                      ate: 2026-11-03
+                    avancoFisico: 45
+                    consumoDoCusto: 62
+                    currency: BRL
+                    atualizadoEm: 2026-11-03T12:00:00.000Z
+                page:
+                  limit: 100
+                  hasMore: false
+                  nextCursor: null
+                  snapshotAt: 2026-11-03T12:00:00.000Z
+                generatedAt: 2026-11-03T12:00:00.000Z
+                schemaVersion: "1.0"
+                requestId: requisicao-ficticia
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/InvalidIntegrationToken"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
+  /integracoes/v1/projetos/condicoes:
+    get:
+      tags:
+        - IntegrationOperational
+      operationId: listIntegrationProjectConditions
+      summary: Condições mínimas da proposta por projeto
+      description: Dias do ProjectBudget versão 1, sem confundir seleção da revisão
+        com BudgetSelectionStatus (UNKNOWN/CHOSEN/LOST); fallback na proposta
+        vinculada exatamente por sourceProposalCodBd. Com
+        projetos.condicoes.valores.read acrescenta diariaStandByEquipamento
+        (string BRL/null) e currency BRL; sem ele omite ambos. updatedAt é o maior
+        carimbo projeto/orçamento/proposta.
+      security:
+        - IntegrationToken: []
+      x-required-scopes:
+        - projetos.condicoes.read
+      x-optional-scopes:
+        - projetos.condicoes.valores.read
+      parameters:
+        - $ref: "#/components/parameters/IntegrationLimit"
+        - $ref: "#/components/parameters/IntegrationCursor"
+        - name: updatedSince
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: snapshotAt
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: projectId
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+        - name: projectCode
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+      responses:
+        "200":
+          description: Página no recorte autorizado; sem totais globais. Veja o contrato
+            B6 para convenções e supressão de grupos pequenos.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                  - page
+                  - generatedAt
+                  - schemaVersion
+                  - requestId
+                properties:
+                  items:
+                    type: array
+                    items:
+                      oneOf:
+                        - type: object
+                          additionalProperties: false
+                          required:
+                            - projectId
+                            - projectCode
+                            - permanenciaPrevistaDias
+                            - updatedAt
+                          properties:
+                            projectId: &a1
+                              type: string
+                            projectCode: &a2
+                              type: string
+                            permanenciaPrevistaDias: &a3
+                              type: integer
+                              nullable: true
+                            updatedAt: &a4
+                              type: string
+                              format: date-time
+                        - type: object
+                          additionalProperties: false
+                          required:
+                            - projectId
+                            - projectCode
+                            - permanenciaPrevistaDias
+                            - updatedAt
+                            - diariaStandByEquipamento
+                            - currency
+                          properties:
+                            projectId: *a1
+                            projectCode: *a2
+                            permanenciaPrevistaDias: *a3
+                            updatedAt: *a4
+                            diariaStandByEquipamento:
+                              type: string
+                              nullable: true
+                            currency:
+                              type: string
+                  page:
+                    $ref: "#/components/schemas/IntegrationPageMeta"
+                  generatedAt:
+                    type: string
+                    format: date-time
+                  schemaVersion:
+                    type: string
+                    const: "1.0"
+                  requestId:
+                    type: string
+              example:
+                items:
+                  - projectId: projeto-ficticio
+                    projectCode: "00501"
+                    permanenciaPrevistaDias: 20
+                    updatedAt: 2026-11-03T12:00:00.000Z
+                page:
+                  limit: 100
+                  hasMore: false
+                  nextCursor: null
+                  snapshotAt: 2026-11-03T12:00:00.000Z
+                generatedAt: 2026-11-03T12:00:00.000Z
+                schemaVersion: "1.0"
+                requestId: requisicao-ficticia
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/InvalidIntegrationToken"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
+  /integracoes/v1/efetivo/alocacoes:
+    get:
+      tags:
+        - IntegrationOperational
+      operationId: listIntegrationAllocations
+      summary: Alocações oficiais por projeto, incluindo exclusões
+      description: Somente projetos autorizados, plano oficial ativo e missão
+        confirmada não excluída. Inclui tombstones de alocação. Datas civis/null
+        da alocação, sem expandir ciclos. Sem nome/CPF/salário/contatos.
+        updatedSince usa o carimbo persistido da alocação; reconcile mudanças de
+        missão/plano.
+      security:
+        - IntegrationToken: []
+      x-required-scopes:
+        - efetivo.alocacoes.read
+      parameters:
+        - $ref: "#/components/parameters/IntegrationLimit"
+        - $ref: "#/components/parameters/IntegrationCursor"
+        - name: updatedSince
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: snapshotAt
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: projectId
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+        - name: projectCode
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+      responses:
+        "200":
+          description: Página no recorte autorizado; sem totais globais. Veja o contrato
+            B6 para convenções e supressão de grupos pequenos.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                  - page
+                  - generatedAt
+                  - schemaVersion
+                  - requestId
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required:
+                        - id
+                        - projectId
+                        - projectCode
+                        - collaboratorId
+                        - funcao
+                        - mobilizacao
+                        - desmobilizacao
+                        - updatedAt
+                        - deletedAt
+                      properties:
+                        id:
+                          type: string
+                        projectId:
+                          type: string
+                        projectCode:
+                          type: string
+                        collaboratorId:
+                          type: string
+                        funcao:
+                          type: string
+                        mobilizacao:
+                          type: string
+                          format: date
+                          nullable: true
+                        desmobilizacao:
+                          type: string
+                          format: date
+                          nullable: true
+                        updatedAt:
+                          type: string
+                          format: date-time
+                        deletedAt:
+                          type: string
+                          format: date-time
+                          nullable: true
+                  page:
+                    $ref: "#/components/schemas/IntegrationPageMeta"
+                  generatedAt:
+                    type: string
+                    format: date-time
+                  schemaVersion:
+                    type: string
+                    const: "1.0"
+                  requestId:
+                    type: string
+              example:
+                items:
+                  - projectId: projeto-ficticio
+                    projectCode: "00501"
+                    id: alocacao-ficticia
+                    collaboratorId: colaborador-ficticio
+                    funcao: Operador
+                    mobilizacao: 2026-09-28
+                    desmobilizacao: null
+                    updatedAt: 2026-11-03T12:00:00.000Z
+                    deletedAt: null
+                page:
+                  limit: 100
+                  hasMore: false
+                  nextCursor: null
+                  snapshotAt: 2026-11-03T12:00:00.000Z
+                generatedAt: 2026-11-03T12:00:00.000Z
+                schemaVersion: "1.0"
+                requestId: requisicao-ficticia
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/InvalidIntegrationToken"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
+  /integracoes/v1/ponto/projetos/semanas:
+    get:
+      tags:
+        - IntegrationOperational
+      operationId: listIntegrationProjectAttendanceWeeks
+      summary: Ponto semanal agregado por projeto
+      description: Somente agregado de projetos autorizados; omite semanas com menos
+        de duas pessoas. Mesma atribuição diária, aliases e ajustes do
+        Acompanhamento. Até 12 semanas. Agregados usam watermark de leitura;
+        updatedSince pode repetir linhas. Snapshot não reconstrói histórico de
+        custos/fontes. Dias civis do motor existente; histórico manual conserva o
+        dia UTC de recordedAt para paridade com o detalhe.
+      security:
+        - IntegrationToken: []
+      x-required-scopes:
+        - ponto.resumos.read
+      parameters:
+        - $ref: "#/components/parameters/IntegrationLimit"
+        - $ref: "#/components/parameters/IntegrationCursor"
+        - name: updatedSince
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: snapshotAt
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: projectId
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+        - name: projectCode
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+        - name: weekStart
+          in: query
+          schema:
+            type: string
+            format: date
+          description: "Segunda a domingo em America/Sao_Paulo; weekStart ou from/to, até
+            12 semanas. Padrão: semana atual."
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+          description: "Segunda a domingo em America/Sao_Paulo; weekStart ou from/to, até
+            12 semanas. Padrão: semana atual."
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+          description: "Segunda a domingo em America/Sao_Paulo; weekStart ou from/to, até
+            12 semanas. Padrão: semana atual."
+      responses:
+        "200":
+          description: Página no recorte autorizado; sem totais globais. Veja o contrato
+            B6 para convenções e supressão de grupos pequenos.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                  - page
+                  - generatedAt
+                  - schemaVersion
+                  - requestId
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required:
+                        - projectId
+                        - projectCode
+                        - weekStart
+                        - minutosNormais
+                        - minutosExtra70
+                        - minutosExtra100
+                        - minutosNoturnos
+                        - pessoas
+                        - atualizadoEm
+                      properties:
+                        projectId:
+                          type: string
+                        projectCode:
+                          type: string
+                        weekStart:
+                          type: string
+                          format: date
+                        minutosNormais:
+                          type: number
+                        minutosExtra70:
+                          type: number
+                        minutosExtra100:
+                          type: number
+                        minutosNoturnos:
+                          type: number
+                        pessoas:
+                          type: integer
+                        atualizadoEm:
+                          type: string
+                          format: date-time
+                  page:
+                    $ref: "#/components/schemas/IntegrationPageMeta"
+                  generatedAt:
+                    type: string
+                    format: date-time
+                  schemaVersion:
+                    type: string
+                    const: "1.0"
+                  requestId:
+                    type: string
+              example:
+                items:
+                  - projectId: projeto-ficticio
+                    projectCode: "00501"
+                    weekStart: 2026-09-28
+                    minutosNormais: 960
+                    minutosExtra70: 120
+                    minutosExtra100: 60
+                    minutosNoturnos: 240
+                    pessoas: 2
+                    atualizadoEm: 2026-11-03T12:00:00.000Z
+                page:
+                  limit: 100
+                  hasMore: false
+                  nextCursor: null
+                  snapshotAt: 2026-11-03T12:00:00.000Z
+                generatedAt: 2026-11-03T12:00:00.000Z
+                schemaVersion: "1.0"
+                requestId: requisicao-ficticia
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/InvalidIntegrationToken"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
 
 components:
   securitySchemes:

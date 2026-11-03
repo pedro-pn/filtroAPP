@@ -4,17 +4,19 @@ import { Card, BarList } from '../ui/ds';
 import { HelpTip } from '../ui/HelpTip';
 import { brl, toNum } from './projectDetailModel';
 import { MetricBar, ProposalContributionDetails } from './ProjectDetailVisuals';
+import { projectCostSummary } from '../../../../shared/modules/project-cost-summary.js';
 
 export function ProjectDetailCosts({ data, children }: { data: ProjectDetail; children: ReactNode }) {
   return (<Card padding="sm" className="acp-detail-block">
             {(() => {
               const mo = data.maoDeObra;
               const moCusto = mo?.custo ?? null;
-              const totalRealizado = data.consumo.gasto + (moCusto ?? 0);
+              const costSummary = projectCostSummary(data);
+              const totalRealizado = costSummary.total;
               const previsto = data.consumo.previsto;
               const previstoOriginal = data.consumo.previstoOriginal ?? null;
               const previstoAdicional = data.consumo.previstoAdicional ?? null;
-              const totalPct = previsto && previsto > 0 ? Math.round((totalRealizado / previsto) * 100) : null;
+              const totalPct = costSummary.percent;
               const omieCost = data.consumo.omie ?? Math.max(0, data.consumo.gasto - (data.consumo.estoque ?? 0));
               const paidOmieCost = data.consumo.pago ?? 0;
               const pendingOmieCost = data.consumo.previstoPagar ?? 0;

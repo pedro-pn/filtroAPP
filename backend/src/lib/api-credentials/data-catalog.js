@@ -1,7 +1,7 @@
 import { OPERATIONAL_RESOURCES } from './operational-resources.js';
 import { OPERATIONAL_DOWNLOADS } from './extended-operational-resources.js';
 
-export const DATA_CATALOG_VERSION = '2026-10-29';
+export const DATA_CATALOG_VERSION = '2026-11-03';
 const publishedModels = new Set(OPERATIONAL_RESOURCES.map(item => item.model));
 const publishedScopes = new Set([...OPERATIONAL_RESOURCES, ...OPERATIONAL_DOWNLOADS].map(item => item.scope));
 
@@ -30,7 +30,7 @@ export const API_DATA_DOMAINS = Object.freeze([
   domain({
     code: 'projects-clients', label: 'Projetos, clientes e configurações',
     models: [...modelEntries(['ClientSegment', 'Project'], 'PLANNED'), ...modelEntries(['AcompanhamentoSetting', 'EfetivoSetting'], 'RESERVED')],
-    candidateScopes: ['projetos.read', 'projetos.responsaveis.read', 'clientes.segmentos.read', 'projetos.contatos.read'], endpointFamilies: ['/projetos', '/projetos/responsaveis', '/clientes/segmentos'],
+    candidateScopes: ['projetos.read', 'projetos.responsaveis.read', 'projetos.condicoes.read', 'clientes.segmentos.read', 'projetos.contatos.read'], endpointFamilies: ['/projetos', '/projetos/responsaveis', '/projetos/condicoes', '/clientes/segmentos'],
     includedFields: [...DEFAULT_INCLUDED_FIELDS, 'razão social e CNPJ em projetos.read', 'regime de trabalho', 'responsáveis e e-mail corporativo somente em projetos.responsaveis.read'],
     excludedFields: ['contatos de cliente', 'e-mail pessoal', 'telefone', 'CPF', 'username', 'papéis do hub', 'configurações internas']
   }),

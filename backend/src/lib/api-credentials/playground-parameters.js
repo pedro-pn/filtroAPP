@@ -3,6 +3,9 @@ import { INTEGRATION_REPORT_TYPES, INTEGRATION_REPORT_STATUSES } from '../../../
 import { PROJECT_WORKFLOW_STAGES } from '../../../../shared/schemas/project-workflow.js';
 
 const queryDefinitions = {
+  weekStart: { label: 'Semana (segunda-feira)', type: 'date', help: 'Na URI: weekStart=AAAA-MM-DD. Segunda a domingo em São Paulo; padrão semana atual. Não combine com from/to.' },
+  from: { label: 'Período — início', type: 'date', help: 'Na URI: from=AAAA-MM-DD. Informe também to; no máximo 12 semanas, sem weekStart.' },
+  to: { label: 'Período — fim', type: 'date', help: 'Na URI: to=AAAA-MM-DD. Data inclusiva; semana atual pode estar incompleta.' },
   after: { label: 'Cursor de reconciliação', type: 'text', maxLength: 4096, help: 'Na URI: after=<page.nextCursor>. Use o cursor da página anterior, mantendo os filtros.', advanced: true },
   referenceDate: { label: 'Data de referência', type: 'date', required: true, help: 'Na URI: referenceDate=AAAA-MM-DD. Seleciona o salário com vigência mais recente até essa data, inclusive; reajustes posteriores ficam de fora.' },
   limit: { label: 'Itens para visualizar', type: 'integer', min: 1, max: 20, help: 'Na URI: limit=20. Define o tamanho da página; o teste exibe até 20 itens e respeita o limite do token.' },

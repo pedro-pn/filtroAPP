@@ -41,7 +41,7 @@ test('all implemented permissions select matching operations, including optional
   }
   assert.equal(operationsForScope(operations, '').length, operations.length);
   assert.equal(operationsForScope(operations, 'rdo.anexos.download')[0].responseKind, 'DOWNLOAD_CHECK');
-  assert.equal(operationsForScope(operations, 'ponto.resumos.read').length, 0);
+  assert.equal(operationsForScope(operations, 'ponto.resumos.read')[0].path, '/ponto/projetos/semanas');
 });
 
 test('dynamic forms validate every required path and query parameter', () => {
@@ -59,6 +59,20 @@ test('dynamic forms validate every required path and query parameter', () => {
     }
     assert.equal(schema(op).safeParse({ ...initial, url: 'http://private' }).success, false);
   }
+});
+
+test('B6: formulários semanais preservam datas civis e validam semana versus período', () => {
+  for (const id of ['acompanhamento.projects.weeks.list', 'ponto.projects.weeks.list']) {
+    const op = operation(id);
+    assert.equal(schema(op).safeParse({}).success, true);
+    for (const values of [{ weekStart: '2026-09-29' }, { from: '2026-09-28' },
+      { weekStart: '2026-09-28', from: '2026-09-28', to: '2026-10-04' }, { from: '2026-10-04', to: '2026-09-28' }]) {
+      assert.equal(schema(op).safeParse(values).success, false);
+    }
+    const values = schema(op).parse({ from: '2026-09-28', to: '2026-10-04', projectCode: '00501' });
+    assert.deepEqual(buildPlaygroundInput(op, values).query, { from: '2026-09-28', to: '2026-10-04', projectCode: '00501' });
+  }
+  assert.equal(operationsForScope(operations, 'projetos.condicoes.valores.read')[0].path, '/projetos/condicoes');
 });
 
 test('salary playground requires a cargo ID and a valid reference date and builds only those parameters', () => {

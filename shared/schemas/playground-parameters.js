@@ -24,6 +24,12 @@ export function makePlaygroundParameterSchema(z, parameters, { maxPageSize = 20,
     if (shape.projectId && shape.projectCode && value.projectId && value.projectCode) {
       ctx.addIssue({ code: 'custom', path: ['projectCode'], message: 'Informe o código ou o ID interno do projeto, não ambos.' });
     }
+    if (shape.weekStart) {
+      if (value.weekStart && (value.from || value.to)) ctx.addIssue({ code: 'custom', path: ['weekStart'], message: 'Informe a semana ou o período from/to, não ambos.' });
+      if (value.weekStart && new Date(`${value.weekStart}T00:00:00Z`).getUTCDay() !== 1) ctx.addIssue({ code: 'custom', path: ['weekStart'], message: 'Escolha uma segunda-feira.' });
+      if (Boolean(value.from) !== Boolean(value.to)) ctx.addIssue({ code: 'custom', path: [value.from ? 'to' : 'from'], message: 'Informe início e fim do período.' });
+      if (value.from && value.to && value.from > value.to) ctx.addIssue({ code: 'custom', path: ['to'], message: 'O fim deve ser igual ou posterior ao início.' });
+    }
   });
 }
 

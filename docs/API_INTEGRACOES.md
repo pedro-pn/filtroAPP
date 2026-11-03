@@ -452,7 +452,7 @@ O painel lista status efetivo, prefixo/últimos quatro caracteres, escopos, proj
 
 Uma edição só pode reduzir acesso. Para ampliar escopo, projetos, CIDRs, validade ou limites, use **Rotacionar**, armazene o novo segredo no cofre e encerre a sobreposição em até 60 minutos. **Revogar** é terminal e exige motivo; nunca cole o segredo no motivo.
 
-O catálogo do painel contém os 173 modelos de negócio em 20 domínios. Há 44 permissões disponíveis, selecionáveis dentro de cada domínio, incluindo o escopo próprio de responsáveis e as operações do CRM; candidatos sem contrato implementado continuam bloqueados. Campos e endpoints podem ser consultados na própria linha. Somente as projeções e arquivos explicitamente contratados são publicados. Tokens antigos não recebem permissões novas automaticamente: emita outro ou rotacione com as permissões desejadas.
+O catálogo do painel contém os 173 modelos de negócio em 20 domínios. Há 57 permissões disponíveis, selecionáveis dentro de cada domínio, incluindo o escopo próprio de responsáveis e as operações do CRM; candidatos sem contrato implementado continuam bloqueados. Campos e endpoints podem ser consultados na própria linha. Somente as projeções e arquivos explicitamente contratados são publicados. Tokens antigos não recebem permissões novas automaticamente: emita outro ou rotacione com as permissões desejadas.
 
 ## Oportunidades quentes do PrismaCRM
 
@@ -556,7 +556,111 @@ A leitura de descarga inclui `id`, `romaneioId`, `projectId`, `projectCode`, `ti
 `{numero,emissao,transportadora}`. A confirmação captura o CT-e quando há exatamente
 um vinculado; sem referência inequívoca, cte é nulo. Não infere transportadora.
 
-US6, demais escopos de Gestão da US7, US8 e descoberta automática de CT-e ficam
-para depois. US4 continua dispensada pelo Omni. As novas permissões exigem
+US6 e as agregações de Gestão da US7 são acrescentadas no B6 abaixo. US8 e
+descoberta automática de CT-e ficam para depois. US4 continua dispensada pelo Omni. As novas permissões exigem
 concessão/rotação explícita; esta implementação não altera tokens reais nem publica.
 Contrato completo: [delivery-b.md](../specs/034-api-omni-fase2/contracts/delivery-b.md).
+
+## Omni — B6 Gestão
+
+Cinco consultas aditivas, disponíveis também no Playground. Catálogo
+`2026-11-03.1`, OpenAPI `1.11.0`, envelope `schemaVersion: 1.0`. Todas respeitam
+projetos e escopos antes da paginação. Não alteram credenciais existentes.
+
+| GET (base `/api/integracoes/v1`) | Escopo | Sensibilidade |
+|---|---|---|
+| `/acompanhamento/projetos/semanas` | `acompanhamento.progresso.read` | INTERNAL |
+| `/acompanhamento/projetos/custos` | `acompanhamento.custos.read` | FINANCIAL |
+| `/projetos/condicoes` | `projetos.condicoes.read` | INTERNAL |
+| Diária e moeda nas condições | `projetos.condicoes.valores.read` (depende do anterior) | FINANCIAL |
+| `/efetivo/alocacoes` | `efetivo.alocacoes.read` | INTERNAL |
+| `/ponto/projetos/semanas` | `ponto.resumos.read` | INTERNAL |
+
+Filtros comuns: `projectId` OU `projectCode`, `updatedSince` ISO, `limit`, `cursor`
+e `snapshotAt`. G1/G5 aceitam `weekStart=2026-09-28` (segunda-feira) OU
+`from=2026-09-28&to=2026-10-11` (datas inclusivas, até 12 semanas). Semana padrão
+é a atual em `America/Sao_Paulo`; de segunda a domingo, parcial na semana atual.
+Datas inválidas, semanas futuras e combinações incompatíveis retornam 400.
+O cursor mantém período, política e escopos. Não reutilize com outro token/filtros.
+
+Avanço semanal usa o histórico diário do mesmo serviço do detalhe. `avancoInicio`
+é o último avanço anterior à segunda; `avancoFim`, o último até domingo ou a data
+da leitura. Sem registro anterior, null. RDO/ponto usam datas civis; o histórico
+manual existente usa o dia UTC de `recordedAt`, preservado para paridade com o
+painel (um registro após 21h de São Paulo pode cair no dia UTC seguinte).
+`metaPontos` usa a última revisão válida da semana; metas repetíveis seguem o
+resolvedor do painel. Projeto precede o grupo ativo; `metaDefinidaPor` é
+`PROJETO`, `GRUPO` ou null. Meta estruturada sem `plannedPctPoints` retorna null.
+
+Exemplo fictício de item G1:
+
+```json
+{"projectId":"projeto-ficticio","projectCode":"00501","weekStart":"2026-09-28","avancoInicio":10,"avancoFim":25,"metaPontos":20,"metaDefinidaPor":"PROJETO","revisao":null,"updatedAt":"2026-11-03T12:00:00.000Z"}
+```
+
+`revisao`, quando existe, tem `concluidaEm`, `pendencias` (quantidade) e
+`itens:[{codigo,rotulo,ok}]`, com os checks/rótulos do filtroAPP. Conclusão legada
+continua válida quando anterior à inclusão de um check. Nota livre e identidades
+do revisor/autor não são publicadas.
+
+Custos vêm do **detalhe** do Acompanhamento: total = `consumo.gasto` +
+`maoDeObra.custo`, incluindo offshore. `porCategoria` traz os quatro agregados
+visíveis no detalhe: `COMPRAS_OMIE`, `ESTOQUE`, `CUSTOS_MANUAIS`, `MAO_DE_OBRA`.
+Reutiliza exclusões de salário, categorias desmarcadas e substituição de químicos
+do Omie pelo estoque líquido de devoluções. Inclui categorias administrativas
+como a visão de gestor. Sem lançamentos ou custos por pessoa.
+O orçamento selecionado é o da versão 1, independentemente da marcação de vitória (`selectionStatus` UNKNOWN/CHOSEN/LOST); sem seleção, `orcamento` e
+`consumoDoCusto` são null. Os previstos seguem o detalhe, incluindo adicionais
+selecionados e percentual da proposta; **podem diferir do ProjectBudget bruto e
+do card**. `consumoDoCusto` é o percentual inteiro arredondado do detalhe, null
+se previsto ausente ou <=0. `ate` é a data da leitura em São Paulo; a cobertura
+do ponto pode ser anterior. Projetos sem proposta vinculada também têm realizado,
+calculado pelo mesmo serviço; nenhum orçamento é inventado.
+
+```json
+{"projectId":"projeto-ficticio","projectCode":"00501","orcamento":{"precoVenda":"2000.00","custoPrevisto":"1000.00","margemPrevista":50,"diasPrevistos":20},"custoRealizado":{"total":"620.00","porCategoria":[{"codigo":"COMPRAS_OMIE","rotulo":"Compras (Omie)","valor":"200.00"},{"codigo":"ESTOQUE","rotulo":"Estoque (químicos/filtros)","valor":"80.00"},{"codigo":"CUSTOS_MANUAIS","rotulo":"Custos manuais","valor":"40.00"},{"codigo":"MAO_DE_OBRA","rotulo":"Mão de obra","valor":"300.00"}],"ate":"2026-11-03"},"avancoFisico":45,"consumoDoCusto":62,"currency":"BRL","atualizadoEm":"2026-11-03T12:00:00.000Z"}
+```
+
+Condições: `permanenciaPrevistaDias` vem de `ProjectBudget.plannedDays` versão 1
+selecionada; fallback na `CommercialProposal.plannedDays` exatamente vinculada por
+`sourceProposalCodBd`. Sem vínculo, null. Com o escopo financeiro adicional,
+`diariaStandByEquipamento` vem de `components.diariaEquipamento` dessa mesma
+proposta (string decimal/null) e `currency` é BRL. Sem ele, ambos são **omitidos**.
+Esta é a única extensão de escopo/campos em relação ao prompt, para proteger
+valores em reais. Não depende de `comercial.*` nem seleciona uma revisão posterior.
+
+```json
+{"projectId":"projeto-ficticio","projectCode":"00501","permanenciaPrevistaDias":20,"updatedAt":"2026-11-03T12:00:00.000Z"}
+```
+
+Alocações: `id`, `projectId`, `projectCode`, `collaboratorId`, `funcao`,
+`mobilizacao`, `desmobilizacao`, `updatedAt`, `deletedAt`. Somente plano oficial
+ativo e missão confirmada, não excluída. Inclui tombstones de alocação. Datas
+civis/null da alocação, sem expandir ciclos. Nome/CPF/salário/contatos ficam fora.
+
+Ponto: `projectId`, `projectCode`, `weekStart`, `minutosNormais`,
+`minutosExtra70`, `minutosExtra100`, `minutosNoturnos`, `pessoas`, `atualizadoEm`.
+Reutiliza merge de imports, atribuição analítica, aliases e ajustes por dia do
+motor existente; extras genéricos respeitam o teto mensal. Minutos efetivos, sem
+piso financeiro de 8h48; podem ser fracionários por rateio. Sem identificação de
+pessoas. **Projeto/semana com menos de duas pessoas com minutos apropriados é
+omitido**, antes da paginação. Não há complemento mensal que permita inferi-lo.
+
+```json
+{"projectId":"projeto-ficticio","projectCode":"00501","weekStart":"2026-09-28","minutosNormais":960,"minutosExtra70":120,"minutosExtra100":60,"minutosNoturnos":240,"pessoas":2,"atualizadoEm":"2026-11-03T12:00:00.000Z"}
+```
+
+G1/G2/G5 usam watermark da leitura calculada: `updatedSince` pode retornar linhas
+sem mudanças, evitando perda quando fonte/configuração muda. Snapshot não
+reconstrói estado histórico das fontes/custos. G3/G4 usam carimbos persistidos.
+Faça reconciliação completa periódica para alterações de vínculo/visibilidade e
+para semanas que passaram a ser omitidas por privacidade.
+
+Feed: `eventos.read` mais `acompanhamento.progresso.read` para
+`acompanhamento.meta_alterada` e `acompanhamento.revisao_concluida`;
+`eventos.read` mais `efetivo.alocacoes.read` para `alocacao.alterada`.
+Eventos são gravados na mesma transação, sem backfill. Metas de grupo geram um
+evento por projeto, sem lista de membros. Edição apenas de nota de revisão não
+republica conclusão. Sem eventos novos de custos/ponto.
+
+Contrato: [delivery-b6.md](../specs/034-api-omni-fase2/contracts/delivery-b6.md).

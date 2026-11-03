@@ -65,7 +65,7 @@ npm run architecture:check e verificações frontend quando houver mudança.
 ## Entrega B — implementação (2026-10-29)
 
 Ordem contratada: B1 medição → B2 notas → B3 romaneios → B4 pendências → B5 descarga/CT-e.
-B6 (US6, demais escopos de US7 e US8) permanece em backlog; US4 dispensada.
+B6 Gestão (US6 e agregações contratadas da US7) está detalhada abaixo; US8 e escopos não contratados permanecem em backlog; US4 dispensada.
 
 - Leituras registradas em operational-resources.js, catálogo, OpenAPI e Playground.
   Coleções usam cursor assinado e filtros comuns antes do limite. Sem contagens globais.
@@ -99,3 +99,35 @@ B6 (US6, demais escopos de US7 e US8) permanece em backlog; US4 dispensada.
 Validação: testes reais Prisma/PGlite para filtros, paginação, gatilhos/no-op/rollback,
 remapeamento fiscal, idempotência e simulação; contratos; arquitetura; suítes backend
 frontend e Prisma validate/generate. UI segue controles compartilhados e novidade 10 dias.
+
+## B6 — Gestão (2026-11-03)
+
+Origem: `../omni/docs/integracoes/prompt-filtroapp-gestao.md`. Ordem: G1 progresso,
+meta e revisão semanal → G2 custos × avanço → G3 condições → G4 alocações → G5 ponto.
+Contrato: [delivery-b6.md](contracts/delivery-b6.md). US8 continua em backlog.
+
+- Registrar as cinco coleções no mecanismo operacional existente. Autorização e
+  recorte antecedem paginação, agregações públicas e enriquecimento; cursores
+  assinados vinculam período e política. Envelope permanece 1.0.
+- Reutilizar histórico diário e avanço do Acompanhamento, resolução de revisões de
+  metas e checks da revisão semanal. Segunda a domingo em America/Sao_Paulo,
+  até 12 semanas; sem notas livres nem identidade de revisores/autores.
+- Reutilizar o detalhe do Acompanhamento para custos. Total é consumo.gasto +
+  maoDeObra.custo (inclui offshore), como ProjectDetailCosts; categorias agregadas
+  Omie/estoque/manual/mão de obra. Previsão segue detalhe (adicionais e percentual
+  da proposta), documentando divergência do orçamento bruto e do card.
+- Condições usam orçamento versão 1 selecionado e a proposta exata vinculada;
+  plannedDays do orçamento tem precedência. Diária e currency somente com escopo
+  adicional FINANCIAL projetos.condicoes.valores.read, dependente do base INTERNAL.
+- Alocações somente do plano oficial ativo e missão confirmada, com tombstone e
+  datas da alocação; não expor cenários, contatos ou nomes de colaboradores.
+- Ponto reutiliza merge de imports, classificação diária, aliases e overrides do
+  motor atual; horas efetivas, sem piso financeiro. Omitir projeto/semana com menos
+  de dois colaboradores com minutos apropriados. Sem linhas individuais na API.
+- Migration aditiva de gatilhos para meta_alterada, revisao_concluida e
+  alocacao.alterada, transacionais, sem backfill e filtrados pelo escopo do recurso.
+- updatedSince de agregados considera leitura calculada (não há watermark único
+  de todas as fontes); pode retornar linhas sem mudança. Reconciliação periódica.
+- Testes HTTP/Prisma/PostgreSQL descartável, paridade com os serviços do painel,
+  recorte/403/privacidade/cursor/eventos/rollback e contratos OpenAPI/Playground;
+  architecture:check e regressões dos serviços compartilhados.

@@ -853,7 +853,9 @@ export async function listCommercialDashboard({
   categoryCode = null,
   includeAdminOnlyCategories = true,
   projectIds = null,
-  includeProgress = true
+  includeProgress = true,
+  projectChannel = 'acompanhamento',
+  includeUnlinked = false
 } = {}) {
   const scopedProjectIds = Array.isArray(projectIds)
     ? [...new Set(projectIds.map(String).filter(Boolean))].sort()
@@ -864,13 +866,13 @@ export async function listCommercialDashboard({
     categoryCode: categoryCode || null,
     includeAdminOnlyCategories: Boolean(includeAdminOnlyCategories),
     projectIds: scopedProjectIds,
-    includeProgress: Boolean(includeProgress)
+    includeProgress: Boolean(includeProgress), projectChannel, includeUnlinked
   });
   return commercialDashboardCache.get(cacheKey, () => listCommercialDashboardUncached({
     categoryCode,
     includeAdminOnlyCategories,
     projectIds: scopedProjectIds,
-    includeProgress
+    includeProgress, projectChannel, includeUnlinked
   }));
 }
 
@@ -878,7 +880,9 @@ async function listCommercialDashboardUncached({
   categoryCode = null,
   includeAdminOnlyCategories = true,
   projectIds = null,
-  includeProgress = true
+  includeProgress = true,
+  projectChannel = 'acompanhamento',
+  includeUnlinked = false
 } = {}) {
   const projectIdFilter = projectIds ? { in: projectIds } : { not: null };
   // Salários vêm do ponto; químicos usam Omie até haver saída no romaneio.
@@ -918,7 +922,7 @@ async function listCommercialDashboardUncached({
     }),
     prisma.project.findMany({
       where: {
-        ...projectChannelWhere('acompanhamento'),
+        ...projectChannelWhere(projectChannel),
         ...(projectIds ? { id: { in: projectIds } } : {})
       },
       select: {
@@ -1006,7 +1010,7 @@ async function listCommercialDashboardUncached({
       ? commercialAppByExternalId.get(budget.commercialAppProposalId) : null;
     const codProp = appProposal ? appProposal.proposalCode : projectProposalCode(project);
     const crmOpportunity = project.crmOpportunities?.find(item => item.scopeKind === 'PRIMARY') ?? project.crmOpportunities?.[0] ?? null;
-    if (project.serviceCategory !== 'RENTAL' && !appProposal && (!Number.isInteger(codProp) || !latestByProp.has(codProp)) && !crmOpportunity) continue;
+    if (!includeUnlinked && project.serviceCategory !== 'RENTAL' && !appProposal && (!Number.isInteger(codProp) || !latestByProp.has(codProp)) && !crmOpportunity) continue;
     const resolved = appProposal ? true : Boolean(project.commercialProposalCode) && Boolean(budget);
     const crmUsesCommercialApp = project.crmOpportunities?.some(item => item.scopeKind === 'PRIMARY' && item.proposalSystem === 'COMERCIALAPP');
     const source = appProposal ? commercialAppBudgetSource(appProposal)
