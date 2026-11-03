@@ -99,3 +99,6 @@ Resultado e limites da Entrega B: [implementation-report-b.md](implementation-re
   Sem deploy, migration no banco real ou alteração de token.
 
 Relatório final: [implementation-report-b6.md](implementation-report-b6.md).
+
+CI da PR #500: corrigida a auditoria de dependências do frontend com atualização
+de follow-redirects 1.16.1 → 1.16.2 no lockfile; mantido o gate de severidade high.

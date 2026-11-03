@@ -123,6 +123,11 @@ ordem de commit. O Prisma Client local foi regenerado para refletir o schema
 atual, incluindo o outbox de e-mail anterior à B6. O banco/container descartável
 de validação foi removido ao concluir.
 
+Na validação da [PR #500](https://github.com/pedro-pn/filtroAPP/pull/500), a
+auditoria do frontend identificou `follow-redirects` 1.16.1 (dependência
+transitiva do Axios). O lockfile foi atualizado para 1.16.2, versão corrigida;
+`npm audit --audit-level=high` voltou a passar, sem alterar o limite exigido no CI.
+
 ## Depois da entrega
 
 Nenhum item G1–G5 ficou adiado. US8, demais leituras financeiras não contratadas e
