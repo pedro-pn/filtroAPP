@@ -26,7 +26,8 @@ apiClient.defaults.adapter = async config => {
   const url = config.url || '';
   const method = config.method;
   let data: unknown;
-  if (url === '/assinaturas/lotes' && method === 'post') data = { id: 'batch' };
+  if (url === '/notifications') data = { items: [], criticalItems: [], unreadCount: 0, snapshotAt: new Date().toISOString(), nextCursor: null };
+  else if (url === '/assinaturas/lotes' && method === 'post') data = { id: 'batch' };
   else if (url === '/assinaturas/documentos' && method === 'post') {
     const fileName = config.params.fileName;
     if (fileName === 'segundo.pdf' && state.failOnce) { state.failOnce = false; persist(); throw new Error('Falha de envio simulada'); }

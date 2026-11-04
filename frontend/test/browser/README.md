@@ -1,5 +1,13 @@
 # Search regression in a browser
 
+For the five-day document sharing announcement in Assinaturas, open
+`/test/browser/signature-batch.html?novelty=1` and run
+`playwright-cli run-code --filename frontend/test/browser/signature-sharing-novelty.js`.
+It checks the São Paulo campaign window (4–8 November 2026), waiting for onboarding
+and modals, per-user seen state, the upload/document/share entry points, permission
+copy, mobile layout, and closing an active announcement at the global deadline.
+The browser clock and API are simulated; no real documents change.
+
 For the compact project editor, open `/test/browser/gestor-project-search.html?tab=projetos`
 and run `playwright-cli run-code --filename frontend/test/browser/project-edit-dialog.js`.
 It checks the 560 px dialog, focus, required fields, saving/reopening, cancellation,

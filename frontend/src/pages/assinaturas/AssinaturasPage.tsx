@@ -15,6 +15,7 @@ import { NewDocumentModal } from './components/NewDocumentModal';
 import { BatchSetupView } from './components/BatchSetupView';
 import { AssinaturasTutorial } from './AssinaturasTutorial';
 import { AssinaturasBatchNovelty } from './AssinaturasBatchNovelty';
+import { AssinaturasSharingNovelty } from './AssinaturasSharingNovelty';
 import { normalizeSignatureSearchParams, signatureBatchSearchParams, signatureDocumentSearchParams, signatureLibrarySearchParams } from './utils/navigation';
 import './AssinaturasPage.ds.css';
 
@@ -208,6 +209,10 @@ export function AssinaturasPage() {
         <AssinaturasTutorial userKey={user?.id || ''} ready={Boolean(user) && !listQuery.isLoading} triggerRef={tutorialTrigger} />
         <AssinaturasBatchNovelty userId={user?.id || ''}
           enabled={!listQuery.isLoading && !listQuery.isLoadingError && !selectedId && !selectedBatchId && !newOpen} />
+        <AssinaturasSharingNovelty userId={user?.id || ''}
+          enabled={!newOpen && (selectedBatchId ? true : selectedId
+            ? Boolean(documentQuery.data) && !documentQuery.isError && documentQuery.data?.permissions?.isOwner !== false
+            : !listQuery.isLoading && !listQuery.isLoadingError)} />
       </main>
     </AssinaturasAppShell>
   );

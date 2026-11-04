@@ -90,7 +90,7 @@ function DocumentShareDialog({ documentId, onClose }: { documentId: string; onCl
 export function DocumentShareButton({ documentId }: { documentId: string }) {
   const [open, setOpen] = useState(false);
   return <>
-    <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>Compartilhar</Button>
+    <Button variant="secondary" size="sm" data-signature-share onClick={() => setOpen(true)}>Compartilhar</Button>
     {open ? <DocumentShareDialog key={documentId} documentId={documentId} onClose={() => setOpen(false)} /> : null}
   </>;
 }
