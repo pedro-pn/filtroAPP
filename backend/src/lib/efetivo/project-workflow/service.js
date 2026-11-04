@@ -22,6 +22,7 @@ import {
 import { canEditEfetivoChecklistArea } from '../access.js';
 import { assignMissionReportTeam, canOperateReports, reportOperatorUserSelect, validateMissionReportOperator } from '../report-team.js';
 import { hasModuleRole } from '../../module-roles.js';
+import { ensureCommercialProposalSync } from '../../projects/commercial-proposal-sync-state.js';
 import { efetivoProjectWhere } from '../project-visibility.js';
 import { conflictError, notFound, planningError } from '../planning/errors.js';
 import { confirmOfficialMissionMobilization } from '../planning/cycles.js';
@@ -79,6 +80,11 @@ const PROJECT_FIELDS = {
   clientName: true,
   clientEmailPrimary: true,
   commercialProposalSync: true,
+  contractCode: true,
+  isActive: true,
+  deletedAt: true,
+  managerOnly: true,
+  distributionSettings: true,
   location: true,
   startDate: true,
   operatorId: true,
@@ -1183,6 +1189,7 @@ export async function startProjectWorkflow(projectId, payload, context = {}, dep
       if (error?.code === 'P2002') throw conflictError('Este projeto já possui gestão iniciada.', [], 'PROJECT_WORKFLOW_ALREADY_EXISTS');
       throw error;
     }
+    await ensureCommercialProposalSync(tx, project, { now: dependencies.now });
     await recordEvent(tx, projectId, context.actorUserId, 'WORKFLOW_STARTED', {
       leaderUserId: payload.leaderUserId,
       plannerUserId,

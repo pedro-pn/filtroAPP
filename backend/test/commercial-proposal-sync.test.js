@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { commercialProposalReference, commercialProposalSyncData } from '../src/lib/projects/commercial-proposal-sync-state.js';
+import { commercialProposalReference, commercialProposalSyncData, ensureCommercialProposalSync } from '../src/lib/projects/commercial-proposal-sync-state.js';
 import { commercialAppConnection, fetchCommercialProposal, readLimitedCommercialResponse, syncCommercialProposal } from '../src/lib/projects/commercial-proposal-sync.js';
 
 function fixture() {
@@ -39,6 +39,39 @@ test('cadastro e mudança de revisão criam uma busca persistida; reenvio não r
   assert.deepEqual(commercialProposalSyncData(reference, { ...data.commercialProposalSync, status: 'SYNCED' }), {});
   assert.notEqual(commercialProposalSyncData({ ...reference, revisionNumber: 3 }, data.commercialProposalSync).commercialProposalSync.requestId,
     data.commercialProposalSync.requestId);
+});
+
+test('handover inicializa uma busca ausente pela proposta e revisão exatas, com proteção contra concorrência', async () => {
+  const now = new Date('2026-11-04T12:00:00Z');
+  const project = { id: 'project-1', isActive: true, contractCode: '4216 - Rev. 8' };
+  let update;
+  const database = { project: { updateMany: async input => { update = input; return { count: 1 }; } } };
+  const state = await ensureCommercialProposalSync(database, project, { now });
+  assert.equal(state.status, 'PENDING');
+  assert.equal(state.proposalCode, '4216');
+  assert.equal(state.revisionNumber, 8);
+  assert.equal(state.requestedAt, now.toISOString());
+  assert.equal(update.where.contractCode, project.contractCode);
+  assert.ok(update.where.commercialProposalSync.equals);
+  assert.equal(update.data.commercialProposalSyncNextAttemptAt, now);
+
+  const concurrent = { ...state, requestId: 'another-request', revisionNumber: 9 };
+  database.project.updateMany = async () => ({ count: 0 });
+  database.project.findUnique = async () => ({ commercialProposalSync: concurrent });
+  assert.deepEqual(await ensureCommercialProposalSync(database, project), concurrent);
+});
+
+test('abertura de documentos preserva filas existentes e respeita encerramento e distribuição comercial', async () => {
+  const database = { project: { updateMany: async () => { assert.fail('não deve agendar uma busca'); } } };
+  const project = { id: 'project-1', isActive: true, contractCode: '4607' };
+  for (const status of ['PENDING', 'APPLYING', 'ERROR', 'SYNCED', 'EXCLUDED']) {
+    const state = { requestId: 'existing', proposalCode: '4607', revisionNumber: 0, status };
+    assert.deepEqual(await ensureCommercialProposalSync(database, { ...project, commercialProposalSync: state }), state);
+  }
+  for (const fields of [{ isActive: false }, { deletedAt: new Date() }, { managerOnly: true },
+    { distributionSettings: { commercial: false } }, { workflow: { stage: 'FINISHED' } }, { contractCode: 'Não se aplica' }]) {
+    assert.equal(await ensureCommercialProposalSync(database, { ...project, ...fields }), null);
+  }
 });
 
 test('busca somente a revisão solicitada e confere os dois arquivos', async () => {

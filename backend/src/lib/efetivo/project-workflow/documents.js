@@ -18,6 +18,8 @@ import {
   writeManagedDocumentFile
 } from '../../documents/storage.js';
 import { hasModuleRole } from '../../module-roles.js';
+import { ensureCommercialProposalSync } from '../../projects/commercial-proposal-sync-state.js';
+import { projectAllowsChannel } from '../../projects/distribution.js';
 import { efetivoProjectWhere } from '../project-visibility.js';
 import { conflictError, notFound, planningError } from '../planning/errors.js';
 import { resolvePlanningDatabase } from '../planning/plan-context.js';
@@ -247,6 +249,13 @@ async function loadProject(database, projectId) {
       id: true,
       code: true,
       name: true,
+      contractCode: true,
+      isActive: true,
+      deletedAt: true,
+      managerOnly: true,
+      distributionSettings: true,
+      commercialProposalSync: true,
+      commercialProposalSyncNextAttemptAt: true,
       workflow: { select: { projectId: true, stage: true, leaderUserId: true, version: true, mobilizationAuthorizedAt: true, mobilizationAuthorizationVersion: true } }
     }
   });
@@ -478,6 +487,9 @@ export async function aggregateProjectOperationalDocuments(database, projectId) 
 export async function listProjectDocuments(projectId, filters = {}, context = {}, dependencies = {}) {
   const database = await resolvePlanningDatabase(dependencies.database);
   const project = await loadProject(database, projectId);
+  const sync = project.workflow
+    ? await ensureCommercialProposalSync(database, project)
+    : project.commercialProposalSync;
   const documents = await database.projectDocument.findMany({
     where: { projectId, ...(filters.includeArchived ? {} : { archivedAt: null }) },
     include: {
@@ -487,6 +499,17 @@ export async function listProjectDocuments(projectId, filters = {}, context = {}
     orderBy: [{ archivedAt: 'asc' }, { type: 'asc' }, { title: 'asc' }]
   });
   return {
+    commercialProposalSync: sync ? {
+      status: sync.status,
+      configured: Boolean(env.comercialAppApiUrl && env.comercialAppServiceToken),
+      retryScheduled: Boolean(env.comercialAppApiUrl && env.comercialAppServiceToken &&
+        project.workflow?.stage !== 'FINISHED' && projectAllowsChannel(project, 'commercial') &&
+        (project.commercialProposalSyncNextAttemptAt || !project.commercialProposalSync && sync.status === 'PENDING')),
+      proposalCode: sync.proposalCode,
+      revisionNumber: sync.revisionNumber,
+      errorCode: sync.errorCode || null,
+      stopReason: sync.stopReason || null
+    } : null,
     documents: documents.map(document => serializeProjectDocument(document, project, context, dependencies)),
     requirements: projectDocumentRequirements(documents, dependencies),
     operationalDocuments: await aggregateProjectOperationalDocuments(database, projectId),

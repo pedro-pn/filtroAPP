@@ -131,6 +131,11 @@ function fakeDatabase() {
         state.project = { ...state.project, ...input.data };
         return state.project;
       },
+      updateMany: async ({ where, data }) => {
+        if (where.id !== state.project.id || where.contractCode !== state.project.contractCode || state.project.commercialProposalSync != null) return { count: 0 };
+        Object.assign(state.project, data);
+        return { count: 1 };
+      },
       count: async () => 1,
       findMany: async input => {
         state.lastProjectFindManyInput = input;
@@ -439,6 +444,17 @@ test('gestor inicia handover sem programação de equipe e sem presumir aceite',
   const answered = await updateProjectWorkflow('project-1', { action: 'analysis_location', version: result.workflow.version, executedAtHeadquarters: false }, manager, { database });
   assert.equal(answered.workflow.handoverGate.ready, true);
   assert.equal(answered.workflow.handoverGate.issues.length, 0);
+});
+
+test('início do handover agenda os PDFs para um projeto anterior à integração', async () => {
+  const { database, state } = fakeDatabase();
+  Object.assign(state.project, { contractCode: '4064 Rev. 2', isActive: true, managerOnly: false });
+  const result = await startProjectWorkflow('project-1', { leaderUserId: 'leader-1' }, manager, { database });
+  assert.equal(state.project.commercialProposalSync.status, 'PENDING');
+  assert.equal(state.project.commercialProposalSync.proposalCode, '4064');
+  assert.equal(state.project.commercialProposalSync.revisionNumber, 2);
+  assert.ok(state.project.commercialProposalSyncNextAttemptAt instanceof Date);
+  assert.equal(result.project.commercialProposalSync.status, 'PENDING');
 });
 
 test('gestor inicia handover sem mobilização prevista e configura antecedência de obra crítica', async () => {

@@ -44,7 +44,13 @@ export function createProjectDocumentsDatabase({ stage = 'INITIAL_ANALYSIS' } = 
   const database = {
     $transaction: operation => operation(database),
     project: {
-      findFirst: async ({ where }) => where.id === state.project.id && state.project.isActive && !state.project.deletedAt ? structuredClone(state.project) : null
+      findFirst: async ({ where }) => where.id === state.project.id && state.project.isActive && !state.project.deletedAt ? structuredClone(state.project) : null,
+      findUnique: async ({ where }) => where.id === state.project.id ? structuredClone(state.project) : null,
+      updateMany: async ({ where, data }) => {
+        if (where.id !== state.project.id || where.contractCode !== state.project.contractCode || state.project.commercialProposalSync != null) return { count: 0 };
+        Object.assign(state.project, data);
+        return { count: 1 };
+      }
     },
     user: {
       findFirst: async ({ where }) => where.id ? { id: where.id, name: 'Responsável', isActive: true } : null
