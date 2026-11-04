@@ -1,3 +1,5 @@
+import env from '../../config/env.js';
+
 // O domínio corporativo foi confirmado para o contrato Omni. Não usar username,
 // contatos de cliente ou e-mail do colaborador como fallback de identidade Entra.
 export function corporateEmail(value) {
@@ -7,8 +9,10 @@ export function corporateEmail(value) {
 
 export function projectOperationalProject(row) {
   const cnpj = String(row.clientCnpj || '').replace(/\D/g, '');
+  const mapping = row.prismaMapping;
   return { ...row, clientCnpj: /^\d{14}$/.test(cnpj) ? cnpj : null,
-    executedAtHeadquarters: row.workflow?.executedAtHeadquarters ?? null };
+    executedAtHeadquarters: row.workflow?.executedAtHeadquarters ?? null,
+    prisma: mapping ? { missionId: mapping.prismaMissionId, number: mapping.number ?? null, numberScope: mapping.numberScope ?? null } : null };
 }
 
 export function projectResponsible(row) {
@@ -22,4 +26,16 @@ export function projectResponsible(row) {
     name: collaborator?.name ?? user?.name, email: corporateEmail(user?.email),
     updatedAt: stamps.length ? new Date(Math.max(...stamps)).toISOString() : null
   };
+}
+
+// O vínculo público é sempre o de produção, mesmo em uma instalação de homologação.
+export async function enrichProjectPrismaMappings(client, rows, context = {}) {
+  if (!rows.length) return rows;
+  const mappings = await client.crmProjectMapping.findMany({
+    where: { sourceSystem: 'prismaCRM', tenantId: (context.envConfig || env).crmPlanningTenantId || 'filtrovali',
+      environment: 'production', projectId: { in: rows.map(row => row.id) } },
+    select: { projectId: true, prismaMissionId: true, number: true, numberScope: true }
+  });
+  const byProject = new Map(mappings.map(mapping => [mapping.projectId, mapping]));
+  return rows.map(row => ({ ...row, prismaMapping: byProject.get(row.id) ?? null }));
 }
