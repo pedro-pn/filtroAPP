@@ -34,6 +34,7 @@ import { checkWorkforceAvailability } from '../collaborators/availability-servic
 import { collaboratorRoleAtDate, collaboratorRoleSegments } from '../collaborators/job-role-history.js';
 import { annotateActualRowsWithWorkforceConflicts, classifyActualWorkforceDays } from '../workforce/actual-conflicts.js';
 import { allocationPeriods } from '../efetivo/planning/allocation-period.js';
+import { loadConfirmedReviewDays } from '../efetivo/allocation-review/confirmed-days.js';
 
 export { isPontoTravelTag } from '../pontomais/normalize.js';
 
@@ -667,6 +668,46 @@ async function getRdoDataByCollaborator(periodStart, periodEndExclusive, databas
   return rdoDataByCollaboratorFromReports(reports);
 }
 
+// Alocações do Efetivo oficial (missões confirmadas do plano ativo). Compartilhado com a
+// conferência semanal de alocação, que precisa do mesmo índice para o indicador "Efetivo".
+export function findOfficialEffectiveAllocations(database = prisma) {
+  return database.efetivoMissionAllocation.findMany({
+    where: {
+      deletedAt: null,
+      mission: {
+        deletedAt: null,
+        scheduleStatus: 'CONFIRMED',
+        plan: { kind: 'OFFICIAL', status: 'ACTIVE' }
+      }
+    },
+    select: {
+      id: true,
+      collaboratorId: true,
+      deletedAt: true,
+      mobilizationDate: true,
+      demobilizationDate: true,
+      cycles: { select: { id: true, mobilizationDate: true, demobilizationDate: true } },
+      mission: {
+        select: {
+          id: true,
+          projectId: true,
+          scheduleStatus: true,
+          deletedAt: true,
+          mobilizationDate: true,
+          executionEndDate: true,
+          returnDate: true,
+          cycles: { select: { id: true, mobilizationDate: true, demobilizationDate: true } },
+          plan: { select: { kind: true, status: true } }
+        }
+      }
+    }
+  });
+}
+
+export async function loadEffectiveAllocationIndex(database = prisma) {
+  return buildEffectiveAllocationIndex(await findOfficialEffectiveAllocations(database));
+}
+
 async function getProjectAllocationContext(database = prisma) {
   const [projects, tagAliases, missionGroups, effectiveAllocations, effectiveMissions] = await Promise.all([
     database.project.findMany({
@@ -694,37 +735,7 @@ async function getProjectAllocationContext(database = prisma) {
         members: { select: { projectId: true } }
       }
     }),
-    database.efetivoMissionAllocation.findMany({
-      where: {
-        deletedAt: null,
-        mission: {
-          deletedAt: null,
-          scheduleStatus: 'CONFIRMED',
-          plan: { kind: 'OFFICIAL', status: 'ACTIVE' }
-        }
-      },
-      select: {
-        id: true,
-        collaboratorId: true,
-        deletedAt: true,
-        mobilizationDate: true,
-        demobilizationDate: true,
-        cycles: { select: { id: true, mobilizationDate: true, demobilizationDate: true } },
-        mission: {
-          select: {
-            id: true,
-            projectId: true,
-            scheduleStatus: true,
-            deletedAt: true,
-            mobilizationDate: true,
-            executionEndDate: true,
-            returnDate: true,
-            cycles: { select: { id: true, mobilizationDate: true, demobilizationDate: true } },
-            plan: { select: { kind: true, status: true } }
-          }
-        }
-      }
-    }),
+    findOfficialEffectiveAllocations(database),
     database.efetivoMissionPlan.findMany({
       where: {
         deletedAt: null,
@@ -898,7 +909,19 @@ function projectMetaForCollaborator(projects, collaboratorId) {
   }]));
 }
 
-function manualProjectsByCollaborator(overrides = []) {
+// Marca, no mapa de decisões manuais do dia, que a entrada veio da conferência semanal de alocação
+// (feature 037). PROJECT = projetos conferidos; IDLE = Sede/Folga/Férias/Afastamento/Treinamento.
+export function reviewedDayEntry(projectIds = [], reviewKind = 'PROJECT') {
+  const entry = [...new Set(projectIds.filter(Boolean))].sort();
+  Object.defineProperty(entry, 'reviewKind', { value: reviewKind, enumerable: false });
+  return entry;
+}
+
+export function reviewKindOf(kind) {
+  return kind === 'PROJECT' || kind === 'TRAVEL' ? 'PROJECT' : 'IDLE';
+}
+
+export function manualProjectsByCollaborator(overrides = [], reviewDays = []) {
   const result = new Map();
   for (const override of overrides) {
     if (!override?.collaboratorId || !override?.projectId || !override?.workDate) continue;
@@ -909,6 +932,25 @@ function manualProjectsByCollaborator(overrides = []) {
     if (!projectIds.includes(override.projectId)) projectIds.push(override.projectId);
     projectIds.sort();
     byDate.set(date, projectIds);
+  }
+  // A conferência semanal vence o ajuste manual: é a verificação humana mais recente do dia.
+  for (const day of reviewDays || []) {
+    if (!day?.collaboratorId || !day?.date || !day?.kind) continue;
+    const reviewKind = reviewKindOf(day.kind);
+    if (reviewKind === 'PROJECT' && !(day.projectIds || []).length) continue;
+    if (!result.has(day.collaboratorId)) result.set(day.collaboratorId, new Map());
+    result.get(day.collaboratorId).set(day.date, reviewedDayEntry(reviewKind === 'PROJECT' ? day.projectIds : [], reviewKind));
+  }
+  return result;
+}
+
+// Dias úteis conferidos em projeto, por colaborador: entram no cálculo mesmo sem marcação de ponto.
+export function reviewedProjectDatesByCollaborator(reviewDays = []) {
+  const result = new Map();
+  for (const day of reviewDays || []) {
+    if (reviewKindOf(day.kind) !== 'PROJECT' || !isWeekday(day.date)) continue;
+    if (!result.has(day.collaboratorId)) result.set(day.collaboratorId, []);
+    result.get(day.collaboratorId).push(day.date);
   }
   return result;
 }
@@ -1025,6 +1067,8 @@ export function buildDailyProjectWeights({
   // A seleção explícita do gestor é uma resolução auditada e, por isso, vale mesmo quando o dia
   // não possui RDO. Antes ela era lida somente depois do retorno NO_RDO_EVIDENCE, o que fazia o dia
   // reaparecer na fila imediatamente após ser resolvido.
+  const reviewKind = manualProjectIds?.reviewKind || null;
+  if (reviewKind === 'IDLE') return { allocations: [], reason: 'REVIEW_IDLE' };
   if (selectedManualProjectIds.length > 0) {
     const selectedRdos = selectedManualProjectIds.map(projectId => rdoByProject.get(projectId)).filter(Boolean);
     const rdoTotal = selectedRdos.reduce((sum, item) => sum + Math.max(0, Number(item.hours) || 0), 0);
@@ -1040,7 +1084,9 @@ export function buildDailyProjectWeights({
             : 1 / selectedManualProjectIds.length;
         return { projectId, weight, rdo };
       }),
-      reason: selectedManualProjectIds.length === 1 ? 'MANUAL_OVERRIDE' : 'MANUAL_SHARED_OVERRIDE'
+      reason: reviewKind === 'PROJECT'
+        ? (selectedManualProjectIds.length === 1 ? 'REVIEW_CONFIRMED' : 'REVIEW_SHARED_CONFIRMED')
+        : (selectedManualProjectIds.length === 1 ? 'MANUAL_OVERRIDE' : 'MANUAL_SHARED_OVERRIDE')
     };
   }
 
@@ -1230,7 +1276,8 @@ export function buildDailyProjectWeights({
 const NON_ACTIONABLE_ALLOCATION_REASONS = new Set([
   'NO_POINT_HOURS',
   'NO_PROJECT_EVIDENCE',
-  'NO_RDO_EVIDENCE'
+  'NO_RDO_EVIDENCE',
+  'REVIEW_IDLE'
 ]);
 
 export function allocationDecisionRequiresAction(decision) {
@@ -1275,7 +1322,10 @@ export function classifyProjectHours(
     const dayHe100Hours = Math.max(0, Number(row.he100Horas) || 0);
     const dayTotalHours = dayNormalHours + dayHe70Hours + dayHe100Hours;
     const effectiveDayWithoutReport = effectiveProjectIds.length > 0 && rdoProjects.size === 0;
-    const decision = dayTotalHours > 0 || effectiveDayWithoutReport
+    const reviewKind = manualProjectIds?.reviewKind || null;
+    // Dia útil conferido em projeto conta como dia de obra mesmo sem marcação (feature 037).
+    const reviewedProjectWithoutPoint = reviewKind === 'PROJECT' && dayTotalHours === 0 && isWeekday(row.date);
+    const decision = dayTotalHours > 0 || effectiveDayWithoutReport || reviewedProjectWithoutPoint
       ? buildDailyProjectWeights({
         tags: row.tags,
         rdoProjects,
@@ -1303,7 +1353,8 @@ export function classifyProjectHours(
     const travelContext = rdoProjects.size === 0
       && Boolean(decision.travelContext || (row.tags || []).some(isPontoTravelTag));
     const noActivityContext = effectiveDayWithoutReport && !travelContext && decision.allocations.length > 0;
-    const dayCostNormalHours = effectiveDayWithoutReport && dayTotalHours === 0 && decision.allocations.length > 0
+    const dayCostNormalHours = (effectiveDayWithoutReport || reviewedProjectWithoutPoint)
+      && dayTotalHours === 0 && decision.allocations.length > 0
       ? HORAS_POR_DIA
       : costNormalHoursForDay(
         row.date,
@@ -1330,7 +1381,9 @@ export function classifyProjectHours(
         ...(item.projectCode ? { projectCode: String(item.projectCode) } : {}),
         ...(item.rdoNumber != null ? { rdoNumber: item.rdoNumber } : {})
       })),
-      manualProjectIds: manualProjectIds ? [...manualProjectIds] : [],
+      manualProjectIds: manualProjectIds && !reviewKind ? [...manualProjectIds] : [],
+      reviewKind,
+      reviewedProjectIds: reviewKind === 'PROJECT' ? [...manualProjectIds] : [],
       effectiveProjectIds,
       knownEffectiveProjectIds,
       allocations: decision.allocations.map(item => ({ projectId: item.projectId, weight: item.weight })),
@@ -1467,7 +1520,7 @@ export async function loadAllocatedAttendanceDays({ database = prisma } = {}) {
   const scope = await getPontoImportScope(null, database);
   if (!scope) return [];
   const end = endExclusive(scope.periodEnd);
-  const [periodRows, ignored, roleParams, rdoData, context, overrides] = await Promise.all([
+  const [periodRows, ignored, roleParams, rdoData, context, overrides, reviewDays] = await Promise.all([
     database.pontoPeriodSummary.findMany({
       where: { importId: { in: scope.pontoImports.map(row => row.id) }, collaboratorId: { not: null } },
       include: { import: { select: { createdAt: true } }, collaborator: { select: {
@@ -1480,10 +1533,11 @@ export async function loadAllocatedAttendanceDays({ database = prisma } = {}) {
     getRoleParamsResolver(database), getRdoDataByCollaborator(scope.periodStart, end, database),
     getProjectAllocationContext(database),
     database.pontoDayProjectOverride.findMany({ where: { workDate: { gte: scope.periodStart, lt: end } },
-      select: { collaboratorId: true, workDate: true, projectId: true } })
+      select: { collaboratorId: true, workDate: true, projectId: true } }),
+    loadConfirmedReviewDays({ from: scope.periodStart, to: end }, database)
   ]);
   const periods = mergePontoPeriods(filterIgnoredPontoPeriods(periodRows, ignored.map(row => row.externalEmployeeId)));
-  const manual = manualProjectsByCollaborator(overrides);
+  const manual = manualProjectsByCollaborator(overrides, reviewDays);
   const eligible = buildScheduleWindowEligibility(context.scheduleWindows, rdoData);
   const output = [];
   for (const period of periods) {
@@ -1547,7 +1601,7 @@ function monthsOf(period) {
 
 // Completa apenas as datas dos ciclos oficiais dentro do período de custo. Os registros do ponto
 // e seus totais permanecem intactos; as linhas vazias existem somente para apropriação financeira.
-export function monthsWithEffectiveAllocationDays(period, effectiveAllocationIndex, rangeStart, rangeEnd) {
+export function monthsWithEffectiveAllocationDays(period, effectiveAllocationIndex, rangeStart, rangeEnd, extraDateKeys = []) {
   const months = new Map(monthsOf(period).map(month => [month.monthKey, {
     ...month,
     days: [...month.days]
@@ -1555,7 +1609,12 @@ export function monthsWithEffectiveAllocationDays(period, effectiveAllocationInd
   const startKey = dateKeyUTC(rangeStart);
   const endKey = dateKeyUTC(rangeEnd);
   const dates = new Set([...months.values()].flatMap(month => month.days.map(day => day.date)));
-  for (const window of effectiveAllocationIndex.get(period.collaboratorId)?.windows || []) {
+  const windows = [
+    ...(effectiveAllocationIndex.get(period.collaboratorId)?.windows || []),
+    // Dias conferidos em projeto sem ponto (feature 037) entram como dias vazios.
+    ...(extraDateKeys || []).map(date => ({ startKey: date, endKey: date }))
+  ];
+  for (const window of windows) {
     const start = maxDateKey(startKey, window.startKey);
     const end = minDateKey(endKey, window.endKey);
     for (let date = start; date <= end; date = addDaysKey(date, 1)) {
@@ -1870,7 +1929,8 @@ export async function computeCollaboratorRates(importId = null) {
     offshoreYearsByCollaborator,
     annualCosts,
     projectAllocationContext,
-    manualDayOverrides
+    manualDayOverrides,
+    confirmedReviewDays
   ] = await Promise.all([
     prisma.pontoPeriodSummary.findMany({
       where: { importId: { in: importIds }, collaboratorId: { not: null } },
@@ -1902,7 +1962,8 @@ export async function computeCollaboratorRates(importId = null) {
     prisma.pontoDayProjectOverride.findMany({
       where: { workDate: { gte: pontoScope.periodStart, lt: periodEndExclusive } },
       select: { collaboratorId: true, workDate: true, projectId: true }
-    })
+    }),
+    loadConfirmedReviewDays({ from: pontoScope.periodStart, to: periodEndExclusive })
   ]);
   const periods = mergePontoPeriods(filterIgnoredPontoPeriods(
     periodRows,
@@ -1916,7 +1977,8 @@ export async function computeCollaboratorRates(importId = null) {
         context: 'ACTUAL_REPORT'
       })
     : { calendarRevision: 1, conflicts: [] };
-  const manualProjects = manualProjectsByCollaborator(manualDayOverrides);
+  const manualProjects = manualProjectsByCollaborator(manualDayOverrides, confirmedReviewDays);
+  const reviewedProjectDates = reviewedProjectDatesByCollaborator(confirmedReviewDays);
   const scheduleWindowEligibility = buildScheduleWindowEligibility(
     projectAllocationContext.scheduleWindows,
     rdoData
@@ -1979,7 +2041,8 @@ export async function computeCollaboratorRates(importId = null) {
     // Ela fica fora do bloco de custo porque colaboradores sem perfil configurado ainda precisam
     // aparecer na auditoria e nas pendências.
     const months = monthsWithEffectiveAllocationDays(
-      period, projectAllocationContext.effectiveAllocationIndex, fileStart, fileEnd
+      period, projectAllocationContext.effectiveAllocationIndex, fileStart, fileEnd,
+      reviewedProjectDates.get(period.collaboratorId) || []
     );
     const trailDays = months.flatMap(mrec => splitOvertimeDays(
       mrec.days || [],
@@ -2207,7 +2270,8 @@ export async function debugCollaboratorMonth(nameQuery, monthKey, importId = nul
     offshoreYearsByCollaborator,
     annualCosts,
     projectAllocationContext,
-    manualDayOverrides
+    manualDayOverrides,
+    confirmedReviewDays
   ] = await Promise.all([
     prisma.pontoPeriodSummary.findMany({
       where: { importId: { in: importIds }, collaboratorId: { not: null } },
@@ -2239,7 +2303,8 @@ export async function debugCollaboratorMonth(nameQuery, monthKey, importId = nul
     prisma.pontoDayProjectOverride.findMany({
       where: { workDate: { gte: pontoScope.periodStart, lt: periodEndExclusive } },
       select: { collaboratorId: true, workDate: true, projectId: true }
-    })
+    }),
+    loadConfirmedReviewDays({ from: pontoScope.periodStart, to: periodEndExclusive })
   ]);
   const query = String(nameQuery || '').trim().toLowerCase();
   const period = mergePontoPeriods(filterIgnoredPontoPeriods(
@@ -2259,7 +2324,8 @@ export async function debugCollaboratorMonth(nameQuery, monthKey, importId = nul
 
   const cap = Number(params.he70LimiteHoras) || 30;
   const mrec = monthsWithEffectiveAllocationDays(
-    period, projectAllocationContext.effectiveAllocationIndex, pontoScope.periodStart, pontoScope.periodEnd
+    period, projectAllocationContext.effectiveAllocationIndex, pontoScope.periodStart, pontoScope.periodEnd,
+    reviewedProjectDatesByCollaborator(confirmedReviewDays).get(period.collaboratorId) || []
   ).find(m => m.monthKey === monthKey);
   if (!mrec) throw new Error(`Sem dados de ${nameQuery} no mês ${monthKey}.`);
   const daysM = splitOvertimeDays(mrec.days || [], cap);
@@ -2271,7 +2337,7 @@ export async function debugCollaboratorMonth(nameQuery, monthKey, importId = nul
     rdo,
     projectAllocationContext.resolveTag,
     projectMetaForCollaborator(projectAllocationContext.projects, period.collaboratorId),
-    manualProjectsByCollaborator(manualDayOverrides).get(period.collaboratorId) || new Map(),
+    manualProjectsByCollaborator(manualDayOverrides, confirmedReviewDays).get(period.collaboratorId) || new Map(),
     projectAllocationContext.missionGroupProjectsByProjectId,
     'ACCOUNTING',
     {

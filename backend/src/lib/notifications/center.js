@@ -1,6 +1,7 @@
 import { canReviewRdoReports } from '../../../../shared/modules/rdo-permissions.js';
 import { hasModuleRole, isHubAdmin, publicModuleRoleDefinitions, publicModuleRolesForModule } from '../module-roles.js';
-import { canViewEfetivo } from '../efetivo/access.js';
+import { canViewEfetivo, isEfetivoManager } from '../efetivo/access.js';
+import { ABSENCE_ALERT_NOTIFICATION_KIND } from '../efetivo/allocation-review/absence-alerts.js';
 import { efetivoProjectWhere } from '../efetivo/project-visibility.js';
 import { projectListWhereForAuth } from '../projects/access.js';
 import { hasReportEmissionPermission } from '../operational-reports/permissions.js';
@@ -79,11 +80,35 @@ export async function notificationAccessWhere(auth, client = prisma) {
   if (canViewEfetivo(user)) {
     scopes.push({ kind: { in: PROJECT_KINDS }, project: { ...efetivoProjectWhere(), registrationPending: false } });
   }
+  // Conferência semanal de alocação (feature 037): aviso para cadastrar ausência.
+  if (user.isActive && isEfetivoManager(user)) {
+    scopes.push({ kind: ABSENCE_ALERT_NOTIFICATION_KIND });
+  }
   return scopes.length ? { OR: scopes } : { id: { in: [] } };
+}
+
+const ABSENCE_TYPE_LABELS = { FERIAS: 'férias', FOLGA: 'folga', AFASTAMENTO: 'afastamento' };
+
+function formatDayMonth(dateKey) {
+  const [, month, day] = String(dateKey || '').split('-');
+  return day && month ? `${day}/${month}` : String(dateKey || '');
+}
+
+export function absenceAlertDestination(data = {}) {
+  const params = new URLSearchParams({
+    section: 'colaboradores',
+    colaborador: data.collaboratorId || '',
+    cadastrarAusencia: '1',
+    tipo: data.absenceType || '',
+    de: data.startDate || '',
+    ate: data.endDate || ''
+  });
+  return `/efetivo?${params.toString()}`;
 }
 
 function destination(event, user) {
   if (OPERATIONAL_NOTIFICATION_KINDS.includes(event.kind)) return '/operacoes';
+  if (event.kind === ABSENCE_ALERT_NOTIFICATION_KIND) return absenceAlertDestination(event.data);
   const projectId = encodeURIComponent(event.projectId);
   if (PROJECT_KINDS.includes(event.kind) && event.project.registrationPending) {
     return `/rdo/gestor?tab=projetos&revisar=${projectId}`;
@@ -118,6 +143,22 @@ function destination(event, user) {
 }
 
 export function publicNotification(event, user) {
+  if (event.kind === ABSENCE_ALERT_NOTIFICATION_KIND) {
+    const data = event.data || {};
+    const type = ABSENCE_TYPE_LABELS[data.absenceType] || 'ausência';
+    const period = data.startDate === data.endDate
+      ? `em ${formatDayMonth(data.startDate)}`
+      : `de ${formatDayMonth(data.startDate)} a ${formatDayMonth(data.endDate)}`;
+    return {
+      id: event.id,
+      kind: event.kind,
+      title: `Cadastrar ${type} de ${data.collaboratorName || 'colaborador'}`,
+      description: `A conferência de alocação marcou ${type} ${period}, mas não há ${type} cadastrada no Efetivo.`,
+      createdAt: event.createdAt.toISOString(),
+      readAt: event.reads?.[0]?.readAt?.toISOString() || null,
+      href: destination(event, user)
+    };
+  }
   if (OPERATIONAL_NOTIFICATION_KINDS.includes(event.kind)) {
     return {
       id: event.id, kind: event.kind, title: event.data.title, description: event.data.description,

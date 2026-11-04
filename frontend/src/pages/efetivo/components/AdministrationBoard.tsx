@@ -25,7 +25,8 @@ const EFETIVO_ROLE_LABELS: Record<string, string> = {
   EFETIVO_ASSETS: 'Ativos',
   EFETIVO_SUPPLIES: 'Suprimentos',
   EFETIVO_ADMINISTRATIVE: 'Administrativo/RH',
-  EFETIVO_QSMS: 'QSMS'
+  EFETIVO_QSMS: 'QSMS',
+  EFETIVO_ALLOCATION_REVIEW: 'Conferência de alocação'
 };
 
 const ADMIN_TABS = [

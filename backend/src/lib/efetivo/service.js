@@ -1,3 +1,4 @@
+import { resolveAllocationReviewAbsenceAlerts } from './allocation-review/absence-alerts.js';
 import { getEfetivoReferenceSetting } from './settings.js';
 import { buildProductivityReport } from './productivity.js';
 import { ensureNoAbsenceOverlap, validateAbsencePeriod } from './absences.js';
@@ -266,7 +267,13 @@ export async function createEfetivoAbsence(payload, createdByUserId, dependencie
       createdByUserId: createdByUserId || null
     },
     include: { collaborator: { select: { id: true, name: true, jobRoleId: true, jobRole: { select: { id: true, name: true } } } } }
-  }).then(item => ({ ...item, collaborator: withCurrentJobRole(item.collaborator) }));
+  }).then(async item => {
+    // Cadastro de ausência encerra avisos da conferência de alocação cobertos por ela (feature 037).
+    await resolveAllocationReviewAbsenceAlerts({
+      collaboratorId: item.collaboratorId, type: item.type, startDate: item.startDate, endDate: item.endDate, absenceId: item.id
+    }, database);
+    return { ...item, collaborator: withCurrentJobRole(item.collaborator) };
+  });
 }
 
 export async function updateEfetivoAbsence(id, payload, dependencies = {}) {
@@ -292,7 +299,13 @@ export async function updateEfetivoAbsence(id, payload, dependencies = {}) {
       ...(payload.note !== undefined ? { note: String(payload.note || '').trim() || null } : {})
     },
     include: { collaborator: { select: { id: true, name: true, jobRoleId: true, jobRole: { select: { id: true, name: true } } } } }
-  }).then(item => ({ ...item, collaborator: withCurrentJobRole(item.collaborator) }));
+  }).then(async item => {
+    // Cadastro de ausência encerra avisos da conferência de alocação cobertos por ela (feature 037).
+    await resolveAllocationReviewAbsenceAlerts({
+      collaboratorId: item.collaboratorId, type: item.type, startDate: item.startDate, endDate: item.endDate, absenceId: item.id
+    }, database);
+    return { ...item, collaborator: withCurrentJobRole(item.collaborator) };
+  });
 }
 
 export async function deleteEfetivoAbsence(id, dependencies = {}) {

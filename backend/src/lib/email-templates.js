@@ -471,6 +471,7 @@ export function buildMonthlyAllocationReportEmailTemplate({ monthLabel, summary 
         <div><strong>Colaboradores:</strong> ${counts.collaboratorCount || 0}</div>
         <div><strong>Alocações:</strong> ${counts.allocationCount || 0}</div>
         <div><strong>Projetos:</strong> ${counts.projectCount || 0}</div>
+        <div><strong>Dias conferidos:</strong> ${counts.reviewedDayCount || 0}</div>
       </div>
     </div>
   `;
@@ -481,12 +482,13 @@ export function buildMonthlyAllocationReportEmailTemplate({ monthLabel, summary 
     text: [
       `Relatório mensal de alocação - ${monthLabel}`,
       '',
-      'Segue em anexo o PDF com o resumo dia a dia por colaborador, projeto e CNPJ.',
+      'Segue em anexo o PDF com o resumo dia a dia por colaborador, projeto e CNPJ, incluindo os dias conferidos em Sede, folga e ausências (sem CNPJ).',
       '',
       `RDOs considerados: ${counts.reportCount || 0}`,
       `Colaboradores: ${counts.collaboratorCount || 0}`,
       `Alocações: ${counts.allocationCount || 0}`,
-      `Projetos: ${counts.projectCount || 0}`
+      `Projetos: ${counts.projectCount || 0}`,
+      `Dias conferidos: ${counts.reviewedDayCount || 0}`
     ].join('\n'),
     html: wrapEmailHtml({ title, intro, body, footer })
   };

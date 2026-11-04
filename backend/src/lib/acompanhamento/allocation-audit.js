@@ -29,7 +29,9 @@ async function currentFingerprint() {
     effectivePlans,
     effectiveMissions,
     effectiveAllocations,
-    collaboratorRoleHistory
+    collaboratorRoleHistory,
+    reviewDays,
+    reviewRows
   ] = await Promise.all([
     prisma.pontoImport.aggregate({ _count: { _all: true }, _max: { createdAt: true } }),
     prisma.report.aggregate({ _count: { _all: true }, _max: { updatedAt: true } }),
@@ -41,7 +43,10 @@ async function currentFingerprint() {
     prisma.efetivoPlan.aggregate({ _count: { _all: true }, _max: { updatedAt: true } }),
     prisma.efetivoMissionPlan.aggregate({ _count: { _all: true }, _max: { updatedAt: true } }),
     prisma.efetivoMissionAllocation.aggregate({ _count: { _all: true }, _max: { updatedAt: true } }),
-    prisma.collaboratorJobRoleHistory.aggregate({ _count: { _all: true }, _max: { updatedAt: true } })
+    prisma.collaboratorJobRoleHistory.aggregate({ _count: { _all: true }, _max: { updatedAt: true } }),
+    // Conferência semanal de alocação (feature 037): conferir/desconferir muda a decisão do dia.
+    prisma.allocationReviewDay.aggregate({ _count: { _all: true }, _max: { updatedAt: true } }),
+    prisma.allocationReviewRow.aggregate({ _count: { _all: true }, _max: { updatedAt: true } })
   ]);
   return JSON.stringify([
     imports._count._all, imports._max.createdAt,
@@ -54,7 +59,9 @@ async function currentFingerprint() {
     effectivePlans._count._all, effectivePlans._max.updatedAt,
     effectiveMissions._count._all, effectiveMissions._max.updatedAt,
     effectiveAllocations._count._all, effectiveAllocations._max.updatedAt,
-    collaboratorRoleHistory._count._all, collaboratorRoleHistory._max.updatedAt
+    collaboratorRoleHistory._count._all, collaboratorRoleHistory._max.updatedAt,
+    reviewDays._count._all, reviewDays._max.updatedAt,
+    reviewRows._count._all, reviewRows._max.updatedAt
   ]);
 }
 
@@ -84,6 +91,28 @@ async function loadTrails() {
   };
   cache = { fingerprint, value };
   return value;
+}
+
+/*
+ * Trilhas diárias por colaborador num intervalo, para a conferência semanal de alocação
+ * (feature 037). Reaproveita o cálculo memorizado; devolve Map collaboratorId → Map date → trail.
+ */
+export async function getAllocationTrailsForRange({ from, to }) {
+  const { rates } = await loadTrails();
+  const byCollaborator = new Map();
+  for (const entry of rates) {
+    if (!entry?.collaboratorId) continue;
+    for (const day of entry.allocationTrail || []) {
+      if (!inRange(day.date, from, to)) continue;
+      let days = byCollaborator.get(entry.collaboratorId);
+      if (!days) {
+        days = new Map();
+        byCollaborator.set(entry.collaboratorId, days);
+      }
+      days.set(day.date, day);
+    }
+  }
+  return byCollaborator;
 }
 
 function projectRef(projectsById, projectId) {
@@ -132,6 +161,7 @@ function decorateDay(day, projectsById, knownMissionCodes, ignoredTagSet = new S
     planningMismatch: Boolean(day.planningMismatch),
     pending: Boolean(day.pending),
     reason: day.reason,
+    reviewed: String(day.reason || '').startsWith('REVIEW_'),
     allocated,
     bucket: allocated ? null : unallocatedBucket(day, knownMissionCodes, ignoredTagSet)
   };

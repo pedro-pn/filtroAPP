@@ -18,6 +18,8 @@ export interface EfetivoSectionDefinition {
   id: EfetivoPlanningSection;
   label: string;
   description: string;
+  // Contador de pendências na navegação (ex.: semanas a conferir).
+  badge?: number;
 }
 
 interface EfetivoAppShellProps {
@@ -48,6 +50,7 @@ export function EfetivoAppShell({
           id: section.id,
           label: section.label,
           href: `${location.pathname}${query ? `?${query}` : ''}`,
+          ...(section.badge ? { badge: section.badge } : {}),
           onSelect: () => {
             const latest = planningSectionHomeParams(new URLSearchParams(window.location.search), section.id);
             navigate(`${location.pathname}?${latest.toString()}`);

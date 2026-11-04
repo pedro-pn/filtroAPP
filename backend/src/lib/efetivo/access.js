@@ -37,6 +37,28 @@ export function canEditEfetivoChecklistArea(user, areaRoles = []) {
   return Boolean(user) && areaRoles.length > 0 && hasModuleRole(user, areaRoles);
 }
 
+// Conferência semanal de alocação (feature 037). O papel é dedicado e NÃO entra em
+// EFETIVO_ACCESS_ROLES: quem só confere alocação não deve ler o restante do Efetivo.
+export const ALLOCATION_REVIEW_ROLE = 'efetivo:allocation-review';
+
+export function isAppAdmin(user) {
+  return Boolean(user) && user.accountType === 'ADMIN';
+}
+
+export function canReviewAllocation(user) {
+  return isAppAdmin(user) || (Boolean(user) && hasModuleRole(user, ALLOCATION_REVIEW_ROLE));
+}
+
+export function requireAllocationReviewer(req, res, next) {
+  if (!canReviewAllocation(req.auth?.user)) {
+    return res.status(403).json({
+      error: 'Acesso restrito à conferência de alocação.',
+      code: 'ALLOCATION_REVIEW_FORBIDDEN'
+    });
+  }
+  next();
+}
+
 export function requireEfetivoManager(req, res, next) {
   if (!isEfetivoManager(req.auth?.user)) {
     return res.status(403).json({ error: 'Acesso restrito ao gestor de Efetivo Operacional.' });

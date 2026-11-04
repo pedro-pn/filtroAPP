@@ -36,7 +36,7 @@ export const API_DATA_DOMAINS = Object.freeze([
   }),
   domain({
     code: 'time-attendance', label: 'Ponto e presença',
-    models: [...modelEntries(['CollaboratorAbsence', 'PontoPeriodSummary'], 'SENSITIVE'), ...modelEntries(['PontoImport', 'PontoNameAlias', 'PontoSyncRun', 'PontoSyncState', 'PontoExternalEmployeeLink', 'PontoExternalEmployee', 'PontoProjectTagAlias', 'PontoIgnoredProjectTag', 'PontoDayProjectOverride'], 'RESERVED')],
+    models: [...modelEntries(['CollaboratorAbsence', 'PontoPeriodSummary'], 'SENSITIVE'), ...modelEntries(['PontoImport', 'PontoNameAlias', 'PontoSyncRun', 'PontoSyncState', 'PontoExternalEmployeeLink', 'PontoExternalEmployee', 'PontoProjectTagAlias', 'PontoIgnoredProjectTag', 'PontoDayProjectOverride', 'AllocationReviewWeek', 'AllocationReviewWeekEvent', 'AllocationReviewRow', 'AllocationReviewDay', 'AllocationReviewDayProject', 'AllocationReviewAbsenceAlert'], 'RESERVED')],
     candidateScopes: ['ponto.resumos.read', 'ponto.ausencias.read', 'ponto.sincronizacoes.read'], candidateAvailability: 'SENSITIVE', endpointFamilies: ['/ponto/resumos', '/ponto/ausencias', '/ponto/sincronizacoes'],
     excludedFields: ['payload bruto', 'hash de arquivo', 'erros brutos', 'identificadores externos pessoais', 'documentos médicos', 'aliases internos']
   }),

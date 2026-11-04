@@ -48,6 +48,7 @@ import { formatDateOnlyPtBr } from '../../utils/dateOnly';
 import { downloadBlob } from '../../utils/download';
 import {
   Alert,
+  Badge,
   Button,
   Card,
   DataTable,
@@ -3023,17 +3024,31 @@ function formatAllocationDate(value: string) {
   return formatDateOnlyPtBr(value);
 }
 
+// Conferência semanal de alocação (feature 037): dia sem projeto (Sede, Folga, Férias...) não
+// tem local nem CNPJ; dia conferido ganha o selo "Conferido".
+function isOffProjectDay(day: AllocationReportDay) {
+  return day.source === 'REVIEW' && !day.projectId;
+}
+
+function allocationDayKey(day: AllocationReportDay, index: number) {
+  return `${day.date}-${day.projectId || day.kind || 'none'}-${day.shift}-${index}`;
+}
+
+function AllocationReviewedBadge({ day }: { day: AllocationReportDay }) {
+  return day.reviewed ? <Badge tone="brand">Conferido</Badge> : null;
+}
+
 function AllocationDayList({ days }: { days: AllocationReportDay[] }) {
   if (days.length === 0) return <span className="stats-alloc-empty-cell">Sem alocação</span>;
   return (
     <div className="stats-alloc-day-list">
       {days.map((day, index) => (
-        <div key={`${day.date}-${day.projectId}-${day.shift}-${index}`} className="stats-alloc-day-item">
+        <div key={allocationDayKey(day, index)} className="stats-alloc-day-item">
           <span className="stats-alloc-date">{formatAllocationDate(day.date)}</span>
           <span className="stats-alloc-shift">{day.shift}</span>
           <span className="stats-alloc-project">
-            {day.projectName}
-            <span className="stats-alloc-location">Local da obra: {day.workLocation || '-'}</span>
+            {day.projectName} <AllocationReviewedBadge day={day} />
+            <span className="stats-alloc-location">{isOffProjectDay(day) ? 'Fora de projeto' : `Local da obra: ${day.workLocation || '-'}`}</span>
           </span>
           <span className="stats-alloc-client">{day.clientName || '-'}</span>
           <span className="stats-alloc-cnpj">{day.clientCnpj || '-'}</span>
@@ -3085,7 +3100,7 @@ function DesignSystemAllocationDayList({
     <div className="rdo-stats-allocation__day-list">
       {days.map((day, index) => (
         <div
-          key={`${day.date}-${day.projectId}-${day.shift}-${index}`}
+          key={allocationDayKey(day, index)}
           className="rdo-stats-allocation__day-item"
         >
           <span className="rdo-stats-allocation__date">
@@ -3093,9 +3108,9 @@ function DesignSystemAllocationDayList({
           </span>
           <span className="rdo-stats-allocation__shift">{day.shift}</span>
           <div className="rdo-stats-allocation__project">
-            <strong>{day.projectName}</strong>
+            <strong>{day.projectName}</strong> <AllocationReviewedBadge day={day} />
             <span className="rdo-stats-allocation__location">
-              Local da obra: {day.workLocation || '-'}
+              {isOffProjectDay(day) ? 'Fora de projeto' : `Local da obra: ${day.workLocation || '-'}`}
             </span>
           </div>
           <span className="rdo-stats-allocation__client">
@@ -3172,10 +3187,14 @@ function DesignSystemAllocationTable({
                 ),
                 value: (
                   <span className="rdo-stats-allocation__mobile-day-value">
-                    <strong>{day.projectName}</strong>
-                    <span>Local da obra: {day.workLocation || '-'}</span>
-                    <span>{day.clientName || '-'}</span>
-                    <span>{day.clientCnpj || '-'}</span>
+                    <strong>{day.projectName}</strong> <AllocationReviewedBadge day={day} />
+                    {isOffProjectDay(day) ? <span>Fora de projeto · sem CNPJ</span> : (
+                      <>
+                        <span>Local da obra: {day.workLocation || '-'}</span>
+                        <span>{day.clientName || '-'}</span>
+                        <span>{day.clientCnpj || '-'}</span>
+                      </>
+                    )}
                   </span>
                 )
               }))
@@ -3300,7 +3319,11 @@ function MonthlyAllocationDashboard({
           ? 'Nenhum destinatário ativo cadastrado.'
           : result.reason === 'already_processed'
             ? 'Este mês já foi enviado ou tem um envio em andamento.'
-            : 'Envio não realizado.');
+            : result.reason === 'awaiting_review'
+              ? 'O envio automático aguarda a conferência de alocação das semanas do mês.'
+              : result.reason === 'outside_send_window'
+                ? 'Fora da janela do envio automático (até o 3º dia útil).'
+                : 'Envio não realizado.');
         return;
       }
       const parts = [];
@@ -3470,7 +3493,7 @@ function MonthlyAllocationDashboard({
               <span className="rdo-stats-allocation__heading">
                 <h2>Destinatários do envio mensal</h2>
                 <span>
-                  O envio automático ocorre no dia 1 para o mês anterior.
+                  O envio automático espera a conferência de todas as semanas do mês e acontece até o 3º dia útil do mês seguinte.
                   Ativos: {activeRecipients}
                 </span>
               </span>
@@ -3623,7 +3646,7 @@ function MonthlyAllocationDashboard({
         <div className="stats-card-header">
           <div>
             <div className="survey-dash-card-title">Destinatários do envio mensal</div>
-            <div className="stats-alloc-subtitle">O envio automático ocorre no dia 1 para o mês anterior. Ativos: {activeRecipients}</div>
+            <div className="stats-alloc-subtitle">O envio automático espera a conferência das semanas do mês e acontece até o 3º dia útil do mês seguinte. Ativos: {activeRecipients}</div>
           </div>
           <button
             className="mini-btn"

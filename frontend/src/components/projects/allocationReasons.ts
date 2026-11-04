@@ -1,6 +1,9 @@
 // Rótulos dos motivos de decisão da alocação diária do ponto (backend: buildDailyProjectWeights).
 const ALLOCATION_REASON_LABELS: Record<string, string> = {
   MANUAL_OVERRIDE: 'Seleção manual',
+  REVIEW_CONFIRMED: 'Conferência semanal',
+  REVIEW_SHARED_CONFIRMED: 'Conferência semanal (dividido entre projetos)',
+  REVIEW_IDLE: 'Conferência semanal: fora de projeto',
   MANUAL_SHARED_OVERRIDE: 'Seleção manual compartilhada',
   SINGLE_TAG: 'Etiqueta do Ponto Mais',
   SINGLE_CONFIRMED_TAG: 'Etiqueta confirmada pelo RDO',

@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router';
 
 import { listPlanningJobRoles } from '../../api/efetivoPlanning';
+import { getAllocationReviewPendingCount } from '../../api/allocationReview';
 import { useAuth } from '../../auth/AuthContext';
 import { Button, Card, Field, Select } from '../../components/ui/ds';
 import { DateInput } from '../../components/ui/DateInput';
@@ -14,6 +15,9 @@ import { parsePlanningSection, setPlanningSectionParams, type EfetivoPlanningSec
 import { PROJECT_KANBAN_STAGES, type ProjectKanbanStage } from '../../utils/projectWorkflow';
 import { AbsencesBoard } from './components/AbsencesBoard';
 import { AdministrationBoard } from './components/AdministrationBoard';
+import { AllocationReviewBoard } from './components/AllocationReviewBoard';
+import { AllocationReviewMonthView } from './components/AllocationReviewMonthView';
+import { parseGroupMode, parseShowFilter, parseViewMode, parseWeekStart, parseYearMonth } from './components/allocationReviewPresentation';
 import { AvailabilityBoard } from './components/AvailabilityBoard';
 import { CollaboratorsBoard } from './components/CollaboratorsBoard';
 import { OperationalCalendar } from './components/OperationalCalendar';
@@ -25,6 +29,8 @@ import { EfetivoPlanningNovelty } from './EfetivoPlanningNovelty';
 import { EfetivoSectionNavigation } from './EfetivoSectionNavigation';
 import { EfetivoTutorial } from './EfetivoTutorial';
 import { ProjectWorkflowNovelty } from './ProjectWorkflowNovelty';
+import { AllocationReviewNovelty } from './AllocationReviewNovelty';
+import { canReviewAllocation, canViewEfetivoModule } from '../../utils/allocationReviewAccess';
 import './efetivo.css';
 import './EfetivoPage.ds.css';
 import './EfetivoDialogs.css';
@@ -38,6 +44,7 @@ const SECTIONS: readonly EfetivoSectionDefinition[] = [
   { id: 'disponibilidade', label: 'Disponibilidade', description: 'Situação diária e necessidade de equipe no período.' },
   { id: 'evolucao', label: 'Evolução', description: 'Acompanhamento das etapas de cada missão.' },
   { id: 'produtividade', label: 'Produtividade', description: 'Indicadores realizados e evolução mensal.' },
+  { id: 'conferencia', label: 'Conferência', description: 'Conferência semanal da alocação dos colaboradores.' },
   { id: 'administracao', label: 'Administração', description: 'Regras, feriados e atividade do módulo.' }
 ];
 
@@ -49,7 +56,18 @@ export function EfetivoPage() {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const tutorialTrigger = useRef<(() => void) | null>(null);
-  const section = parsePlanningSection(searchParams.get('section'));
+  const canView = canViewEfetivoModule(user);
+  const canReview = canReviewAllocation(user);
+  // Quem tem só o papel de conferência vê só a seção Conferência (o restante exige leitura do Efetivo).
+  const reviewPending = useQuery({ queryKey: ['allocation-review-pending'], queryFn: getAllocationReviewPendingCount, enabled: canReview, staleTime: 60_000 });
+  const reviewBadge = reviewPending.data?.openWeeks.length || 0;
+  const visibleSections = useMemo(() => SECTIONS
+    .filter(item => (item.id === 'conferencia' ? canReview : canView))
+    .map(item => (item.id === 'conferencia' && reviewBadge ? { ...item, badge: reviewBadge } : item)), [canReview, canView, reviewBadge]);
+  const requestedSection = parsePlanningSection(searchParams.get('section'));
+  const section: EfetivoPlanningSection = visibleSections.some(item => item.id === requestedSection)
+    ? requestedSection
+    : visibleSections[0]?.id || 'visao-geral';
   const date = safeDate(searchParams.get('date'));
   const endDate = safeDate(searchParams.get('final') || addDateOnlyDays(date, 29));
   const availabilityView = searchParams.get('disponibilidadeView') === 'calendar' ? 'calendar' : 'kanban';
@@ -67,9 +85,39 @@ export function EfetivoPage() {
   const workflowPage = Number.isInteger(parsedWorkflowPage) && parsedWorkflowPage > 0 ? parsedWorkflowPage : 1;
   const adminTab = (['regras', 'feriados', 'notificacoes', 'atividade'].includes(searchParams.get('adminTab') || '') ? searchParams.get('adminTab') : 'regras') as 'regras' | 'feriados' | 'notificacoes' | 'atividade';
   const canManage = user?.accountType === 'ADMIN' || Boolean(user?.moduleRoles?.includes('efetivo:manager'));
-  const needsPositionFilters = ['visao-geral', 'calendario', 'colaboradores', 'disponibilidade'].includes(section);
+  const needsPositionFilters = canView && ['visao-geral', 'calendario', 'colaboradores', 'disponibilidade'].includes(section);
   const roles = useQuery({ queryKey: ['efetivo-planning-job-roles'], queryFn: listPlanningJobRoles, enabled: needsPositionFilters });
-  const currentSection = SECTIONS.find(item => item.id === section) || SECTIONS[0];
+  const currentSection = visibleSections.find(item => item.id === section) || visibleSections[0] || SECTIONS[0];
+  const reviewWeek = parseWeekStart(searchParams.get('semana'));
+  const reviewShow = parseShowFilter(searchParams.get('mostrar'));
+  const reviewGroup = parseGroupMode(searchParams.get('agrupar'));
+  const reviewView = parseViewMode(searchParams.get('visao'));
+  const reviewMonth = parseYearMonth(searchParams.get('mes'), reviewWeek);
+  const setReviewView = useCallback((view: 'semana' | 'mes') => {
+    setSearchParams(current => {
+      const next = new URLSearchParams(current);
+      if (view === 'mes') {
+        next.set('visao', 'mes');
+        if (!next.get('mes')) next.set('mes', reviewMonth);
+      } else {
+        next.delete('visao');
+        next.delete('mes');
+      }
+      return next;
+    }, { replace: false });
+  }, [reviewMonth, setSearchParams]);
+  const openReviewWeek = useCallback((weekStart: string) => {
+    setSearchParams(current => {
+      const next = new URLSearchParams(current);
+      next.delete('visao');
+      next.delete('mes');
+      next.set('semana', weekStart);
+      return next;
+    }, { replace: false });
+  }, [setSearchParams]);
+  const absencePrefill = searchParams.get('cadastrarAusencia') === '1' && selectedCollaboratorId
+    ? { type: searchParams.get('tipo') || '', startDate: searchParams.get('de') || '', endDate: searchParams.get('ate') || '' }
+    : undefined;
 
   const updateParam = useCallback((key: string, value?: string, replace = true) => {
     const next = new URLSearchParams(window.location.search);
@@ -113,13 +161,13 @@ export function EfetivoPage() {
     setSearchParams(next, { replace: false });
   }, [setSearchParams]);
   return (
-    <EfetivoAppShell currentSection={section} sections={SECTIONS}>
+    <EfetivoAppShell currentSection={section} sections={visibleSections}>
       <main className="fv-ds efetivo-page efetivo-page-v2">
         <PageHeader
           title={currentSection.label}
           description={currentSection.description}
           breadcrumb={[{ label: 'Efetivo Operacional' }, { label: currentSection.label }]}
-          actions={(
+          actions={canView ? (
             <Button
               variant="secondary"
               size="sm"
@@ -127,12 +175,12 @@ export function EfetivoPage() {
             >
               Ver tutorial
             </Button>
-          )}
+          ) : undefined}
         />
 
         <EfetivoSectionNavigation
           current={section}
-          sections={SECTIONS}
+          sections={visibleSections}
           onNavigate={setSection}
         />
 
@@ -178,15 +226,38 @@ export function EfetivoPage() {
             ) : null}
             {section === 'visao-geral' ? <OverviewBoard date={date} jobRoleId={jobRoleId} onNavigate={goToSection} /> : null}
             {section === 'calendario' ? <OperationalCalendar date={date} view={calendarView} jobRoleId={jobRoleId} selectedDay={selectedDay} dayOpen={Boolean(searchParams.get('dia'))} onDayClose={() => updateParam('dia')} onDateChange={value => updateParam('date', value)} onViewChange={value => updateParam('view', value === 'month' ? undefined : value)} onDaySelect={value => updateParam('dia', value)} /> : null}
-            {section === 'colaboradores' ? <><CollaboratorsBoard date={date} jobRoleId={jobRoleId} search={search} canManage={canManage} selectedCollaboratorId={selectedCollaboratorId} onSearchChange={setSearch} onCollaboratorSelect={value => updateParam('colaborador', value)} /><AbsencesBoard canManage={canManage} selectedAbsenceId={selectedAbsenceId} /></> : null}
+            {section === 'colaboradores' ? <><CollaboratorsBoard date={date} jobRoleId={jobRoleId} search={search} canManage={canManage} selectedCollaboratorId={selectedCollaboratorId} onSearchChange={setSearch} onCollaboratorSelect={value => updateParam('colaborador', value)} absencePrefill={absencePrefill} onAbsencePrefillDone={() => setSearchParams(current => { const next = new URLSearchParams(current); for (const key of ['cadastrarAusencia', 'tipo', 'de', 'ate']) next.delete(key); return next; }, { replace: true })} /><AbsencesBoard canManage={canManage} selectedAbsenceId={selectedAbsenceId} /></> : null}
             {section === 'disponibilidade' ? <AvailabilityBoard date={date} endDate={endDate} jobRoleId={jobRoleId} view={availabilityView} onViewChange={value => updateParam('disponibilidadeView', value === 'kanban' ? undefined : value)} /> : null}
             {section === 'evolucao' ? <ProjectWorkflowBoard canManage={canManage} search={workflowSearch} page={workflowPage} mobileStage={workflowStage} selectedProjectId={selectedWorkflowProjectId} onSearchChange={handleWorkflowSearchChange} onPageChange={value => updateParam('pagina', value > 1 ? String(value) : undefined)} onMobileStageChange={value => updateParam('faseProjeto', value === 'HANDOVER' ? undefined : value)} onProjectSelect={value => updateParam('projeto', value, false)} /> : null}
             {section === 'produtividade' ? <ProductivityBoard canManage={canManage} /> : null}
+            {section === 'conferencia' && reviewView === 'mes' ? (
+              <AllocationReviewMonthView
+                yearMonth={reviewMonth}
+                search={searchParams.get('q') || ''}
+                onMonthChange={value => updateParam('mes', value, false)}
+                onViewChange={setReviewView}
+                onOpenWeek={openReviewWeek}
+              />
+            ) : null}
+            {section === 'conferencia' && reviewView === 'semana' ? (
+              <AllocationReviewBoard
+                weekStart={reviewWeek}
+                show={reviewShow}
+                group={reviewGroup}
+                search={searchParams.get('q') || ''}
+                onWeekChange={value => updateParam('semana', value, false)}
+                onShowChange={value => updateParam('mostrar', value === 'all' ? undefined : value)}
+                onGroupChange={value => updateParam('agrupar', value === 'name' ? undefined : value)}
+                onSearchChange={value => updateParam('q', value || undefined)}
+                onViewChange={setReviewView}
+              />
+            ) : null}
             {section === 'administracao' ? <AdministrationBoard canManage={canManage} tab={adminTab} onTabChange={value => updateParam('adminTab', value === 'regras' ? undefined : value)} /> : null}
         </section>
       </main>
-      <EfetivoTutorial userKey={user?.id || ''} ready={Boolean(user)} goToSection={setSection} triggerRef={tutorialTrigger} />
-      <EfetivoPlanningNovelty userId={user?.id || ''} />
+      <EfetivoTutorial userKey={user?.id || ''} ready={Boolean(user) && canView} goToSection={setSection} triggerRef={tutorialTrigger} />
+      <EfetivoPlanningNovelty userId={canView ? user?.id || '' : ''} />
+      <AllocationReviewNovelty userId={user?.id || ''} enabled={canReview && section === 'conferencia'} />
       <ProjectWorkflowNovelty userId={user?.id || ''} enabled={section === 'evolucao'} />
     </EfetivoAppShell>
   );

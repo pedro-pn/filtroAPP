@@ -633,7 +633,8 @@
           "efetivo:assets",
           "efetivo:supplies",
           "efetivo:administrative",
-          "efetivo:qsms"
+          "efetivo:qsms",
+          "efetivo:allocation-review"
         ],
         "path": "/efetivo"
       },
@@ -657,7 +658,8 @@
             "efetivo:assets",
             "efetivo:supplies",
             "efetivo:administrative",
-            "efetivo:qsms"
+            "efetivo:qsms",
+            "efetivo:allocation-review"
           ]
         }
       },
@@ -729,6 +731,15 @@
           "code": "EFETIVO_QSMS",
           "public": "efetivo:qsms",
           "label": "Efetivo Operacional - QSMS",
+          "accountTypes": [
+            "ADMIN",
+            "INTERNAL"
+          ]
+        },
+        {
+          "code": "EFETIVO_ALLOCATION_REVIEW",
+          "public": "efetivo:allocation-review",
+          "label": "Efetivo Operacional - Conferência de alocação",
           "accountTypes": [
             "ADMIN",
             "INTERNAL"

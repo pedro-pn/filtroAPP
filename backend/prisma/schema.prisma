@@ -151,6 +151,7 @@ enum ModuleRoleCode {
   EFETIVO_SUPPLIES
   EFETIVO_ADMINISTRATIVE
   EFETIVO_QSMS
+  EFETIVO_ALLOCATION_REVIEW
   ASSINATURAS_USER
 }
 
@@ -588,6 +589,9 @@ model Collaborator {
   efetivoMissionAllocations      EfetivoMissionAllocation[]
   projectWorkflowTeamChecks      ProjectWorkflowTeamMemberCheck[]
   maintenanceSupervisorConfigs   MaintenanceConfiguration[]       @relation("MaintenanceSupervisor")
+  allocationReviewRows           AllocationReviewRow[]
+  allocationReviewDays           AllocationReviewDay[]
+  allocationReviewAbsenceAlerts  AllocationReviewAbsenceAlert[]
 
   @@index([jobRoleId])
 }
@@ -1027,6 +1031,7 @@ model Project {
   apiCredentialProjects      ApiCredentialProject[]
   pontoProjectTagAliases     PontoProjectTagAlias[]
   pontoDayProjectOverrides   PontoDayProjectOverride[]
+  allocationReviewDayProjects AllocationReviewDayProject[]
   efetivoMissionPlans        EfetivoMissionPlan[]
   workflow                   ProjectWorkflow?
   documents                  ProjectDocument[]
@@ -4594,4 +4599,130 @@ model ReportEmailJob {
 
   @@index([status, nextAttemptAt])
   @@index([status, lockedUntil])
+}
+
+// === Conferência semanal de alocação (feature 037) ===
+// Camada de verificação humana sobre a alocação automática (ponto + RDO + Efetivo). Só os dias de
+// linhas conferidas valem no custo HH e no relatório mensal; o resto continua automático.
+
+enum AllocationReviewKind {
+  PROJECT
+  TRAVEL
+  SEDE
+  FOLGA
+  FERIAS
+  AFASTAMENTO
+  TREINAMENTO
+}
+
+enum AllocationReviewWeekStatus {
+  OPEN
+  CLOSED
+}
+
+enum AllocationReviewEventType {
+  CLOSED
+  REOPENED
+}
+
+enum AllocationReviewAlertStatus {
+  OPEN
+  RESOLVED
+  CANCELLED
+}
+
+model AllocationReviewWeek {
+  id             String                         @id @default(cuid())
+  weekStart      DateTime                       @unique @db.Date
+  status         AllocationReviewWeekStatus     @default(OPEN)
+  version        Int                            @default(1)
+  closedAt       DateTime?
+  closedByUserId String?
+  createdAt      DateTime                       @default(now())
+  updatedAt      DateTime                       @updatedAt
+  events         AllocationReviewWeekEvent[]
+  rows           AllocationReviewRow[]
+  absenceAlerts  AllocationReviewAbsenceAlert[]
+
+  @@index([status, weekStart])
+}
+
+model AllocationReviewWeekEvent {
+  id          String                    @id @default(cuid())
+  weekId      String
+  type        AllocationReviewEventType
+  actorUserId String?
+  note        String?
+  createdAt   DateTime                  @default(now())
+  week        AllocationReviewWeek      @relation(fields: [weekId], references: [id], onDelete: Cascade)
+
+  @@index([weekId, createdAt])
+}
+
+model AllocationReviewRow {
+  id                String                @id @default(cuid())
+  weekId            String
+  collaboratorId    String
+  confirmedAt       DateTime?
+  confirmedByUserId String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  week              AllocationReviewWeek  @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  collaborator      Collaborator          @relation(fields: [collaboratorId], references: [id], onDelete: Cascade)
+  days              AllocationReviewDay[]
+
+  @@unique([weekId, collaboratorId])
+  @@index([collaboratorId])
+}
+
+model AllocationReviewDay {
+  id                    String                       @id @default(cuid())
+  rowId                 String
+  collaboratorId        String
+  workDate              DateTime                     @db.Date
+  kind                  AllocationReviewKind
+  note                  String?
+  differsFromSuggestion Boolean                      @default(false)
+  suggestionSnapshot    Json?
+  sourceFingerprint     String?
+  updatedByUserId       String?
+  createdAt             DateTime                     @default(now())
+  updatedAt             DateTime                     @updatedAt
+  row                   AllocationReviewRow          @relation(fields: [rowId], references: [id], onDelete: Cascade)
+  collaborator          Collaborator                 @relation(fields: [collaboratorId], references: [id], onDelete: Cascade)
+  projects              AllocationReviewDayProject[]
+
+  @@unique([collaboratorId, workDate])
+  @@index([workDate])
+  @@index([rowId])
+}
+
+model AllocationReviewDayProject {
+  dayId     String
+  projectId String
+  day       AllocationReviewDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  project   Project             @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@id([dayId, projectId])
+  @@index([projectId])
+}
+
+model AllocationReviewAbsenceAlert {
+  id                  String                      @id @default(cuid())
+  collaboratorId      String
+  absenceType         CollaboratorAbsenceType
+  startDate           DateTime                    @db.Date
+  endDate             DateTime                    @db.Date
+  status              AllocationReviewAlertStatus @default(OPEN)
+  sourceWeekId        String
+  notificationEventId String?
+  resolvedAt          DateTime?
+  resolvedByAbsenceId String?
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
+  collaborator        Collaborator                @relation(fields: [collaboratorId], references: [id], onDelete: Cascade)
+  sourceWeek          AllocationReviewWeek        @relation(fields: [sourceWeekId], references: [id], onDelete: Cascade)
+
+  @@index([status, collaboratorId])
+  @@index([sourceWeekId])
 }
