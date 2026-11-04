@@ -64,9 +64,12 @@ test('simulação das escritas: HTTP, Prisma e rollback de todas as tabelas Post
     assert.ok(String(url).startsWith(base), `Chamada externa inesperada: ${url}`);
     return fetchRequest(url, options);
   });
+  let requestSequence = 0;
   async function request(path, body, { auth = live, prefer, idempotencyKey = randomUUID(), headers = {} } = {}) {
+    // Random UUIDs can contain CPF-like digit sequences that the audit correctly redacts.
+    const requestId = `api-simulation-${++requestSequence}`;
     const response = await fetch(base + path, { method: 'POST', headers: { authorization: `Bearer ${auth.token}`,
-      'content-type': 'application/json', 'Idempotency-Key': idempotencyKey, ...(prefer ? { Prefer: prefer } : {}), ...headers }, body: JSON.stringify(body) });
+      'content-type': 'application/json', 'X-Request-Id': requestId, 'Idempotency-Key': idempotencyKey, ...(prefer ? { Prefer: prefer } : {}), ...headers }, body: JSON.stringify(body) });
     return { status: response.status, header: response.headers.get('Preference-Applied'), body: await response.json() };
   }
   const operationPayload = id => {
