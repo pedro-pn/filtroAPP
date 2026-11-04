@@ -2,12 +2,13 @@ import { useState } from 'react';
 
 import { downloadSignaturePdf, type SignatureDocument } from '../../../api/assinaturas';
 import { AppIcon } from '../../../components/icons/AppIcon';
-import { Button, StatusPill } from '../../../components/ui/ds';
+import { Badge, Button, StatusPill } from '../../../components/ui/ds';
 import { DS_ICONS } from '../../../components/ui/ds/icons';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { useToast } from '../../../components/ui/ToastContext';
 import { useAssinaturaMutations } from '../../../hooks/useAssinaturas';
 import { DocumentSetupView } from './DocumentSetupView';
+import { DocumentShareButton } from './DocumentShareButton';
 import { SignerStatusList } from './SignerStatusList';
 import { AuditTrail } from './AuditTrail';
 import { DocumentTrackingSummary } from './DocumentTrackingSummary';
@@ -47,6 +48,8 @@ export function DocumentDetailView({
   const [pendingAction, setPendingAction] = useState<'archive' | 'cancel' | 'delete' | null>(null);
   const [downloading, setDownloading] = useState<'original' | 'final' | null>(null);
   const isDraft = document.status === 'RASCUNHO';
+  const isOwner = document.permissions?.isOwner ?? true;
+  const canEdit = document.permissions?.canEdit ?? (isDraft && !document.archivedAt);
   const activeTab = isDraft ? (tab === 'audit' ? 'audit' : 'setup') : (tab === 'setup' ? 'details' : tab);
   async function download(final: boolean) {
     if (downloading) return;
@@ -89,6 +92,7 @@ export function DocumentDetailView({
         <StatusPill status={signatureDocumentStatusLabels[document.status]} />
       </div>
       <PageHeader title={document.title} description={document.originalFileName} />
+      {!isOwner ? <Badge tone="info">Compartilhado com você · {document.permissions?.access === 'EDIT' ? 'Pode editar' : 'Apenas visualizar'}</Badge> : null}
       <div className="signature-document-dates">
         <span>Criado em {formatSignatureDateTime(document.createdAt)}</span>
         {document.completedAt ? <span>Concluído em {formatSignatureDateTime(document.completedAt)}</span> : null}
@@ -96,21 +100,23 @@ export function DocumentDetailView({
       <div className="assinaturas-detail__navigation">
         <div className="signature-tabs" role="group" aria-label="Seções do documento">
           {document.status !== 'RASCUNHO' ? <Button size="sm" variant={activeTab === 'details' ? 'primary' : 'secondary'} aria-pressed={activeTab === 'details'} onClick={() => onTabChange('details')}>Acompanhamento</Button> : null}
-          {isDraft ? <Button size="sm" variant={activeTab === 'setup' ? 'primary' : 'secondary'} aria-pressed={activeTab === 'setup'} onClick={() => onTabChange('setup')}>Configuração</Button> : null}
+          {isDraft ? <Button size="sm" variant={activeTab === 'setup' ? 'primary' : 'secondary'} aria-pressed={activeTab === 'setup'} onClick={() => onTabChange('setup')}>{canEdit ? 'Configuração' : 'Documento'}</Button> : null}
           <Button size="sm" variant={activeTab === 'audit' ? 'primary' : 'secondary'} aria-pressed={activeTab === 'audit'} onClick={() => onTabChange('audit')}>Auditoria</Button>
         </div>
         <div className="signature-lifecycle-actions">
-          {document.archivedAt ? <Button variant="secondary" size="sm" title="Restaurar dos arquivados" loading={mutations.restoreArchived.isPending} onClick={restoreArchive}>Restaurar</Button>
-            : <Button variant="secondary" size="sm" disabled={document.status === 'FINALIZANDO'} onClick={() => setPendingAction('archive')}>Arquivar</Button>}
-          {document.status === 'AGUARDANDO_ASSINATURAS' ? <Button variant="secondary" size="sm" title="Cancela o documento e revoga todos os convites pendentes; assinaturas concluídas são preservadas." onClick={() => setPendingAction('cancel')}>Cancelar rodada</Button> : null}
-          <Button variant="secondary" size="sm" disabled={document.status === 'FINALIZANDO'} title={document.status === 'FINALIZANDO' ? 'Aguarde a geração do PDF final.' : undefined} onClick={() => setPendingAction('delete')}>Excluir</Button>
+          {isDraft ? <Button variant="secondary" size="sm" disabled={Boolean(downloading)} loading={downloading === 'original'} onClick={() => void download(false)}>Baixar original</Button> : null}
+          {isOwner ? <DocumentShareButton documentId={document.id} /> : null}
+          {isOwner && (document.archivedAt ? <Button variant="secondary" size="sm" title="Restaurar dos arquivados" loading={mutations.restoreArchived.isPending} onClick={restoreArchive}>Restaurar</Button>
+            : <Button variant="secondary" size="sm" disabled={document.status === 'FINALIZANDO'} onClick={() => setPendingAction('archive')}>Arquivar</Button>)}
+          {isOwner && document.status === 'AGUARDANDO_ASSINATURAS' ? <Button variant="secondary" size="sm" title="Cancela o documento e revoga todos os convites pendentes; assinaturas concluídas são preservadas." onClick={() => setPendingAction('cancel')}>Cancelar rodada</Button> : null}
+          {isOwner ? <Button variant="secondary" size="sm" disabled={document.status === 'FINALIZANDO'} title={document.status === 'FINALIZANDO' ? 'Aguarde a geração do PDF final.' : undefined} onClick={() => setPendingAction('delete')}>Excluir</Button> : null}
         </div>
       </div>
       {activeTab === 'setup' ? <DocumentSetupView document={document} pageNumber={pageNumber} onPageChange={onPageChange} /> : activeTab === 'audit' ? <AuditTrail key={document.id} documentId={document.id} /> : (
         <>
           <DocumentTrackingSummary document={document} downloading={downloading} onDownload={download} />
-          {document.batchId ? <Button variant="secondary" onClick={onOpenBatch || onBack}>Ver assinantes e links do lote</Button>
-            : <SignerStatusList documentId={document.id} signers={document.signers} />}
+          {document.batchId && isOwner ? <Button variant="secondary" onClick={onOpenBatch || onBack}>Ver assinantes e links do lote</Button>
+            : <SignerStatusList documentId={document.id} signers={document.signers} readOnly={!isOwner} />}
         </>
       )}
       <ConfirmDialog

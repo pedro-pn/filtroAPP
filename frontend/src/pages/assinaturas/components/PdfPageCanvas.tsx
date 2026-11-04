@@ -27,6 +27,7 @@ export function PdfPageCanvas({
   onImageError,
   pageNumber,
   embedded = false,
+  readOnly = false,
   signers,
   fields,
   onFieldsChange
@@ -35,6 +36,7 @@ export function PdfPageCanvas({
   onImageError?: () => void;
   pageNumber: number;
   embedded?: boolean;
+  readOnly?: boolean;
   signers: SignatureSigner[];
   fields: SignatureField[];
   onFieldsChange: (fields: SignatureField[]) => void;
@@ -98,6 +100,7 @@ export function PdfPageCanvas({
   }
 
   function begin(event: ReactPointerEvent, index: number, mode: Interaction['mode']) {
+    if (readOnly) return;
     event.stopPropagation();
     setPendingPlacement(null);
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -106,6 +109,7 @@ export function PdfPageCanvas({
   }
 
   function move(event: ReactPointerEvent) {
+    if (readOnly) return;
     if (!interaction) return;
     const point = normalizedPointer(event);
     const dx = point.x - interaction.startX;
@@ -133,6 +137,7 @@ export function PdfPageCanvas({
   }
 
   function requestField(event: ReactPointerEvent<HTMLDivElement>) {
+    if (readOnly) return;
     if (!imageReady || interaction || event.target !== event.currentTarget || !signers.length) return;
     const point = normalizedPointer(event);
     if (signers.length === 1) {
@@ -151,6 +156,7 @@ export function PdfPageCanvas({
   }
 
   function keyboardMove(event: React.KeyboardEvent, index: number) {
+    if (readOnly) return;
     const delta = event.shiftKey ? 0.02 : 0.005;
     const offset = { ArrowLeft: [-delta, 0], ArrowRight: [delta, 0], ArrowUp: [0, -delta], ArrowDown: [0, delta] }[event.key];
     if (!offset) return;
@@ -181,20 +187,20 @@ export function PdfPageCanvas({
               key={field.id || `${field.signerId}-${field.pageNumber}-${index}`}
               className={`signature-field signature-signer-color-${signerIndex % 6}`}
               style={normalizedToPercent(field)}
-              role="button"
-              tabIndex={0}
+              role={readOnly ? undefined : 'button'}
+              tabIndex={readOnly ? undefined : 0}
               onKeyDown={event => keyboardMove(event, index)}
               onPointerDown={event => begin(event, index, 'move')}
             >
               <span>{signer?.name || 'Assinante'}</span>
-              <RemoveIconButton
+              {!readOnly ? <RemoveIconButton
                 className="signature-field-remove"
                 label={`Remover campo de ${signer?.name || 'assinante'}`}
                 onPointerDown={event => event.stopPropagation()}
                 onKeyDown={event => event.stopPropagation()}
                 onClick={event => { event.stopPropagation(); onFieldsChange(fields.filter((_, itemIndex) => itemIndex !== index)); }}
-              />
-              {RESIZE_DIRECTIONS.map(direction => <span
+              /> : null}
+              {!readOnly && RESIZE_DIRECTIONS.map(direction => <span
                 key={direction}
                 className={`signature-field-resize signature-field-resize-${direction}`}
                 onPointerDown={event => begin(event, index, direction)}

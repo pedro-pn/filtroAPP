@@ -160,7 +160,7 @@ export function AssinaturasPage() {
         {selectedBatchId ? <BatchSetupView key={selectedBatchId} batchId={selectedBatchId} onViewed={markViewed} onBack={closeDocument} onOpenDocument={id => openDocument(id)} /> : selectedId ? (
           documentQuery.isLoading ? <div className="fv-ds"><Skeleton variant="card" label="Carregando documento..." /></div>
             : documentQuery.isError || !documentQuery.data ? <div className="fv-ds"><EmptyState variant="error" title="Não foi possível carregar o documento." action={{ label: 'Tentar novamente', onClick: () => void documentQuery.refetch() }} /></div>
-              : documentQuery.data.batchId && documentQuery.data.status === 'RASCUNHO' && detailTab === 'setup'
+              : documentQuery.data.batchId && documentQuery.data.permissions?.isOwner !== false && documentQuery.data.status === 'RASCUNHO' && detailTab === 'setup'
                 ? <BatchSetupView key={documentQuery.data.batchId} batchId={documentQuery.data.batchId} onBack={closeDocument} onOpenDocument={id => openDocument(id)} />
                 : <DocumentDetailView
                 document={documentQuery.data}
@@ -168,7 +168,7 @@ export function AssinaturasPage() {
                 pageNumber={detailPage}
                 onTabChange={setDetailTab}
                 onPageChange={setDetailPage}
-                onBack={() => documentQuery.data.batchId ? openBatch(documentQuery.data.batchId) : closeDocument()}
+                onBack={() => documentQuery.data.batchId && documentQuery.data.permissions?.isOwner !== false ? openBatch(documentQuery.data.batchId) : closeDocument()}
                 onOpenBatch={() => documentQuery.data.batchId && openBatch(documentQuery.data.batchId)}
               />
         ) : (
@@ -199,7 +199,7 @@ export function AssinaturasPage() {
             onNew={() => { uploadedFiles.current.clear(); uploadingBatchId.current = ''; setNewOpen(true); }}
             onOpen={document => {
               markViewed(document.id, document.signedCount);
-              if (document.batchId) openBatch(document.batchId);
+              if (document.batchId && document.permissions?.isOwner !== false) openBatch(document.batchId);
               else openDocument(document.id, document.status === 'RASCUNHO' ? 'setup' : 'details');
             }}
           />

@@ -163,6 +163,11 @@ enum SignatureDocumentStatus {
   CANCELADO
 }
 
+enum SignatureDocumentSharePermission {
+  VIEW
+  EDIT
+}
+
 enum SignatureDocumentSignerStatus {
   PENDENTE
   VISUALIZADO
@@ -2911,6 +2916,7 @@ model User {
   responsibleEfetivoMissions           EfetivoMissionPlan[]                @relation("EfetivoMissionResponsibleUser")
   signatureDocuments                   SignatureDocument[]                 @relation("SignatureDocumentOwner")
   signatureDocumentBatches             SignatureDocumentBatch[]
+  signatureDocumentShares              SignatureDocumentShare[]
   signatureDocumentAuditLogs           SignatureDocumentAuditLog[]         @relation("SignatureDocumentAuditActor")
   maintenanceRecordsCreated            MaintenanceRecord[]                 @relation("MaintenanceCreator")
   maintenanceRecordsReviewed           MaintenanceRecord[]                 @relation("MaintenanceReviewer")
@@ -4280,6 +4286,7 @@ model SignatureDocument {
   auditLogs                 SignatureDocumentAuditLog[]
   completionNotification    SignatureDocumentCompletionNotification?
   projectDocumentVersion    ProjectDocumentVersion?                  @relation("ProjectDocumentSignature")
+  shares                    SignatureDocumentShare[]
 
   @@index([ownerUserId, deletedAt, archivedAt, createdAt])
   @@index([ownerUserId])
@@ -4288,6 +4295,20 @@ model SignatureDocument {
   @@index([status, finalizationNextAttemptAt])
   @@index([deletedAt])
   @@index([archivedAt])
+}
+
+model SignatureDocumentShare {
+  id         String                           @id @default(cuid())
+  documentId String
+  userId     String
+  permission SignatureDocumentSharePermission @default(VIEW)
+  createdAt  DateTime                         @default(now())
+  updatedAt  DateTime                         @updatedAt
+  document   SignatureDocument                @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user       User                             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, userId])
+  @@index([userId, documentId])
 }
 
 model SignatureInviteGroup {
