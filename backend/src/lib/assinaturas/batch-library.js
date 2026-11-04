@@ -33,8 +33,8 @@ export async function listGroupedDocuments(client, ownerUserId, where, filters, 
       } }, orderBy, take: limit + 1
     }),
     client.signatureDocument.findMany({
-      where: { AND: [where, { batchId: null }, after('document')] },
-      include: { signers: { select: { status: true } } }, orderBy, take: limit + 1
+      where: { AND: [where, { OR: [{ batchId: null }, { ownerUserId: { not: ownerUserId } }] }, after('document')] },
+      include: { signers: { select: { status: true } }, shares: { where: { userId: ownerUserId }, select: { userId: true, permission: true } } }, orderBy, take: limit + 1
     })
   ]);
   const entries = [

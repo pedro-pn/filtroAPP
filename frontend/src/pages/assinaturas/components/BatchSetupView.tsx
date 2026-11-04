@@ -12,6 +12,7 @@ import { PublishDialog } from './PublishDialog';
 import { SignerList } from './SignerList';
 import { BatchTrackingView } from './BatchTrackingView';
 import { SignatureBatchPreview } from './SignatureBatchPreview';
+import { DocumentShareButton } from './DocumentShareButton';
 import '../AssinaturasPreparation.ds.css';
 
 function BatchEditor({ batch, onBack }: {
@@ -55,6 +56,12 @@ function BatchEditor({ batch, onBack }: {
   return <section className="fv-ds assinaturas-detail">
     <div className="assinaturas-detail__topline"><Button variant="secondary" size="sm" disabled={busy} onClick={onBack}>Voltar</Button><Badge tone="neutral">{batch.documents.length} documento(s)</Badge></div>
     <PageHeader title="Preparar lote de assinaturas" />
+    <Card padding="md" title={<h2>Compartilhar documentos</h2>}>
+      <div className="assinaturas-batch-documents">{batch.documents.map(document => <div className="assinaturas-batch-document" key={document.id}>
+        <span><strong>{document.title}</strong><small>{document.originalFileName}</small></span>
+        <DocumentShareButton documentId={document.id} />
+      </div>)}</div>
+    </Card>
     <div className="signature-setup-layout assinaturas-setup">
       <SignerList signers={previewSigners} account={user} saving={busy} onSave={async signers => {
         const nextSigners = signers.map(signer => ({ ...signer, id: signer.id || crypto.randomUUID() }));

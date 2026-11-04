@@ -5,6 +5,7 @@ import { Badge, Button, Card, StatusPill } from '../../../components/ui/ds';
 import { PageHeader } from '../../../layout/PageHeader';
 import { signatureDocumentStatusLabels } from '../utils/documentStatus';
 import { SignerStatusList } from './SignerStatusList';
+import { DocumentShareButton } from './DocumentShareButton';
 
 export function BatchTrackingView({ batch, onBack, onOpenDocument }: {
   batch: SignatureBatch; onBack: () => void; onOpenDocument: (id: string) => void;
@@ -32,6 +33,7 @@ export function BatchTrackingView({ batch, onBack, onOpenDocument }: {
           <span><strong>{document.title}</strong><small>{document.originalFileName} · {document.progress.signed} de {document.progress.total} assinaturas</small></span>
           <StatusPill status={signatureDocumentStatusLabels[document.status]} dot={false} />
           <div className="signature-row-actions">
+            <DocumentShareButton documentId={document.id} />
             <Button variant="secondary" size="sm" onClick={() => onOpenDocument(document.id)} aria-label={`Abrir documento ${document.title}`}>Ver documento</Button>
             {document.status === 'CONCLUIDO' ? <Button variant="secondary" size="sm" disabled={Boolean(downloading)} loading={downloading === document.id} onClick={() => void download(document.id, document.title)} aria-label={`Baixar PDF de ${document.title}`}>Baixar PDF assinado</Button> : null}
           </div>

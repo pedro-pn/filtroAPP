@@ -2,7 +2,8 @@ import { raw, Router } from 'express';
 import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
-import { requireAssinaturasAccess, documentForOwnerOrThrow } from '../../lib/assinaturas/access.js';
+import { requireAssinaturasAccess, documentForAccessOrThrow, documentForOwnerOrThrow } from '../../lib/assinaturas/access.js';
+import { listDocumentShares, removeDocumentShare, saveDocumentShare, sharingUsers } from '../../lib/assinaturas/sharing.js';
 import { createDocument, finalPdfBuffer, sourcePdfBuffer } from '../../lib/assinaturas/document.js';
 import { batchInviteAction, createBatch, getBatch, publishBatch, saveBatch } from '../../lib/assinaturas/batch.js';
 import env from '../../config/env.js';
@@ -236,8 +237,26 @@ router.get('/documentos/:id', asyncHandler(async (req, res) => {
   return res.json(await getDocument(prisma, req.params.id, ownerId(req)));
 }));
 
+router.get('/documentos/:id/usuarios-compartilhamento', asyncHandler(async (req, res) => {
+  return res.json(await sharingUsers(prisma, req.params.id, ownerId(req), req.query.q || ''));
+}));
+
+router.get('/documentos/:id/compartilhamentos', asyncHandler(async (req, res) => {
+  return res.json(await listDocumentShares(prisma, req.params.id, ownerId(req)));
+}));
+
+router.put('/documentos/:id/compartilhamentos/:userId', asyncHandler(async (req, res) => {
+  const body = z.strictObject({ permission: z.enum(['VIEW', 'EDIT']) }).parse(req.body);
+  return res.json(await saveDocumentShare(prisma, req.params.id, ownerId(req), req.params.userId, body.permission));
+}));
+
+router.delete('/documentos/:id/compartilhamentos/:userId', asyncHandler(async (req, res) => {
+  await removeDocumentShare(prisma, req.params.id, ownerId(req), req.params.userId);
+  return res.status(204).end();
+}));
+
 router.get('/documentos/:id/pdf', asyncHandler(async (req, res) => {
-  const document = await documentForOwnerOrThrow(prisma, req.params.id, ownerId(req));
+  const document = await documentForAccessOrThrow(prisma, req.params.id, ownerId(req));
   const bytes = await sourcePdfBuffer(document);
   res.setHeader('Cache-Control', 'no-store');
   res.type('application/pdf');
@@ -246,7 +265,7 @@ router.get('/documentos/:id/pdf', asyncHandler(async (req, res) => {
 }));
 
 router.get('/documentos/:id/pdf-final', asyncHandler(async (req, res) => {
-  const document = await documentForOwnerOrThrow(prisma, req.params.id, ownerId(req));
+  const document = await documentForAccessOrThrow(prisma, req.params.id, ownerId(req));
   const bytes = await finalPdfBuffer(document);
   res.setHeader('Cache-Control', 'no-store');
   res.type('application/pdf');
@@ -255,7 +274,7 @@ router.get('/documentos/:id/pdf-final', asyncHandler(async (req, res) => {
 }));
 
 router.get('/documentos/:id/paginas/:n.png', asyncHandler(async (req, res) => {
-  const document = await documentForOwnerOrThrow(prisma, req.params.id, ownerId(req));
+  const document = await documentForAccessOrThrow(prisma, req.params.id, ownerId(req));
   const png = await renderPage(document, req.params.n);
   res.setHeader('Cache-Control', 'private, no-cache');
   res.type('image/png');
@@ -264,19 +283,23 @@ router.get('/documentos/:id/paginas/:n.png', asyncHandler(async (req, res) => {
 
 router.patch('/documentos/:id', asyncHandler(async (req, res) => {
   const body = renameSchema.parse(req.body);
-  const document = await documentForOwnerOrThrow(prisma, req.params.id, ownerId(req));
+  const document = await documentForAccessOrThrow(prisma, req.params.id, ownerId(req), { edit: true });
   return res.json(await renameDocument(prisma, document, body.title, ownerId(req)));
 }));
 
 router.put('/documentos/:id/assinantes', asyncHandler(async (req, res) => {
   const body = signerSchema.parse(req.body);
-  const document = await documentForOwnerOrThrow(prisma, req.params.id, ownerId(req));
+  const document = await documentForAccessOrThrow(prisma, req.params.id, ownerId(req), { edit: true });
+  if (document.batchId && !document.permissions.isOwner) {
+    return res.status(403).json({ error: 'Os assinantes do lote são gerenciados pelo proprietário.' });
+  }
   return res.json(await replaceSigners(prisma, document, body, ownerId(req)));
 }));
 
 router.put('/documentos/:id/campos', asyncHandler(async (req, res) => {
   const body = fieldSchema.parse(req.body);
-  const document = await documentForOwnerOrThrow(prisma, req.params.id, ownerId(req), {
+  const document = await documentForAccessOrThrow(prisma, req.params.id, ownerId(req), {
+    edit: true,
     include: { signers: true }
   });
   return res.json(await replaceFields(prisma, document, body, ownerId(req)));

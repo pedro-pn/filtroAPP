@@ -24,7 +24,7 @@ function emailDelivery(signer: SignatureSigner): { label: string; tone: Semantic
 
 type InviteAction = 'copy' | 'renew' | 'resend' | 'revoke';
 
-export function SignerStatusList({ documentId = '', signers, batchId }: { documentId?: string; signers: SignatureSigner[]; batchId?: string }) {
+export function SignerStatusList({ documentId = '', signers, batchId, readOnly = false }: { documentId?: string; signers: SignatureSigner[]; batchId?: string; readOnly?: boolean }) {
   const queryClient = useQueryClient();
   async function batchAction(signer: SignatureSigner, action: 'link' | 'renovar' | 'reenviar-email' | 'revogar') {
     const result = await signatureBatchInviteAction(batchId!, signer.id, action);
@@ -114,12 +114,12 @@ export function SignerStatusList({ documentId = '', signers, batchId }: { docume
                   ? `${signer.status === 'REVOGADO' ? 'Validade original:' : signer.status === 'EXPIRADO' ? 'Expirou em' : 'Expira em'} ${formatSignatureDateTime(signer.tokenExpiresAt)}`
                   : 'Sem validade ativa'}</span>
             </div>
-            <div className="signature-row-actions">
+            {!readOnly ? <div className="signature-row-actions">
               {signer.status !== 'ASSINADO' && signer.status !== 'REVOGADO' ? <Button variant="secondary" size="sm" disabled={busy} loading={loading('copy')} aria-label={`Copiar link de ${signer.name}`} title="Copiar link" onClick={() => copyLink(signer)}>Copiar<span className="assinaturas-tracking__wide-label"> link</span></Button> : null}
               {['PENDENTE', 'VISUALIZADO', 'EXPIRADO'].includes(signer.status) ? <Button variant="secondary" size="sm" disabled={busy} loading={loading('renew')} aria-label={`Renovar convite de ${signer.name}`} onClick={() => renew(signer)}>Renovar</Button> : null}
               {signer.email && ['PENDENTE', 'VISUALIZADO'].includes(signer.status) ? <Button variant="secondary" size="sm" disabled={busy} loading={loading('resend')} aria-label={`Reenviar e-mail para ${signer.name}`} title="Reenviar e-mail" onClick={() => resend(signer)}>Reenviar<span className="assinaturas-tracking__wide-label"> e-mail</span></Button> : null}
               {['PENDENTE', 'VISUALIZADO', 'EXPIRADO'].includes(signer.status) ? <Button variant="secondary" size="sm" disabled={busy} loading={loading('revoke')} aria-label={`Revogar convite de ${signer.name}`} title="Invalida somente o convite deste assinante." onClick={() => setRevoking(signer)}>Revogar<span className="assinaturas-tracking__wide-label"> convite</span></Button> : null}
-            </div>
+            </div> : null}
           </Card>;
         })}
       </div>

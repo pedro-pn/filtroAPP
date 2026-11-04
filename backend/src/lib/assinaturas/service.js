@@ -7,8 +7,10 @@ import {
   assertDocumentEditable,
   assertDocumentDeletable,
   assertDocumentPublishable,
-  documentForOwnerOrThrow,
-  ownerListWhere
+  accessibleListWhere,
+  documentForAccessOrThrow,
+  documentPermissions,
+  documentForOwnerOrThrow
 } from './access.js';
 import { recordDocumentEvent } from './audit.js';
 import { listGroupedDocuments } from './batch-library.js';
@@ -240,11 +242,12 @@ export function ownerDocumentPayload(document) {
   };
 }
 
-function documentCard(document) {
+function documentCard(document, userId) {
   const progress = documentProgress(document);
   return {
     id: document.id,
     batchId: document.batchId || null,
+    permissions: documentPermissions(document, userId),
     title: document.title,
     originalFileName: document.originalFileName,
     status: document.status,
@@ -272,7 +275,7 @@ export async function listDocuments(client, ownerUserId, filters = {}) {
     ...(dateTo ? { lt: new Date(new Date(`${dateTo}T00:00:00-03:00`).getTime() + 86_400_000) } : {})
   };
   const where = {
-    ...ownerListWhere(ownerUserId),
+    ...accessibleListWhere(ownerUserId),
     archivedAt: filters.archived ? { not: null } : null,
     ...(filters.status ? { status: filters.status } : {}),
     ...(dateFrom || dateTo ? { createdAt } : {}),
@@ -283,10 +286,10 @@ export async function listDocuments(client, ownerUserId, filters = {}) {
       ]
     } : {})
   };
-  if (filters.grouped) return listGroupedDocuments(client, ownerUserId, where, filters, limit, documentCard);
+  if (filters.grouped) return listGroupedDocuments(client, ownerUserId, where, filters, limit, document => documentCard(document, ownerUserId));
   const items = await client.signatureDocument.findMany({
     where,
-    include: { signers: { select: { status: true } } },
+    include: { signers: { select: { status: true } }, shares: { where: { userId: ownerUserId }, select: { userId: true, permission: true } } },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: limit + 1,
     ...(filters.cursor ? { cursor: { id: filters.cursor }, skip: 1 } : {})
@@ -294,13 +297,13 @@ export async function listDocuments(client, ownerUserId, filters = {}) {
   const hasMore = items.length > limit;
   const page = hasMore ? items.slice(0, limit) : items;
   return {
-    items: page.map(documentCard),
+    items: page.map(document => documentCard(document, ownerUserId)),
     nextCursor: hasMore ? page.at(-1)?.id || null : null
   };
 }
 
 export async function getDocument(client, id, ownerUserId, options = {}) {
-  const document = await documentForOwnerOrThrow(client, id, ownerUserId, {
+  const document = await documentForAccessOrThrow(client, id, ownerUserId, {
     include: {
       signers: { orderBy: { position: 'asc' }, include: { groupInvite: { select: { emailStatus: true, emailAttempts: true, emailSentAt: true } } } },
       fields: { orderBy: [{ pageNumber: 'asc' }, { createdAt: 'asc' }] }
@@ -471,7 +474,7 @@ export async function unpublishDocument(client, id, ownerUserId) {
 }
 
 export async function listAudit(client, id, ownerUserId, { cursor, limit = 30 } = {}) {
-  const document = await documentForOwnerOrThrow(client, id, ownerUserId);
+  const document = await documentForAccessOrThrow(client, id, ownerUserId);
   const take = Math.min(100, Math.max(1, Number(limit) || 30));
   const rows = await client.signatureDocumentAuditLog.findMany({
     where: { documentId: document.id },
