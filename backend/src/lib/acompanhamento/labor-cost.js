@@ -35,6 +35,11 @@ import { collaboratorRoleAtDate, collaboratorRoleSegments } from '../collaborato
 import { annotateActualRowsWithWorkforceConflicts, classifyActualWorkforceDays } from '../workforce/actual-conflicts.js';
 import { allocationPeriods } from '../efetivo/planning/allocation-period.js';
 import { loadConfirmedReviewDays } from '../efetivo/allocation-review/confirmed-days.js';
+import { SEDE_OMIE_CODES, SEDE_OPERATIONAL_CODES } from './sede-cost-centers.js';
+
+const SEDE_PROJECT_CODES = new Set([...SEDE_OMIE_CODES, ...SEDE_OPERATIONAL_CODES]);
+// Dias procurados antes e depois de um dia "em viagem" para achar o projeto de origem/destino.
+export const TRAVEL_NEIGHBOR_DAYS = 7;
 
 export { isPontoTravelTag } from '../pontomais/normalize.js';
 
@@ -751,7 +756,9 @@ async function getProjectAllocationContext(database = prisma) {
     resolveTag: buildProjectTagResolver({ projects, tagAliases }),
     missionGroupProjectsByProjectId: buildMissionGroupProjectIndex(missionGroups),
     scheduleWindows: buildScheduleWindows(projects, effectiveMissionProjectIds),
-    effectiveAllocationIndex: buildEffectiveAllocationIndex(effectiveAllocations)
+    effectiveAllocationIndex: buildEffectiveAllocationIndex(effectiveAllocations),
+    // Centros de custo da Sede: etiqueta "em viagem" nunca leva custo para eles.
+    sedeProjectIds: new Set(projects.filter(project => SEDE_PROJECT_CODES.has(String(project.code || '').trim())).map(project => project.id))
   };
 }
 
@@ -1048,7 +1055,9 @@ export function buildDailyProjectWeights({
   effectiveProjectIds = [],
   scheduleWindowProjectIds = [],
   missionGroupProjectsByProjectId = new Map(),
-  allocationAxis = 'ACCOUNTING'
+  allocationAxis = 'ACCOUNTING',
+  sedeProjectIds = new Set(),
+  travelNeighborProjectId = null
 } = {}) {
   const rdoByProject = rdoProjects instanceof Map
     ? rdoProjects
@@ -1057,12 +1066,16 @@ export function buildDailyProjectWeights({
     ...(Array.isArray(manualProjectIds) ? manualProjectIds : []),
     ...(manualProjectId ? [manualProjectId] : [])
   ].filter(Boolean))].sort();
-  const taggedProjectIds = [...new Set((tags || []).map(resolveTag).filter(Boolean))].sort();
+  const hasTravelTag = (tags || []).some(isPontoTravelTag);
+  // "Em viagem" nunca aponta para a Sede: a etiqueta de centro de custo da Sede (ex.: "Sede/Em
+  // viagem" → 5000) só diz de onde ele saiu ou para onde voltou, não onde vai o custo.
+  const taggedProjectIds = [...new Set((tags || []).map(resolveTag).filter(Boolean))]
+    .filter(projectId => !hasTravelTag || !sedeProjectIds.has(projectId))
+    .sort();
   const effectiveIds = [...new Set((effectiveProjectIds || []).filter(Boolean))].sort();
   const scheduledProjectIds = [...new Set(scheduleWindowProjectIds.filter(Boolean))].sort();
   const taggedEffectiveProjectIds = taggedProjectIds.filter(projectId => effectiveIds.includes(projectId));
   const taggedScheduledProjectIds = taggedProjectIds.filter(projectId => scheduledProjectIds.includes(projectId));
-  const hasTravelTag = (tags || []).some(isPontoTravelTag);
 
   // A seleção explícita do gestor é uma resolução auditada e, por isso, vale mesmo quando o dia
   // não possui RDO. Antes ela era lida somente depois do retorno NO_RDO_EVIDENCE, o que fazia o dia
@@ -1168,6 +1181,23 @@ export function buildDailyProjectWeights({
         allocations: [],
         candidateProjectIds: [...new Set([...scheduledProjectIds, ...taggedProjectIds])].sort(),
         reason: 'SCHEDULE_WINDOW_AMBIGUOUS'
+      };
+    }
+
+    // Viagem sem Efetivo nem cronograma: vale a etiqueta de projeto real do dia e, sem ela, o
+    // projeto do dia vizinho mais próximo (para onde vai ou de onde volta).
+    if (hasTravelTag && taggedProjectIds.length === 1) {
+      return {
+        allocations: [{ projectId: taggedProjectIds[0], weight: 1, rdo: null }],
+        reason: 'TRAVEL_TAG_PROJECT',
+        travelContext: true
+      };
+    }
+    if (hasTravelTag && taggedProjectIds.length === 0 && travelNeighborProjectId) {
+      return {
+        allocations: [{ projectId: travelNeighborProjectId, weight: 1, rdo: null }],
+        reason: 'TRAVEL_NEIGHBOR_PROJECT',
+        travelContext: true
       };
     }
 
@@ -1288,6 +1318,55 @@ export function allocationDecisionRequiresAction(decision) {
   );
 }
 
+/*
+ * Projeto de origem/destino de um dia "em viagem": o dia mais próximo (até 7 antes ou depois)
+ * com evidência de projeto — conferência/ajuste manual, RDO, etiqueta de projeto ou Efetivo em dia
+ * com ponto. Centros de custo da Sede não contam. Empate entre projetos diferentes: o de depois
+ * (ida). Evidência ambígua (dois projetos no mesmo dia) encerra a busca naquela direção.
+ */
+export function travelNeighborResolver({
+  dayRows = [],
+  dayProjects = new Map(),
+  resolveTag = () => null,
+  manualProjectByDate = new Map(),
+  scheduleWindowContext = null
+} = {}) {
+  const rowByDate = new Map(dayRows.map(row => [row.date, row]));
+  const sedeIds = scheduleWindowContext?.sedeProjectIds || new Set();
+  const evidence = dateKey => {
+    const manual = manualProjectByDate.get(dateKey);
+    if (manual?.reviewKind === 'IDLE') return [];
+    if (manual?.length) return [...manual];
+    const rdoProjects = dayProjects.get(dateKey);
+    if (rdoProjects?.size) return [...rdoProjects.keys()];
+    const row = rowByDate.get(dateKey);
+    if (!row || (row.tags || []).some(isPontoTravelTag)) return [];
+    const tagged = [...new Set((row.tags || []).map(resolveTag).filter(Boolean))];
+    if (tagged.length) return tagged;
+    const hours = (Number(row.normalHours) || 0) + (Number(row.he70Horas) || 0) + (Number(row.he100Horas) || 0);
+    if (hours <= 0) return [];
+    return effectiveProjectsForDay({
+      effectiveAllocationIndex: scheduleWindowContext?.effectiveAllocationIndex,
+      collaboratorId: scheduleWindowContext?.collaboratorId,
+      dateKey
+    });
+  };
+  const nearest = (dateKey, direction) => {
+    for (let distance = 1; distance <= TRAVEL_NEIGHBOR_DAYS; distance += 1) {
+      const ids = [...new Set(evidence(addDaysKey(dateKey, direction * distance)))].filter(id => !sedeIds.has(id));
+      if (ids.length === 1) return { distance, projectId: ids[0] };
+      if (ids.length > 1) return null;
+    }
+    return null;
+  };
+  return dateKey => {
+    const before = nearest(dateKey, -1);
+    const after = nearest(dateKey, 1);
+    if (before && after) return before.distance < after.distance ? before.projectId : after.projectId;
+    return (after || before)?.projectId || null;
+  };
+}
+
 export function classifyProjectHours(
   dayRows,
   rdo,
@@ -1307,6 +1386,9 @@ export function classifyProjectHours(
     scheduleWindowContext?.collaboratorId
   );
   let costNormalHours = 0;
+  const travelNeighbor = travelNeighborResolver({
+    dayRows, dayProjects, resolveTag, manualProjectByDate, scheduleWindowContext
+  });
 
   for (const row of dayRows) {
     const rdoProjects = dayProjects.get(row.date) || new Map();
@@ -1340,7 +1422,9 @@ export function classifyProjectHours(
           dateKey: row.date
         }),
         missionGroupProjectsByProjectId,
-        allocationAxis
+        allocationAxis,
+        sedeProjectIds: scheduleWindowContext?.sedeProjectIds || new Set(),
+        travelNeighborProjectId: (row.tags || []).some(isPontoTravelTag) ? travelNeighbor(row.date) : null
       })
       : { allocations: [], reason: 'NO_POINT_HOURS' };
     const pending = allocationDecisionRequiresAction(decision);
@@ -1547,7 +1631,8 @@ export async function loadAllocatedAttendanceDays({ database = prisma } = {}) {
     const classified = classifyProjectHours(days, rdoData.get(period.collaboratorId), context.resolveTag,
       projectMetaForCollaborator(context.projects, period.collaboratorId), manual.get(period.collaboratorId) || new Map(),
       context.missionGroupProjectsByProjectId, 'ANALYTICAL', { windows: context.scheduleWindows,
-        eligibleByProject: eligible, effectiveAllocationIndex: context.effectiveAllocationIndex, collaboratorId: period.collaboratorId });
+        eligibleByProject: eligible, effectiveAllocationIndex: context.effectiveAllocationIndex, collaboratorId: period.collaboratorId,
+        sedeProjectIds: context.sedeProjectIds });
     for (const day of classified.dayTrail) {
       if (day.normalHours + day.he70Hours + day.he100Hours + day.nightHours <= 0) continue;
       for (const allocation of day.allocations) {
@@ -2001,7 +2086,8 @@ export async function computeCollaboratorRates(importId = null) {
       windows: projectAllocationContext.scheduleWindows,
       eligibleByProject: scheduleWindowEligibility,
       effectiveAllocationIndex: projectAllocationContext.effectiveAllocationIndex,
-      collaboratorId: period.collaboratorId
+      collaboratorId: period.collaboratorId,
+      sedeProjectIds: projectAllocationContext.sedeProjectIds
     };
 
     const he70Horas = period.he70Minutes / 60;
@@ -2344,7 +2430,8 @@ export async function debugCollaboratorMonth(nameQuery, monthKey, importId = nul
       windows: projectAllocationContext.scheduleWindows,
       eligibleByProject: buildScheduleWindowEligibility(projectAllocationContext.scheduleWindows, rdoData),
       effectiveAllocationIndex: projectAllocationContext.effectiveAllocationIndex,
-      collaboratorId: period.collaboratorId
+      collaboratorId: period.collaboratorId,
+      sedeProjectIds: projectAllocationContext.sedeProjectIds
     }
   );
   const normalHoursM = classified.costNormalHours;

@@ -379,3 +379,7 @@ colaborador e o período; cadastrar as férias e verificar que o aviso some.
   colaborador ficam fixas.
 - **Cores**: cada situação combina fundo, borda e barra lateral com tokens do app (verde, azul,
   cinza, tracejado, hachurado, laranja e vermelho), para a diferença não depender só da cor.
+- **Mesma regra de viagem no custo automático** (dias não conferidos): com "em viagem" e sem RDO,
+  etiquetas de centros de custo da Sede não contam como projeto; depois do Efetivo e do cronograma,
+  vale a etiqueta de projeto real (`TRAVEL_TAG_PROJECT`) e, por fim, o projeto do dia vizinho mais
+  próximo, até 7 dias (`TRAVEL_NEIGHBOR_PROJECT`). Etiqueta só de Sede, sem viagem, não muda.
