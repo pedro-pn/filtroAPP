@@ -5,6 +5,7 @@ import { getAllocationReviewMonth, type AllocationReviewMonthResponse, type Revi
 import { BrandLoading } from '../../../components/brand/BrandLoading';
 import { Alert, Badge, Button, EmptyState } from '../../../components/ui/ds';
 import { AllocationReviewLegend, AllocationReviewViewToggle } from './AllocationReviewShared';
+import { gridCellKey, useAllocationReviewGrid } from './useAllocationReviewGrid';
 import {
   KIND_LABELS,
   addMonths,
@@ -41,13 +42,17 @@ export function AllocationReviewMonthView({ yearMonth, search, onMonthChange, on
   const data = month.data;
   const projectsById = useMemo(() => new Map((data?.projects || []).map(project => [project.id, project])), [data?.projects]);
   const rows = useMemo(() => (data?.rows || []).filter(row => rowMatchesSearch(row, search, projectsById)), [data?.rows, projectsById, search]);
+  const gridKeys = useMemo(() => rows.flatMap((row, rowIndex) => row.days
+    .map((day, colIndex) => (day.eligible ? gridCellKey(rowIndex, colIndex) : null))
+    .filter((key): key is string => Boolean(key))), [rows]);
+  const grid = useAllocationReviewGrid(gridKeys);
 
   function totalLabel(total: MonthRow['totals'][number]) {
     const name = total.projectId ? projectShortLabel(projectsById.get(total.projectId), total.projectId) : KIND_LABELS[total.kind];
     return `${name} · ${String(total.days).replace('.', ',')} d`;
   }
 
-  function cell(row: MonthRow, day: ReviewMonthDay, compact = false) {
+  function cell(row: MonthRow, day: ReviewMonthDay, compact = false, position: [number, number] | null = null) {
     const display = cellDisplay(day.value, projectsById);
     const classes = [
       'allocation-review-mcell',
@@ -58,7 +63,16 @@ export function AllocationReviewMonthView({ yearMonth, search, onMonthChange, on
     ].filter(Boolean).join(' ');
     const label = `${row.collaborator.name}, ${formatDayMonth(day.date)}: ${day.eligible ? valueText(day.value, projectsById) : 'fora do vínculo'}${day.pending ? `, pendente (${pendingText(day)})` : ''}${day.confirmed ? ', conferido' : ''}. Abrir a semana.`;
     return (
-      <button type="button" className={classes} title={label} aria-label={label} disabled={!day.eligible} onClick={() => onOpenWeek(day.weekStart)}>
+      <button
+        type="button"
+        className={classes}
+        title={label}
+        aria-label={label}
+        disabled={!day.eligible}
+        onClick={() => onOpenWeek(day.weekStart)}
+        data-grid-cell={position ? gridCellKey(position[0], position[1]) : undefined}
+        tabIndex={position ? grid.tabIndexFor(gridCellKey(position[0], position[1])) : undefined}
+      >
         {day.eligible ? monthCellLabel(day.value, projectsById) : '–'}
       </button>
     );
@@ -109,37 +123,37 @@ export function AllocationReviewMonthView({ yearMonth, search, onMonthChange, on
         <EmptyState title="Nenhum colaborador com esse filtro." description="Ajuste a busca para ver outros colaboradores." />
       ) : (
         <>
-          <div className="allocation-review-table-wrap">
+          <div className="allocation-review-table-wrap" onKeyDown={grid.onKeyDown} onFocus={grid.onFocus}>
             <table className="allocation-review-table allocation-review-month-table" aria-label="Alocação do mês por colaborador">
               <colgroup>
                 <col className="allocation-review-table__col-who" />
-                {data.days.map(day => <col key={day.date} className="allocation-review-month-table__col-day" />)}
                 <col className="allocation-review-month-table__col-total" />
+                {data.days.map(day => <col key={day.date} className="allocation-review-month-table__col-day" />)}
               </colgroup>
               <thead>
                 <tr>
                   <th scope="col" className="allocation-review-table__who">Colaborador</th>
+                  <th scope="col" className="allocation-review-month-table__total">Total no mês</th>
                   {data.days.map(day => (
                     <th scope="col" key={day.date} className={day.isWeekend || day.isHoliday ? 'is-rest' : ''} title={day.holidayName || undefined}>
                       {WEEKDAY_INITIALS[weekdayIndex(day.date)]}<strong>{day.date.slice(8)}</strong>
                     </th>
                   ))}
-                  <th scope="col" className="allocation-review-month-table__total">Total no mês</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map(row => (
+                {rows.map((row, rowIndex) => (
                   <tr key={row.collaborator.id}>
                     <th scope="row" className="allocation-review-table__who">
                       <span className="allocation-review-who__name">{row.collaborator.name}</span>
                       {row.pendingCount ? <span className="allocation-review-row-status is-pending">{row.pendingCount} pendência{row.pendingCount > 1 ? 's' : ''}</span> : null}
                     </th>
-                    {row.days.map(day => (
-                      <td key={day.date} className={data.days.find(item => item.date === day.date)?.isWeekend ? 'is-rest' : ''}>{cell(row, day)}</td>
-                    ))}
                     <td className="allocation-review-month-table__total">
                       <ul>{row.totals.slice(0, 4).map(total => <li key={`${total.kind}-${total.projectId}`}>{totalLabel(total)}</li>)}</ul>
                     </td>
+                    {row.days.map((day, colIndex) => (
+                      <td key={day.date} className={data.days.find(item => item.date === day.date)?.isWeekend ? 'is-rest' : ''}>{cell(row, day, false, [rowIndex, colIndex])}</td>
+                    ))}
                   </tr>
                 ))}
               </tbody>

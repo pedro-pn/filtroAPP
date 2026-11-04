@@ -17,12 +17,13 @@ import {
 } from '../../../api/allocationReview';
 import { ApiClientError } from '../../../api/client';
 import { BrandLoading } from '../../../components/brand/BrandLoading';
-import { Alert, Badge, Button, EmptyState, MetricCard, ProgressBar, SearchInput } from '../../../components/ui/ds';
+import { Alert, Badge, Button, EmptyState, ProgressBar, SearchInput } from '../../../components/ui/ds';
 import { useConfirmDialog } from '../../../components/ui/useConfirmDialog';
 import { useToast } from '../../../components/ui/ToastContext';
 import { AllocationReviewBulkBar } from './AllocationReviewBulkBar';
 import { AllocationReviewDayPanel } from './AllocationReviewDayPanel';
 import { AllocationReviewLegend, AllocationReviewViewToggle } from './AllocationReviewShared';
+import { gridCellKey, useAllocationReviewGrid } from './useAllocationReviewGrid';
 import {
   addWeeks,
   cellDisplay,
@@ -32,6 +33,7 @@ import {
   groupRows,
   isoWeekNumber,
   pendingText,
+  sourcesText,
   valueText,
   weekRangeLabel,
   type ReviewGroupMode,
@@ -58,18 +60,10 @@ const SHOW_OPTIONS: Array<[ReviewShowFilter, string]> = [['all', 'Todos'], ['pen
 const GROUP_OPTIONS: Array<[ReviewGroupMode, string]> = [['name', 'Por nome'], ['proj', 'Por projeto']];
 const SOURCE_ORDER = ['ponto', 'rdo', 'efetivo'] as const;
 
-// CNPJ quebra só depois da barra (37.981.316/ 0001-11), nunca no meio dos números.
-function breakAfterSlash(text: string) {
-  const parts = text.split('/');
-  return parts.map((part, index) => (
-    <span key={index}>{part}{index < parts.length - 1 ? <>/<wbr /></> : null}</span>
-  ));
-}
-
 function SourceDots({ day }: { day: ReviewDayView }) {
   return (
     <span className="allocation-review-cell__dots" aria-hidden="true">
-      {SOURCE_ORDER.map(source => <span key={source} className={`is-${day.sources[source].state}`} />)}
+      {SOURCE_ORDER.map(source => <span key={source} className={`allocation-review-dot is-${day.sources[source].state}`} />)}
     </span>
   );
 }
@@ -155,6 +149,11 @@ export function AllocationReviewBoard({ weekStart, show, group, search, onWeekCh
 
   const visibleRows = useMemo(() => filterRows(data?.rows || [], show, search, projectsById), [data?.rows, projectsById, search, show]);
   const groups = useMemo(() => groupRows(visibleRows, group, projectsById), [group, projectsById, visibleRows]);
+  const flatRows = useMemo(() => groups.flatMap(groupItem => groupItem.rows), [groups]);
+  const gridKeys = useMemo(() => flatRows.flatMap((row, rowIndex) => row.days
+    .map((day, colIndex) => (day.eligible ? gridCellKey(rowIndex, colIndex) : null))
+    .filter((key): key is string => Boolean(key))), [flatRows]);
+  const grid = useAllocationReviewGrid(gridKeys);
   const panelRow = panel ? data?.rows.find(row => row.collaborator.id === panel.collaboratorId) || null : null;
   const panelDay = panelRow?.days.find(day => day.date === panel?.date) || null;
 
@@ -208,7 +207,7 @@ export function AllocationReviewBoard({ weekStart, show, group, search, onWeekCh
     if (ok) reopen.mutate();
   }
 
-  function renderCell(row: ReviewRowView, day: ReviewDayView, compact = false) {
+  function renderCell(row: ReviewRowView, day: ReviewDayView, compact = false, position: [number, number] | null = null) {
     const display = cellDisplay(day.value, projectsById);
     const key = dayCellKey(row.collaborator.id, day.date);
     const classes = [
@@ -221,12 +220,23 @@ export function AllocationReviewBoard({ weekStart, show, group, search, onWeekCh
       compact ? 'is-compact' : ''
     ].filter(Boolean).join(' ');
     const label = `${row.collaborator.name}, ${formatDayMonth(day.date)}: ${valueText(day.value, projectsById)}${day.pending ? `, pendente (${pendingText(day)})` : ''}${day.edited ? ', ajustado' : ''}`;
+    const gridKey = position ? gridCellKey(position[0], position[1]) : null;
     return (
-      <button type="button" className={classes} aria-label={label} aria-pressed={selected.has(key) || undefined} disabled={!day.eligible} onClick={event => handleCellClick(event, row, day)} data-allocation-review-cell>
+      <button
+        type="button"
+        className={classes}
+        aria-label={label}
+        title={day.eligible ? `${valueText(day.value, projectsById)}\n${sourcesText(day)}` : undefined}
+        aria-pressed={selected.has(key) || undefined}
+        disabled={!day.eligible}
+        onClick={event => handleCellClick(event, row, day)}
+        data-allocation-review-cell
+        data-grid-cell={gridKey || undefined}
+        tabIndex={gridKey ? grid.tabIndexFor(gridKey) : undefined}
+      >
         <span className="allocation-review-cell__mark" aria-hidden="true">{day.edited ? '✎' : day.pending && day.pendingReason !== 'NO_INFORMATION' ? '!' : day.sourceChangedAfterReview ? '↻' : ''}</span>
         <span className="allocation-review-cell__title">{display.title}</span>
         {display.subtitle ? <span className="allocation-review-cell__subtitle" title={display.subtitle}>{display.subtitle}</span> : null}
-        {display.detail ? <span className="allocation-review-cell__detail">{breakAfterSlash(display.detail)}</span> : null}
         {day.absenceAlert ? <span className="allocation-review-cell__alert">avisa o Efetivo</span> : null}
         {day.eligible ? <SourceDots day={day} /> : null}
       </button>
@@ -291,6 +301,9 @@ export function AllocationReviewBoard({ weekStart, show, group, search, onWeekCh
           {weekClosed && data.week.canReopen ? <Button size="sm" variant="secondary" disabled={busy} onClick={handleReopen}>Reabrir semana</Button> : null}
         </div>
       ) : null}
+      {data && !weekClosed && !data.week.canClose && data.week.closeBlockers.length ? (
+        <p className="allocation-review-close-hint" role="status">Para fechar: {data.week.closeBlockers.join(' ')}</p>
+      ) : null}
     </div>
   );
 
@@ -306,14 +319,33 @@ export function AllocationReviewBoard({ weekStart, show, group, search, onWeekCh
     <div className="efetivo-board allocation-review" data-allocation-review>
       {header}
       <p className="allocation-review-note">
-        Semana não conferida continua valendo pela alocação automática. O que for conferido passa a valer no custo HH dos projetos e no relatório <strong>Alocação dos colaboradores</strong> (Relatórios › Estatística).
+        Semana não conferida vale pela alocação automática. O que você conferir passa a valer no custo HH e no relatório <strong>Alocação dos colaboradores</strong>.
       </p>
 
       <div className="allocation-review-summary" data-allocation-review-summary>
-        <MetricCard label="Dias de acordo" value={summary.agreeDays} />
-        <MetricCard label="Divergências" value={summary.divergenceDays} className={summary.divergenceDays ? 'is-warning' : ''} />
-        <MetricCard label="Dias sem informação" value={summary.noInformationDays} className={summary.noInformationDays ? 'is-danger' : ''} />
-        <MetricCard label="Ajustes feitos" value={summary.editedDays} />
+        <Button
+          size="sm"
+          variant={show === 'pend' ? 'primary' : 'secondary'}
+          aria-pressed={show === 'pend'}
+          disabled={!summary.divergenceDays && show !== 'pend'}
+          onClick={() => onShowChange(show === 'pend' ? 'all' : 'pend')}
+          iconLeft={<span className="allocation-review-summary__dot is-warning" aria-hidden="true" />}
+        >
+          {summary.divergenceDays} divergência{summary.divergenceDays === 1 ? '' : 's'}
+        </Button>
+        <Button
+          size="sm"
+          variant={show === 'pend' ? 'primary' : 'secondary'}
+          aria-pressed={show === 'pend'}
+          disabled={!summary.noInformationDays && show !== 'pend'}
+          onClick={() => onShowChange(show === 'pend' ? 'all' : 'pend')}
+          iconLeft={<span className="allocation-review-summary__dot is-danger" aria-hidden="true" />}
+        >
+          {summary.noInformationDays} sem informação
+        </Button>
+        <span className="allocation-review-summary__text">
+          {summary.agreeDays} dias de acordo, {summary.editedDays} ajuste{summary.editedDays === 1 ? '' : 's'}
+        </span>
         <ProgressBar
           className="allocation-review-summary__progress"
           label="Colaboradores conferidos"
@@ -331,7 +363,7 @@ export function AllocationReviewBoard({ weekStart, show, group, search, onWeekCh
           {GROUP_OPTIONS.map(([value, label]) => <button key={value} type="button" className={group === value ? 'active' : ''} aria-pressed={group === value} onClick={() => onGroupChange(value)}>{label}</button>)}
         </div>
         {!weekClosed ? (
-          <Button size="sm" variant={selectMode ? 'primary' : 'secondary'} className="allocation-review-select-toggle" aria-pressed={selectMode} onClick={() => { setSelectMode(value => !value); setSelected(new Set()); }} data-allocation-review-select>
+          <Button size="sm" variant={selectMode ? 'primary' : 'secondary'} className="allocation-review-select-toggle" aria-pressed={selectMode} title="No computador, você também pode segurar Shift e clicar nos dias." onClick={() => { setSelectMode(value => !value); setSelected(new Set()); }} data-allocation-review-select>
             {selectMode ? 'Concluir seleção' : 'Selecionar dias'}
           </Button>
         ) : null}
@@ -343,8 +375,8 @@ export function AllocationReviewBoard({ weekStart, show, group, search, onWeekCh
         <EmptyState title="Nenhum colaborador com esse filtro." description="Ajuste a busca ou o filtro para ver outros colaboradores." />
       ) : (
         <>
-          <div className="allocation-review-table-wrap">
-            <table className="allocation-review-table" aria-label="Alocação da semana por colaborador">
+          <div className="allocation-review-table-wrap" onKeyDown={grid.onKeyDown} onFocus={grid.onFocus}>
+            <table className="allocation-review-table" aria-label="Alocação da semana por colaborador" aria-describedby="allocation-review-grid-hint">
               <colgroup>
                 <col className="allocation-review-table__col-who" />
                 {data.days.map(day => <col key={day.date} className={day.isWeekend ? 'allocation-review-table__col-rest' : undefined} />)}
@@ -370,7 +402,11 @@ export function AllocationReviewBoard({ weekStart, show, group, search, onWeekCh
                           <span className="allocation-review-who__name">{row.collaborator.name}</span>
                           {row.collaborator.jobRole ? <span className="allocation-review-who__role">{row.collaborator.jobRole}</span> : null}
                         </th>
-                        {row.days.map(day => <td key={day.date} className={data.days.find(item => item.date === day.date)?.isWeekend ? 'is-rest' : ''}>{renderCell(row, day)}</td>)}
+                        {row.days.map((day, colIndex) => (
+                          <td key={day.date} className={data.days.find(item => item.date === day.date)?.isWeekend ? 'is-rest' : ''}>
+                            {renderCell(row, day, false, [flatRows.indexOf(row), colIndex])}
+                          </td>
+                        ))}
                         <td className="allocation-review-table__end">{renderRowAction(row)}</td>
                       </tr>
                     ))}
@@ -410,9 +446,7 @@ export function AllocationReviewBoard({ weekStart, show, group, search, onWeekCh
         </>
       )}
 
-      <p className="allocation-review-help">
-        <strong>Como usar:</strong> clique num dia para ver o que o ponto, o RDO e o planejamento dizem e corrigir. Para mudar vários dias de uma vez, segure <strong>Shift</strong> e clique (ou use <strong>Selecionar dias</strong> no celular). A linha só pode ser conferida sem divergência nem dia sem informação. Viagem conta como custo do projeto de destino.
-      </p>
+      <p id="allocation-review-grid-hint" className="sr-only">Use as setas para andar entre os dias e Enter para abrir o dia.</p>
 
       <AllocationReviewBulkBar count={selected.size} projects={data.projects} saving={busy} onApply={applyBulk} onClear={() => setSelected(new Set())} />
       <AllocationReviewDayPanel

@@ -100,8 +100,8 @@ test('"Por nome" é o padrão e vem antes de "Por projeto"', async ({ page }) =>
 });
 
 test('o cabeçalho dos dias fica fixo ao rolar a tabela para baixo', async ({ page }) => {
-  await page.setViewportSize({ width: 1366, height: 460 });
-  await mockApi(page, ['efetivo:allocation-review']);
+  await page.setViewportSize({ width: 1366, height: 700 });
+  await mockApi(page, ['efetivo:allocation-review'], { weekCopies: 6 });
   await page.goto(`/efetivo?section=conferencia&semana=${WEEK}`);
   const wrap = page.locator('.allocation-review-table-wrap');
   await wrap.scrollIntoViewIfNeeded();
@@ -141,4 +141,32 @@ test('visão do mês no celular vira calendário por colaborador', async ({ page
   await expect(page.locator('.allocation-review-month-calendar').first()).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await page.screenshot({ path: '../output/playwright/allocation-review/mobile-month.png', fullPage: true });
+});
+
+test('a grade é uma parada de Tab só e as setas andam entre os dias', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await mockApi(page, ['efetivo:allocation-review']);
+  await page.goto(`/efetivo?section=conferencia&semana=${WEEK}`);
+  const table = page.getByRole('table', { name: 'Alocação da semana por colaborador' });
+  await expect(table.locator('[data-grid-cell][tabindex="0"]')).toHaveCount(1);
+  await table.getByRole('button', { name: /Ana Teixeira, 26\/10/ }).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(table.getByRole('button', { name: /Ana Teixeira, 27\/10/ })).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(table.getByRole('button', { name: /Bruno Cavalcanti, 27\/10/ })).toBeFocused();
+  await page.keyboard.press('End');
+  await expect(table.getByRole('button', { name: /Bruno Cavalcanti, 01\/11/ })).toBeFocused();
+  await expect(table.locator('[data-grid-cell][tabindex="0"]')).toHaveCount(1);
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('dialog', { name: 'Bruno Cavalcanti' })).toBeVisible();
+});
+
+test('clicar nas pendências do resumo filtra a grade', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await mockApi(page, ['efetivo:allocation-review']);
+  await page.goto(`/efetivo?section=conferencia&semana=${WEEK}`);
+  await page.locator('[data-allocation-review-summary]').getByRole('button', { name: /1 divergência/ }).click();
+  await expect(page).toHaveURL(/mostrar=pend/);
+  await expect(page.getByRole('table', { name: 'Alocação da semana por colaborador' }).locator('tbody tr')).toHaveCount(2);
+  await expect(page.getByText('Para fechar: Faltam 3 colaboradores para conferir.')).toBeVisible();
 });

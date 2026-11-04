@@ -39,53 +39,71 @@
   margin-left: auto;
 }
 
-.allocation-review-note,
-.allocation-review-help {
+.allocation-review-note {
   margin: 0;
   max-width: 72ch;
   color: var(--muted);
   font-size: var(--text-sm);
 }
 
-.allocation-review-note strong,
-.allocation-review-help strong {
+.allocation-review-note strong {
   color: var(--ink);
 }
 
-.allocation-review-help {
-  padding: var(--space-3) var(--space-4);
-  border: var(--border-width) dashed var(--line-strong);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  max-width: none;
-}
 
+/* Resumo numa faixa só: pendências clicáveis (filtram a grade) e o progresso da semana. */
 .allocation-review-summary {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
-  gap: var(--space-2);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
   min-width: 0;
-}
-
-.allocation-review-summary > * {
-  min-width: 0;
-}
-
-.allocation-review-summary .is-warning {
-  box-shadow: inset 4px 0 0 var(--warning);
-}
-
-.allocation-review-summary .is-danger {
-  box-shadow: inset 4px 0 0 var(--danger);
-}
-
-.allocation-review-summary__progress {
-  grid-column: span 2;
-  align-self: center;
-  padding: var(--space-3);
+  padding: var(--space-2) var(--space-3);
   border: var(--border-width) solid var(--line);
   border-radius: var(--radius-md);
   background: var(--surface);
+}
+
+.allocation-review-summary > * { min-width: 0; }
+
+.allocation-review-summary__dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.allocation-review-summary__dot.is-warning { background: var(--warning); }
+.allocation-review-summary__dot.is-danger { background: var(--danger); }
+
+.allocation-review-summary__text {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.allocation-review-summary__progress {
+  flex: 1 1 220px;
+  max-width: 360px;
+  margin-left: auto;
+}
+
+.allocation-review-close-hint {
+  flex-basis: 100%;
+  order: 99;
+  margin: calc(-1 * var(--space-2)) 0 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  text-align: right;
+}
+
+.allocation-review-legend__dots {
+  flex-wrap: wrap;
+}
+
+.allocation-review-legend__dots > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
 }
 
 .allocation-review-toolbar {
@@ -144,7 +162,7 @@
 }
 
 /* `.efetivo-page *` zera min-width no módulo; o prefixo garante a largura mínima da grade. */
-.allocation-review .allocation-review-table { min-width: 1100px; }
+.allocation-review .allocation-review-table { min-width: 1000px; }
 .allocation-review .allocation-review-month-table { min-width: 0; }
 .allocation-review .allocation-review-month__label { min-width: 150px; }
 
@@ -360,15 +378,6 @@ td.allocation-review-table__end > * {
   white-space: nowrap;
 }
 
-.allocation-review-cell__detail {
-  display: block;
-  color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 15px;
-  overflow-wrap: normal;
-  word-break: normal;
-}
 
 .allocation-review-cell__alert {
   display: block;
@@ -396,16 +405,17 @@ td.allocation-review-table__end > * {
   gap: 3px;
 }
 
-.allocation-review-cell__dots span {
-  width: 6px;
-  height: 6px;
+.allocation-review-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
   border: var(--border-width) solid var(--muted);
   border-radius: 50%;
-  opacity: 0.55;
 }
 
-.allocation-review-cell__dots .is-confirms { background: var(--brand); border-color: var(--brand); opacity: 1; }
-.allocation-review-cell__dots .is-diverges { background: var(--warning); border-color: var(--warning); opacity: 1; }
+.allocation-review-dot.is-confirms { background: var(--brand); border-color: var(--brand); }
+.allocation-review-dot.is-diverges { background: var(--warning); border-color: var(--warning); }
+.allocation-review-dot.is-none { background: transparent; }
 
 /* Cards (celular) */
 .allocation-review-cards { display: none; gap: var(--space-4); }
@@ -458,11 +468,9 @@ td.allocation-review-table__end > * {
 .allocation-review-options legend,
 .allocation-review-repeat legend {
   margin: 0 0 var(--space-2);
-  color: var(--muted);
-  font-size: var(--text-xs);
+  color: var(--ink);
+  font-size: var(--text-sm);
   font-weight: var(--font-semibold);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 .allocation-review-panel__hint { margin: 0; color: var(--muted); font-size: var(--text-xs); }
 
@@ -517,11 +525,12 @@ td.allocation-review-table__end > * {
 .allocation-review-chip input:focus-visible + span { outline: var(--focus-ring-width) solid var(--focus-ring); outline-offset: var(--focus-ring-offset); }
 
 @media (max-width: 640px) {
+  .allocation-review-summary__progress { flex-basis: 100%; max-width: none; margin-left: 0; }
+  .allocation-review-close-hint { text-align: left; }
   .allocation-review-table-wrap { display: none; }
   .allocation-review-cards { display: grid; }
   .allocation-review-header__actions { margin-left: 0; width: 100%; }
   .allocation-review-header__actions > * { flex: 1 1 auto; }
-  .allocation-review-summary__progress { grid-column: 1 / -1; }
   .allocation-review-toolbar .efetivo-segmented { display: flex; flex-wrap: wrap; width: 100%; }
   .allocation-review-toolbar .efetivo-segmented button { flex: 1 1 auto; }
   .allocation-review-select-toggle { width: 100%; }
@@ -570,14 +579,20 @@ td.allocation-review-table__end > * {
 
 .allocation-review-month-table { min-width: 0; width: max-content; }
 .allocation-review-month-table__col-day { width: 46px; }
-.allocation-review-month-table__col-total { width: 220px; }
+.allocation-review-month-table__col-total { width: 200px; }
+.allocation-review-month-table thead th.allocation-review-month-table__total { z-index: 3; }
 .allocation-review-month-table thead th { padding: var(--space-1); }
 .allocation-review-month-table td { padding: 2px; }
 .allocation-review-month-table .allocation-review-row-status { display: block; margin: 2px 0 0; }
 
 .allocation-review-month-table__total {
+  /* Fica fixo logo depois do nome, visível mesmo rolando os dias. */
+  position: sticky;
+  left: 170px;
+  z-index: 1;
   padding: var(--space-1) var(--space-3) !important;
-  border-left: var(--border-width) solid var(--line);
+  border-right: var(--border-width) solid var(--line);
+  background: var(--surface);
   color: var(--muted);
   font-size: var(--text-xs);
   text-align: left !important;

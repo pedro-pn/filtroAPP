@@ -28,7 +28,14 @@ export function AllocationReviewLegend({ showDots = false }: { showDots?: boolea
       {LEGEND.map(([tone, label]) => (
         <li key={tone}><i className={`allocation-review-swatch is-${tone}`} aria-hidden="true" />{label}</li>
       ))}
-      {showDots ? <li>Pontinhos: Ponto · RDO · Efetivo</li> : null}
+      {showDots ? (
+        <li className="allocation-review-legend__dots">
+          Pontinhos, na ordem Ponto, RDO e Efetivo:
+          <span><i className="allocation-review-dot is-confirms" aria-hidden="true" />confirma</span>
+          <span><i className="allocation-review-dot is-diverges" aria-hidden="true" />diverge</span>
+          <span><i className="allocation-review-dot is-none" aria-hidden="true" />sem dado</span>
+        </li>
+      ) : null}
     </ul>
   );
 }

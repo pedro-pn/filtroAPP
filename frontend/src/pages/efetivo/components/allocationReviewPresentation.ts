@@ -237,6 +237,11 @@ export function dayCellKey(collaboratorId: string, date: string) {
   return `${collaboratorId}|${date}`;
 }
 
+// Texto do tooltip dos pontinhos: o que cada fonte diz sobre a sugestão.
+export function sourcesText(day: Pick<ReviewDayView, 'sources'>) {
+  return `Ponto: ${SOURCE_STATE_LABELS[day.sources.ponto.state]}; RDO: ${SOURCE_STATE_LABELS[day.sources.rdo.state]}; Efetivo: ${SOURCE_STATE_LABELS[day.sources.efetivo.state]}`;
+}
+
 export function pendingText(day: Pick<ReviewDayView, 'pendingReason'>) {
   if (day.pendingReason === 'NO_INFORMATION') return 'sem informação';
   if (day.pendingReason === 'PLAN_ONLY') return 'só o planejamento indica';

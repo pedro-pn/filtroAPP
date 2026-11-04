@@ -65,12 +65,15 @@ function rows() {
   ];
 }
 
-export function weekResponse() {
+export function weekResponse(copies = 1) {
   return {
     week: { weekStart: WEEK, weekEnd: DATES[6], status: 'OPEN', version: 2, closedAt: null, closedBy: null, ended: true, canClose: false, closeBlockers: ['Faltam 3 colaboradores para conferir.'], canReopen: false },
     days: DATES.map((date, index) => ({ date, weekday: WEEKDAYS[index], isWeekend: index > 4, isHoliday: false, holidayName: null, isFuture: false })),
     summary: { agreeDays: 19, divergenceDays: 1, noInformationDays: 1, editedDays: 0, confirmedRows: 0, totalRows: 3, readyRows: 1 },
-    rows: rows(),
+    rows: Array.from({ length: copies }, (_, copy) => rows().map(row => (copy ? {
+      ...row,
+      collaborator: { ...row.collaborator, id: `${row.collaborator.id}-${copy}`, name: `${row.collaborator.name} ${copy + 1}` }
+    } : row))).flat(),
     projects
   };
 }
@@ -112,7 +115,7 @@ export function monthResponse() {
   };
 }
 
-export async function mockApi(page: Page, moduleRoles: string[]) {
+export async function mockApi(page: Page, moduleRoles: string[], { weekCopies = 1 }: { weekCopies?: number } = {}) {
   const unexpected: string[] = [];
   const writes: Array<{ method: string; path: string; version: string | undefined; body: unknown }> = [];
   const user = {
@@ -135,7 +138,7 @@ export async function mockApi(page: Page, moduleRoles: string[]) {
       return json({ version: 3, rows: weekResponse().rows });
     }
     if (path === '/api/auth/me') return json({ user });
-    if (path === `/api/efetivo/conferencia-alocacao/semanas/${WEEK}`) return json(weekResponse());
+    if (path === `/api/efetivo/conferencia-alocacao/semanas/${WEEK}`) return json(weekResponse(weekCopies));
     if (path === '/api/efetivo/conferencia-alocacao/meses/2026-10') return json(monthResponse());
     if (path.startsWith('/api/efetivo/conferencia-alocacao/semanas/')) {
       const other = weekResponse();
