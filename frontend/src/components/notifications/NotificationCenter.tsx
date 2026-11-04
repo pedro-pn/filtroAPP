@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query';
-import { Bell, BriefcaseBusiness, CheckCheck, DatabaseBackup, FileCheck2, FileText, RefreshCw, TriangleAlert, X } from 'lucide-react';
+import { Bell, BriefcaseBusiness, CalendarClock, CheckCheck, DatabaseBackup, FileCheck2, FileText, RefreshCw, TriangleAlert, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { deleteNotification, listNotifications, markAllNotificationsRead, markNotificationRead, type AppNotification, type NotificationPage } from '../../api/notifications';
@@ -150,7 +150,7 @@ function UserNotificationCenter() {
               {items.map(item => (
                 <li key={item.id} className={`notification-center-item${item.readAt ? '' : ' is-unread'}`}>
                   <button type="button" className="notification-center-link" disabled={busy} onClick={() => read.mutate(item)}>
-                    <span className={`notification-center-item-icon${item.kind === 'BACKUP_FAILED' || item.kind === 'SYNC_FAILED' ? ' notification-center-item-icon--danger' : ''}`} aria-hidden="true"><AppIcon icon={item.kind === 'BACKUP_FAILED' ? DatabaseBackup : item.kind === 'SYNC_FAILED' ? TriangleAlert : item.kind === 'PROPOSAL_RECEIVED' ? FileCheck2 : item.kind.startsWith('REPORT_') ? FileText : BriefcaseBusiness} /></span>
+                    <span className={`notification-center-item-icon${item.kind === 'BACKUP_FAILED' || item.kind === 'SYNC_FAILED' ? ' notification-center-item-icon--danger' : ''}`} aria-hidden="true"><AppIcon icon={item.kind === 'BACKUP_FAILED' ? DatabaseBackup : item.kind === 'SYNC_FAILED' ? TriangleAlert : item.kind === 'PROPOSAL_RECEIVED' ? FileCheck2 : item.kind === 'ALLOCATION_REVIEW_ABSENCE_MISSING' ? CalendarClock : item.kind.startsWith('REPORT_') ? FileText : BriefcaseBusiness} /></span>
                     <span className="notification-center-copy">
                       <strong>{item.title}{!item.readAt ? <span className="notification-center-dot" aria-label="Não lida" /> : null}</strong>
                       <span>{item.description}</span>

@@ -308,13 +308,15 @@ test('processMonthlyAllocationReport sends the previous month on the first day',
   assert.equal(recipientDeliveries.rows.get('2026-06|gestao@example.com').status, 'SENT');
 });
 
-test('processMonthlyAllocationReport skips days other than the first day', async () => {
+test('processMonthlyAllocationReport skips days after the 3rd business day', async () => {
+  // Julho/2026: 1 (qua), 2 (qui), 3 (sex) → limite dia 3; dia 6 já está fora da janela.
   const result = await processMonthlyAllocationReport({
-    now: new Date('2026-07-02T12:00:00.000Z'),
+    now: new Date('2026-07-06T12:00:00.000Z'),
+    client: {},
     missingMailerConfig: []
   });
 
-  assert.deepEqual(result, { skipped: true, reason: 'not_first_day' });
+  assert.deepEqual(result, { skipped: true, reason: 'outside_send_window' });
 });
 
 test('sendMonthlyAllocationReport sends only once per normalized recipient email', async () => {
@@ -475,7 +477,8 @@ test('UTC midnight does not claim the monthly delivery before Sao Paulo midnight
   const result = await processMonthlyAllocationReport({
     now: new Date('2026-10-01T02:59:59Z'), client: {}, missingMailerConfig: []
   });
-  assert.deepEqual(result, { skipped: true, reason: 'not_first_day' });
+  // Ainda é 30/09 em São Paulo: fora da janela de envio de outubro.
+  assert.deepEqual(result, { skipped: true, reason: 'outside_send_window' });
 });
 
 for (const now of ['2026-10-01T03:00:00Z', '2026-10-02T02:59:59Z']) {
@@ -648,4 +651,173 @@ test('unexpected persistence failure still records actual partial completion for
   assert.equal(monthlyDeliveries.rows.get('2026-09').status, 'SENT_WITH_ERRORS');
   assert.equal(monthlyDeliveries.rows.get('2026-09').recipientCount, 2);
   assert.ok(monthlyDeliveries.rows.get('2026-09').sentAt instanceof Date);
+});
+
+// === Conferência semanal de alocação (feature 037) ===
+
+function reviewClient({ reports = [], reviewDays = [], projects = [], collaborators = [] } = {}) {
+  return {
+    report: { findMany: async () => reports },
+    allocationReviewDay: {
+      findMany: async args => {
+        assert.deepEqual(args.where.row, { confirmedAt: { not: null } });
+        return reviewDays;
+      }
+    },
+    project: { findMany: async () => projects },
+    collaborator: { findMany: async () => collaborators }
+  };
+}
+
+const rdoReport = (date, projectId, code, extra = {}) => ({
+  id: `rdo-${date}-${projectId}`, projectId, reportDate: new Date(`${date}T00:00:00.000Z`), sequenceNumber: 7,
+  specialConditions: {},
+  project: { id: projectId, code, name: `Obra ${code}`, location: 'Canteiro', additionalWorkLocations: [], clientName: `Cliente ${code}`, clientCnpj: '11222333000181' },
+  collaborators: [{ collaboratorId: 'c1', roleNameSnapshot: 'Técnica', collaborator: { id: 'c1', name: 'Ana Lima', jobRole: { name: 'Técnica' } } }],
+  ...extra
+});
+
+test('dia conferido em outro projeto substitui a entrada do RDO e leva o CNPJ do projeto conferido', async () => {
+  const client = reviewClient({
+    reports: [rdoReport('2026-10-27', 'pA', '5620'), rdoReport('2026-10-28', 'pA', '5620')],
+    reviewDays: [{ collaboratorId: 'c1', workDate: new Date('2026-10-27T00:00:00.000Z'), kind: 'PROJECT', projects: [{ projectId: 'pB' }] }],
+    projects: [{ id: 'pB', code: '5484', name: 'Missão', location: 'Usina', additionalWorkLocations: [], clientName: 'Thyssenkrupp', clientCnpj: '37981316000111', managerOnly: false, deletedAt: null }],
+    collaborators: [{ id: 'c1', name: 'Ana Lima', jobRole: { name: 'Técnica' } }]
+  });
+  const summary = await buildMonthlyAllocationSummary({ yearMonth: '2026-10', client });
+  const days = summary.collaborators[0].days;
+  assert.equal(days.length, 2);
+  const reviewed = days.find(day => day.date === '2026-10-27');
+  assert.equal(reviewed.projectId, 'pB');
+  assert.equal(reviewed.clientCnpj, '37.981.316/0001-11');
+  assert.equal(reviewed.source, 'REVIEW');
+  assert.equal(reviewed.reviewed, true);
+  assert.equal(reviewed.shift, 'Diurno');
+  assert.equal(reviewed.reportId, null);
+  const untouched = days.find(day => day.date === '2026-10-28');
+  assert.equal(untouched.source, 'RDO');
+  assert.equal(untouched.projectId, 'pA');
+  assert.equal(summary.summary.reviewedDayCount, 1);
+  assert.equal(summary.summary.projectCount, 2);
+});
+
+test('Sede, Folga e Férias conferidas aparecem sem CNPJ; viagem leva o CNPJ do destino', async () => {
+  const client = reviewClient({
+    reviewDays: [
+      { collaboratorId: 'c1', workDate: new Date('2026-10-26T00:00:00.000Z'), kind: 'SEDE', projects: [] },
+      { collaboratorId: 'c1', workDate: new Date('2026-10-27T00:00:00.000Z'), kind: 'FERIAS', projects: [] },
+      { collaboratorId: 'c1', workDate: new Date('2026-10-28T00:00:00.000Z'), kind: 'TRAVEL', projects: [{ projectId: 'pG' }] }
+    ],
+    projects: [{ id: 'pG', code: '5830', name: 'Gerdau', location: 'Ouro Branco', additionalWorkLocations: [], clientName: 'Gerdau', clientCnpj: '07522191003116', managerOnly: false, deletedAt: null }],
+    collaborators: [{ id: 'c1', name: 'Ana Lima', jobRole: { name: 'Técnica' } }]
+  });
+  const summary = await buildMonthlyAllocationSummary({ yearMonth: '2026-10', client });
+  const [sede, ferias, travel] = summary.collaborators[0].days;
+  assert.deepEqual([sede.kind, sede.projectName, sede.clientCnpj, sede.projectId], ['SEDE', 'Sede', '', null]);
+  assert.deepEqual([ferias.kind, ferias.projectName, ferias.clientCnpj], ['FERIAS', 'Férias', '']);
+  assert.equal(travel.kind, 'TRAVEL');
+  assert.equal(travel.projectName, 'Viagem · 5830 - Gerdau');
+  assert.equal(travel.clientCnpj, '07.522.191/0031-16');
+  assert.equal(summary.summary.projectCount, 1);
+  assert.equal(summary.summary.reviewedDayCount, 3);
+
+  const bytes = await buildMonthlyAllocationPdf(summary);
+  assert.ok(bytes.length > 1000, 'PDF gera com dias sem projeto');
+});
+
+test('turno noturno do RDO é preservado quando o dia é conferido no mesmo projeto', async () => {
+  const night = rdoReport('2026-10-27', 'pA', '5620', {
+    collaborators: [],
+    specialConditions: { noturnoDetails: { collaboratorIds: ['c1'], colaboradores: [{ id: 'c1', name: 'Ana Lima', role: 'Técnica' }] } }
+  });
+  const client = reviewClient({
+    reports: [night],
+    reviewDays: [{ collaboratorId: 'c1', workDate: new Date('2026-10-27T00:00:00.000Z'), kind: 'PROJECT', projects: [{ projectId: 'pA' }] }],
+    projects: [{ id: 'pA', code: '5620', name: 'Obra 5620', location: 'Canteiro', additionalWorkLocations: [], clientName: 'Cliente', clientCnpj: '11222333000181', managerOnly: false, deletedAt: null }],
+    collaborators: [{ id: 'c1', name: 'Ana Lima', jobRole: { name: 'Técnica' } }]
+  });
+  const summary = await buildMonthlyAllocationSummary({ yearMonth: '2026-10', client });
+  const [day] = summary.collaborators[0].days;
+  assert.equal(day.shift, 'Noturno');
+  assert.equal(day.reportId, 'rdo-2026-10-27-pA');
+  assert.equal(day.source, 'REVIEW');
+});
+
+function waitingClient(closedWeeks = []) {
+  const base = deliveryClient();
+  const writes = [];
+  const model = base.client.allocationReportDelivery;
+  base.client.allocationReportDelivery = new Proxy(model, {
+    get(target, prop) {
+      const value = target[prop];
+      if (typeof value !== 'function') return value;
+      return async (...args) => { writes.push(prop); return value.apply(target, args); };
+    }
+  });
+  base.client.allocationReviewWeek = {
+    findMany: async ({ where }) => where.weekStart.in
+      .map(date => date.toISOString().slice(0, 10))
+      .filter(key => closedWeeks.includes(key))
+      .map(key => ({ weekStart: new Date(`${key}T00:00:00.000Z`) }))
+  };
+  return { ...base, writes };
+}
+
+const OCTOBER_WEEKS = ['2026-09-28', '2026-10-05', '2026-10-12', '2026-10-19', '2026-10-26'];
+const noHolidays = async () => ({ holidayDates: new Set() });
+
+test('com semana aberta, o envio espera até o 3º dia útil sem tocar na entrega', async () => {
+  // Nov/2026: 1 é domingo; 2 (seg) é Finados mas o calendário injetado não tem feriados → limite dia 4.
+  const { client, writes } = waitingClient(OCTOBER_WEEKS.slice(0, 4));
+  const result = await processMonthlyAllocationReport({
+    now: new Date('2026-11-03T12:00:00.000Z'), client, mailer: async () => assert.fail('não deve enviar'),
+    missingMailerConfig: [], loadCalendar: noHolidays
+  });
+  assert.deepEqual(result, { skipped: true, reason: 'awaiting_review', yearMonth: '2026-10', deadline: '2026-11-04', openWeeks: ['2026-10-26'] });
+  assert.deepEqual(writes, []);
+});
+
+test('com todas as semanas fechadas, envia antes do limite', async () => {
+  const { client, monthlyDeliveries } = waitingClient(OCTOBER_WEEKS);
+  const result = await processMonthlyAllocationReport({
+    now: new Date('2026-11-02T12:00:00.000Z'), client, mailer: async () => {}, missingMailerConfig: [], loadCalendar: noHolidays
+  });
+  assert.equal(result.yearMonth, '2026-10');
+  assert.equal(result.sent, 1);
+  assert.equal(monthlyDeliveries.rows.get('2026-10').status, 'SENT');
+});
+
+test('no 3º dia útil envia mesmo com semana aberta; depois dele, fora da janela', async () => {
+  const { client } = waitingClient([]);
+  const sent = await processMonthlyAllocationReport({
+    now: new Date('2026-11-04T12:00:00.000Z'), client, mailer: async () => {}, missingMailerConfig: [], loadCalendar: noHolidays
+  });
+  assert.equal(sent.sent, 1);
+  const late = await processMonthlyAllocationReport({
+    now: new Date('2026-11-05T12:00:00.000Z'), client, mailer: async () => {}, missingMailerConfig: [], loadCalendar: noHolidays
+  });
+  assert.deepEqual(late, { skipped: true, reason: 'outside_send_window' });
+});
+
+test('feriado corporativo empurra o limite e o calendário real inclui feriados nacionais', async () => {
+  const { client } = waitingClient([]);
+  const holiday = await processMonthlyAllocationReport({
+    now: new Date('2026-11-04T12:00:00.000Z'), client, mailer: async () => assert.fail('não deve enviar'), missingMailerConfig: [],
+    loadCalendar: async () => ({ holidayDates: new Set(['2026-11-03']) })
+  });
+  assert.equal(holiday.reason, 'awaiting_review');
+  assert.equal(holiday.deadline, '2026-11-05');
+  // Sem calendário injetado: Finados (02/11) é feriado nacional → limite dia 5.
+  const national = await processMonthlyAllocationReport({
+    now: new Date('2026-11-04T12:00:00.000Z'), client, mailer: async () => assert.fail('não deve enviar'), missingMailerConfig: []
+  });
+  assert.equal(national.deadline, '2026-11-05');
+});
+
+test('envio manual não espera a conferência', async () => {
+  const { client } = waitingClient([]);
+  const result = await processMonthlyAllocationReport({
+    yearMonth: '2026-10', now: new Date('2026-11-02T12:00:00.000Z'), client, mailer: async () => {}, missingMailerConfig: []
+  });
+  assert.equal(result.sent, 1);
 });

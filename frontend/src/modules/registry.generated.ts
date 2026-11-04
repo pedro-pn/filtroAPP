@@ -609,7 +609,8 @@ export const moduleRegistry = [
         "efetivo:assets",
         "efetivo:supplies",
         "efetivo:administrative",
-        "efetivo:qsms"
+        "efetivo:qsms",
+        "efetivo:allocation-review"
       ],
       "path": "/efetivo"
     },
@@ -633,7 +634,8 @@ export const moduleRegistry = [
           "efetivo:assets",
           "efetivo:supplies",
           "efetivo:administrative",
-          "efetivo:qsms"
+          "efetivo:qsms",
+          "efetivo:allocation-review"
         ]
       }
     },
@@ -705,6 +707,15 @@ export const moduleRegistry = [
         "code": "EFETIVO_QSMS",
         "public": "efetivo:qsms",
         "label": "Efetivo Operacional - QSMS",
+        "accountTypes": [
+          "ADMIN",
+          "INTERNAL"
+        ]
+      },
+      {
+        "code": "EFETIVO_ALLOCATION_REVIEW",
+        "public": "efetivo:allocation-review",
+        "label": "Efetivo Operacional - Conferência de alocação",
         "accountTypes": [
           "ADMIN",
           "INTERNAL"

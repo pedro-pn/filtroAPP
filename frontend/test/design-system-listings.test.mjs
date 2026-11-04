@@ -270,6 +270,7 @@ test('Phase 5 listing primitives stay within migrated surfaces', () => {
     'src/pages/collaborator/MyArchivedReportsPage.tsx',
     'src/pages/collaborator/OngoingServicesPage.tsx',
     'src/pages/efetivo/components/CollaboratorsBoard.tsx',
+    'src/pages/efetivo/components/AllocationReviewBoard.tsx',
     'src/pages/efetivo/components/MissionTeamSelector.tsx',
     'src/pages/assinaturas/components/DocumentLibrary.tsx',
     'src/pages/admin/AdminAccountsPage.tsx',

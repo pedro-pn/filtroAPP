@@ -2,7 +2,7 @@ import { apiClient } from './client';
 
 export type NotificationKind = 'PROJECT_CREATED' | 'PROJECT_RECEIVED' | 'PROJECT_READY'
   | 'REPORT_PENDING' | 'REPORT_RETURNED' | 'PROPOSAL_RECEIVED' | 'EXECUTION_WITHOUT_REPORT_OPERATOR'
-  | 'SYNC_FAILED' | 'BACKUP_FAILED';
+  | 'SYNC_FAILED' | 'BACKUP_FAILED' | 'ALLOCATION_REVIEW_ABSENCE_MISSING';
 
 export interface AppNotification {
   id: string;

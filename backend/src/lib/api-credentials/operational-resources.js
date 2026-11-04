@@ -15,8 +15,12 @@ export const BASE_OPERATIONAL_RESOURCES = Object.freeze([
   resource('Project', '/projetos', 'projetos.read', 'Projetos — dados operacionais', 'projects-clients',
     { code: 'string', name: 'string', isActive: 'boolean', location: 'string', clientSegment: 'string?', mobilizationDate: 'datetime?', demobilizationDate: 'datetime?', startDate: 'datetime?',
       clientName: 'string', commercialProposalCode: 'string?', endDate: 'datetime?', includesSaturday: 'boolean', includesSunday: 'boolean', workdayHours: 'string', weekendWorkdayHours: 'string' },
-    { projectPolicy: 'SELF', projectNotice: 'Somente projetos autorizados e não excluídos. Inclui razão social, CNPJ e regime de trabalho contratado.', where: { deletedAt: null },
-      derivedFields: { clientCnpj: 'string?', executedAtHeadquarters: 'boolean?' },
+    { projectPolicy: 'SELF', projectNotice: 'Somente projetos autorizados e não excluídos. Inclui razão social, CNPJ, regime de trabalho e vínculo oficial com a missão do Prisma de produção. Mudanças no vínculo atualizam updatedAt.', where: { deletedAt: null },
+      derivedFields: { clientCnpj: 'string?', executedAtHeadquarters: 'boolean?', prisma: 'object?' },
+      fieldSchemas: { prisma: { type: 'object', nullable: true, additionalProperties: false,
+        required: ['missionId', 'number', 'numberScope'], properties: {
+          missionId: { type: 'string' }, number: { type: ['string', 'null'] }, numberScope: { type: ['string', 'null'] }
+        } } },
       select: { clientCnpj: true, workflow: { select: { executedAtHeadquarters: true } } },
       excludedFields: ['e-mail', 'telefone', 'contatos de cliente', 'configurações internas', 'campos não listados no contrato'] }),
   resource('ClientSegment', '/clientes/segmentos', 'clientes.segmentos.read', 'Segmentos de clientes', 'projects-clients', { label: 'string', slug: 'string', isActive: 'boolean' }),

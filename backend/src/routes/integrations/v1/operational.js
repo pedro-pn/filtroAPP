@@ -157,6 +157,7 @@ export function createOperationalRouter({
       requireApiOperation(resource.operationId),
       asyncHandler(async (req, res) => {
         const context = {
+          envConfig,
           credentialId: req.apiAuth.credentialId,
           scopes: req.apiAuth.scopeCodes,
           projectAccessMode: req.apiAuth.credential.projectAccessMode,

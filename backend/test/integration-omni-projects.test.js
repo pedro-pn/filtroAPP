@@ -5,7 +5,8 @@ import { API_SCOPES, publicApiOperations } from '../src/lib/api-credentials/cata
 import { OPERATIONAL_RESOURCES } from '../src/lib/api-credentials/operational-resources.js';
 import { listOperationalResources } from '../src/lib/api-credentials/operational-service.js';
 import { corporateEmail } from '../src/lib/api-credentials/project-projection.js';
-import { projectEfetivoStatus } from '../src/lib/api-credentials/efetivo-project-status.js';
+import { getEfetivoProjectStatus, projectEfetivoStatus } from '../src/lib/api-credentials/efetivo-project-status.js';
+import { computeProgressDetailsForProjects } from '../src/lib/acompanhamento/avanco.js';
 import { getProjectWorkflow } from '../src/lib/efetivo/project-workflow/service.js';
 import { createOperationalRouter } from '../src/routes/integrations/v1/operational.js';
 import { executePlaygroundOperation, validatePlaygroundRequest } from '../src/lib/api-credentials/playground.js';
@@ -80,6 +81,11 @@ function database(rows) {
       async findFirst(args) { return rows.find(row => matches(row, args.where)) || null; }
     },
     projectPlannedService: { async findMany() { return []; } },
+    crmProjectMapping: { async findMany() { return []; } },
+    projectManualProgressHistory: { async findMany() { return []; } },
+    reportService: { async findMany() { return []; } },
+    historicalServiceReport: { async findMany() { return []; } },
+    projectRealizedCorrection: { async findMany() { return []; } },
     projectWorkflowEvent: { async findMany() { return []; } },
     apiUsageBucket: {
       async upsert({ create }) { return { id: create.windowKind }; },
@@ -99,9 +105,9 @@ function database(rows) {
   return { db, calls, logs, updates, events };
 }
 
-test('projects add exactly the nine requested fields, normalize CNPJ and retain the old contract', async () => {
+test('projects retain the contract, normalize CNPJ and add the nullable Prisma identity', async () => {
   const original = ['id', 'createdAt', 'updatedAt', 'code', 'name', 'isActive', 'location', 'clientSegment', 'mobilizationDate', 'demobilizationDate', 'startDate'];
-  const added = ['clientName', 'clientCnpj', 'commercialProposalCode', 'endDate', 'includesSaturday', 'includesSunday', 'workdayHours', 'weekendWorkdayHours', 'executedAtHeadquarters'];
+  const added = ['clientName', 'clientCnpj', 'commercialProposalCode', 'endDate', 'includesSaturday', 'includesSunday', 'workdayHours', 'weekendWorkdayHours', 'executedAtHeadquarters', 'prisma'];
   const { db } = database([project(), project({ id: 'p2', code: '9999' }), project({ id: 'deleted', deletedAt: stamp })]);
   const { items } = await listOperationalResources(db, projectOp, { projectCode: '05776', updatedSince: stamp.toISOString() }, ctx());
   assert.equal(items.length, 1);
@@ -113,6 +119,38 @@ test('projects add exactly the nine requested fields, normalize CNPJ and retain 
   const missing = await listOperationalResources(database([project({ workflow: null, clientCnpj: 'invalid' })]).db, projectOp, {}, ctx());
   assert.equal(missing.items[0].clientCnpj, null);
   assert.equal(missing.items[0].executedAtHeadquarters, null);
+  assert.equal(missing.items[0].prisma, null);
+});
+
+test('Prisma identity uses only the official production namespace and authorized page, with no number matching or extra fields', async () => {
+  const { db } = database([project(), project({ id: 'p2', code: '9999' }), project({ id: 'deleted', deletedAt: stamp })]);
+  const mappings = [
+    { projectId: 'p1', sourceSystem: 'prismaCRM', tenantId: 'filtrovali', environment: 'production',
+      prismaMissionId: 'mission-fentecx', number: '05776', numberScope: 'fentecx', privateField: 'PRIVATE' },
+    { projectId: 'p2', sourceSystem: 'prismaCRM', tenantId: 'filtrovali', environment: 'production',
+      prismaMissionId: 'mission-other', number: '05776', numberScope: 'filtrovali' },
+    { projectId: 'deleted', sourceSystem: 'prismaCRM', tenantId: 'filtrovali', environment: 'production', prismaMissionId: 'deleted' },
+    ...[['prismaCRM', 'filtrovali', 'sandbox'], ['prismaCRM', 'other-tenant', 'production'], ['legacy', 'filtrovali', 'production']]
+      .map(([sourceSystem, tenantId, environment]) => ({ projectId: 'p1', sourceSystem, tenantId, environment, prismaMissionId: 'PRIVATE' }))
+  ];
+  const queries = [];
+  db.crmProjectMapping.findMany = async args => { queries.push(args); return mappings.filter(row => matches(row, args.where)); };
+  const result = await listOperationalResources(db, projectOp, {}, ctx());
+  assert.deepEqual(result.items[0].prisma, { missionId: 'mission-fentecx', number: '05776', numberScope: 'fentecx' });
+  assert.equal(queries.length, 1);
+  assert.deepEqual(queries[0].where, { sourceSystem: 'prismaCRM', tenantId: 'filtrovali', environment: 'production', projectId: { in: ['p1'] } });
+  assert.deepEqual(Object.keys(queries[0].select).sort(), ['number', 'numberScope', 'prismaMissionId', 'projectId']);
+  assert.doesNotMatch(JSON.stringify(result), /PRIVATE|tenantId|sourceSystem|environment|prismaMissionId/);
+  const all = await listOperationalResources(db, projectOp, {}, ctx({ projectAccessMode: 'ALL' }));
+  assert.deepEqual(all.items.map(row => row.prisma), [
+    { missionId: 'mission-fentecx', number: '05776', numberScope: 'fentecx' },
+    { missionId: 'mission-other', number: '05776', numberScope: 'filtrovali' }
+  ], 'repeated mission numbers keep their distinct official identities');
+  mappings.shift();
+  assert.equal((await listOperationalResources(db, projectOp, {}, ctx())).items[0].prisma, null);
+  assert.equal((await listOperationalResources(db, projectOp, {}, ctx({ envConfig: { crmPlanningTenantId: 'unused' } }))).items[0].prisma, null);
+  await listOperationalResources(db, projectOp, { active: false }, ctx());
+  assert.equal(queries.length, 4, 'empty pages do not load mappings');
 });
 
 test('responsibles map each role correctly, minimize PII and allow only the exact corporate domain', async () => {
@@ -260,7 +298,29 @@ test('status refreshes RDO progress even when Project/Workflow timestamps and ve
   assert.equal(row.workflow.updatedAt, workflowStamp);
 });
 
+test('individual and collection status use the same detailed progress as Acompanhamento, including its date eligibility and progress over 100%', async () => {
+  const { db } = database([project()]);
+  db.projectPlannedService.findMany = async () => [{ projectId: 'p1', serviceType: 'LIMPEZA_QUIMICA', weight: 1,
+    systems: [{ systemType: 'TUBULACAO', quantity: 100, unit: 'M' }] }];
+  const service = (id, length, reportDate) => ({ id, finalized: true, serviceType: 'LIMPEZA_QUIMICA',
+    extraData: { tubes: [{ c: String(length), lengthUnit: 'm' }] },
+    report: { id, projectId: 'p1', reportType: 'RDO', status: 'APPROVED', reportDate, specialConditions: {} } });
+  db.reportService.findMany = async () => [service('dated', 125, stamp), service('undated', 50, null)];
+  const expected = (await computeProgressDetailsForProjects(['p1'], { database: db })).get('p1').progress;
+  const collection = (await listOperationalResources(db, statusOp, {}, ctx())).items[0];
+  const individual = await getEfetivoProjectStatus(db, 'p1', ctx());
+  assert.equal(expected.progressPct, 125);
+  for (const status of [collection, individual]) {
+    assert.equal(status.progressPercent, expected.progressPct);
+    assert.equal(status.progressMethod, expected.progressMethod);
+  }
+});
+
 test('new scope is AVAILABLE/PERSONAL and playground serializes stage as a single code', () => {
+  const projectScope = API_SCOPES.find(scope => scope.code === 'projetos.read');
+  for (const field of ['prisma', 'prisma.missionId', 'prisma.number', 'prisma.numberScope']) {
+    assert.ok(projectScope.exposedFields.includes(field), `public catalog contains ${field}`);
+  }
   const scope = API_SCOPES.find(scope => scope.code === 'projetos.responsaveis.read');
   assert.equal(scope.status, 'AVAILABLE');
   assert.equal(scope.sensitivity, 'PERSONAL');
@@ -273,11 +333,16 @@ test('new scope is AVAILABLE/PERSONAL and playground serializes stage as a singl
   assert.equal(validatePlaygroundRequest(input).query.stage, 'EXECUTION');
 });
 
-for (const op of [responsibleOp, statusOp]) test(`${op}: real route and playground meter returned rows and preserve envelope`, async () => {
+for (const op of [projectOp, responsibleOp, statusOp]) test(`${op}: real route and playground meter returned rows and preserve envelope`, async () => {
   const { db, logs, updates, events } = database([project()]);
+  db.crmProjectMapping.findMany = async ({ where }) => {
+    assert.equal(where.tenantId, 'custom-tenant');
+    assert.equal(where.environment, 'production');
+    return [{ projectId: 'p1', prismaMissionId: 'mission-demo', number: '05776', numberScope: 'filtrovali', privateField: 'PRIVATE' }];
+  };
   const credential = await db.apiCredential.findUnique();
   const resource = OPERATIONAL_RESOURCES.find(item => item.operationId === op);
-  const router = createOperationalRouter({ prismaClient: db, envConfig: { apiTokenGlobalMaxPageSize: 500, apiTokenHashKeys: { 1: cursorKey }, apiTokenActiveKeyVersion: 1 } });
+  const router = createOperationalRouter({ prismaClient: db, envConfig: { crmPlanningTenantId: 'custom-tenant', apiTokenGlobalMaxPageSize: 500, apiTokenHashKeys: { 1: cursorKey }, apiTokenActiveKeyVersion: 1 } });
   const route = router.stack.find(layer => layer.route?.path === resource.path).route;
   const req = { query: { limit: '1' }, requestId: 'synthetic-request', headers: {}, apiAuth: { credential, scopeCodes: ctx().scopes, projectIds: ctx().projectIds, projectCodes: ctx().projectCodes } };
   const result = await new Promise((resolve, reject) => route.stack[0].handle(req, {}, () => route.stack[1].handle(req, { json: resolve }, reject)));
@@ -287,8 +352,12 @@ for (const op of [responsibleOp, statusOp]) test(`${op}: real route and playgrou
   assert.ok(logs.some(log => log.operationId === op && log.responseRows === 1));
   assert.ok(updates.some(update => update.data.rows?.increment === 1));
   assert.doesNotMatch(JSON.stringify(logs), /filtrovali.com.br|PRIVATE/);
-  const playground = await executePlaygroundOperation(db, credential.id, { operationId: op, pathParams: {}, query: { limit: 1 } }, { cursorKey });
+  const playground = await executePlaygroundOperation(db, credential.id, { operationId: op, pathParams: {}, query: { limit: 1 } }, { cursorKey, envConfig: { crmPlanningTenantId: 'custom-tenant' } });
   assert.equal(playground.response.body.schemaVersion, '1.0');
   assert.equal(playground.response.body.items.length, 1);
   assert.ok(events.some(event => event.type === 'TESTED'));
+  if (op === projectOp) {
+    assert.deepEqual(result.items[0].prisma, { missionId: 'mission-demo', number: '05776', numberScope: 'filtrovali' });
+    assert.deepEqual(playground.response.body.items[0].prisma, result.items[0].prisma);
+  }
 });

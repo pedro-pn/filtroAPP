@@ -1,4 +1,4 @@
-export const EFETIVO_SECTIONS = ['visao-geral', 'calendario', 'colaboradores', 'disponibilidade', 'evolucao', 'produtividade', 'administracao'] as const;
+export const EFETIVO_SECTIONS = ['visao-geral', 'calendario', 'colaboradores', 'disponibilidade', 'evolucao', 'produtividade', 'conferencia', 'administracao'] as const;
 export type EfetivoPlanningSection = typeof EFETIVO_SECTIONS[number];
 
 export function parsePlanningSection(value: string | null): EfetivoPlanningSection {
@@ -9,10 +9,12 @@ export function parsePlanningSection(value: string | null): EfetivoPlanningSecti
 const PARAMS_BY_SECTION: Record<EfetivoPlanningSection, string[]> = {
   'visao-geral': ['date', 'funcao'],
   calendario: ['date', 'view', 'funcao', 'dia'],
-  colaboradores: ['date', 'funcao', 'search', 'colaborador', 'ausencia', 'ano'],
+  // cadastrarAusencia/tipo/de/ate: link do aviso da conferência de alocação abre o cadastro preenchido.
+  colaboradores: ['date', 'funcao', 'search', 'colaborador', 'ausencia', 'ano', 'cadastrarAusencia', 'tipo', 'de', 'ate'],
   disponibilidade: ['date', 'final', 'funcao', 'disponibilidadeView'],
   evolucao: ['projeto', 'busca', 'pagina', 'faseProjeto'],
   produtividade: ['ano', 'ateMes', 'colaborador'],
+  conferencia: ['semana', 'mostrar', 'agrupar', 'q', 'visao', 'mes'],
   administracao: ['adminTab']
 };
 
@@ -31,7 +33,7 @@ export function setPlanningSectionParams(current: URLSearchParams, section: Efet
 
 export function planningSectionHomeParams(current: URLSearchParams, section: EfetivoPlanningSection) {
   const next = setPlanningSectionParams(current, section);
-  for (const key of ['projeto', 'dia', 'ausencia', 'adminTab']) next.delete(key);
+  for (const key of ['projeto', 'dia', 'ausencia', 'adminTab', 'cadastrarAusencia', 'tipo', 'de', 'ate']) next.delete(key);
   if (section === 'colaboradores') next.delete('colaborador');
   return next;
 }

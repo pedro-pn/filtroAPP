@@ -1224,7 +1224,7 @@ paths:
       tags: [IntegrationOperational]
       operationId: listIntegrationProject
       summary: "Projetos — dados operacionais"
-      description: "Somente projetos autorizados e não excluídos."
+      description: "Somente projetos autorizados e não excluídos. prisma contém o vínculo oficial do Prisma de produção, no tenant configurado, ou null; alterações do vínculo atualizam Project.updatedAt e aparecem em updatedSince. Sem escopo adicional."
       security: [{ IntegrationToken: [] }]
       x-required-scopes: [projetos.read]
       parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Identificador interno mantido para compatibilidade; nao combine com projectCode."},{"name":"projectCode","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Codigo cadastrado do projeto, tratado como texto e com zeros a esquerda preservados; nao combine com projectId."},{"name":"active","in":"query","schema":{"type":"boolean"}}]
@@ -1246,12 +1246,13 @@ paths:
                     items:
                       type: object
                       additionalProperties: false
-                      required: ["id","createdAt","updatedAt","code","name","isActive","location","clientSegment","mobilizationDate","demobilizationDate","startDate","clientName","commercialProposalCode","endDate","includesSaturday","includesSunday","workdayHours","weekendWorkdayHours","clientCnpj","executedAtHeadquarters"]
-                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time","description":"Em responsáveis: maior carimbo entre Project.updatedAt e ProjectWorkflow.updatedAt."},"code":{"type":"string"},"name":{"type":"string"},"isActive":{"type":"boolean"},"location":{"type":"string"},"clientSegment":{"type":["string","null"]},"mobilizationDate":{"type":["string","null"],"format":"date-time"},"demobilizationDate":{"type":["string","null"],"format":"date-time"},"startDate":{"type":["string","null"],"format":"date-time"},"clientName":{"type":"string"},"commercialProposalCode":{"type":["string","null"]},"endDate":{"type":["string","null"],"format":"date-time"},"includesSaturday":{"type":"boolean"},"includesSunday":{"type":"boolean"},"workdayHours":{"type":"string"},"weekendWorkdayHours":{"type":"string"},"clientCnpj":{"type":["string","null"],"pattern":"^[0-9]{14}$","description":"Somente dígitos; null para CNPJ legado ausente ou inválido."},"executedAtHeadquarters":{"type":["boolean","null"]}}
+                      required: ["id","createdAt","updatedAt","code","name","isActive","location","clientSegment","mobilizationDate","demobilizationDate","startDate","clientName","commercialProposalCode","endDate","includesSaturday","includesSunday","workdayHours","weekendWorkdayHours","clientCnpj","executedAtHeadquarters","prisma"]
+                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time","description":"Em responsáveis: maior carimbo entre Project.updatedAt e ProjectWorkflow.updatedAt."},"code":{"type":"string"},"name":{"type":"string"},"isActive":{"type":"boolean"},"location":{"type":"string"},"clientSegment":{"type":["string","null"]},"mobilizationDate":{"type":["string","null"],"format":"date-time"},"demobilizationDate":{"type":["string","null"],"format":"date-time"},"startDate":{"type":["string","null"],"format":"date-time"},"clientName":{"type":"string"},"commercialProposalCode":{"type":["string","null"]},"endDate":{"type":["string","null"],"format":"date-time"},"includesSaturday":{"type":"boolean"},"includesSunday":{"type":"boolean"},"workdayHours":{"type":"string"},"weekendWorkdayHours":{"type":"string"},"clientCnpj":{"type":["string","null"],"pattern":"^[0-9]{14}$","description":"Somente dígitos; null para CNPJ legado ausente ou inválido."},"executedAtHeadquarters":{"type":["boolean","null"]},"prisma":{"type":"object","nullable":true,"additionalProperties":false,"required":["missionId","number","numberScope"],"properties":{"missionId":{"type":"string"},"number":{"type":["string","null"]},"numberScope":{"type":["string","null"]}}}}
                   page: { $ref: '#/components/schemas/IntegrationPageMeta' }
                   generatedAt: { type: string, format: date-time }
                   schemaVersion: { type: string, const: '1.0' }
                   requestId: { type: string }
+              example: {"items":[{"id":"project-demo-1","createdAt":"2026-10-01T12:00:00.000Z","updatedAt":"2026-11-04T12:00:00.000Z","code":"05776","name":"Projeto fictício","isActive":true,"location":"Itajaí/SC","clientSegment":null,"mobilizationDate":null,"demobilizationDate":null,"startDate":null,"clientName":"Cliente Fictício Ltda.","commercialProposalCode":"1234","endDate":null,"includesSaturday":true,"includesSunday":false,"workdayHours":"09:00","weekendWorkdayHours":"08:00","clientCnpj":"12345678000195","executedAtHeadquarters":false,"prisma":{"missionId":"mission-demo-fentecx","number":"05776","numberScope":"fentecx"}}],"page":{"limit":100,"hasMore":false,"nextCursor":null,"snapshotAt":"2026-11-04T12:01:00.000Z"},"generatedAt":"2026-11-04T12:01:00.000Z","schemaVersion":"1.0","requestId":"request-demo"}
         '400': { $ref: '#/components/responses/ValidationError' }
         '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -2854,6 +2855,7 @@ paths:
                         criticalIssueCount:
                           type: integer
                         progressPercent:
+                          description: Avanço oficial do Acompanhamento, igual a avancoFisico da Gestão; pode ultrapassar 100%.
                           type:
                             - number
                             - "null"
@@ -6082,7 +6084,7 @@ components:
         closureReady: { type: [boolean, 'null'] }
         openIssueCount: { type: integer, minimum: 0 }
         criticalIssueCount: { type: integer, minimum: 0 }
-        progressPercent: { type: [number, 'null'], minimum: 0, maximum: 100 }
+        progressPercent: { type: [number, 'null'], minimum: 0, description: "Avanço oficial do Acompanhamento, igual a avancoFisico da Gestão. Pode ultrapassar 100%; null quando indisponível. Não depende da etapa do workflow." }
         progressMethod: { type: [string, 'null'], enum: [RDO, MANUAL, null] }
         closedAt: { type: [string, 'null'], format: date-time }
         generatedAt: { type: string, format: date-time, description: Instante da consulta; não é a data de alteração de todas as fontes. }

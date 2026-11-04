@@ -2,6 +2,17 @@
 
 Base `/api/integracoes/v1`, Bearer existente, schemaVersion **1.0**.
 
+## Vínculo Prisma e avanço oficial
+
+Contrato aditivo de 04/11/2026 em [prisma-progress.md](prisma-progress.md):
+`GET /projetos` acrescenta `prisma { missionId, number, numberScope }` ou `null`,
+com o escopo existente `projetos.read`. Somente vínculo de produção do tenant
+configurado; alterações do vínculo atualizam `Project.updatedAt` para o incremental.
+
+O avanço oficial para o Omni é o do **Acompanhamento**. Os status individual e
+em coleção usam o mesmo cálculo detalhado da Gestão (`avancoFisico`), sem derivar
+percentual da etapa do workflow. O contrato detalha as regras de leitura e histórico.
+
 ## GET /eventos
 
 Exige eventos.read mais o escopo de cada tipo. `limit` 1–500 (padrão 100,

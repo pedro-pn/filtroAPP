@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { projectChannelWhere } from '../projects/distribution.js';
 
-import { computeProgressForProjects } from '../acompanhamento/avanco.js';
+import { computeProgressDetailsForProjects } from '../acompanhamento/avanco.js';
 import { getProjectWorkflow } from '../efetivo/project-workflow/service.js';
 import { IntegrationApiError } from '../../middleware/api-request-context.js';
 
@@ -54,19 +54,19 @@ export async function getEfetivoProjectStatus(client, id, context) {
   if (!record) throw new IntegrationApiError(404, 'NOT_FOUND', 'Projeto não encontrado.');
   const [detail, progressById] = await Promise.all([
     getProjectWorkflow(id, {}, { database: client }),
-    computeProgressForProjects([id])
+    computeProgressDetailsForProjects([id], { database: client })
   ]);
-  return projectEfetivoStatus(detail, progressById.get(id));
+  return projectEfetivoStatus(detail, progressById.get(id)?.progress);
 }
 
 export async function enrichEfetivoProjectStatuses(client, rows) {
   if (!rows.length) return [];
   const [details, progressById] = await Promise.all([
     Promise.all(rows.map(row => getProjectWorkflow(row.id, {}, { database: client, includeInactive: true }))),
-    computeProgressForProjects(rows.map(row => row.id), { database: client })
+    computeProgressDetailsForProjects(rows.map(row => row.id), { database: client })
   ]);
   return details.map((detail, index) => ({ ...rows[index], summary: {
-    ...projectEfetivoStatus(detail, progressById.get(detail.project.id)),
+    ...projectEfetivoStatus(detail, progressById.get(detail.project.id)?.progress),
     commercialExpectedMobilizationDate: detail.workflow?.commercialExpectedMobilizationDate ?? null,
     commercialExpectedStartDate: detail.workflow?.commercialExpectedStartDate ?? null,
     commercialExpectedDurationDays: detail.workflow?.commercialExpectedDurationDays ?? null,

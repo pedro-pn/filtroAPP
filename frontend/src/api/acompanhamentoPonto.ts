@@ -463,6 +463,8 @@ export interface AllocationDay {
   reason: string;
   allocated: boolean;
   bucket: 'ACTIONABLE' | 'MISSING_PROJECT' | null;
+  // Dia definido pela conferência semanal de alocação (feature 037).
+  reviewed?: boolean;
 }
 
 export interface AllocationAuditCollaborator {

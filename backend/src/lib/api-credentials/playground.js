@@ -128,6 +128,7 @@ async function executeScopedPlaygroundOperation(prisma, credentialId, input, opt
     query.limit = Math.min(PLAYGROUND_MAX_ITEMS, requestedLimit);
   }
   const context = {
+    envConfig: options.envConfig || env,
     credentialId,
     scopes,
     projectAccessMode: credential.projectAccessMode,

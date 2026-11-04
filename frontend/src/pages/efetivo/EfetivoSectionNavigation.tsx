@@ -68,6 +68,7 @@ export function EfetivoSectionNavigation({
               }}
             >
               <span>{section.label}</span>
+              {section.badge ? <strong aria-label={`${section.badge} semana${section.badge > 1 ? 's' : ''} para conferir`}>{section.badge}</strong> : null}
             </button>
           );
         })}

@@ -33,6 +33,7 @@ import surveysRouter from './resources/surveys.js';
 import unitsRouter from './resources/units.js';
 import uploadsRouter from './resources/uploads.js';
 import usersRouter from './resources/users.js';
+import allocationReviewRouter from './resources/allocation-review.js';
 import efetivoRouter from './resources/efetivo.js';
 import workforceRouter from './workforce.js';
 import assinaturasRouter from './resources/assinaturas.js';
@@ -83,6 +84,8 @@ router.use('/acompanhamento/comercial', acompanhamentoComercialRouter);
 router.use('/acompanhamento/custo', acompanhamentoCustoRouter);
 router.use('/acompanhamento/ponto', acompanhamentoPontoRouter);
 router.use('/operations', operationsRouter);
+// Antes de /efetivo: o router do Efetivo exige papéis que a conferência não tem.
+router.use('/efetivo/conferencia-alocacao', allocationReviewRouter);
 router.use('/efetivo', efetivoRouter);
 router.use('/workforce', workforceRouter);
 router.use('/assinaturas', assinaturasRouter);
