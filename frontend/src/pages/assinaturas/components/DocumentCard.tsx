@@ -26,6 +26,7 @@ export function DocumentCard({ document, onOpen }: { document: SignatureDocument
         </div>
       </div>
       <div className="assinaturas-document__actions">
+        {document.permissions?.isOwner === false ? <Badge tone="info">Compartilhado · {document.permissions.access === 'EDIT' ? 'Pode editar' : 'Apenas visualizar'}</Badge> : null}
         <StatusPill status={signatureDocumentStatusLabels[document.status]} dot={false} />
         <span aria-hidden="true"><AppIcon icon={DS_ICONS.next} size="sm" /></span>
       </div>

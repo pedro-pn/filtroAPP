@@ -114,16 +114,16 @@ test('dono diferente recebe 404 e a consulta nunca busca apenas pelo id', async 
   });
 });
 
-test('matriz de rotas por documento aplica owner check inclusive em preview e downloads', async () => {
+test('matriz de rotas permite leitura compartilhada e exige edição nos ajustes do rascunho', async () => {
   const source = await fs.readFile(new URL('../src/routes/resources/assinaturas.js', import.meta.url), 'utf8');
   const routePatterns = [
     /router\.get\('\/documentos\/:id'.*?getDocument\(prisma, req\.params\.id, ownerId\(req\)\)/s,
-    /router\.get\('\/documentos\/:id\/pdf'.*?documentForOwnerOrThrow\(prisma, req\.params\.id, ownerId\(req\)\)/s,
-    /router\.get\('\/documentos\/:id\/pdf-final'.*?documentForOwnerOrThrow\(prisma, req\.params\.id, ownerId\(req\)\)/s,
-    /router\.get\('\/documentos\/:id\/paginas\/:n\.png'.*?documentForOwnerOrThrow\(prisma, req\.params\.id, ownerId\(req\)\)/s,
-    /router\.patch\('\/documentos\/:id'.*?documentForOwnerOrThrow\(prisma, req\.params\.id, ownerId\(req\)\)/s,
-    /router\.put\('\/documentos\/:id\/assinantes'.*?documentForOwnerOrThrow\(prisma, req\.params\.id, ownerId\(req\)\)/s,
-    /router\.put\('\/documentos\/:id\/campos'.*?documentForOwnerOrThrow\(prisma, req\.params\.id, ownerId\(req\), \{/s,
+    /router\.get\('\/documentos\/:id\/pdf'.*?documentForAccessOrThrow\(prisma, req\.params\.id, ownerId\(req\)\)/s,
+    /router\.get\('\/documentos\/:id\/pdf-final'.*?documentForAccessOrThrow\(prisma, req\.params\.id, ownerId\(req\)\)/s,
+    /router\.get\('\/documentos\/:id\/paginas\/:n\.png'.*?documentForAccessOrThrow\(prisma, req\.params\.id, ownerId\(req\)\)/s,
+    /router\.patch\('\/documentos\/:id'.*?documentForAccessOrThrow\(prisma, req\.params\.id, ownerId\(req\), \{ edit: true \}\)/s,
+    /router\.put\('\/documentos\/:id\/assinantes'.*?documentForAccessOrThrow\(prisma, req\.params\.id, ownerId\(req\), \{ edit: true \}\)/s,
+    /router\.put\('\/documentos\/:id\/campos'.*?documentForAccessOrThrow\(prisma, req\.params\.id, ownerId\(req\), \{\s+edit: true/s,
     /router\.post\('\/documentos\/:id\/publicar'.*?publishDocument\(prisma, req\.params\.id, ownerId\(req\)/s,
     /router\.post\('\/documentos\/:id\/despublicar'.*?unpublishDocument\(prisma, req\.params\.id, ownerId\(req\)/s,
     /router\.get\('\/documentos\/:id\/assinantes\/:signerId\/link'.*?documentForOwnerOrThrow\(prisma, req\.params\.id, ownerId\(req\), \{/s

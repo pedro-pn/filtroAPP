@@ -10,7 +10,7 @@ function matches(row, where) {
     if (key === 'AND') return value.every(condition => matches(row, condition));
     if (key === 'OR') return value.some(condition => matches(row, condition));
     if (value && typeof value === 'object' && !(value instanceof Date)) {
-      if ('some' in value) return row[key].some(child => matches(child, value.some));
+      if ('some' in value) return (row[key] || []).some(child => matches(child, value.some));
       return Object.entries(value).every(([operator, expected]) => {
         if (operator === 'not') return row[key] !== expected;
         if (operator === 'lt') return row[key] < expected;
@@ -66,7 +66,7 @@ test('busca e status localizam o lote e preservam os outros documentos como cont
   assert.equal(result.items[0].batchDocuments.length, 33);
   const batchQuery = db.calls.find(call => call.where.documents);
   assert.equal(batchQuery.where.ownerUserId, 'owner');
-  assert.equal(batchQuery.where.documents.some.ownerUserId, 'owner');
+  assert.equal(batchQuery.where.documents.some.AND[0].OR[0].ownerUserId, 'owner');
   assert.equal(batchQuery.include.documents.where.ownerUserId, 'owner');
   assert.equal(batchQuery.include.documents.where.deletedAt, null);
   assert.equal(batchQuery.include.documents.where.archivedAt, null);

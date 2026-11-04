@@ -6,6 +6,37 @@ const BASE_PATH = '/assinaturas';
 
 export type SignatureDocumentStatus = 'RASCUNHO' | 'AGUARDANDO_ASSINATURAS' | 'FINALIZANDO' | 'CONCLUIDO' | 'CANCELADO';
 export type SignatureSignerStatus = 'PENDENTE' | 'VISUALIZADO' | 'ASSINADO' | 'EXPIRADO' | 'REVOGADO';
+export type SignatureSharePermission = 'VIEW' | 'EDIT';
+
+export interface SignatureSharingUser {
+  id: string;
+  name: string;
+  username: string;
+  email: string | null;
+}
+
+export interface SignatureDocumentShare {
+  id: string;
+  userId: string;
+  permission: SignatureSharePermission;
+  user: SignatureSharingUser;
+}
+
+export async function listSignatureSharingUsers(id: string, q: string) {
+  return (await apiClient.get<SignatureSharingUser[]>(assinaturaApiPath(`/documentos/${id}/usuarios-compartilhamento`), { params: { q } })).data;
+}
+
+export async function listSignatureDocumentShares(id: string) {
+  return (await apiClient.get<SignatureDocumentShare[]>(assinaturaApiPath(`/documentos/${id}/compartilhamentos`))).data;
+}
+
+export async function saveSignatureDocumentShare(id: string, userId: string, permission: SignatureSharePermission) {
+  return (await apiClient.put<SignatureDocumentShare>(assinaturaApiPath(`/documentos/${id}/compartilhamentos/${userId}`), { permission })).data;
+}
+
+export async function removeSignatureDocumentShare(id: string, userId: string) {
+  await apiClient.delete(assinaturaApiPath(`/documentos/${id}/compartilhamentos/${userId}`));
+}
 
 export interface SignatureField {
   id?: string;
@@ -35,6 +66,7 @@ export interface SignatureSigner {
 }
 
 export interface SignatureDocumentCard {
+  permissions?: { isOwner: boolean; access: 'OWNER' | SignatureSharePermission; canEdit: boolean };
   batchDocuments?: SignatureDocumentCard[];
   id: string;
   batchId?: string | null;

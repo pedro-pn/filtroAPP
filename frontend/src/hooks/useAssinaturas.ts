@@ -37,7 +37,7 @@ export function useSignatureDocument(id: string) {
     queryKey: ['assinaturas', 'doc', id],
     queryFn: () => getSignatureDocument(id),
     enabled: Boolean(id),
-    refetchInterval: query => query.state.data?.status === 'FINALIZANDO' ? 2_000 : query.state.data?.status === 'AGUARDANDO_ASSINATURAS' ? 15_000 : false
+    refetchInterval: query => query.state.data?.status === 'FINALIZANDO' ? 2_000 : query.state.data?.status === 'AGUARDANDO_ASSINATURAS' || query.state.data?.permissions?.isOwner === false ? 15_000 : false
   });
 }
 

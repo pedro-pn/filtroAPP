@@ -148,7 +148,7 @@ export const API_DATA_DOMAINS = Object.freeze([
   }),
   domain({
     code: 'standalone-signatures', label: 'Assinaturas avulsas',
-    models: [...modelEntries(['SignatureDocumentBatch', 'SignatureDocument', 'SignatureDocumentSigner', 'SignatureDocumentField'], 'SENSITIVE'), ...modelEntries(['SignatureInviteGroup', 'SignatureDocumentAuditLog', 'SignatureDocumentFilePurge', 'SignatureDocumentCompletionNotification'], 'RESERVED')],
+    models: [...modelEntries(['SignatureDocumentBatch', 'SignatureDocument', 'SignatureDocumentSigner', 'SignatureDocumentField'], 'SENSITIVE'), ...modelEntries(['SignatureDocumentShare', 'SignatureInviteGroup', 'SignatureDocumentAuditLog', 'SignatureDocumentFilePurge', 'SignatureDocumentCompletionNotification'], 'RESERVED')],
     candidateScopes: ['assinaturas.documentos.read', 'assinaturas.signatarios.read', 'assinaturas.campos.read', 'assinaturas.arquivos.download', 'assinaturas.auditoria.read'], candidateAvailability: 'SENSITIVE', endpointFamilies: ['/assinaturas/documentos', '/assinaturas/signatarios', '/assinaturas/campos'],
     excludedFields: ['token/hash/cifra/IV/auth tag', 'assinatura desenhada', 'CPF/documento', 'IP/user-agent', 'caminho', 'prova integral', 'erros']
   })

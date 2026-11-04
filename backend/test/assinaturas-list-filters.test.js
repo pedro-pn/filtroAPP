@@ -18,7 +18,7 @@ test('intervalo inclui os dias completos de São Paulo e preserva proprietário,
     { ...document('other-owner', '2026-10-05T12:00:00Z'), ownerUserId: 'other' }
   ];
   const client = { signatureDocument: { async findMany({ where, orderBy, take, cursor, skip }) {
-    assert.equal(where.ownerUserId, 'owner');
+    assert.equal(where.AND[0].OR[0].ownerUserId, 'owner');
     assert.equal(where.deletedAt, null);
     assert.equal(where.archivedAt, null);
     assert.equal(where.status, 'CONCLUIDO');
@@ -27,7 +27,7 @@ test('intervalo inclui os dias completos de São Paulo e preserva proprietário,
     assert.equal(take, 2);
     assert.equal(cursor, undefined);
     assert.equal(skip, undefined);
-    return rows.filter(row => row.ownerUserId === where.ownerUserId && row.createdAt >= where.createdAt.gte && row.createdAt < where.createdAt.lt)
+    return rows.filter(row => row.ownerUserId === where.AND[0].OR[0].ownerUserId && row.createdAt >= where.createdAt.gte && row.createdAt < where.createdAt.lt)
       .sort((a, b) => b.createdAt - a.createdAt).slice(0, take);
   } } };
   const result = await listDocuments(client, 'owner', { dateFrom: '2026-10-01', dateTo: '2026-10-06', status: 'CONCLUIDO', q: 'Contrato', limit: 1 });
