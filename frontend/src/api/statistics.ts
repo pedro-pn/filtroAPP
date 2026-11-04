@@ -134,17 +134,23 @@ export interface AllocationReportRecipientPayload {
   isActive?: boolean;
 }
 
+export type AllocationReportKind = 'PROJECT' | 'TRAVEL' | 'SEDE' | 'FOLGA' | 'FERIAS' | 'AFASTAMENTO' | 'TREINAMENTO';
+
 export interface AllocationReportDay {
   date: string;
   shift: string;
-  projectId: string;
+  // null quando o dia conferido não tem projeto (Sede, Folga, Férias...) — feature 037.
+  projectId: string | null;
   projectCode: string;
   projectName: string;
   workLocation: string;
   clientName: string;
   clientCnpj: string;
-  reportId: string;
+  reportId: string | null;
   sequenceNumber: number | null;
+  kind?: AllocationReportKind;
+  source?: 'RDO' | 'REVIEW';
+  reviewed?: boolean;
 }
 
 export interface AllocationReportCollaborator {
@@ -170,6 +176,7 @@ export interface AllocationReportResponse {
     allocationCount: number;
     dayCount: number;
     projectCount: number;
+    reviewedDayCount?: number;
   };
   entries: AllocationReportEntry[];
   collaborators: AllocationReportCollaborator[];

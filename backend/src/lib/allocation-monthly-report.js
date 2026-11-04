@@ -9,6 +9,9 @@ import prisma from './prisma.js';
 import { formatCnpj } from './cnpj.js';
 import { buildMonthlyAllocationReportEmailTemplate } from './email-templates.js';
 import { runTrackedJob } from './jobs/runner.js';
+import { loadConfirmedReviewDays } from './efetivo/allocation-review/confirmed-days.js';
+import { nthBusinessDayOfMonth, weekStartsTouchingMonth } from './calendar/business-day-deadline.js';
+import { loadCorporateCalendar, resolveCorporateCalendar } from './calendar/corporate-calendar.js';
 import { getMissingMailerConfig, sendMail } from './mailer.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -178,7 +181,10 @@ function reportAllocationEntries(report) {
       clientName,
       clientCnpj: projectCnpj,
       reportId: report.id,
-      sequenceNumber: report.sequenceNumber
+      sequenceNumber: report.sequenceNumber,
+      kind: 'PROJECT',
+      source: 'RDO',
+      reviewed: false
     };
     if (entry.collaboratorId) collaboratorById.set(entry.collaboratorId, entry);
     if (entry.collaboratorName) entries.push(entry);
@@ -242,6 +248,107 @@ export function validateYearMonth(yearMonth) {
   return Boolean(monthStart(yearMonth));
 }
 
+// Conferência semanal de alocação (feature 037): rótulos das situações sem projeto.
+export const REVIEW_KIND_LABELS = Object.freeze({
+  SEDE: 'Sede',
+  FOLGA: 'Folga',
+  FERIAS: 'Férias',
+  AFASTAMENTO: 'Afastamento',
+  TREINAMENTO: 'Treinamento'
+});
+
+/*
+ * Dias conferidos substituem as entradas de RDO do mesmo colaborador e data. Projeto e viagem
+ * levam o CNPJ do cliente do projeto; situações sem projeto saem sem CNPJ. O turno é o do RDO
+ * quando o RDO do dia é do mesmo projeto conferido (inclusive noturno); senão, diurno.
+ */
+export async function applyReviewedDays({ entries, fromDate, toDate, client }) {
+  const reviewDays = await loadConfirmedReviewDays({ from: fromDate, to: toDate }, client);
+  if (!reviewDays.length) return { entries, reviewedDayCount: 0 };
+  const reviewedKeys = new Set(reviewDays.map(day => `${day.date}|${day.collaboratorId}`));
+  const kept = [];
+  const replaced = new Map();
+  for (const entry of entries) {
+    const key = `${entry.date}|${entry.collaboratorId}`;
+    if (entry.collaboratorId && reviewedKeys.has(key)) {
+      const list = replaced.get(key) || [];
+      list.push(entry);
+      replaced.set(key, list);
+    } else {
+      kept.push(entry);
+    }
+  }
+  const projectIds = [...new Set(reviewDays.flatMap(day => day.projectIds))];
+  const collaboratorIds = [...new Set(reviewDays.map(day => day.collaboratorId))];
+  const [projects, collaborators] = await Promise.all([
+    projectIds.length && client.project?.findMany
+      ? client.project.findMany({
+        where: { id: { in: projectIds } },
+        select: { id: true, code: true, name: true, location: true, additionalWorkLocations: true, clientName: true, clientCnpj: true, managerOnly: true, deletedAt: true }
+      })
+      : [],
+    collaboratorIds.length && client.collaborator?.findMany
+      ? client.collaborator.findMany({
+        where: { id: { in: collaboratorIds } },
+        select: { id: true, name: true, jobRole: { select: { name: true } } }
+      })
+      : []
+  ]);
+  const projectById = new Map(projects.map(project => [project.id, project]));
+  const collaboratorById = new Map(collaborators.map(collaborator => [collaborator.id, collaborator]));
+  for (const day of reviewDays) {
+    const key = `${day.date}|${day.collaboratorId}`;
+    const previous = replaced.get(key) || [];
+    const collaborator = collaboratorById.get(day.collaboratorId);
+    const base = {
+      date: day.date,
+      collaboratorId: day.collaboratorId,
+      collaboratorName: stringValue(collaborator?.name) || previous[0]?.collaboratorName || '',
+      collaboratorRole: stringValue(collaborator?.jobRole?.name) || previous[0]?.collaboratorRole || '',
+      kind: day.kind,
+      source: 'REVIEW',
+      reviewed: true
+    };
+    if (!base.collaboratorName) continue;
+    if (day.kind === 'PROJECT' || day.kind === 'TRAVEL') {
+      for (const projectId of day.projectIds) {
+        const project = projectById.get(projectId);
+        if (!project || project.deletedAt || project.managerOnly) continue;
+        const sameProject = previous.filter(entry => entry.projectId === projectId);
+        const shifts = sameProject.length ? sameProject : [{ shift: 'Diurno', reportId: null, sequenceNumber: null }];
+        for (const shiftEntry of shifts) {
+          kept.push({
+            ...base,
+            shift: shiftEntry.shift,
+            projectId,
+            projectCode: project.code || '',
+            projectName: `${day.kind === 'TRAVEL' ? 'Viagem · ' : ''}${[project.code, project.name].filter(Boolean).join(' - ')}`,
+            workLocation: reportWorkLocation(project, null) || stringValue(project.location),
+            clientName: stringValue(project.clientName),
+            clientCnpj: formatCnpj(project.clientCnpj),
+            reportId: shiftEntry.reportId || null,
+            sequenceNumber: shiftEntry.sequenceNumber ?? null
+          });
+        }
+      }
+    } else {
+      kept.push({
+        ...base,
+        shift: '—',
+        projectId: null,
+        projectCode: '',
+        projectName: REVIEW_KIND_LABELS[day.kind] || day.kind,
+        workLocation: '',
+        clientName: '',
+        clientCnpj: '',
+        reportId: null,
+        sequenceNumber: null
+      });
+    }
+  }
+  return { entries: kept, reviewedDayCount: reviewedKeys.size };
+}
+
 export async function buildMonthlyAllocationSummary({ yearMonth, client = prisma }) {
   const fromDate = monthStart(yearMonth);
   if (!fromDate) {
@@ -285,7 +392,10 @@ export async function buildMonthlyAllocationSummary({ yearMonth, client = prisma
     }
   }
 
-  const entries = Array.from(entriesByKey.values()).sort((a, b) => (
+  const { entries: mergedEntries, reviewedDayCount } = await applyReviewedDays({
+    entries: Array.from(entriesByKey.values()), fromDate, toDate, client
+  });
+  const entries = mergedEntries.sort((a, b) => (
     a.collaboratorName.localeCompare(b.collaboratorName, 'pt-BR') ||
     a.date.localeCompare(b.date) ||
     a.projectName.localeCompare(b.projectName, 'pt-BR') ||
@@ -313,7 +423,10 @@ export async function buildMonthlyAllocationSummary({ yearMonth, client = prisma
       clientName: entry.clientName,
       clientCnpj: entry.clientCnpj,
       reportId: entry.reportId,
-      sequenceNumber: entry.sequenceNumber
+      sequenceNumber: entry.sequenceNumber,
+      kind: entry.kind,
+      source: entry.source,
+      reviewed: entry.reviewed
     });
   }
 
@@ -322,7 +435,7 @@ export async function buildMonthlyAllocationSummary({ yearMonth, client = prisma
   ));
 
   const uniqueDays = new Set(entries.map(entry => entry.date));
-  const uniqueProjects = new Set(entries.map(entry => entry.projectId));
+  const uniqueProjects = new Set(entries.map(entry => entry.projectId).filter(Boolean));
 
   return {
     yearMonth,
@@ -333,7 +446,8 @@ export async function buildMonthlyAllocationSummary({ yearMonth, client = prisma
       collaboratorCount: collaborators.length,
       allocationCount: entries.length,
       dayCount: uniqueDays.size,
-      projectCount: uniqueProjects.size
+      projectCount: uniqueProjects.size,
+      reviewedDayCount
     },
     entries,
     collaborators
@@ -480,7 +594,11 @@ export async function buildMonthlyAllocationPdf(data) {
       drawText(page, formatDatePt(day.date), 42, y, { size: 8, font: fonts.regular, color: rgb(0.1, 0.1, 0.1) });
       drawText(page, day.shift, 92, y, { size: 8, font: fonts.regular, color: rgb(0.1, 0.1, 0.1) });
       drawText(page, truncateText(day.projectName, 52), 150, y, { size: 8, font: fonts.regular, color: rgb(0.1, 0.1, 0.1) });
-      drawText(page, truncateTextToWidth(`Local da obra: ${day.workLocation || '-'}`, fonts.regular, 7, 300), 150, y - 10, { size: 7, font: fonts.regular, color: rgb(0.42, 0.45, 0.43) });
+      const offProject = day.source === 'REVIEW' && !day.projectId;
+      const locationLine = offProject
+        ? 'Fora de projeto · conferido'
+        : `Local da obra: ${day.workLocation || '-'}${day.reviewed ? ' · conferido' : ''}`;
+      drawText(page, truncateTextToWidth(locationLine, fonts.regular, 7, 300), 150, y - 10, { size: 7, font: fonts.regular, color: rgb(0.42, 0.45, 0.43) });
       drawText(page, truncateText(day.clientName || '-', 30), 460, y, { size: 8, font: fonts.regular, color: rgb(0.1, 0.1, 0.1) });
       drawText(page, day.clientCnpj || '-', 650, y, { size: 8, font: fonts.regular, color: rgb(0.1, 0.1, 0.1) });
       y -= 26;
@@ -623,11 +741,49 @@ async function claimDelivery(yearMonth, client, now) {
   return claimed.count === 1;
 }
 
-export async function processMonthlyAllocationReport({ yearMonth: requestedMonth, now = new Date(), client = prisma, mailer = sendMail, missingMailerConfig = getMissingMailerConfig() } = {}) {
-  if (!requestedMonth && reportCalendar(now).day !== 1) return { skipped: true, reason: 'not_first_day' };
+// Envio automático espera a conferência semanal (feature 037): roda do dia 1º até o 3º dia útil
+// do mês (feriados corporativos e nacionais excluídos). Antes do limite, só envia se todas as
+// semanas com dias no mês anterior estiverem fechadas; no limite, envia com o que houver.
+export const AUTOMATIC_SEND_BUSINESS_DAY = 3;
+
+async function defaultLoadCalendar(client, startDate, endDate) {
+  if (!client?.workforceHoliday?.findMany || !client?.workforceCalendarState?.findUnique) {
+    return resolveCorporateCalendar({ startDate, endDate, manualHolidays: [], revision: 1 });
+  }
+  return loadCorporateCalendar(client, startDate, endDate);
+}
+
+export async function monthlySendWindow({ now = new Date(), client = prisma, loadCalendar = defaultLoadCalendar } = {}) {
+  const { yearMonth, day } = reportCalendar(now);
+  const today = `${yearMonth}-${String(day).padStart(2, '0')}`;
+  const calendar = await loadCalendar(client, `${yearMonth}-01`, `${yearMonth}-28`);
+  const deadline = nthBusinessDayOfMonth(yearMonth, AUTOMATIC_SEND_BUSINESS_DAY, calendar?.holidayDates || new Set());
+  return { today, deadline, inWindow: today <= deadline, reachedDeadline: today >= deadline };
+}
+
+export async function openReviewWeeksForMonth(yearMonth, client = prisma) {
+  if (!client?.allocationReviewWeek?.findMany) return [];
+  const weekStarts = weekStartsTouchingMonth(yearMonth);
+  const closed = await client.allocationReviewWeek.findMany({
+    where: { weekStart: { in: weekStarts.map(key => new Date(`${key}T00:00:00.000Z`)) }, status: 'CLOSED' },
+    select: { weekStart: true }
+  });
+  const closedSet = new Set(closed.map(item => toDateKey(item.weekStart)));
+  return weekStarts.filter(key => !closedSet.has(key));
+}
+
+export async function processMonthlyAllocationReport({ yearMonth: requestedMonth, now = new Date(), client = prisma, mailer = sendMail, missingMailerConfig = getMissingMailerConfig(), loadCalendar = defaultLoadCalendar } = {}) {
+  const sendWindow = requestedMonth ? null : await monthlySendWindow({ now, client, loadCalendar });
+  if (sendWindow && !sendWindow.inWindow) return { skipped: true, reason: 'outside_send_window' };
   const yearMonth = requestedMonth ?? previousYearMonth(now);
   assertClosedMonth(yearMonth, now);
   if (missingMailerConfig.length) return { skipped: true, reason: 'missing_mailer_config', missingMailerConfig };
+  if (sendWindow && !sendWindow.reachedDeadline) {
+    const openWeeks = await openReviewWeeksForMonth(yearMonth, client);
+    if (openWeeks.length) {
+      return { skipped: true, reason: 'awaiting_review', yearMonth, deadline: sendWindow.deadline, openWeeks };
+    }
+  }
 
   const claimed = await claimDelivery(yearMonth, client, now);
   if (!claimed) return { skipped: true, reason: 'already_processed', yearMonth };

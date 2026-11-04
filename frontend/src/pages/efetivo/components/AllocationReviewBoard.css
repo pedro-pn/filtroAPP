@@ -1,0 +1,633 @@
+/* Conferência semanal de alocação (feature 037). Só tokens de styles/variables.css. */
+
+.allocation-review {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.allocation-review-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  min-width: 0;
+}
+
+.allocation-review-week {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px;
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  max-width: 100%;
+}
+
+.allocation-review-week__label {
+  padding: 0 var(--space-2);
+  font-weight: var(--font-semibold);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.allocation-review-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.allocation-review-note {
+  margin: 0;
+  max-width: 72ch;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.allocation-review-note strong {
+  color: var(--ink);
+}
+
+
+/* Resumo numa faixa só: pendências clicáveis (filtram a grade) e o progresso da semana. */
+.allocation-review-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.allocation-review-summary > * { min-width: 0; }
+
+.allocation-review-summary__dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.allocation-review-summary__dot.is-warning { background: var(--warning); }
+.allocation-review-summary__dot.is-danger { background: var(--danger); }
+
+.allocation-review-summary__text {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.allocation-review-summary__progress {
+  flex: 1 1 220px;
+  max-width: 360px;
+  margin-left: auto;
+}
+
+.allocation-review-close-hint {
+  flex-basis: 100%;
+  order: 99;
+  margin: calc(-1 * var(--space-2)) 0 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  text-align: right;
+}
+
+.allocation-review-legend__dots {
+  flex-wrap: wrap;
+}
+
+.allocation-review-legend__dots > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.allocation-review-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+
+.allocation-review-toolbar > * {
+  min-width: 0;
+}
+
+.allocation-review-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.allocation-review-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.allocation-review-swatch {
+  display: inline-block;
+  width: 18px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+/* Tabela (desktop): coluna do colaborador fixa, rolagem horizontal só no contêiner. */
+.allocation-review-table-wrap {
+  /* Rola nos dois sentidos dentro do próprio contêiner: o cabeçalho dos dias fica fixo ao descer. */
+  max-height: calc(100dvh - 140px);
+  min-height: 240px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.allocation-review-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+/* `.efetivo-page *` zera min-width no módulo; o prefixo garante a largura mínima da grade. */
+.allocation-review .allocation-review-table { min-width: 1000px; }
+.allocation-review .allocation-review-month-table { min-width: 0; }
+.allocation-review .allocation-review-month__label { min-width: 150px; }
+
+.allocation-review-table__col-who { width: 170px; }
+.allocation-review-table__col-end { width: 150px; }
+/* Fim de semana costuma ser Folga: coluna mais estreita libera espaço para os dias úteis. */
+.allocation-review-table__col-rest { width: 92px; }
+
+.allocation-review-table th,
+.allocation-review-table td {
+  border-bottom: var(--border-width) solid var(--line);
+  padding: var(--space-1);
+  vertical-align: top;
+}
+
+.allocation-review-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: var(--space-2);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  text-align: center;
+}
+
+.allocation-review-table thead th strong {
+  display: block;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.allocation-review-table thead th small {
+  display: block;
+  color: var(--info);
+}
+
+.allocation-review-table td.is-rest {
+  background: var(--canvas);
+}
+
+.allocation-review-table thead th.is-rest {
+  background: var(--surface-2);
+}
+
+.allocation-review-table thead th.allocation-review-table__who {
+  z-index: 3;
+}
+
+.allocation-review-table__who {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  padding: var(--space-2) var(--space-3) !important;
+  border-right: var(--border-width) solid var(--line);
+  background: var(--surface);
+  text-align: left !important;
+}
+
+.allocation-review-table__end {
+  padding: var(--space-2) var(--space-3) !important;
+  border-left: var(--border-width) solid var(--line);
+  text-align: right;
+}
+
+td.allocation-review-table__end {
+  display: table-cell;
+}
+
+td.allocation-review-table__end > * {
+  vertical-align: middle;
+}
+
+.allocation-review-table td.allocation-review-table__end {
+  vertical-align: middle;
+}
+
+.allocation-review-table__group th {
+  position: sticky;
+  left: 0;
+  padding: var(--space-1) var(--space-3);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  text-align: left;
+}
+
+.allocation-review-who__name {
+  display: block;
+  font-weight: var(--font-semibold);
+}
+
+.allocation-review-who__role {
+  display: block;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.allocation-review-table tr.is-confirmed .allocation-review-who__name::after,
+.allocation-review-card.is-confirmed .allocation-review-who__name::after {
+  content: ' ✓';
+  color: var(--brand-text);
+}
+
+.allocation-review-row-status {
+  margin-right: var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+}
+
+.allocation-review-row-status.is-done { color: var(--brand-text); }
+.allocation-review-row-status.is-pending { color: var(--warning); }
+
+/* Célula do dia */
+.allocation-review-cell {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 56px;
+  padding: var(--space-1) 6px 14px 9px;
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/*
+ * Cores por situação (só tokens do app). Cada situação combina fundo, borda e uma barra à esquerda,
+ * para a diferença não depender só da cor: projeto (verde da marca), viagem (azul), Sede (cinza
+ * sólido), Folga (tracejado, sem fundo), férias/afastamento (hachurado), divergência (laranja) e
+ * sem informação (vermelho tracejado). A legenda usa exatamente as mesmas regras.
+ */
+.allocation-review-cell,
+.allocation-review-swatch,
+.allocation-review-mcell {
+  --review-bar: transparent;
+  border: var(--border-width) solid var(--line-strong);
+  box-shadow: inset 3px 0 0 var(--review-bar);
+}
+
+.is-project:is(.allocation-review-cell, .allocation-review-swatch, .allocation-review-mcell) {
+  --review-bar: var(--brand);
+  background: var(--brand-soft);
+  border-color: var(--success-line);
+}
+
+.is-travel:is(.allocation-review-cell, .allocation-review-swatch, .allocation-review-mcell) {
+  --review-bar: var(--info);
+  background: var(--info-bg);
+  border-color: var(--info-line);
+}
+
+.is-sede:is(.allocation-review-cell, .allocation-review-swatch, .allocation-review-mcell) {
+  --review-bar: var(--muted);
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+}
+
+.is-folga:is(.allocation-review-cell, .allocation-review-swatch, .allocation-review-mcell) {
+  background: var(--surface);
+  border-style: dashed;
+  border-color: var(--line-strong);
+}
+
+.is-absence:is(.allocation-review-cell, .allocation-review-swatch, .allocation-review-mcell) {
+  --review-bar: var(--ink);
+  background: repeating-linear-gradient(135deg, var(--surface-2) 0 5px, var(--surface) 5px 10px);
+  border-color: var(--line-strong);
+}
+
+.is-pending:is(.allocation-review-cell, .allocation-review-swatch, .allocation-review-mcell) {
+  --review-bar: var(--warning);
+  background: var(--warning-bg);
+  border-color: var(--warning-line);
+}
+
+.is-none:is(.allocation-review-cell, .allocation-review-swatch, .allocation-review-mcell) {
+  background: var(--danger-bg);
+  border: var(--border-width) dashed var(--danger);
+}
+
+.allocation-review-cell:hover:not(:disabled),
+.allocation-review-mcell:hover:not(:disabled) { filter: brightness(0.97); }
+.allocation-review-cell:focus-visible,
+.allocation-review-mcell:focus-visible { outline: var(--focus-ring-width) solid var(--focus-ring); outline-offset: var(--focus-ring-offset); }
+.allocation-review-cell.is-travel .allocation-review-cell__title { color: var(--info); }
+.allocation-review-cell.is-folga .allocation-review-cell__title { color: var(--muted); font-weight: var(--font-medium); }
+.allocation-review-cell.is-none .allocation-review-cell__title { color: var(--danger); }
+.allocation-review-cell.is-selected { outline: var(--focus-ring-width) solid var(--info); outline-offset: -1px; }
+.allocation-review-cell.is-ineligible { background: transparent; border-color: transparent; box-shadow: none; cursor: default; opacity: var(--disabled-opacity); }
+.allocation-review-table tr.is-confirmed .allocation-review-cell { opacity: 0.85; }
+
+.allocation-review-cell__title {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  line-height: 17px;
+  overflow-wrap: break-word;
+}
+
+.allocation-review-cell__subtitle {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: var(--text-xs);
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+.allocation-review-cell__alert {
+  display: block;
+  color: var(--info);
+  font-size: 11px;
+  font-weight: var(--font-semibold);
+}
+
+.allocation-review-cell__mark {
+  position: absolute;
+  top: 3px;
+  right: 5px;
+  color: var(--warning);
+  font-size: 11px;
+  font-weight: var(--font-bold);
+}
+
+.allocation-review-cell.is-edited .allocation-review-cell__mark { color: var(--info); }
+
+.allocation-review-cell__dots {
+  position: absolute;
+  bottom: 4px;
+  left: var(--space-2);
+  display: flex;
+  gap: 3px;
+}
+
+.allocation-review-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border: var(--border-width) solid var(--muted);
+  border-radius: 50%;
+}
+
+.allocation-review-dot.is-confirms { background: var(--brand); border-color: var(--brand); }
+.allocation-review-dot.is-diverges { background: var(--warning); border-color: var(--warning); }
+.allocation-review-dot.is-none { background: transparent; }
+
+/* Cards (celular) */
+.allocation-review-cards { display: none; gap: var(--space-4); }
+.allocation-review-card-group { display: grid; gap: var(--space-2); min-width: 0; }
+.allocation-review-card-group h3 { margin: 0; color: var(--muted); font-size: var(--text-xs); font-weight: var(--font-semibold); overflow-wrap: anywhere; }
+
+.allocation-review-card {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.allocation-review-card > ol { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
+.allocation-review-card > ol > li { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: var(--space-2); align-items: start; }
+.allocation-review-card__day { padding-top: var(--space-1); color: var(--muted); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+.allocation-review-card footer { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: var(--space-2); }
+.allocation-review-cell.is-compact { min-height: 44px; }
+
+/* Barra de seleção em massa */
+.allocation-review-bulk {
+  position: fixed;
+  bottom: var(--space-5);
+  left: 50%;
+  z-index: var(--z-bottombar);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  width: max-content;
+  max-width: calc(100% - 32px);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-e3);
+  transform: translateX(-50%);
+}
+
+.allocation-review-bulk__count { font-weight: var(--font-semibold); }
+.allocation-review-bulk__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); min-width: 0; }
+
+/* Painel do dia */
+.allocation-review-panel__subtitle { margin: 0 0 var(--space-3); color: var(--muted); font-size: var(--text-sm); }
+.allocation-review-panel__section { display: grid; gap: var(--space-2); margin: var(--space-3) 0; }
+.allocation-review-panel__section h2,
+.allocation-review-options legend,
+.allocation-review-repeat legend {
+  margin: 0 0 var(--space-2);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+}
+.allocation-review-panel__hint { margin: 0; color: var(--muted); font-size: var(--text-xs); }
+
+.allocation-review-source {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.allocation-review-source p { margin: 0; color: var(--muted); font-size: var(--text-sm); overflow-wrap: anywhere; }
+.allocation-review-source__icon {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--font-bold);
+}
+.allocation-review-source.is-confirms .allocation-review-source__icon { background: var(--brand-soft); color: var(--brand-text); }
+.allocation-review-source.is-diverges .allocation-review-source__icon { background: var(--warning-bg); color: var(--warning); }
+
+.allocation-review-options,
+.allocation-review-repeat { display: grid; gap: var(--space-1); min-width: 0; margin: 0; padding: 0; border: 0; }
+
+.allocation-review-option {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 2px var(--space-2);
+  align-items: start;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.allocation-review-option input { margin: 3px 0 0; accent-color: var(--brand); }
+.allocation-review-option.is-checked { border-color: var(--brand); background: var(--brand-softer); }
+.allocation-review-option__label { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); align-items: center; font-size: var(--text-sm); font-weight: var(--font-semibold); overflow-wrap: anywhere; }
+.allocation-review-option__detail { grid-column: 2; color: var(--muted); font-family: var(--font-mono); font-size: var(--text-xs); overflow-wrap: anywhere; }
+
+.allocation-review-repeat__chips { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.allocation-review-chip { position: relative; display: inline-flex; }
+.allocation-review-chip input { position: absolute; opacity: 0; pointer-events: none; }
+.allocation-review-chip span { padding: var(--space-1) var(--space-3); border: var(--border-width) solid var(--line-strong); border-radius: var(--radius-pill); font-size: var(--text-sm); cursor: pointer; }
+.allocation-review-chip input:checked + span { border-color: var(--brand); background: var(--brand-soft); color: var(--brand-text); font-weight: var(--font-semibold); }
+.allocation-review-chip input:focus-visible + span { outline: var(--focus-ring-width) solid var(--focus-ring); outline-offset: var(--focus-ring-offset); }
+
+@media (max-width: 640px) {
+  .allocation-review-summary__progress { flex-basis: 100%; max-width: none; margin-left: 0; }
+  .allocation-review-close-hint { text-align: left; }
+  .allocation-review-table-wrap { display: none; }
+  .allocation-review-cards { display: grid; }
+  .allocation-review-header__actions { margin-left: 0; width: 100%; }
+  .allocation-review-header__actions > * { flex: 1 1 auto; }
+  .allocation-review-toolbar .efetivo-segmented { display: flex; flex-wrap: wrap; width: 100%; }
+  .allocation-review-toolbar .efetivo-segmented button { flex: 1 1 auto; }
+  .allocation-review-select-toggle { width: 100%; }
+  .allocation-review-bulk { bottom: var(--space-3); width: calc(100% - 32px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .allocation-review-cell { transition: none; }
+}
+
+/* Alternância Semana / Mês */
+.allocation-review-view-toggle { flex: 0 0 auto; }
+
+/* Visão do mês */
+.allocation-review-month__label { text-align: center; }
+.allocation-review-month-table td.is-rest { background: var(--canvas); }
+
+.allocation-review-weeks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.allocation-review-week-chip {
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.allocation-review-week-chip:hover { border-color: var(--line-strong); }
+.allocation-review-week-chip:focus-visible { outline: var(--focus-ring-width) solid var(--focus-ring); outline-offset: var(--focus-ring-offset); }
+.allocation-review-week-chip span { color: var(--muted); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+.allocation-review-week-chip .allocation-review-week-chip__pending { color: var(--warning); font-weight: var(--font-semibold); }
+
+.allocation-review-month-table { min-width: 0; width: max-content; }
+.allocation-review-month-table__col-day { width: 46px; }
+.allocation-review-month-table__col-total { width: 200px; }
+.allocation-review-month-table thead th.allocation-review-month-table__total { z-index: 3; }
+.allocation-review-month-table thead th { padding: var(--space-1); }
+.allocation-review-month-table td { padding: 2px; }
+.allocation-review-month-table .allocation-review-row-status { display: block; margin: 2px 0 0; }
+
+.allocation-review-month-table__total {
+  /* Fica fixo logo depois do nome, visível mesmo rolando os dias. */
+  position: sticky;
+  left: 170px;
+  z-index: 1;
+  padding: var(--space-1) var(--space-3) !important;
+  border-right: var(--border-width) solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  text-align: left !important;
+}
+
+.allocation-review-month-table__total ul,
+.allocation-review-month-totals { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; overflow-wrap: anywhere; }
+.allocation-review-month-totals { color: var(--muted); font-size: var(--text-xs); }
+
+.allocation-review-mcell {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 34px;
+  padding: 0 2px 0 4px;
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  font: inherit;
+  font-size: 11px;
+  font-weight: var(--font-semibold);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.allocation-review-mcell.is-folga { color: var(--muted); font-weight: var(--font-medium); }
+.allocation-review-mcell.is-travel { color: var(--info); }
+.allocation-review-mcell.is-none { color: var(--danger); }
+.allocation-review-mcell.is-ineligible { background: transparent; border-color: transparent; box-shadow: none; color: var(--muted); cursor: default; }
+.allocation-review-mcell.is-compact { min-height: 30px; }
+
+.allocation-review-month-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.allocation-review-month-calendar > * { min-width: 0; }
+.allocation-review-month-calendar__head { color: var(--muted); font-size: 10px; text-align: center; }

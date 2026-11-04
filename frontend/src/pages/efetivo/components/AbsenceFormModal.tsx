@@ -30,27 +30,36 @@ interface Props {
   onClose: () => void;
   onSubmit: (payload: EfetivoAbsencePayload) => void;
   initialCollaboratorId?: string;
+  // Pré-preenchimento vindo do aviso da conferência de alocação (feature 037).
+  initialPrefill?: { type?: string; startDate?: string; endDate?: string; note?: string };
 }
 
-function initialValues(absence: EfetivoAbsence | null, initialCollaboratorId = ''): AbsenceFormValues {
+const ABSENCE_TYPES = ['FERIAS', 'FOLGA', 'AFASTAMENTO', 'FADIGA_OFFSHORE'] as const;
+
+function initialValues(absence: EfetivoAbsence | null, initialCollaboratorId = '', prefill?: Props['initialPrefill']): AbsenceFormValues {
+  const prefillType = ABSENCE_TYPES.find(type => type === prefill?.type);
   return {
     collaboratorId: absence?.collaboratorId || initialCollaboratorId,
-    type: absence?.type || 'FERIAS',
-    startDate: absence?.startDate?.slice(0, 10) || '',
-    endDate: absence?.endDate?.slice(0, 10) || '',
-    note: absence?.note || ''
+    type: absence?.type || prefillType || 'FERIAS',
+    startDate: absence?.startDate?.slice(0, 10) || prefill?.startDate || '',
+    endDate: absence?.endDate?.slice(0, 10) || prefill?.endDate || '',
+    note: absence?.note || prefill?.note || ''
   };
 }
 
-export function AbsenceFormModal({ open, absence, collaborators, saving, onClose, onSubmit, initialCollaboratorId = '' }: Props) {
+export function AbsenceFormModal({ open, absence, collaborators, saving, onClose, onSubmit, initialCollaboratorId = '', initialPrefill }: Props) {
   const { register, handleSubmit, reset, formState: { errors } } = useForm<AbsenceFormValues>({
     resolver: zodResolver(absenceFormSchema),
-    defaultValues: initialValues(absence, initialCollaboratorId)
+    defaultValues: initialValues(absence, initialCollaboratorId, initialPrefill)
   });
+  const prefillType = initialPrefill?.type;
+  const prefillStart = initialPrefill?.startDate;
+  const prefillEnd = initialPrefill?.endDate;
+  const prefillNote = initialPrefill?.note;
 
   useEffect(() => {
-    if (open) reset(initialValues(absence, initialCollaboratorId));
-  }, [absence, initialCollaboratorId, open, reset]);
+    if (open) reset(initialValues(absence, initialCollaboratorId, { type: prefillType, startDate: prefillStart, endDate: prefillEnd, note: prefillNote }));
+  }, [absence, initialCollaboratorId, open, prefillEnd, prefillNote, prefillStart, prefillType, reset]);
 
   return (
     <Modal

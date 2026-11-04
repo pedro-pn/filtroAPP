@@ -55,6 +55,7 @@ function mockCalculation(t, {
   mock('efetivoMissionAllocation', 'findMany', allocations);
   mock('efetivoMissionPlan', 'findMany', allocations.map(item => ({ projectId: item.mission.projectId })));
   mock('pontoDayProjectOverride', 'findMany', []);
+  mock('allocationReviewDay', 'findMany', []);
   mock('collaboratorAbsence', 'findMany', []);
   mock('workforceHoliday', 'findMany', []);
   mock('workforceCalendarState', 'findUnique', { revision: 1 });

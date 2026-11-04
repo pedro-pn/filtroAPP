@@ -22,7 +22,7 @@ import { OperationalCollaboratorModal } from './OperationalCollaboratorModal';
 
 const statusLabel = { ALLOCATED: 'Alocado', UNAVAILABLE: 'Indisponível', FREE: 'Livre', OUTSIDE_EMPLOYMENT: 'Fora do vínculo' } as const;
 
-export function CollaboratorsBoard({ date, jobRoleId, search, canManage, selectedCollaboratorId, onSearchChange, onCollaboratorSelect }: {
+export function CollaboratorsBoard({ date, jobRoleId, search, canManage, selectedCollaboratorId, onSearchChange, onCollaboratorSelect, absencePrefill, onAbsencePrefillDone }: {
   date: string;
   jobRoleId?: string;
   search: string;
@@ -30,6 +30,9 @@ export function CollaboratorsBoard({ date, jobRoleId, search, canManage, selecte
   selectedCollaboratorId?: string;
   onSearchChange: (value: string) => void;
   onCollaboratorSelect?: (value?: string) => void;
+  // Link do aviso da conferência de alocação: abre o cadastro de ausência já preenchido.
+  absencePrefill?: { type: string; startDate: string; endDate: string };
+  onAbsencePrefillDone?: () => void;
 }) {
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -46,13 +49,18 @@ export function CollaboratorsBoard({ date, jobRoleId, search, canManage, selecte
   });
   const absence = useMutation({
     mutationFn: (payload: EfetivoAbsencePayload) => createPlanningAbsence({ collaboratorId: payload.collaboratorId, type: payload.type || 'FERIAS', startDate: payload.startDate, endDate: payload.endDate, note: payload.note || null }),
-    onSuccess: async () => { await refresh(); setAbsencePerson(null); toast('Indisponibilidade programada.', 'success'); },
+    onSuccess: async () => { await refresh(); setAbsencePerson(null); if (absencePrefill) onAbsencePrefillDone?.(); toast('Indisponibilidade programada.', 'success'); },
     onError: (error: Error) => {
       const conflict = planningErrorConflicts(error)?.[0];
       toast(conflict ? `${error.message} ${conflict.collaboratorName || ''}: ${displayDateOnly(conflict.startDate)} a ${displayDateOnly(conflict.endDate)}.` : error.message, 'error');
     }
   });
   const rows = collaborators.data || [];
+  const prefillPerson = absencePrefill && selectedCollaboratorId ? rows.find(row => row.id === selectedCollaboratorId) : undefined;
+  useEffect(() => {
+    if (!canManage || !prefillPerson) return;
+    setAbsencePerson(current => current || prefillPerson);
+  }, [canManage, prefillPerson]);
   // Os links da visão geral e do calendário chegam com ?colaborador=…; a linha correspondente
   // é destacada e trazida para a tela (FR-039).
   useEffect(() => {
@@ -69,7 +77,7 @@ export function CollaboratorsBoard({ date, jobRoleId, search, canManage, selecte
         {rows.some(row => row.vacationAlert) ? <p className="efetivo-operational-disclaimer">Alertas de férias são operacionais e devem ser validados com folha e jurídico.</p> : null}
       </section>
       {canManage ? <OperationalCollaboratorModal open={formOpen} collaborator={editing} jobRoles={roles.data || []} saving={save.isPending} onClose={() => { setFormOpen(false); setEditing(null); }} onSubmit={payload => save.mutate(payload)} /> : null}
-      {canManage ? <AbsenceFormModal open={Boolean(absencePerson)} absence={null} initialCollaboratorId={absencePerson?.id} collaborators={rows.map(row => ({ id: row.id, name: row.name, role: row.role, isActive: row.isActive }))} saving={absence.isPending} onClose={() => setAbsencePerson(null)} onSubmit={payload => absence.mutate(payload)} /> : null}
+      {canManage ? <AbsenceFormModal open={Boolean(absencePerson)} absence={null} initialCollaboratorId={absencePerson?.id} collaborators={rows.map(row => ({ id: row.id, name: row.name, role: row.role, isActive: row.isActive }))} saving={absence.isPending} initialPrefill={absencePrefill ? { ...absencePrefill, note: 'Cadastro pedido pela conferência de alocação.' } : undefined} onClose={() => { setAbsencePerson(null); if (absencePrefill) onAbsencePrefillDone?.(); }} onSubmit={payload => absence.mutate(payload)} /> : null}
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { resolveAllocationReviewAbsenceAlerts } from '../efetivo/allocation-review/absence-alerts.js';
 import { corporateDateKey, loadCorporateCalendar } from '../calendar/corporate-calendar.js';
 import { allocationPeriod } from '../efetivo/planning/allocation-period.js';
 import { missionStartsOnOrBefore, missionEndsOnOrAfter } from '../efetivo/planning/mission-period.js';
@@ -92,6 +93,18 @@ async function assertNoAbsenceOverlap(database, collaboratorId, period, ignoredA
   }
 }
 
+async function resolveReviewAlerts(database, absence) {
+  // Cadastro de ausência encerra avisos da conferência de alocação cobertos por ela (feature 037).
+  if (!absence) return;
+  await resolveAllocationReviewAbsenceAlerts({
+    collaboratorId: absence.collaboratorId,
+    type: absence.type,
+    startDate: absence.startDate,
+    endDate: absence.endDate,
+    absenceId: absence.id
+  }, database);
+}
+
 export async function createWorkforceAbsence(database, payload, context = {}) {
   const period = { startDate: corporateDateKey(payload.startDate), endDate: corporateDateKey(payload.endDate) };
   if (period.endDate < period.startDate) throw workforceError('A data final não pode ser anterior à inicial.', 'INVALID_PERIOD');
@@ -114,6 +127,9 @@ export async function createWorkforceAbsence(database, payload, context = {}) {
     const affectedMissionIds = await markMissionsAffectedByAbsence(tx, payload.collaboratorId, period);
     const calendarState = await bumpWorkforceCalendarRevision(tx);
     return { absence, affectedMissionIds, calendarRevision: calendarState.revision };
+  }).then(async result => {
+    await resolveReviewAlerts(database, result.absence);
+    return result;
   });
 }
 
@@ -145,6 +161,9 @@ export async function updateWorkforceAbsence(database, absenceId, payload, conte
     const affectedMissionIds = await markMissionsAffectedByAbsence(tx, existing.collaboratorId, period);
     const calendarState = await bumpWorkforceCalendarRevision(tx);
     return { absence, affectedMissionIds, calendarRevision: calendarState.revision };
+  }).then(async result => {
+    await resolveReviewAlerts(database, result.absence);
+    return result;
   });
 }
 
