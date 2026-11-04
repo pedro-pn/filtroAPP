@@ -17,6 +17,41 @@ import { createProjectDocumentsDatabase, testPdfDataUrl } from './helpers/projec
 
 const context = { actorUserId: 'leader_1', isManager: true, user: { id: 'leader_1', name: 'Líder', accountType: 'ADMIN' } };
 
+test('abrir documentos de um handover existente recupera a busca ausente uma única vez', async () => {
+  const { database, state } = createProjectDocumentsDatabase({ stage: 'HANDOVER' });
+  state.project.contractCode = '4064';
+  const result = await listProjectDocuments('project_1', {}, context, { database });
+  assert.equal(result.documents.length, 0);
+  assert.equal(result.commercialProposalSync.proposalCode, '4064');
+  assert.equal(result.commercialProposalSync.revisionNumber, 0);
+  assert.equal(state.project.commercialProposalSync.status, 'PENDING');
+  const requestId = state.project.commercialProposalSync.requestId;
+  await listProjectDocuments('project_1', {}, context, { database });
+  assert.equal(state.project.commercialProposalSync.requestId, requestId);
+});
+
+test('consulta documental expõe a causa da ausência sem reiniciar erros nem propostas excluídas', async () => {
+  const { database, state } = createProjectDocumentsDatabase({ stage: 'HANDOVER' });
+  state.project.commercialProposalSync = { status: 'ERROR', requestId: 'existing', proposalCode: '4607',
+    revisionNumber: 0, errorCode: 'COMERCIALAPP_HTTP_404', attempts: 203 };
+  const result = await listProjectDocuments('project_1', {}, context, { database });
+  assert.equal(result.commercialProposalSync.errorCode, 'COMERCIALAPP_HTTP_404');
+  assert.equal(state.project.commercialProposalSync.attempts, 203);
+  state.project.commercialProposalSync = { ...state.project.commercialProposalSync, status: 'EXCLUDED', stopReason: 'LEGACY_ACCESS_ONLY' };
+  const excluded = await listProjectDocuments('project_1', {}, context, { database });
+  assert.equal(excluded.commercialProposalSync.stopReason, 'LEGACY_ACCESS_ONLY');
+  assert.equal(state.project.commercialProposalSync.status, 'EXCLUDED');
+});
+
+test('consulta de projeto encerrado ou sem gestão não inicializa importação', async () => {
+  const { database, state } = createProjectDocumentsDatabase({ stage: 'FINISHED' });
+  state.project.contractCode = '4064';
+  assert.equal((await listProjectDocuments('project_1', {}, context, { database })).commercialProposalSync, null);
+  state.project.workflow = null;
+  assert.equal((await listProjectDocuments('project_1', {}, context, { database })).commercialProposalSync, null);
+  assert.equal(state.project.commercialProposalSync, undefined);
+});
+
 test('cria catálogo, mantém versões imutáveis e arquiva/restaura com concorrência otimista', async () => {
   const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'filtro-project-service-'));
   const { database, state } = createProjectDocumentsDatabase();

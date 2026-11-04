@@ -97,7 +97,18 @@ export interface ProjectOperationalDocument {
   downloadUrl: string;
 }
 
+export interface ProjectCommercialProposalSync {
+  status: string;
+  configured: boolean;
+  retryScheduled: boolean;
+  proposalCode: string;
+  revisionNumber: number;
+  errorCode: string | null;
+  stopReason: string | null;
+}
+
 export interface ProjectDocumentsResponse {
+  commercialProposalSync: ProjectCommercialProposalSync | null;
   documents: ProjectDocument[];
   requirements: Record<ProjectDocumentRequirementStage, ProjectDocumentRequirementSummary>;
   operationalDocuments: ProjectOperationalDocument[];

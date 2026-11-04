@@ -66,6 +66,7 @@ import {
   ProjectWorkflowSupplyPlanningCard
 } from './ProjectWorkflowSupplyLogisticsPlanning';
 import { ProjectDocumentsCategory } from './ProjectDocumentsCategory';
+import { commercialProposalDocumentsRefetchInterval } from '../../../utils/projectDocuments';
 import {
   ProjectWorkflowCommercialSignals,
   ProjectWorkflowCriticalityDecision,
@@ -1099,6 +1100,7 @@ export function ProjectWorkflowModal({ detail, blockedMoveFocus, leaders, loadin
   const projectDocuments = useQuery({
     queryKey: [...projectDocumentsQueryKey(projectId), false],
     queryFn: () => listProjectDocuments(projectId),
+    refetchInterval: query => commercialProposalDocumentsRefetchInterval(query.state.data?.commercialProposalSync),
     enabled: Boolean(projectId && detail?.workflow)
   });
   const [activeStage, setActiveStage] = useState<ProjectWorkflowStage>(detail?.workflow?.stage || 'HANDOVER');

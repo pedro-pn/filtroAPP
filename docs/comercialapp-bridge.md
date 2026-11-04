@@ -129,8 +129,14 @@ campos comerciais exigidos geram retentativa, sem concluir uma importação parc
 Pare o worker antigo antes dessa migração e reinicie-o com a versão nova, para
 que as buscas reagendadas sejam processadas pelo consumidor completo.
 A fila permanece desabilitada enquanto a origem ou o token estiverem
-vazios. Projetos anteriores não são importados em massa: o reenvio idêntico do
-Prisma ou uma seleção/edição do vínculo inicializa a busca quando ela não existe.
+vazios. Projetos anteriores não são importados em massa: iniciar o handover ou
+abrir os documentos de uma gestão existente inicializa a busca quando ela não
+existe, usando o código e a revisão vinculados ao projeto. Filas existentes,
+inclusive propostas legadas excluídas da importação, são preservadas. O reenvio
+idêntico do Prisma ou uma seleção/edição do vínculo também inicializa essa busca.
+A seção de documentos mostra quando a proposta/revisão não foi encontrada ou
+os PDFs ainda não foram finalizados no ComercialAPP, e atualiza os anexos
+automaticamente enquanto há uma tentativa agendada.
 
 O teste `backend/test/commercial-proposal-pull.integration.test.js` usa os dois
 apps e bancos PostgreSQL isolados. Exige `DATABASE_URL=TEST_DATABASE_URL` com

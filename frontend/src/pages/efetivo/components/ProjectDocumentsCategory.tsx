@@ -24,6 +24,7 @@ import { Button } from '../../../components/ui/Button';
 import { useToast } from '../../../components/ui/ToastContext';
 import { displayDateOnly } from '../../../utils/calendarGrid';
 import { downloadBlob } from '../../../utils/download';
+import { commercialProposalDocumentsRefetchInterval, commercialProposalSyncMessage } from '../../../utils/projectDocuments';
 import { ProjectWorkflowCategory } from './ProjectWorkflowCategory';
 import {
   ProjectDocumentAcceptanceForm,
@@ -127,7 +128,8 @@ export function ProjectDocumentsCategory({ projectId, users }: { projectId: stri
   const [downloading, setDownloading] = useState(false);
   const query = useQuery({
     queryKey: [...projectDocumentsQueryKey(projectId), includeArchived],
-    queryFn: () => listProjectDocuments(projectId, includeArchived)
+    queryFn: () => listProjectDocuments(projectId, includeArchived),
+    refetchInterval: query => commercialProposalDocumentsRefetchInterval(query.state.data?.commercialProposalSync)
   });
 
   const refresh = async () => {
@@ -154,6 +156,7 @@ export function ProjectDocumentsCategory({ projectId, users }: { projectId: stri
   const requirements = query.data?.requirements;
   const blockerCount = requirements ? Object.values(requirements).reduce((sum, item) => sum + item.blockers.length, 0) : 0;
   const ready = Boolean(query.data && query.data.documents.length > 0 && blockerCount === 0);
+  const proposalMessage = commercialProposalSyncMessage(query.data?.commercialProposalSync);
   const download = async (url: string, name: string) => {
     setDownloading(true);
     try { downloadBlob(await fetchProjectDocumentFile(url), name); } catch (error) { toast((error as Error).message, 'error'); } finally { setDownloading(false); }
@@ -165,8 +168,9 @@ export function ProjectDocumentsCategory({ projectId, users }: { projectId: stri
         <label><input type="checkbox" checked={includeArchived} onChange={event => setIncludeArchived(event.target.checked)} /> Mostrar arquivados</label>
         {query.data.allowedTypes.length && !query.data.projectReadOnly ? <Button type="button" variant="secondary" onClick={() => setFormDocument('new')} data-project-document-add>Adicionar documento</Button> : null}
       </div>
+      {proposalMessage ? <p className="project-workflow-source-detail" role="status">{proposalMessage}</p> : null}
       {blockerCount ? <div className="project-document-requirement-blockers" data-project-document-blockers><strong>Documentos que bloqueiam o fluxo</strong>{(['HANDOVER', 'MOBILIZATION', 'CLOSEOUT'] as const).map(stage => requirements![stage].blockers.length ? <div key={stage}><span>{requirementLabels[stage]}</span><ul>{requirements![stage].blockers.map(item => <li key={item.documentId}>{item.reason}</li>)}</ul></div> : null)}</div> : null}
-      {query.data.documents.length ? <div className="project-document-list">{query.data.documents.map(document => <DocumentCard document={document} busy={busy} onEdit={() => setFormDocument(document)} onVersion={() => setVersionDocument(document)} onAcceptance={() => setAcceptanceDocument(document)} onSignature={() => signatureMutation.mutate(document)} onArchive={() => archiveMutation.mutate({ document, restore: false })} onRestore={() => archiveMutation.mutate({ document, restore: true })} onDownload={download} key={document.id} />)}</div> : <p className="placeholder-copy">Nenhum documento cadastrado. Adicione o primeiro arquivo ou deixe o projeto sem exigências documentais.</p>}
+      {query.data.documents.length ? <div className="project-document-list">{query.data.documents.map(document => <DocumentCard document={document} busy={busy} onEdit={() => setFormDocument(document)} onVersion={() => setVersionDocument(document)} onAcceptance={() => setAcceptanceDocument(document)} onSignature={() => signatureMutation.mutate(document)} onArchive={() => archiveMutation.mutate({ document, restore: false })} onRestore={() => archiveMutation.mutate({ document, restore: true })} onDownload={download} key={document.id} />)}</div> : <p className="placeholder-copy">Nenhum documento cadastrado.{proposalMessage ? '' : ' Adicione o primeiro arquivo ou deixe o projeto sem exigências documentais.'}</p>}
       {query.data.operationalDocuments.length ? <section className="project-operational-documents"><header><div><h5>RDOs e relatórios técnicos</h5><p>Consulta integrada aos registros operacionais, sem criar cópias no catálogo.</p></div></header><div>{query.data.operationalDocuments.map(item => <article key={item.id}><div><strong>{item.title}</strong><span>{item.kind === 'RDO' ? 'RDO' : 'Relatório técnico'} · {item.issuedAt ? displayDateOnly(item.issuedAt) : 'sem data'} · {item.status}</span></div><div><a className="mini-btn project-document-link-button" href={item.sourceRoute}>Abrir origem</a><Button type="button" variant="mini" disabled={busy} onClick={() => void download(item.downloadUrl, `${item.title}.pdf`)}>Baixar PDF</Button></div></article>)}</div></section> : null}
       {query.data.projectReadOnly ? <p className="project-document-read-only">Projeto encerrado: documentos disponíveis somente para consulta.</p> : null}
       {formDocument ? <ProjectDocumentForm document={formDocument === 'new' ? null : formDocument} allowedTypes={query.data.allowedTypes} users={users} saving={createMutation.isPending || updateMutation.isPending} onClose={() => setFormDocument(null)} onCreate={input => createMutation.mutate(input)} onUpdate={(id, input) => updateMutation.mutate({ id, input })} /> : null}
