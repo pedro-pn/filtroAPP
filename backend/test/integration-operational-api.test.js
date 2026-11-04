@@ -37,7 +37,7 @@ function matches(row, where) {
 
 function database(resource, rows) {
   const calls = [];
-  return { calls, [resource.delegate]: { async findMany(args) {
+  return { calls, crmProjectMapping: { async findMany() { return []; } }, [resource.delegate]: { async findMany(args) {
     calls.push(args);
     return rows.filter(row => matches(row, args.where)).sort((a, b) => a.updatedAt - b.updatedAt || a.id.localeCompare(b.id)).slice(0, args.take);
   } } };

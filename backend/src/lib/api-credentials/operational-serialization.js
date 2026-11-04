@@ -1,5 +1,5 @@
 import { enrichRdoServices, projectRdoReport, projectRdoService } from './rdo-projection.js';
-import { projectOperationalProject, projectResponsible } from './project-projection.js';
+import { enrichProjectPrismaMappings, projectOperationalProject, projectResponsible } from './project-projection.js';
 import { enrichEfetivoProjectStatuses } from './efetivo-project-status.js';
 
 import { projectMeasurement, projectRomaneio, projectUnloading, enrichProjectPending } from './delivery-b-projection.js';
@@ -10,7 +10,7 @@ const projections = {
   'operational.ProjectPending.list': { enrichRows: enrichProjectPending },
   Romaneio: { serialize: projectRomaneio },
   LogisticsUnloading: { serialize: projectUnloading },
-  'operational.Project.list': { serialize: projectOperationalProject },
+  'operational.Project.list': { serialize: projectOperationalProject, enrichRows: enrichProjectPrismaMappings },
   'operational.ProjectResponsible.list': { serialize: projectResponsible },
   'efetivo.projects.status.list': { serialize: row => row.summary || {}, enrichRows: enrichEfetivoProjectStatuses },
   Report: { serialize: projectRdoReport },
