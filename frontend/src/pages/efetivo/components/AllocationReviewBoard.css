@@ -138,11 +138,15 @@
 
 .allocation-review-table {
   width: 100%;
-  min-width: 1100px;
   border-collapse: separate;
   border-spacing: 0;
   table-layout: fixed;
 }
+
+/* `.efetivo-page *` zera min-width no módulo; o prefixo garante a largura mínima da grade. */
+.allocation-review .allocation-review-table { min-width: 1100px; }
+.allocation-review .allocation-review-month-table { min-width: 0; }
+.allocation-review .allocation-review-month__label { min-width: 150px; }
 
 .allocation-review-table__col-who { width: 170px; }
 .allocation-review-table__col-end { width: 150px; }
@@ -450,7 +454,7 @@ td.allocation-review-table__end > * {
 /* Painel do dia */
 .allocation-review-panel__subtitle { margin: 0 0 var(--space-3); color: var(--muted); font-size: var(--text-sm); }
 .allocation-review-panel__section { display: grid; gap: var(--space-2); margin: var(--space-3) 0; }
-.allocation-review-panel__section h3,
+.allocation-review-panel__section h2,
 .allocation-review-options legend,
 .allocation-review-repeat legend {
   margin: 0 0 var(--space-2);
@@ -532,7 +536,7 @@ td.allocation-review-table__end > * {
 .allocation-review-view-toggle { flex: 0 0 auto; }
 
 /* Visão do mês */
-.allocation-review-month__label { min-width: 150px; text-align: center; }
+.allocation-review-month__label { text-align: center; }
 .allocation-review-month-table td.is-rest { background: var(--canvas); }
 
 .allocation-review-weeks {

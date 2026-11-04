@@ -232,7 +232,7 @@ export function AllocationReviewDayPanel({ open, row, day, weekClosed, projects,
       {weekClosed ? <Alert tone="info">A semana está fechada. Só um administrador pode reabrir.</Alert> : null}
 
       <section className="allocation-review-panel__section" aria-labelledby="allocation-review-sources-title">
-        <h3 id="allocation-review-sources-title">O que o app encontrou</h3>
+        <h2 id="allocation-review-sources-title">O que o app encontrou</h2>
         <SourceLine title="Ponto Mais" state={ponto.state}>
           {ponto.normalHours + ponto.he70Hours + ponto.he100Hours > 0 || ponto.tags.length
             ? <>{formatHours(ponto.normalHours)} normais{ponto.he70Hours ? ` · HE70 ${formatHours(ponto.he70Hours)}` : ''}{ponto.he100Hours ? ` · HE100 ${formatHours(ponto.he100Hours)}` : ''} · {ponto.tags.length ? `etiqueta ${ponto.tags.map(tag => `“${tag}”`).join(', ')}` : 'sem etiqueta'}</>
