@@ -92,3 +92,25 @@ test('malformed and oversized CRM JSON keep the integration error envelope', () 
     assert.equal(JSON.stringify(res.payload).includes('private parser detail'), false);
   }
 });
+
+test('database timeouts retain the 504 integration envelope without leaking driver details', () => {
+  for (const error of [
+    { code: 'P2024' }, { code: 'P1002' }, { code: 'P1008' }, { code: '57014', message: 'canceling statement due to statement timeout' },
+    { code: '55P03', message: 'canceling statement due to lock timeout' },
+    { code: 'P2010', meta: { code: '57014' } },
+    { name: 'DriverAdapterError', cause: { kind: 'postgres', code: '57014' } },
+    { meta: { driverAdapterError: { cause: { kind: 'SocketTimeout' } } } },
+    new Error('timeout exceeded when trying to connect'),
+    new Error('Connection terminated due to connection timeout'),
+    new Error('Query read timeout')
+  ]) {
+    const res = responseDouble();
+    integrationApiErrorHandler(error, request({ requestId: 'timeout-request-123' }), res, () => {});
+    assert.equal(res.statusCode, 504);
+    assert.deepEqual(res.payload, { code: 'REQUEST_TIMEOUT', message: 'Não foi possível concluir a operação.', requestId: 'timeout-request-123' });
+  }
+  const res = responseDouble();
+  integrationApiErrorHandler(new Error('Unrelated database failure'), request({ requestId: 'failure-request-123' }), res, () => {});
+  assert.equal(res.statusCode, 500);
+  assert.equal(res.payload.code, 'INTERNAL_ERROR');
+});

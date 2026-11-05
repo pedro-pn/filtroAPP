@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { projectChannelWhere } from '../projects/distribution.js';
 
 import { computeProgressDetailsForProjects } from '../acompanhamento/avanco.js';
-import { getProjectWorkflow } from '../efetivo/project-workflow/service.js';
+import { getProjectWorkflowStatuses } from '../efetivo/project-workflow/service.js';
 import { IntegrationApiError } from '../../middleware/api-request-context.js';
 
 const paramsSchema = z.object({ id: z.string().trim().min(1).max(100) }).strict();
@@ -52,24 +52,31 @@ export async function getEfetivoProjectStatus(client, id, context) {
     select: { id: true }
   });
   if (!record) throw new IntegrationApiError(404, 'NOT_FOUND', 'Projeto não encontrado.');
-  const [detail, progressById] = await Promise.all([
-    getProjectWorkflow(id, {}, { database: client }),
+  const [details, progressById] = await Promise.all([
+    getProjectWorkflowStatuses([id], { database: client }),
     computeProgressDetailsForProjects([id], { database: client })
   ]);
+  const detail = details.get(id);
+  if (!detail) throw new IntegrationApiError(404, 'NOT_FOUND', 'Projeto não encontrado.');
   return projectEfetivoStatus(detail, progressById.get(id)?.progress);
 }
 
 export async function enrichEfetivoProjectStatuses(client, rows) {
   if (!rows.length) return [];
+  const ids = rows.map(row => row.id);
   const [details, progressById] = await Promise.all([
-    Promise.all(rows.map(row => getProjectWorkflow(row.id, {}, { database: client, includeInactive: true }))),
-    computeProgressDetailsForProjects(rows.map(row => row.id), { database: client })
+    getProjectWorkflowStatuses(ids, { database: client, includeInactive: true }),
+    computeProgressDetailsForProjects(ids, { database: client })
   ]);
-  return details.map((detail, index) => ({ ...rows[index], summary: {
-    ...projectEfetivoStatus(detail, progressById.get(detail.project.id)?.progress),
-    commercialExpectedMobilizationDate: detail.workflow?.commercialExpectedMobilizationDate ?? null,
-    commercialExpectedStartDate: detail.workflow?.commercialExpectedStartDate ?? null,
-    commercialExpectedDurationDays: detail.workflow?.commercialExpectedDurationDays ?? null,
-    actualMobilizationDate: detail.workflow?.actualMobilizationDate ?? null
-  } }));
+  return rows.map(row => {
+    const detail = details.get(row.id);
+    if (!detail) throw new IntegrationApiError(404, 'NOT_FOUND', 'Projeto não encontrado.');
+    return { ...row, summary: {
+      ...projectEfetivoStatus(detail, progressById.get(detail.project.id)?.progress),
+      commercialExpectedMobilizationDate: detail.workflow?.commercialExpectedMobilizationDate ?? null,
+      commercialExpectedStartDate: detail.workflow?.commercialExpectedStartDate ?? null,
+      commercialExpectedDurationDays: detail.workflow?.commercialExpectedDurationDays ?? null,
+      actualMobilizationDate: detail.workflow?.actualMobilizationDate ?? null
+    } };
+  });
 }

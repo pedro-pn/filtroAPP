@@ -32,6 +32,26 @@ export class IntegrationApiError extends Error {
   }
 }
 
+export function normalizeIntegrationApiError(error) {
+  if (error instanceof IntegrationApiError) return error;
+  const pending = [error];
+  const seen = new Set();
+  while (pending.length && seen.size < 20) {
+    const current = pending.shift();
+    if (!current || typeof current !== 'object' || seen.has(current)) continue;
+    seen.add(current);
+    // Prisma pode envolver o SQLSTATE do PostgreSQL no erro do driver adapter.
+    // O pg também lança erros de espera pelo pool sem um código próprio.
+    if (['P1002', 'P1008', 'P2024', '57014', 'ETIMEDOUT'].includes(String(current.code))
+      || current.kind === 'SocketTimeout'
+      || /timeout exceeded when trying to connect|connection terminated due to connection timeout|query read timeout|canceling statement due to lock timeout/i.test(current.message || '')) {
+      return new IntegrationApiError(504, 'REQUEST_TIMEOUT', 'A consulta excedeu o tempo limite.');
+    }
+    pending.push(current.cause, current.meta, current.driverAdapterError, current.originalError);
+  }
+  return error;
+}
+
 export function apiRequestContext({ maxQueryKeys = 20, maxQueryLength = 8192, timeoutMs = 15_000 } = {}) {
   return function integrationRequestContext(req, res, next) {
     applySimulationPreference(req, res);
@@ -117,6 +137,7 @@ export function sendIntegrationError(res, req, statusCode, code, message, extra 
 
 export function integrationApiErrorHandler(error, req, res, _next) {
   if (res.headersSent) return;
+  error = normalizeIntegrationApiError(error);
   if (error?.type === 'entity.parse.failed') {
     return sendIntegrationError(res, req, 400, 'VALIDATION_ERROR', 'Corpo JSON inválido.');
   }

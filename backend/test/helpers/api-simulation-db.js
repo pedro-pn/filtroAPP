@@ -9,7 +9,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 
 // Schema completo + Prisma real + gatilhos reais, somente em PostgreSQL WASM
 // descartável. Nenhum acesso ao DATABASE_URL da aplicação.
-export async function apiSimulationDatabase() {
+export async function apiSimulationDatabase({ onQuery } = {}) {
   const db = new PGlite();
   const schema = execFileSync(process.execPath, ['node_modules/prisma/build/index.js', 'migrate', 'diff',
     '--from-empty', '--to-schema', 'prisma/schema.prisma', '--script'], {
@@ -30,6 +30,7 @@ export async function apiSimulationDatabase() {
   class WasmPool extends pg.Pool {
     async query(query, values) {
       const config = typeof query === 'string' ? { text: query, values } : query;
+      onQuery?.(config.text, config.values || []);
       const parsers = config.types ? Object.fromEntries(Object.values(pg.types.builtins)
         .map(oid => [oid, config.types.getTypeParser(oid, 'text')])) : undefined;
       const result = await db.query(config.text, config.values || [], { rowMode: config.rowMode, parsers });

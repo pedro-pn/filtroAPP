@@ -200,6 +200,12 @@ test('B6: HTTP, paridade com painel, privacidade e gatilhos transacionais em Pos
     const row = (await request('/acompanhamento/projetos/custos?projectCode=00501')).body.items[0];
     assert.equal(row.custoRealizado.total, new Prisma.Decimal(expected.total).toFixed(2));
     assert.equal(row.consumoDoCusto, expected.percent); assert.equal(row.avancoFisico, detail.avancoPct);
+    const status = (await request('/efetivo/projetos/status?projectCode=00501')).body.items[0];
+    const individual = (await request(`/efetivo/projetos/${p1.id}/status`)).body;
+    assert.equal(status.progressPercent, row.avancoFisico);
+    assert.equal(status.progressMethod, 'MANUAL');
+    assert.equal(individual.progressPercent, status.progressPercent);
+    assert.equal(individual.progressMethod, status.progressMethod);
     assert.equal(row.orcamento.custoPrevisto, new Prisma.Decimal(detail.consumo.previsto).toFixed(2));
     assert.equal(row.orcamento.precoVenda, new Prisma.Decimal(detail.faturamento.previsto).toFixed(2));
     assert.equal(row.custoRealizado.porCategoria.find(c => c.codigo === 'COMPRAS_OMIE').valor, '100.00');
@@ -244,6 +250,12 @@ test('B6: HTTP, paridade com painel, privacidade e gatilhos transacionais em Pos
     const detail = await getProjectDetail(p2.id);
     assert.equal(detail.avancoPct, row.avancoFim);
     assert.equal((await request('/acompanhamento/projetos/custos?projectCode=00502')).body.items[0].avancoFisico, detail.avancoPct);
+    const status = (await request('/efetivo/projetos/status?projectCode=00502')).body.items[0];
+    const individual = (await request(`/efetivo/projetos/${p2.id}/status`)).body;
+    assert.equal(status.progressPercent, detail.avancoPct);
+    assert.equal(status.progressMethod, 'RDO');
+    assert.equal(individual.progressPercent, status.progressPercent);
+    assert.equal(individual.progressMethod, status.progressMethod);
     const context = { scopes: new Set(['acompanhamento.progresso.read']), credentialId: full.credential.id,
       projectAccessMode: 'SELECTED', projectIds: new Set([p1.id,p2.id]), projectCodes: new Set([p1.code,p2.code]), cursorKey: key,
       snapshotAt: new Date('2026-11-02T01:00:00Z') };
