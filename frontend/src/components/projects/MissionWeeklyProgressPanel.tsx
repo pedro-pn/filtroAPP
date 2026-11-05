@@ -27,12 +27,13 @@ function comparisonValue(row: WeeklyProgressComparison, key: 'plannedValue' | 'a
     <small key={`${goal.kind ?? ''}-${goal.serviceType ?? ''}`}>{weeklyGoalLabel(goal)}: {weeklyValueLabel(goal[key], goal.metric, key === 'differenceValue')}</small>) : null}{showScenario && row.scenarioName ? <small>{row.scenarioName}</small> : null}</div>;
 }
 
-export function MissionWeeklyProgressPanel({ owner, progressHistory, canManage = false, workflowAppearance = false, compact = false }: {
+export function MissionWeeklyProgressPanel({ owner, progressHistory, canManage = false, workflowAppearance = false, compact = false, contextLabel }: {
   owner: WeeklyTargetOwner;
   progressHistory?: ProgressHistoryPoint[];
   canManage?: boolean;
   workflowAppearance?: boolean;
   compact?: boolean;
+  contextLabel?: string;
 }) {
   const queryClient = useQueryClient();
   const [request, setRequest] = useState<WeeklyTargetRequest | null>(null);
@@ -74,10 +75,10 @@ export function MissionWeeklyProgressPanel({ owner, progressHistory, canManage =
   });
   const busy = remove.isPending;
 
-  return <section className="fv-ds mission-weekly-progress" aria-label="Metas semanais de avanço" onClick={event => event.stopPropagation()}>
+  return <section className="fv-ds mission-weekly-progress" aria-label={contextLabel ? `${contextLabel} · Metas semanais de avanço` : 'Metas semanais de avanço'} onClick={event => event.stopPropagation()}>
     <ProjectDetailSection collapsible={compact} label={title} header={<>
       <header className="mission-weekly-progress-head">
-        <strong>{title}</strong>
+        <strong>{contextLabel ? `${contextLabel} · ` : ''}{title}</strong>
         {compact && targetsQuery.isSuccess ? <span className="mission-weekly-status status-on_target" data-acp-weekly-wins>{achieved} de {closedWithTarget.length} semanas com meta atingida</span> : null}
         {canManage ? <Button workflowAppearance={workflowAppearance} workflowVariant="mini" size="sm" variant="secondary" disabled={targetsQuery.isPending || targetsQuery.isError || busy} onClick={() => editWeek(current)}>Definir meta</Button> : null}
       </header>

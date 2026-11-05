@@ -41,8 +41,7 @@ import { ProjectStandbyHistoryDialog } from './ProjectStandbyHistoryDialog';
 import { ProjectTrackingDivisionsPanel } from './ProjectTrackingDivisionsPanel';
 import { ProjectStandbyHistoryNovelty } from './ProjectStandbyHistoryNovelty';
 import { ProjectWeeklyTargetNovelty } from './ProjectWeeklyTargetNovelty';
-import { MissionWeeklyProgressPanel } from './MissionWeeklyProgressPanel';
-import { WeeklyTargetSpotlight, WeeklyTargetSummaryLine } from './WeeklyTargetSpotlight';
+import { ProjectWeeklyTargets } from './ProjectWeeklyTargets';
 import type { WeeklyTargetOwner } from '../../api/weeklyProgressTargets';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
 import { Card, Button, Badge, Alert, Field, Input, Select, Textarea, Skeleton, EmptyState } from '../ui/ds';
@@ -495,7 +494,8 @@ export function ProjectDetailDashboard({
       </Alert> : null}
 
       <ProjectMeetingSummary key={groupId || projectId} meeting={meeting} scopeLabel={progressFilterLabel}
-        weekly={weeklyTargetOwner && !data.rentalTracking ? <WeeklyTargetSummaryLine owner={weeklyTargetOwner} progressHistory={weeklyProgressHistory} /> : null}
+        weekly={weeklyTargetOwner && !data.rentalTracking ? <ProjectWeeklyTargets view="summary" owner={weeklyTargetOwner}
+          members={data.group?.members} progressHistory={weeklyProgressHistory} /> : null}
         details={{
           cost: <>
             <ProjectFinancialSnapshot data={data} status={meeting.cost.status} onViewAdditionalContribution={proposal => {
@@ -628,7 +628,7 @@ export function ProjectDetailDashboard({
               fallbackProgress={isGroup ? data.progressBreakdown : undefined}
               fallbackServices={!activeScopeKey && !activeEquipmentKey && projectProgress?.hasScope ? projectProgress.services : undefined}
             />
-            {weeklyTargetOwner ? <WeeklyTargetSpotlight owner={weeklyTargetOwner} progressHistory={weeklyProgressHistory}
+            {weeklyTargetOwner ? <ProjectWeeklyTargets view="spotlight" owner={weeklyTargetOwner} members={data.group?.members} progressHistory={weeklyProgressHistory}
               canManage={canManageProjectNotes} onOpenHistory={() => setWeeklyHistoryOpen(true)} /> : null}
           </>,
           rdo: <ProjectReportsDetail data={data} reportsAction={(isGroup ? Boolean(data.group?.members.some(member => member.visible !== false)) : Boolean(projectId)) ? (
@@ -940,7 +940,8 @@ export function ProjectDetailDashboard({
         summary={isGroup ? { plannedScope: data.plannedScope, requiredWeeklyProgress: shownRequiredWeeklyProgress } : undefined} />
       {weeklyTargetOwner ? <Modal open={weeklyHistoryOpen} onClose={() => setWeeklyHistoryOpen(false)} appearance="design-system" size="full"
         backdropClassName="weekly-target-history-backdrop" title="Metas semanais · histórico">
-        <MissionWeeklyProgressPanel key={groupId || projectId} owner={weeklyTargetOwner} progressHistory={weeklyProgressHistory} canManage={canManageProjectNotes} />
+        <ProjectWeeklyTargets key={groupId || projectId} view="history" owner={weeklyTargetOwner} members={data.group?.members}
+          progressHistory={weeklyProgressHistory} canManage={canManageProjectNotes} />
       </Modal> : null}
       <Modal open={scheduleProject !== null} onClose={closeSchedule} appearance="design-system" size="lg"
         panelClassName="acp-schedule-modal" title={`Cronograma — Missão ${scheduleProject?.code ?? h.code}`}

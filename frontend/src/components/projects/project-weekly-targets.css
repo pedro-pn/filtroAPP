@@ -1,0 +1,5 @@
+.project-weekly-targets { display: grid; gap: var(--space-4); min-width: 0; }
+.project-weekly-targets > div:empty { display: none; }
+.project-weekly-targets--summary { gap: var(--space-2); }
+.project-weekly-targets__summary { display: grid; gap: var(--space-1); min-width: 0; }
+.project-weekly-targets__label { font-size: var(--text-xs); overflow-wrap: anywhere; }

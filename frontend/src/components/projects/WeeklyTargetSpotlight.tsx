@@ -186,8 +186,8 @@ export function WeeklyTargetSummaryLine({ owner, progressHistory }: { owner: Wee
  * Meta semanal completa (no detalhe do avanço e no Efetivo). Abre na última semana
  * fechada (a da reunião de sexta) e alterna para a semana em andamento.
  */
-export function WeeklyTargetSpotlight({ owner, progressHistory, canManage = false, onOpenHistory }: {
-  owner: WeeklyTargetOwner; progressHistory?: ProgressHistoryPoint[]; canManage?: boolean; onOpenHistory: () => void;
+export function WeeklyTargetSpotlight({ owner, progressHistory, canManage = false, onOpenHistory, contextLabel }: {
+  owner: WeeklyTargetOwner; progressHistory?: ProgressHistoryPoint[]; canManage?: boolean; onOpenHistory: () => void; contextLabel?: string;
 }) {
   const [view, setView] = useState<'closed' | 'current'>('closed');
   const [request, setRequest] = useState<WeeklyTargetRequest | null>(null);
@@ -199,7 +199,7 @@ export function WeeklyTargetSpotlight({ owner, progressHistory, canManage = fals
   const dialog = canManage ? <WeeklyTargetDialog owner={owner} request={request} targets={targets} workdays={workdays} onClose={() => setRequest(null)} /> : null;
   const head = (subtitle: React.ReactNode, actions?: React.ReactNode, status?: React.ReactNode) => <header className="wts-head">
     <span className="wts-icon" aria-hidden="true"><AppIcon icon={Target} size="sm" /></span>
-    <div><h2>Meta da semana{status}</h2><p>{subtitle}</p></div>
+    <div><h2>{contextLabel ? `${contextLabel} · ` : ''}Meta da semana{status}</h2><p>{subtitle}</p></div>
     {actions ? <div className="wts-actions">{actions}</div> : null}
   </header>;
 
