@@ -6,7 +6,7 @@ import { createPrismaQuotaStore, reserveCredentialQuota, settleCredentialQuota }
 import { isIpAllowed, resolveEffectiveClientIp } from '../lib/api-credentials/restrictions.js';
 import { parseApiToken, verifyApiToken } from '../lib/api-credentials/token.js';
 import prisma from '../lib/prisma.js';
-import { sendIntegrationError } from './api-request-context.js';
+import { IntegrationApiError, normalizeIntegrationApiError, sendIntegrationError } from './api-request-context.js';
 import { hasIntegrationScopes } from '../../../shared/schemas/integration-api.js';
 import { applySimulationPreference, shouldSimulateWrite } from '../lib/api-credentials/write-mode.js';
 import { executeApiWrite } from '../lib/api-credentials/write-simulation.js';
@@ -41,7 +41,7 @@ function observeUnmeteredRequest(req, res, prismaClient, credential) {
   req.apiFailureObserver = true;
   res.once?.('finish', () => {
     const operation = req.apiOperation || findApiOperationForRequest(req.method, req.originalUrl || req.url);
-    if (req.apiRequestLogged || !operation || !credential) return;
+    if (req.apiRequestLogged || req.apiMeteringStarted || !operation || !credential) return;
     req.apiRequestLogged = true;
     recordApiRequest(prismaClient, {
       credentialId: credential.id, requestId: req.requestId, operationId: operation.operationId,
@@ -160,6 +160,7 @@ export async function runMeteredApiOperation(req, {
     rowsPerDay: credential.rowsPerDay
   };
   const store = createPrismaQuotaStore(prismaClient);
+  req.apiMeteringStarted = true;
   let reservation = null;
   let settled = false;
   const startedAt = process.hrtime.bigint();
@@ -173,6 +174,9 @@ export async function runMeteredApiOperation(req, {
       requestedRows
     });
     const result = await executeApiWrite(prismaClient, { operation, simulated, requestId: req.requestId, execute });
+    if (req.apiOutcomeCode === 'REQUEST_TIMEOUT') {
+      throw new IntegrationApiError(504, 'REQUEST_TIMEOUT', 'A consulta excedeu o tempo limite.');
+    }
     statusCode = result.statusCode || 200;
     outcomeCode = result.outcomeCode || 'OK';
     const rows = Math.max(0, Number(result.rows) || 0);
@@ -199,6 +203,9 @@ export async function runMeteredApiOperation(req, {
     });
     return result;
   } catch (error) {
+    error = req.apiOutcomeCode === 'REQUEST_TIMEOUT'
+      ? new IntegrationApiError(504, 'REQUEST_TIMEOUT', 'A consulta excedeu o tempo limite.')
+      : normalizeIntegrationApiError(error);
     statusCode = error?.statusCode || 500;
     outcomeCode = error?.code || 'INTERNAL_ERROR';
     if (reservation && !settled) {

@@ -202,6 +202,27 @@ const WORKFLOW_INCLUDE = {
   measurement: { include: MEASUREMENT_INCLUDE }
 };
 
+// O resumo da integração precisa dos gates, mas não dos catálogos de disponibilidade,
+// eventos, autores ou pós-jobs de outros projetos carregados pela tela de detalhe.
+const STATUS_WORKFLOW_INCLUDE = {
+  checklists: { select: { key: true, status: true } },
+  teamMemberChecks: { select: { collaboratorId: true, key: true, status: true } },
+  preparationItemChecks: { select: { itemType: true, itemId: true, key: true, status: true } },
+  criticalAnswers: { select: { key: true, answer: true } },
+  clientReleases: { select: { key: true, attendanceDate: true, attendanceConfirmedAt: true, requested: true, requestedAt: true, completed: true, completedAt: true } },
+  commercialFacts: { select: { key: true, status: true, occurredOn: true, note: true, reference: true, evidenceDocumentId: true } },
+  documentationCategories: {
+    select: { type: true, required: true, requirements: { select: { id: true, name: true, status: true, requestedAt: true, confirmedAt: true, archivedAt: true } } }
+  },
+  equipmentCategoryPlans: {
+    select: { categoryId: true, equipmentIds: true,
+      category: { select: { id: true, name: true, isActive: true, equipment: { where: { isActive: true }, select: { id: true } } } } }
+  },
+  issues: { select: { id: true, sourceQuestion: true, status: true, criticality: true } },
+  postJob: { select: { meetingDate: true } },
+  measurement: { select: { approvedAt: true, approvedAmount: true } }
+};
+
 const POST_JOB_FIELDS = [
   'fieldLeaderFeedback',
   'teamFeedback',
@@ -1098,6 +1119,44 @@ export async function listProjectWorkflowLeaders(dependencies = {}) {
     select: { id: true, name: true, email: true },
     orderBy: { name: 'asc' }
   });
+}
+
+export async function getProjectWorkflowStatuses(projectIds, dependencies = {}) {
+  const ids = [...new Set(projectIds)];
+  if (!ids.length) return new Map();
+  const database = await resolvePlanningDatabase(dependencies.database);
+  const where = eligibleProjectWhere({ id: { in: ids } });
+  if (dependencies.includeInactive === true) delete where.isActive;
+  const projects = await database.project.findMany({
+    where,
+    select: {
+      id: true, code: true, demobilizationDate: true,
+      efetivoMissionPlans: OPERATIONAL_MISSION_QUERY,
+      workflow: { include: STATUS_WORKFLOW_INCLUDE },
+      documents: { where: { archivedAt: null }, select: PROJECT_GATE_DOCUMENT_SELECT }
+    }
+  });
+  const now = dependencies.now || new Date();
+  return new Map(projects.map(project => {
+    const workflow = project.workflow;
+    const needsResourcePlanning = ['MOBILIZATION_PLANNING', 'PREPARATION', 'MOBILIZATION'].includes(workflow?.stage);
+    const summaryWorkflow = workflow ? {
+      ...workflow,
+      equipmentCategoryPlans: (workflow.equipmentCategoryPlans || []).map(plan => ({
+        ...plan,
+        // Seleção legada sem IDs significa todos os equipamentos ativos da categoria
+        // durante o planejamento. Os gates usam seus checks, não a disponibilidade.
+        category: needsResourcePlanning && plan.category?.isActive
+          ? plan.category
+          : { id: plan.categoryId, name: plan.category?.name }
+      }))
+    } : null;
+    return [project.id, {
+      project: { id: project.id, code: project.code, demobilizationDate: dateKey(project.demobilizationDate) },
+      workflow: decorateWorkflow(summaryWorkflow, {}, now, project.demobilizationDate, [], [],
+        project.documents || [], null, operationalMissionSummary(project))
+    }];
+  }));
 }
 
 export async function getProjectWorkflow(projectId, context = {}, dependencies = {}) {

@@ -9,7 +9,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 
 // Schema completo + Prisma real + gatilhos reais, somente em PostgreSQL WASM
 // descartável. Nenhum acesso ao DATABASE_URL da aplicação.
-export async function apiSimulationDatabase() {
+export async function apiSimulationDatabase({ onQuery } = {}) {
   const db = new PGlite();
   const schema = execFileSync(process.execPath, ['node_modules/prisma/build/index.js', 'migrate', 'diff',
     '--from-empty', '--to-schema', 'prisma/schema.prisma', '--script'], {
@@ -28,17 +28,34 @@ export async function apiSimulationDatabase() {
 
   // PrismaPg mantém suas conversões de tipos; somente o transporte pg usa WASM.
   class WasmPool extends pg.Pool {
+    available = Promise.resolve();
+
     async query(query, values) {
+      const connection = await this.connect();
+      try {
+        return await connection.query(query, values);
+      } finally {
+        connection.release();
+      }
+    }
+    async execute(query, values) {
       const config = typeof query === 'string' ? { text: query, values } : query;
+      onQuery?.(config.text, config.values || []);
       const parsers = config.types ? Object.fromEntries(Object.values(pg.types.builtins)
         .map(oid => [oid, config.types.getTypeParser(oid, 'text')])) : undefined;
       const result = await db.query(config.text, config.values || [], { rowMode: config.rowMode, parsers });
       return { ...result, rowCount: result.affectedRows ?? result.rows.length };
     }
     async connect() {
+      // O PGlite tem uma única sessão. Mantenha-a reservada até o release da
+      // transação, para consultas concorrentes não entrarem no mesmo BEGIN.
+      const previous = this.available;
+      let release;
+      this.available = new Promise(resolve => { release = resolve; });
+      await previous;
       const connection = new EventEmitter();
-      connection.query = this.query.bind(this);
-      connection.release = () => {};
+      connection.query = this.execute.bind(this);
+      connection.release = () => release();
       return connection;
     }
   }
