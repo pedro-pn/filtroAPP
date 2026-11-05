@@ -28,6 +28,13 @@ function sanitizeText(value, { fallback = '[REDACTED]', maxLength = 500 } = {}) 
   return SENSITIVE_TEXT.test(value) ? fallback : value.slice(0, maxLength);
 }
 
+function sanitizeRequestId(value, fallback) {
+  // UUIDs são identificadores de correlação; suas sequências numéricas não são CPF.
+  const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
+  if (typeof value === 'string' && uuid.test(value)) return value;
+  return sanitizeText(value, { fallback, maxLength: 128 });
+}
+
 function sanitizeSummary(value, allowedFields) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   return Object.fromEntries(Object.entries(value)
@@ -39,7 +46,7 @@ export function sanitizeAdminEvent(input) {
   const result = pickDefined(input, ADMIN_EVENT_FIELDS);
   if ('summary' in result) result.summary = sanitizeSummary(result.summary, EVENT_SUMMARY_FIELDS);
   if ('reason' in result) result.reason = sanitizeText(result.reason);
-  if ('requestId' in result) result.requestId = sanitizeText(result.requestId, { fallback: null, maxLength: 128 });
+  if ('requestId' in result) result.requestId = sanitizeRequestId(result.requestId, null);
   if ('actorUserAgent' in result) result.actorUserAgent = sanitizeText(result.actorUserAgent, { fallback: null, maxLength: 255 });
   if ('actorIp' in result && typeof result.actorIp === 'string') result.actorIp = result.actorIp.slice(0, 64);
   return result;
@@ -51,7 +58,7 @@ export function sanitizeRequestLog(input) {
   const operation = getApiOperation(result.operationId);
   result.pathTemplate = operation?.path || 'unknown';
   result.scopeCode = getApiScope(result.scopeCode)?.code || operation?.requiredScopes?.[0] || 'unknown';
-  if ('requestId' in result) result.requestId = sanitizeText(result.requestId, { fallback: `redacted-${randomUUID()}`, maxLength: 128 });
+  if ('requestId' in result) result.requestId = sanitizeRequestId(result.requestId, `redacted-${randomUUID()}`);
   if ('userAgent' in result) result.userAgent = sanitizeText(result.userAgent, { fallback: null, maxLength: 255 });
   if ('clientIp' in result && typeof result.clientIp === 'string') result.clientIp = result.clientIp.slice(0, 64);
   return result;
