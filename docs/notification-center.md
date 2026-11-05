@@ -57,6 +57,31 @@ substitui a rodada anterior, sem duplicar a pendência. Marcar todas como lidas
 abrange somente os avisos acessíveis até o instante da consulta, preservando
 novos eventos que cheguem durante a operação.
 
+## E-mails de assinaturas de relatórios
+
+As assinaturas em lote e as assinaturas individuais feitas em sequência são
+reunidas por projeto. O envio ocorre após **10 minutos sem novas assinaturas**;
+cada nova assinatura no grupo reinicia a espera. Mesmo uma assinatura isolada
+aguarda esse prazo. Cada destinatário recebe um resumo apenas dos relatórios
+que já receberia, respeitando suas preferências de e-mail de assinaturas.
+
+As cópias dos RDOs também são agrupadas por projeto e e-mail do assinante:
+um relatório segue como PDF; vários seguem em um único ZIP. O resumo informa
+quais relatórios concluíram todas as assinaturas e quais ainda estão pendentes.
+
+A fila persiste no banco. Depois da primeira tentativa, o grupo fica fechado
+para preservar os comprovantes de entrega de cada destinatário nas novas
+tentativas. Assinaturas posteriores abrem um novo grupo com sua própria espera.
+
+A migração `20261105120000_report_signature_email_digest` deve ser aplicada
+com `cd backend && npm run prisma:deploy`, com os workers de e-mail parados;
+depois, iniciar a API e os workers com o código atualizado. Ela também agrupa
+envios antigos que ainda não tiveram nenhuma tentativa, preservando o histórico
+e os envios já tentados. Os testes `report-email-jobs.test.js`,
+`report-email-delivery.test.js` e `report-email-postgres.integration.test.js`
+cobrem a espera, os destinatários, os anexos e a concorrência entre workers
+e novas assinaturas.
+
 ## Implantação e validação
 
 Aplicar `20261021120000_notification_center` e

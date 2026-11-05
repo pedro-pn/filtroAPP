@@ -813,6 +813,28 @@ export function buildReportSignatureReceivedEmailTemplate({
   };
 }
 
+export function buildReportSignatureDigestEmailTemplate({ projectCode, projectName, reports, appUrl }) {
+  const title = 'Assinaturas de relatórios';
+  const project = `${projectCode} - ${projectName}`;
+  const intro = `Foram registradas assinaturas em ${reports.length} relatórios do projeto ${project}.`;
+  const lines = reports.map(report => [
+    `${report.reportType} ${report.reportNumber} · ${report.reportDate}`,
+    report.completed ? 'Todas as assinaturas obrigatórias concluídas' : `${report.signedCount}/${report.requiredCount} assinaturas obrigatórias`,
+    `Signatário: ${report.signerName} (${report.signerEmail})`,
+    report.finalDocumentHash ? `Hash PDF final: ${report.finalDocumentHash}` : ''
+  ].filter(Boolean));
+  return {
+    subject: `[Filtrovali] Assinaturas em ${reports.length} relatórios - ${projectCode}`,
+    text: [intro, ...lines.map(line => line.join(' — ')), appUrl ? `Acesso: ${appUrl}` : '', privacyTextLine()].filter(Boolean).join('\n'),
+    html: wrapEmailHtml({
+      title, intro: escapeHtml(intro),
+      body: `<ul>${lines.map(line => `<li style="margin-bottom:16px">${line.map(escapeHtml).join('<br>')}</li>`).join('')}</ul>
+        ${appUrl ? `<p><a href="${escapeHtml(appUrl)}">Acompanhar relatórios no sistema</a></p>` : ''}`,
+      footer: 'Este envio foi gerado automaticamente pelo sistema Filtrovali.'
+    })
+  };
+}
+
 export function buildReportSignatureRequestEmailTemplate({
   projectCode,
   projectName,
