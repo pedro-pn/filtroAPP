@@ -355,7 +355,7 @@ export function buildProgressHistory(plannedServices = [], serviceReports = [], 
 
 // Acumula, data a data, o realizado dos serviços finalizados de relatórios-fonte e registra o
 // avanço após cada data com RDO. Devolve também o realizado final, que é o avanço atual.
-function buildProgressTimeline(plannedServices, serviceReports, options = {}) {
+function buildProgressTimeline(plannedServices, serviceReports, { includeHistory = true, ...options } = {}) {
   const servicesByDate = new Map();
   for (const service of serviceReports) {
     if (!isServiceFinalized(service)) continue;
@@ -375,6 +375,7 @@ function buildProgressTimeline(plannedServices, serviceReports, options = {}) {
     for (const service of servicesByDate.get(date) ?? []) {
       addRealizedService(realizedByType, service, service.canonical);
     }
+    if (!includeHistory) continue;
     const progress = buildProgress(plannedServices, realizedByType, options);
     points.push({
       date,
@@ -703,7 +704,8 @@ export async function computeProgressHistoryForProjects(projectIds, { daily = fa
 // Antes desta função o detalhe buscava escopo, projeto e serviços realizados separadamente para o
 // avanço atual, o histórico e os recortes. Em grupos de missões esse trabalho ainda era repetido
 // para calcular o peso de cada membro.
-export async function computeProgressDetailsForProjects(projectIds, { database = prisma, servicesByProject: preloadedServices } = {}) {
+// currentOnly mantém o cálculo oficial, sem construir históricos e recortes que o status não publica.
+export async function computeProgressDetailsForProjects(projectIds, { database = prisma, servicesByProject: preloadedServices, currentOnly = false } = {}) {
   const ids = [...new Set((projectIds ?? []).map(String).filter(Boolean))];
   const result = new Map();
   if (ids.length === 0) return result;
@@ -732,7 +734,7 @@ export async function computeProgressDetailsForProjects(projectIds, { database =
       }
     }),
     preloadedServices ?? loadReportServicesByProject(ids, { database }),
-    database.projectManualProgressHistory.findMany({
+    currentOnly ? [] : database.projectManualProgressHistory.findMany({
       where: { projectId: { in: ids } },
       select: { projectId: true, progressPct: true, recordedAt: true },
       orderBy: [{ recordedAt: 'asc' }, { createdAt: 'asc' }]
@@ -756,7 +758,7 @@ export async function computeProgressDetailsForProjects(projectIds, { database =
     if (!project) continue;
     const planned = consideredPlannedServices(plannedByProject.get(projectId) ?? [], project.proposalPercentage);
     const serviceReports = servicesByProject.get(projectId) ?? [];
-    const timeline = buildProgressTimeline(planned, serviceReports);
+    const timeline = buildProgressTimeline(planned, serviceReports, { includeHistory: !currentOnly });
     const scope = planned.length > 0
       ? buildProgress(planned, timeline.realizedByType)
       : { hasScope: false, progressPct: null, services: [] };
@@ -767,6 +769,11 @@ export async function computeProgressDetailsForProjects(projectIds, { database =
       progressPct: scope.progressPct ?? (useManual ? manual : null),
       progressMethod: scope.progressPct != null ? 'RDO' : (useManual ? 'MANUAL' : null)
     };
+    if (currentOnly) {
+      result.set(projectId, { project, plannedServices: planned, progress,
+        progressHistory: [], dailyProgressHistory: [], progressSlices: null });
+      continue;
+    }
     const progressHistory = hasMeasurableScope(planned)
       ? weeklyHistory(timeline.points, project.startDate)
       : buildProgressHistory(planned, serviceReports, {

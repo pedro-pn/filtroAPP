@@ -18,7 +18,7 @@ import { PROJECT_WORKFLOW_COMMERCIAL_FACTS, PROJECT_WORKFLOW_CRITICAL_QUESTIONS,
 const key = 'synthetic-status-batch-key-with-at-least-32-characters';
 const envConfig = { apiTokenGlobalMaxPageSize: 500, apiTokenHashKeys: { 1: key }, apiTokenActiveKeyVersion: 1 };
 const statusPath = '/efetivo/projetos/status';
-const progressTables = ['ProjectPlannedService', 'ReportService', 'HistoricalServiceReport', 'ProjectRealizedCorrection', 'ProjectManualProgressHistory'];
+const progressTables = ['ProjectPlannedService', 'ReportService', 'HistoricalServiceReport', 'ProjectRealizedCorrection'];
 
 test('status: limit=100 serves 90 projects under 5s with constant SQL queries and parity', { timeout: 120_000 }, async t => {
   const queries = [];
@@ -123,6 +123,8 @@ test('status: limit=100 serves 90 projects under 5s with constant SQL queries an
       assert.equal(sourceQueries.length, 1, `${table}: one source query per page`);
       assert.match(sourceQueries[0], /\bIN\s*\(/, `${table}: projects loaded together`);
     }
+    assert.equal(largeQueries.some(sql => sql.includes('FROM "public"."ProjectManualProgressHistory"')), false,
+      'status does not load unused manual history');
     const log = await prisma.apiRequestLog.findFirst({ where: { requestId: large.requestId } });
     assert.equal(log.statusCode, 200);
     assert.equal(log.responseRows, 90);
@@ -211,19 +213,21 @@ test('status: limit=100 serves 90 projects under 5s with constant SQL queries an
   await t.test('timeout de fonte ou do pool responde 504 e registra REQUEST_TIMEOUT', async () => {
     const original = prisma.reportService.findMany;
     try {
-      for (const error of [
+      for (const [index, error] of [
         Object.assign(new Error('PRIVATE SQL'), { code: '57014' }),
         Object.assign(new Error('PRIVATE SQL'), { code: 'P2024' }),
         Object.assign(new Error('canceling statement due to lock timeout'), { code: '55P03' }),
         new Error('timeout exceeded when trying to connect'),
         Object.assign(new Error('PRIVATE SQL'), { meta: { driverAdapterError: { cause: { kind: 'SocketTimeout' } } } })
-      ]) {
+      ].entries()) {
         prisma.reportService.findMany = async () => { throw error; };
-        const response = await fetch(root + statusPath + '?limit=100', { headers: { authorization: 'Bearer ' + full.token } });
+        const requestId = `aaaaaaaa-aaaa-4aaa-8aaa-1234567890${index}a`;
+        const response = await fetch(root + statusPath + '?limit=100', { headers: { authorization: 'Bearer ' + full.token, 'x-request-id': requestId } });
         const body = await response.json();
         assert.equal(response.status, 504);
         assert.equal(body.code, 'REQUEST_TIMEOUT');
         assert.equal(body.requestId, response.headers.get('x-request-id'));
+        assert.equal(body.requestId, requestId);
         assert.doesNotMatch(JSON.stringify(body), /PRIVATE|57014|P2024|SocketTimeout/);
         const log = await prisma.apiRequestLog.findFirst({ where: { requestId: body.requestId } });
         assert.ok(log, 'a requisição com timeout deve ter auditoria persistida');

@@ -258,6 +258,7 @@ jobs:
           test/integration-omni-phase2-postgres.test.js test/integration-omni-projects.test.js
           test/integration-omni-delivery-b.test.js test/integration-omni-management.test.js
           test/integration-omni-status-batch.test.js
+          test/acompanhamento-current-progress.test.js
           test/api-simulation-db.test.js
 
   conecta-allocation:

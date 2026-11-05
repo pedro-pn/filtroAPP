@@ -59,6 +59,15 @@ test('usage logs derive path/scope from the catalog and only retain allowlisted 
   assert.doesNotMatch(output, /fva_|Bearer|example\.com|\/tmp\//);
 });
 
+test('UUID request IDs preserve correlation even when a segment resembles a CPF', () => {
+  for (const requestId of ['aaaaaaaa-aaaa-4aaa-8aaa-12345678901a', 'aaaaaaaa-aaaa-4aaa-8aaa-a12345678901']) {
+    assert.equal(sanitizeRequestLog({ requestId }).requestId, requestId);
+    assert.equal(sanitizeAdminEvent({ requestId }).requestId, requestId);
+  }
+  assert.match(sanitizeRequestLog({ requestId: 'request-12345678901' }).requestId, /^redacted-/);
+  assert.equal(sanitizeAdminEvent({ requestId: 'request-12345678901' }).requestId, null);
+});
+
 test('integration error envelopes never echo secret-bearing messages or fields', () => {
   let payload;
   const res = {

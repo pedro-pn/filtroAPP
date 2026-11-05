@@ -61,7 +61,16 @@ e `git diff --check` aprovados. Os testes usaram `NODE_ENV=development`, uma
 `DATABASE_URL` sintética não conectável e concorrência 4; os cenários PGlite
 executaram em banco descartável.
 
-No CI, o teste de auditoria expôs falta de isolamento no transporte PGlite:
+A falha intermitente do CI também revelou que a auditoria podia confundir uma
+sequência numérica dentro de um UUID com CPF e substituir o requestId.
+UUIDs válidos agora são preservados; os demais dados sensíveis continuam
+ocultados. Há regressões unitárias e HTTP com UUIDs que reproduzem esse caso.
+A rodada adicional de auditoria, autenticação, isolamento, status e Gestão
+passou com 31 testes no Node 22.
+A suíte completa repetida com Node 22 e PostgreSQL 16 isolado terminou com
+**2.686 aprovados, 31 ignorados e nenhuma falha**.
+
+A validação adicional identificou falta de isolamento no transporte PGlite:
 o pool simulado entregava a mesma sessão para consultas e transações simultâneas.
 O helper agora reserva essa sessão até o `release`, inclusive para leituras.
 Uma regressão reproduziu a leitura de dados não confirmados antes da correção

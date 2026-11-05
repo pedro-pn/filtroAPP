@@ -89,6 +89,19 @@ test('pacote de avanço consolida dados atuais, histórico e recortes em uma rod
   }
 });
 
+test('avanço atual conserva o histórico importado sem consultar ou montar seus históricos de saída', async t => {
+  const state = fixture(t);
+  const full = (await computeProgressDetailsForProjects([state.project.id])).get(state.project.id);
+  state.queryCounts.clear();
+  const current = (await computeProgressDetailsForProjects([state.project.id], { currentOnly: true })).get(state.project.id);
+  assert.deepEqual(current.progress, full.progress);
+  assert.deepEqual(current.progressHistory, []);
+  assert.deepEqual(current.dailyProgressHistory, []);
+  assert.equal(current.progressSlices, null);
+  assert.equal(state.queryCounts.has('projectManualProgressHistory'), false);
+  assert.equal(state.queryCounts.get('historicalServiceReport'), 1);
+});
+
 test('histórico diário das metas conserva medições de dias diferentes na mesma semana', async t => {
   const state = fixture(t);
   state.historical = [];
