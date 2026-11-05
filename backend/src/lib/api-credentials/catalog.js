@@ -4,7 +4,7 @@ import { OPERATIONAL_DOWNLOADS } from './extended-operational-resources.js';
 import { describePlaygroundParameters } from './playground-parameters.js';
 import { CRM_PLANNING_EXAMPLE } from '../../../../shared/modules/crm-planning-example.js';
 
-export const API_CATALOG_VERSION = '2026-11-03.2';
+export const API_CATALOG_VERSION = '2026-11-05.1';
 export { API_DATA_DOMAINS, DATA_CATALOG_VERSION, flattenDataCatalogModels, futureScopeDefinitions } from './data-catalog.js';
 
 const QUALITY_RECORD_FIELDS = ['id', 'number', 'type', 'registeredAt', 'origin', 'project', 'eventDate', 'nature', 'subnature', 'description', 'impact', 'recurrence', 'linkedRnc', 'disposition', 'definedAction', 'actionOwner', 'actionDeadline', 'evidenceSummary', 'resultVerification', 'status', 'createdAt', 'updatedAt'];
@@ -17,6 +17,11 @@ const QUALITY_SCOPE_FIELDS = {
 };
 
 export const API_SCOPES = Object.freeze([
+  { code: 'efetivo.conferencia.read', domain: 'Planejamento de efetivo', label: 'Ler alocação diária conferida (Conecta)',
+    description: 'Dias efetivamente conferidos, com colaborador, matrícula, projetos e CNPJ do cliente, viagem e sede. Exige acesso a todos os projetos.',
+    sensitivity: 'PERSONAL', status: 'AVAILABLE', dependencies: [], models: ['AllocationReviewDay', 'AllocationReviewRow', 'AllocationReviewWeek', 'AllocationReviewDayProject'],
+    exposedFields: ['id', 'date', 'kind', 'collaborator.id', 'collaborator.code', 'collaborator.name', 'collaborator.registrationNumber', 'projects.id', 'projects.code', 'projects.name', 'projects.clientName', 'projects.clientCnpj', 'confirmedAt', 'weekStart', 'weekVersion', 'updatedAt'],
+    excludedFields: ['CPF', 'salários', 'observações livres', 'documentos médicos', 'sugestões', 'rascunhos', 'identidade do conferente'] },
   { code: 'projetos.condicoes.valores.read', domain: 'Projetos, clientes e configurações', label: 'Ler diária de stand-by dos equipamentos',
     description: 'Acrescenta exclusivamente a diária da proposta vinculada e a moeda BRL às condições dos projetos autorizados.',
     sensitivity: 'FINANCIAL', status: 'AVAILABLE', dependencies: ['projetos.condicoes.read'], models: ['CommercialProposal'],
@@ -60,6 +65,9 @@ export const API_SCOPES = Object.freeze([
 ].map(scope => QUALITY_SCOPE_FIELDS[scope.code] ? { ...scope, exposedFields: QUALITY_SCOPE_FIELDS[scope.code] } : scope));
 
 export const API_OPERATIONS = Object.freeze([
+  { operationId: 'efetivo.allocationReview.list', openApiOperationId: 'listIntegrationConfirmedAllocations', method: 'GET', path: '/efetivo/conferencia/alocacoes',
+    label: 'Consultar alocações conferidas para o Conecta', requiredScopes: ['efetivo.conferencia.read'], optionalScopes: [], pathParams: [],
+    queryParams: ['from', 'to', 'collaboratorId', 'limit', 'cursor'], supportsPlayground: true },
   { operationId: 'efetivo.projects.measurement.get', openApiOperationId: 'getIntegrationProjectMeasurement', method: 'GET', path: '/efetivo/projetos/:id/medicao',
     label: 'Consultar medição do projeto', requiredScopes: ['efetivo.projetos.medicao.read'], optionalScopes: ['efetivo.projetos.medicao.valores.read'],
     pathParams: ['id'], queryParams: [], supportsPlayground: true },

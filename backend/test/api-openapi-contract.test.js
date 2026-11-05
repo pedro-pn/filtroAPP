@@ -67,7 +67,7 @@ test('all administrative, quality and operational operations have unique IDs and
     readFile(new URL('../src/routes/integrations/v1/qualidade.js', import.meta.url), 'utf8')
   ]);
   const operations = operationEntries(YAML.parse(source));
-  assert.equal(operations.length, 25 + OPERATIONAL_RESOURCES.length + OPERATIONAL_DOWNLOADS.length);
+  assert.equal(operations.length, 10 + API_OPERATIONS.length);
   assert.equal(new Set(operations.map(item => item.operation.operationId)).size, operations.length);
 
   const handlers = {
@@ -92,6 +92,10 @@ test('all administrative, quality and operational operations have unique IDs and
     if (resource) {
       const route = createOperationalRouter().stack.find(layer => layer.route?.path === resource.path && layer.route?.methods.get)?.route;
       assert.equal(route?.methods.get, true, `Rota operacional ausente: ${resource.path}`);
+      continue;
+    }
+    if (operation.operationId === 'listIntegrationConfirmedAllocations') {
+      assert.equal(createOperationalRouter().stack.find(layer => layer.route?.path === '/efetivo/conferencia/alocacoes')?.route?.methods.get, true);
       continue;
     }
     if (['listIntegrationCrmPlanningLinks', 'getIntegrationCrmPlanningState'].includes(operation.operationId)) {

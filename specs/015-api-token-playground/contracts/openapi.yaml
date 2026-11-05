@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: FiltroApp - Administração e API de Integrações
-  version: "1.12.0"
+  version: "1.13.0"
   description: >-
     Contrato da gestão administrativa de credenciais, consultas externas e escrita
     contratada do CRM Prisma no Efetivo. Tokens de integração e sessões humanas
@@ -381,6 +381,7 @@ paths:
                     - acompanhamento.opportunities.links.list
                     - acompanhamento.opportunities.get
                     - jobRoles.salary.get
+                    - efetivo.allocationReview.list
                     - quality.records.list
                     - quality.records.get
                     - quality.natures.list
@@ -1088,6 +1089,61 @@ paths:
         '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/efetivo/conferencia/alocacoes:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationConfirmedAllocations
+      summary: Alocação diária conferida para importação pelo Conecta
+      description: >-
+        Exige efetivo.conferencia.read e projectAccessMode=ALL. Retorna somente dias
+        persistidos de linhas com confirmedAt preenchido, inclusive de semanas abertas,
+        colaboradores inativos e projetos arquivados. Sugestões e rascunhos não saem.
+        Datas inclusivas, até 93 dias, ordenação por data e ID do colaborador.
+        Dias com algum projeto excluído ou indisponível no canal API são omitidos por inteiro.
+        TRAVEL contém exatamente um projeto de destino; PROJECT pode conter vários;
+        SEDE e demais situações têm projects vazio, sem CNPJ fictício da sede.
+        CNPJ contém 14 dígitos ou null quando ausente/inválido no cadastro.
+        Cursor vinculado à credencial e aos filtros. Se as conferências ou cadastros
+        mudarem entre páginas, retorna 409 ALLOCATION_REVIEW_CHANGED: descartar a
+        importação temporária e reiniciar sem cursor. Importar todas as páginas antes
+        de substituir o período local, removendo dias anteriormente importados que
+        deixaram de ser conferidos. Não oferece feed incremental nem tombstones.
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: [efetivo.conferencia.read]
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: collaboratorId
+          in: query
+          required: false
+          schema: { type: string, minLength: 1, maxLength: 100 }
+        - $ref: '#/components/parameters/IntegrationLimit'
+        - $ref: '#/components/parameters/IntegrationCursor'
+      responses:
+        '200':
+          description: Página de dias efetivamente conferidos; um item por colaborador/data.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConfirmedAllocationPage' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: ALLOCATION_REVIEW_CHANGED — reinicie o período sem cursor.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '429': { $ref: '#/components/responses/RateLimited' }
 
   /integracoes/v1/cargos/{id}/salario:
@@ -5482,6 +5538,60 @@ components:
             $ref: "#/components/schemas/Error"
 
   schemas:
+    ConfirmedAllocationPage:
+      type: object
+      additionalProperties: false
+      required: [items, page, generatedAt, schemaVersion, requestId]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ConfirmedAllocationDay' }
+        page:
+          type: object
+          additionalProperties: false
+          required: [limit, hasMore, nextCursor, snapshotAt]
+          properties:
+            limit: { type: integer, minimum: 1, maximum: 500 }
+            hasMore: { type: boolean }
+            nextCursor: { type: [string, 'null'] }
+            snapshotAt: { type: string, format: date-time, description: Início da paginação; não aceita parâmetro snapshotAt. }
+        generatedAt: { type: string, format: date-time }
+        schemaVersion: { type: string, const: '1.0' }
+        requestId: { type: string }
+    ConfirmedAllocationDay:
+      type: object
+      additionalProperties: false
+      required: [id, date, kind, collaborator, projects, confirmedAt, weekStart, weekVersion, updatedAt]
+      properties:
+        id: { type: string }
+        date: { type: string, format: date }
+        kind: { type: string, enum: [PROJECT, TRAVEL, SEDE, FOLGA, FERIAS, AFASTAMENTO, TREINAMENTO] }
+        collaborator:
+          type: object
+          additionalProperties: false
+          required: [id, code, name, registrationNumber]
+          properties:
+            id: { type: string }
+            code: { type: string, description: Código interno do FiltroAPP; não presume igualdade com matrícula do Conecta. }
+            name: { type: string }
+            registrationNumber: { type: [string, 'null'] }
+        projects:
+          type: array
+          maxItems: 10
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, code, name, clientName, clientCnpj]
+            properties:
+              id: { type: string }
+              code: { type: string, description: Número do projeto; preservar zeros à esquerda. }
+              name: { type: string }
+              clientName: { type: string }
+              clientCnpj: { type: [string, 'null'], pattern: '^\d{14}$' }
+        confirmedAt: { type: string, format: date-time }
+        weekStart: { type: string, format: date }
+        weekVersion: { type: integer, minimum: 1 }
+        updatedAt: { type: string, format: date-time, description: Última edição do dia; não é cursor incremental. }
     CrmOpportunityInput:
       type: object
       properties:

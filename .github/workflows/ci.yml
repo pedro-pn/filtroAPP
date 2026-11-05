@@ -258,6 +258,47 @@ jobs:
           test/integration-omni-phase2-postgres.test.js test/integration-omni-projects.test.js
           test/integration-omni-delivery-b.test.js test/integration-omni-management.test.js
 
+  conecta-allocation:
+    name: Conecta allocation (PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: conecta_allocation_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d conecta_allocation_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/conecta_allocation_test
+      TEST_CONECTA_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/conecta_allocation_test
+      TRUST_PROXY: "false"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run prisma:generate
+      - run: npm run prisma:deploy
+      - name: Verify daily allocations, authorization, pagination and corrections
+        run: >-
+          node --test test/integration-allocation-review.test.js
+          test/api-openapi-contract.test.js test/api-playground.test.js
+          test/allocation-review-service.test.js test/allocation-review-read-model.test.js
+
   notifications:
     name: Notifications (PostgreSQL)
     runs-on: ubuntu-latest

@@ -8,6 +8,7 @@ import { OPERATIONAL_RESOURCES } from '../../../lib/api-credentials/operational-
 import { OPERATIONAL_DOWNLOADS } from '../../../lib/api-credentials/extended-operational-resources.js';
 import { getEfetivoProjectStatus, validateEfetivoProjectStatusRequest } from '../../../lib/api-credentials/efetivo-project-status.js';
 import { getJobRoleSalary, validateJobRoleSalaryRequest } from '../../../lib/api-credentials/job-role-salary.js';
+import { ALLOCATION_REVIEW_OPERATION, listConfirmedAllocations, validateAllocationReviewQuery } from '../../../lib/api-credentials/allocation-review.js';
 import { createCrmDocument, createCrmProject, upsertCrmCommercialFact, validateCommercialFact, validateCrmDocument, validateProjectCreation, validateProjectWriteAccess } from '../../../lib/api-credentials/efetivo-project-writes.js';
 import { receiveCrmOpportunity, validateCrmOpportunity } from '../../../lib/projects/crm-opportunities.js';
 import { getCrmPlanningState, listCrmPlanningStates, validatePlanningReadAccess, validatePlanningListQuery, validatePlanningDetailParams } from '../../../lib/projects/crm-planning-read.js';
@@ -31,6 +32,23 @@ export function createOperationalRouter({
 } = {}) {
   const router = Router();
   router.use((_req, _res, next) => withProjectChannel('api', next));
+  router.get('/efetivo/conferencia/alocacoes', requireApiOperation(ALLOCATION_REVIEW_OPERATION), asyncHandler(async (req, res) => {
+    const context = {
+      credentialId: req.apiAuth.credential.id, scopes: req.apiAuth.scopeCodes,
+      projectAccessMode: req.apiAuth.credential.projectAccessMode,
+      maxPageSize: Math.min(req.apiAuth.credential.maxPageSize, envConfig.apiTokenGlobalMaxPageSize),
+      cursorKey: envConfig.apiTokenHashKeys[envConfig.apiTokenActiveKeyVersion]
+    };
+    const query = validateAllocationReviewQuery(req.query, context);
+    const result = await runMeteredApiOperation(req, {
+      prismaClient, operationId: ALLOCATION_REVIEW_OPERATION, requestedRows: query.limit,
+      execute: async () => {
+        const body = await listConfirmedAllocations(prismaClient, query, context);
+        return { rows: body.items.length, body: { ...body, generatedAt: new Date().toISOString(), schemaVersion: '1.0', requestId: req.requestId } };
+      }
+    });
+    res.json(result.body);
+  }));
   router.get('/efetivo/projetos/:id/medicao', requireApiOperation('efetivo.projects.measurement.get'), asyncHandler(async (req, res) => {
     const context = { scopes: req.apiAuth.scopeCodes, projectAccessMode: req.apiAuth.credential.projectAccessMode, projectIds: req.apiAuth.projectIds };
     validateProjectMeasurementRequest(req.params, req.query, context);
