@@ -118,7 +118,7 @@ Cada módulo tem sua própria área na aplicação, papéis de acesso e prefixo 
 ├── shared/                   # Schemas e contratos compartilhados entre backend e frontend
 ├── deploy/
 │   ├── nginx/                # Nginx interno: SPA + proxy para o backend
-│   ├── infra-proxy/          # Caddy compartilhado, TLS e portas públicas 80/443
+│   ├── INFRA-PROXY.md        # Integração com o proxy compartilhado externo
 │   ├── PRODUCTION.md         # Guia detalhado de produção
 │   ├── STAGING.md            # Guia de homologação
 │   ├── BACKUP.md             # Backup e restore
@@ -544,16 +544,17 @@ O CI repete os testes e auditorias de dependências de backend e frontend, valid
 
 ## Deploy em Produção
 
-A aplicação usa `docker-compose.prod.yml` para PostgreSQL, backend e Nginx interno. Um stack separado em `deploy/infra-proxy/` executa o Caddy, que ocupa as portas públicas 80/443, termina o TLS e encaminha o domínio da aplicação para o Nginx pela rede externa `proxy-net`.
+A aplicação usa `docker-compose.prod.yml` para PostgreSQL, backend e Nginx interno. O repositório independente [infra-proxy](https://github.com/pedro-pn/infra-proxy), mantido em `../infra-proxy` ao lado deste checkout, executa o Caddy, que ocupa as portas públicas 80/443, termina o TLS e encaminha o domínio da aplicação para o Nginx pela rede externa `proxy-net`. O Caddyfile, o Compose e os runbooks do proxy pertencem a esse repositório; veja [deploy/INFRA-PROXY.md](deploy/INFRA-PROXY.md) para o contrato de integração e a migração de uma VPS existente.
 
 A homologação usa `https://filtrostaging.filtrovali.com.br` no mesmo Caddy, com acesso restrito pelos IPs de `STAGING_ALLOWED_IPS` e sem publicar a porta `8080`. Veja a configuração e a migração em [deploy/STAGING.md](deploy/STAGING.md).
 
-> Consulte [deploy/PRODUCTION.md](deploy/PRODUCTION.md), [deploy/infra-proxy/RUNBOOK.md](deploy/infra-proxy/RUNBOOK.md), [deploy/BACKUP.md](deploy/BACKUP.md) e `Checklist-Producao.txt` antes de operar a produção. Os comandos abaixo são apenas um resumo e pressupõem que volumes, rede e arquivos de ambiente já foram preparados conforme esses guias.
+> Consulte [deploy/PRODUCTION.md](deploy/PRODUCTION.md), [deploy/INFRA-PROXY.md](deploy/INFRA-PROXY.md), [deploy/BACKUP.md](deploy/BACKUP.md), `Checklist-Producao.txt` e o `RUNBOOK.md` do repositório `infra-proxy` antes de operar a produção. Os comandos abaixo são apenas um resumo e pressupõem que volumes, rede e arquivos de ambiente já foram preparados conforme esses guias.
 
 ### Subida inicial
 
 ```bash
-# No servidor, com backend/.env.production preenchido
+# No servidor, com backend/.env.production preenchido, volumes preparados
+# e a rede proxy-net criada conforme deploy/INFRA-PROXY.md
 POSTGRES_PASSWORD=<senha> docker compose -f docker-compose.prod.yml config -q
 POSTGRES_PASSWORD=<senha> docker compose -f docker-compose.prod.yml up -d --build
 
@@ -564,7 +565,7 @@ docker compose -f docker-compose.prod.yml exec backend npx prisma migrate deploy
 docker compose -f docker-compose.prod.yml exec backend npx prisma db seed
 
 # Proxy compartilhado, se ainda não estiver em execução
-docker compose -f deploy/infra-proxy/docker-compose.yml up -d
+docker compose -f ../infra-proxy/docker-compose.yml up -d
 ```
 
 ### Atualização de versão
