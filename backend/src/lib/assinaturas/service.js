@@ -264,6 +264,7 @@ function documentCard(document, userId) {
 
 export async function listDocuments(client, ownerUserId, filters = {}) {
   const limit = Math.min(50, Math.max(1, Number(filters.limit) || 20));
+  const query = String(filters.q || '').trim();
   const dateFrom = filters.dateFrom ? z.iso.date().parse(filters.dateFrom) : undefined;
   const dateTo = filters.dateTo ? z.iso.date().parse(filters.dateTo) : undefined;
   if (dateFrom && dateTo && dateFrom > dateTo) {
@@ -279,10 +280,14 @@ export async function listDocuments(client, ownerUserId, filters = {}) {
     archivedAt: filters.archived ? { not: null } : null,
     ...(filters.status ? { status: filters.status } : {}),
     ...(dateFrom || dateTo ? { createdAt } : {}),
-    ...(filters.q ? {
+    ...(query ? {
       OR: [
-        { title: { contains: String(filters.q), mode: 'insensitive' } },
-        { originalFileName: { contains: String(filters.q), mode: 'insensitive' } }
+        { title: { contains: query, mode: 'insensitive' } },
+        { originalFileName: { contains: query, mode: 'insensitive' } },
+        { signers: { some: { OR: [
+          { name: { contains: query, mode: 'insensitive' } },
+          { email: { contains: query, mode: 'insensitive' } }
+        ] } } }
       ]
     } : {})
   };

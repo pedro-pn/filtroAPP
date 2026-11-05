@@ -59,7 +59,7 @@ export function DocumentLibrary({ data, loading, error, loadingMore, loadMoreErr
         className="assinaturas-library__filters"
         label="Busca, status e data dos documentos"
         resultsId="signature-document-results"
-        search={<SearchInput value={query} onChange={onQueryChange} label="Buscar documentos" placeholder="Buscar por título ou arquivo" />}
+        search={<SearchInput value={query} onChange={onQueryChange} label="Buscar documentos" placeholder="Buscar por colaborador, e-mail, título ou arquivo" />}
         actions={
           <>
           <Field id="signature-status-filter" label="Status" optionalText={null}>
