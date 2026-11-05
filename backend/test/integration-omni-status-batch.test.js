@@ -18,7 +18,7 @@ import { PROJECT_WORKFLOW_COMMERCIAL_FACTS, PROJECT_WORKFLOW_CRITICAL_QUESTIONS,
 const key = 'synthetic-status-batch-key-with-at-least-32-characters';
 const envConfig = { apiTokenGlobalMaxPageSize: 500, apiTokenHashKeys: { 1: key }, apiTokenActiveKeyVersion: 1 };
 const statusPath = '/efetivo/projetos/status';
-const progressTables = ['ProjectPlannedService', 'ReportService', 'HistoricalServiceReport', 'ProjectRealizedCorrection', 'ProjectManualProgressHistory'];
+const progressTables = ['ProjectPlannedService', 'ReportService', 'HistoricalServiceReport', 'ProjectRealizedCorrection'];
 
 test('status: limit=100 serves 90 projects under 5s with constant SQL queries and parity', { timeout: 120_000 }, async t => {
   const queries = [];
@@ -123,6 +123,8 @@ test('status: limit=100 serves 90 projects under 5s with constant SQL queries an
       assert.equal(sourceQueries.length, 1, `${table}: one source query per page`);
       assert.match(sourceQueries[0], /\bIN\s*\(/, `${table}: projects loaded together`);
     }
+    assert.equal(largeQueries.some(sql => sql.includes('FROM "public"."ProjectManualProgressHistory"')), false,
+      'status does not load unused manual history');
     const log = await prisma.apiRequestLog.findFirst({ where: { requestId: large.requestId } });
     assert.equal(log.statusCode, 200);
     assert.equal(log.responseRows, 90);

@@ -54,7 +54,7 @@ export async function getEfetivoProjectStatus(client, id, context) {
   if (!record) throw new IntegrationApiError(404, 'NOT_FOUND', 'Projeto não encontrado.');
   const [details, progressById] = await Promise.all([
     getProjectWorkflowStatuses([id], { database: client }),
-    computeProgressDetailsForProjects([id], { database: client })
+    computeProgressDetailsForProjects([id], { database: client, currentOnly: true })
   ]);
   const detail = details.get(id);
   if (!detail) throw new IntegrationApiError(404, 'NOT_FOUND', 'Projeto não encontrado.');
@@ -66,7 +66,7 @@ export async function enrichEfetivoProjectStatuses(client, rows) {
   const ids = rows.map(row => row.id);
   const [details, progressById] = await Promise.all([
     getProjectWorkflowStatuses(ids, { database: client, includeInactive: true }),
-    computeProgressDetailsForProjects(ids, { database: client })
+    computeProgressDetailsForProjects(ids, { database: client, currentOnly: true })
   ]);
   return rows.map(row => {
     const detail = details.get(row.id);

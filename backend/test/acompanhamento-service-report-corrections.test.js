@@ -53,6 +53,8 @@ test('correções após assinatura atualizam avanço, recortes, histórico e met
   assert.equal(current.services.find(s => s.serviceType === 'LIMPEZA_QUIMICA').totals[0].realizedQty, 25);
   assert.equal(current.services.find(s => s.serviceType === 'FILTRAGEM').totals[0].realizedQty, 2000);
   const details = (await computeProgressDetailsForProjects([projectId])).get(projectId);
+  const currentOnly = (await computeProgressDetailsForProjects([projectId], { currentOnly: true })).get(projectId);
+  assert.deepEqual(currentOnly.progress, details.progress, 'status mantém as correções posteriores à assinatura');
   const selected = details.progressSlices.slices[details.progressSlices.lookup['jupia|unidade geradora 14']];
   assert.deepEqual(selected.progress.services.map(s => s.totals[0].realizedQty), [25, 2000]);
   assert.deepEqual(details.dailyProgressHistory.map(point => point.date), ['2026-09-28']);
