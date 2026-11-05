@@ -18,6 +18,7 @@ import { ApiCredentialServiceError, effectiveCredentialStatus, validateCredentia
 import { checkPlaygroundDownload } from './playground-downloads.js';
 import { getEfetivoProjectStatus, validateEfetivoProjectStatusRequest } from './efetivo-project-status.js';
 import { getJobRoleSalary, validateJobRoleSalaryRequest } from './job-role-salary.js';
+import { ALLOCATION_REVIEW_OPERATION, listConfirmedAllocations, validateAllocationReviewQuery } from './allocation-review.js';
 import { createCrmDocument, createCrmProject, upsertCrmCommercialFact, validateCommercialFact, validateCrmDocument, validateProjectCreation, validateProjectWriteAccess } from './efetivo-project-writes.js';
 import { receiveCrmOpportunity, validateCrmOpportunity } from '../projects/crm-opportunities.js';
 import { getCrmPlanningState, listCrmPlanningStates, validatePlanningDetailParams, validatePlanningListQuery, validatePlanningReadAccess } from '../projects/crm-planning-read.js';
@@ -52,6 +53,7 @@ export function validatePlaygroundRequest(input) {
   else if (operation.operationId === 'quality.natures.list') parsed.query = integrationSchemas.qualityNaturesQuery.parse(parsed.query);
   else if (operation.operationId === 'efetivo.projects.status.get') validateEfetivoProjectStatusRequest(parsed.pathParams, parsed.query, { projectAccessMode: 'ALL' });
   else if (operation.operationId === 'jobRoles.salary.get') validateJobRoleSalaryRequest(parsed.pathParams, parsed.query);
+  else if (operation.operationId === ALLOCATION_REVIEW_OPERATION) parsed.query = validateAllocationReviewQuery(parsed.query, { scopes: new Set(operation.requiredScopes), projectAccessMode: 'ALL', maxPageSize: 500 });
   else if (operation.operationId === 'efetivo.projects.measurement.get') validateProjectMeasurementRequest(parsed.pathParams, parsed.query, { scopes: new Set(operation.requiredScopes), projectAccessMode: 'ALL' });
   else if (operation.operationId === 'logistics.unloadings.create') validateUnloading(parsed.body, parsed.headers?.['Idempotency-Key'], { scopes: new Set(operation.requiredScopes), projectAccessMode: 'ALL' });
   else if (operation.operationId === 'quality.records.create') validateIntegrationQualityCreate(parsed.body, parsed.headers?.['Idempotency-Key'], { scopes: new Set(['qualidade.registros.create']), projectAccessMode: 'ALL' });
@@ -140,6 +142,7 @@ async function executeScopedPlaygroundOperation(prisma, credentialId, input, opt
   };
   const started = process.hrtime.bigint();
   if (getOperationalResource(parsed.operationId)) prepareOperationalQuery(parsed.operationId, query, context);
+  if (parsed.operationId === ALLOCATION_REVIEW_OPERATION) validateAllocationReviewQuery(query, context);
   if (parsed.operationId === 'efetivo.projects.status.get') validateEfetivoProjectStatusRequest(parsed.pathParams, query, context);
   if (operation.method === 'POST' && !['quality.records.create', 'logistics.unloadings.create'].includes(parsed.operationId)) validateProjectWriteAccess(parsed.pathParams.id, query, context, { create: ['efetivo.projects.create', 'acompanhamento.opportunities.post'].includes(parsed.operationId) });
   if (parsed.operationId === 'logistics.unloadings.create') validateUnloading(parsed.body, parsed.headers?.['Idempotency-Key'], context, query);
@@ -202,6 +205,11 @@ async function executeScopedPlaygroundOperation(prisma, credentialId, input, opt
     } else if (parsed.operationId === 'efetivo.projects.measurement.get') {
       body = { ...await getProjectMeasurement(prisma, parsed.pathParams, query, context), generatedAt: new Date().toISOString(), schemaVersion: '1.0', requestId };
       rows = 1;
+    } else if (parsed.operationId === ALLOCATION_REVIEW_OPERATION) {
+      const result = await listConfirmedAllocations(prisma, query, { ...context,
+        cursorKey: options.cursorKey || context.envConfig.apiTokenHashKeys[context.envConfig.apiTokenActiveKeyVersion] });
+      body = { ...result, generatedAt: new Date().toISOString(), schemaVersion: '1.0', requestId };
+      rows = result.items.length;
     } else if (parsed.operationId === 'jobRoles.salary.get') {
       body = await getJobRoleSalary(prisma, parsed.pathParams, query, context);
       rows = 1;

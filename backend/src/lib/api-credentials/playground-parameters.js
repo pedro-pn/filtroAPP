@@ -3,6 +3,7 @@ import { INTEGRATION_REPORT_TYPES, INTEGRATION_REPORT_STATUSES } from '../../../
 import { PROJECT_WORKFLOW_STAGES } from '../../../../shared/schemas/project-workflow.js';
 
 const queryDefinitions = {
+  collaboratorId: { label: 'ID do colaborador', type: 'text', maxLength: 100, help: 'Na URI: collaboratorId=ID. Filtra pelo collaborator.id do FiltroAPP. Não use o nome como identificador.' },
   weekStart: { label: 'Semana (segunda-feira)', type: 'date', help: 'Na URI: weekStart=AAAA-MM-DD. Segunda a domingo em São Paulo; padrão semana atual. Não combine com from/to.' },
   from: { label: 'Período — início', type: 'date', help: 'Na URI: from=AAAA-MM-DD. Informe também to; no máximo 12 semanas, sem weekStart.' },
   to: { label: 'Período — fim', type: 'date', help: 'Na URI: to=AAAA-MM-DD. Data inclusiva; semana atual pode estar incompleta.' },
@@ -54,6 +55,8 @@ export function describePlaygroundParameters(operation) {
     ...operation.queryParams.map(name => {
       if (!queryDefinitions[name]) throw new Error(`Parâmetro sem descritor: ${name}`);
       return { name, in: 'query', required: false, ...queryDefinitions[name],
+        ...(operation.operationId === 'efetivo.allocationReview.list' && ['from', 'to'].includes(name)
+          ? { required: true, help: `Na URI: ${name}=AAAA-MM-DD. Data inclusiva; período obrigatório de até 93 dias.` } : {}),
         ...(name === 'status' && operation.operationId === 'operational.Report.list'
           ? { options: INTEGRATION_REPORT_STATUSES, requiredScope: 'rdo.relatorios.todos.read' } : {}) };
     })

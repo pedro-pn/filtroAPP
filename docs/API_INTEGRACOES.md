@@ -1,5 +1,10 @@
 # API de integrações
 
+A exportação da conferência diária para o Conecta está disponível em
+`GET /api/integracoes/v1/efetivo/conferencia/alocacoes`, com o escopo
+`efetivo.conferencia.read`. Consulte o [contrato e exemplos](INTEGRACAO_CONECTA_ALOCACOES.md)
+e o [prompt para o desenvolvedor do Conecta](PROMPT_CONECTA_ALOCACOES.md).
+
 Esta API fornece acesso controlado aos dados do Filtrovali sem conceder acesso direto ao banco, incluindo Qualidade, cadastros operacionais, salários por cargo, relatórios, estoque, manutenção e operações contratadas do CRM. A disponibilidade no ambiente depende da publicação e homologação do código pelo operador; esta implementação não executa deploy.
 
 O endereço base comum a todas as áreas é `/api/integracoes/v1`. Acrescente o caminho da consulta desejada, como `/projetos`, `/estoque/itens` ou `/qualidade/registros`. O segmento `/qualidade` identifica apenas as consultas desse setor. Na exibição única do token, o exemplo em cURL usa uma consulta compatível com as permissões concedidas.
