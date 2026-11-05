@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import AdmZip from 'adm-zip';
 import { createReportEmailProcessor } from '../src/lib/reports/email-delivery.js';
 
 const revision = '2026-10-30T16:41:27.444Z';
@@ -101,4 +102,103 @@ test('a persisted last signature recovers finalization after an HTTP process cra
   await process(job, async (key, message) => sent.push(message));
   assert.equal(finalized, 1);
   assert.equal(sent[0].attachments[0].content.toString(), 'recovered-pdf');
+});
+
+function signedFixture() {
+  const f = fixture();
+  const signatures = new Map();
+  for (let number = 1; number <= 3; number++) {
+    const report = { ...f.rdo, id: `report-${number}`, sequenceNumber: number,
+      reviewedBy: { email: number === 3 ? 'other@example.com' : 'manager@example.com' } };
+    signatures.set(`sig-${number}`, { id: `sig-${number}`, status: 'SIGNED', signedAt: revision,
+      signerName: 'Cliente', signerEmail: 'signer@example.com', report,
+      version: { status: 'ACTIVE', signatures: [{ status: 'SIGNED', isRequired: true }], finalDocumentHash: `hash-${number}` } });
+  }
+  f.database.reportSignature = { findUnique: async ({ where }) => signatures.get(where.id) };
+  const job = { kind: 'SIGNATURE_NOTICE', payload: { projectId: f.project.id,
+    signatures: [...signatures.values()].map(signature => ({ signatureId: signature.id, signedAt: revision })) } };
+  return { ...f, signatures, job };
+}
+
+test('one project digest per recipient contains only their reports and respects email preferences', async () => {
+  const f = signedFixture();
+  f.signatures.get('sig-2').version = { status: 'ACTIVE', finalDocumentHash: null,
+    signatures: [{ status: 'SIGNED', isRequired: true }, { status: 'PENDING', isRequired: true }] };
+  let lookups = 0;
+  const process = createReportEmailProcessor({ ...f.options,
+    coordinators: async () => ['coordinator@example.com', 'coordinator@example.com', 'disabled@example.com'],
+    recipientsForEmails: async (emails, category) => {
+      lookups++;
+      assert.equal(category, 'signatures');
+      return emails.filter(email => email !== 'disabled@example.com')
+        .map(email => ({ email, notificationPreferencesUrl: `https://example.com/preferences/${email}` }));
+    } });
+  const sent = [];
+  await process(f.job, async (key, message) => sent.push({ key, ...message }));
+  assert.equal(lookups, 1);
+  assert.equal(sent.length, 3);
+  const manager = sent.find(message => message.to === 'manager@example.com');
+  assert.match(manager.subject, /2 relatórios/);
+  assert.match(manager.text, /RDO 1/);
+  assert.match(manager.text, /RDO 2/);
+  assert.doesNotMatch(manager.text, /RDO 3/);
+  assert.match(manager.text, /1\/2 assinaturas obrigatórias/);
+  assert.match(manager.text, /Hash PDF final: hash-1/);
+  assert.match(manager.text, /https:\/\/example.com\/preferences\/manager@example.com/);
+  assert.match(sent.find(message => message.to === 'coordinator@example.com').subject, /3 relatórios/);
+  const other = sent.find(message => message.to === 'other@example.com');
+  assert.match(other.subject, /RDO 3 assinado/);
+  assert.doesNotMatch(other.text, /RDO [12]/);
+});
+
+test('copy digest attaches one ZIP with all verified PDFs and deduplicates repeated reports', async () => {
+  const f = signedFixture();
+  f.job.kind = 'SIGNED_COPY';
+  f.job.payload.recipientEmail = 'signer@example.com';
+  f.job.payload.signatures.push(f.job.payload.signatures[0]);
+  const process = createReportEmailProcessor({ ...f.options,
+    getSignedPdf: async signature => ({ buffer: Buffer.from(`verified-${signature.id}`) }) });
+  const sent = [];
+  await process(f.job, async (key, message) => sent.push(message));
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].to, 'signer@example.com');
+  assert.match(sent[0].subject, /3 relatórios assinados/);
+  assert.equal(sent[0].attachments.length, 1);
+  const attachment = sent[0].attachments[0];
+  assert.equal(attachment.contentType, 'application/zip');
+  const entries = new AdmZip(attachment.content).getEntries();
+  assert.equal(entries.length, 3);
+  assert.deepEqual(entries.map(entry => entry.getData().toString()).sort(), ['verified-sig-1', 'verified-sig-2', 'verified-sig-3']);
+});
+
+test('digest retries PDF failures before delivery and filters invalidated, superseded and deleted reports', async () => {
+  const f = signedFixture();
+  f.job.kind = 'SIGNED_COPY';
+  f.job.payload.recipientEmail = 'signer@example.com';
+  let failing = true;
+  const process = createReportEmailProcessor({ ...f.options, getSignedPdf: async signature => {
+    if (failing && signature.id === 'sig-2') throw new Error('PDF ocupado');
+    return { buffer: Buffer.from('PDF') };
+  } });
+  const sent = [];
+  const deliver = async (key, message) => sent.push(message);
+  await assert.rejects(process(f.job, deliver), /PDF ocupado/);
+  assert.equal(sent.length, 0);
+  failing = false;
+  f.signatures.get('sig-1').status = 'INVALIDATED';
+  f.signatures.get('sig-2').version.status = 'SUPERSEDED';
+  f.signatures.get('sig-3').report.deletedAt = revision;
+  await process(f.job, deliver);
+  assert.equal(sent.length, 0);
+});
+
+test('digest excludes stale signature events, other projects and other signer addresses', async () => {
+  const f = signedFixture();
+  f.job.kind = 'SIGNED_COPY';
+  f.job.payload.recipientEmail = 'signer@example.com';
+  f.signatures.get('sig-1').signedAt = '2026-10-31T16:00:00Z';
+  f.signatures.get('sig-2').report.projectId = 'another-project';
+  f.signatures.get('sig-3').signerEmail = 'someone-else@example.com';
+  const process = createReportEmailProcessor({ ...f.options, getSignedPdf: async () => assert.fail('no authorized copy') });
+  await process(f.job, async () => assert.fail('no authorized recipient'));
 });

@@ -10,6 +10,7 @@ import {
   buildReportRejectedByClientEmailTemplate,
   buildReportSignatureCompletedEmailTemplate,
   buildReportSignatureReceivedEmailTemplate,
+  buildReportSignatureDigestEmailTemplate,
   buildSurveyExpiredEmailTemplate
 } from '../src/lib/email-templates.js';
 
@@ -172,6 +173,26 @@ test('buildReportSignatureCompletedEmailTemplate includes final document hash', 
   assert.match(template.text, /Último signatário: Cliente A \(cliente@example\.com\)/);
   assert.match(template.text, /Hash PDF final: abc123/);
   assert.match(template.html, /<strong>Hash PDF final:<\/strong>/);
+});
+
+test('signature digest lists completed and partial reports and escapes dynamic HTML', () => {
+  const template = buildReportSignatureDigestEmailTemplate({
+    projectCode: 'P-001', projectName: '<Projeto>', appUrl: 'https://example.com/?q=<script>',
+    reports: [
+      { reportType: 'RDO', reportNumber: '1', reportDate: '05/11/2026', completed: true,
+        signerName: '<Pessoa>', signerEmail: 'signer@example.com', finalDocumentHash: 'abc123' },
+      { reportType: 'RCPU', reportNumber: '2', reportDate: '05/11/2026', completed: false,
+        signerName: 'Cliente', signerEmail: 'client@example.com', signedCount: 1, requiredCount: 2 }
+    ]
+  });
+  assert.match(template.subject, /2 relatórios - P-001/);
+  assert.match(template.text, /RDO 1/);
+  assert.match(template.text, /RCPU 2/);
+  assert.match(template.text, /1\/2 assinaturas obrigatórias/);
+  assert.match(template.text, /Hash PDF final: abc123/);
+  assert.match(template.html, /&lt;Pessoa&gt;/);
+  assert.match(template.html, /&lt;Projeto&gt;/);
+  assert.doesNotMatch(template.html, /<script>/);
 });
 
 test('buildSurveyExpiredEmailTemplate identifies expired survey details', () => {
