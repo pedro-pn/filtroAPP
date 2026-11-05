@@ -61,6 +61,13 @@ e `git diff --check` aprovados. Os testes usaram `NODE_ENV=development`, uma
 `DATABASE_URL` sintética não conectável e concorrência 4; os cenários PGlite
 executaram em banco descartável.
 
+No CI, o teste de auditoria expôs falta de isolamento no transporte PGlite:
+o pool simulado entregava a mesma sessão para consultas e transações simultâneas.
+O helper agora reserva essa sessão até o `release`, inclusive para leituras.
+Uma regressão reproduziu a leitura de dados não confirmados antes da correção
+e valida que uma leitura externa só observa o estado persistido após rollback.
+Os testes de isolamento, status e Gestão passaram com Node 22, como no CI.
+
 ## Publicação
 
 Publicar o backend e conferir a coleção em produção com `limit=100`, com/sem

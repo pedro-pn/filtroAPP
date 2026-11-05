@@ -226,6 +226,7 @@ test('status: limit=100 serves 90 projects under 5s with constant SQL queries an
         assert.equal(body.requestId, response.headers.get('x-request-id'));
         assert.doesNotMatch(JSON.stringify(body), /PRIVATE|57014|P2024|SocketTimeout/);
         const log = await prisma.apiRequestLog.findFirst({ where: { requestId: body.requestId } });
+        assert.ok(log, 'a requisição com timeout deve ter auditoria persistida');
         assert.equal(log.statusCode, 504);
         assert.equal(log.outcomeCode, 'REQUEST_TIMEOUT');
         assert.equal(log.responseRows, 0);

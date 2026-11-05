@@ -28,7 +28,17 @@ export async function apiSimulationDatabase({ onQuery } = {}) {
 
   // PrismaPg mantém suas conversões de tipos; somente o transporte pg usa WASM.
   class WasmPool extends pg.Pool {
+    available = Promise.resolve();
+
     async query(query, values) {
+      const connection = await this.connect();
+      try {
+        return await connection.query(query, values);
+      } finally {
+        connection.release();
+      }
+    }
+    async execute(query, values) {
       const config = typeof query === 'string' ? { text: query, values } : query;
       onQuery?.(config.text, config.values || []);
       const parsers = config.types ? Object.fromEntries(Object.values(pg.types.builtins)
@@ -37,9 +47,15 @@ export async function apiSimulationDatabase({ onQuery } = {}) {
       return { ...result, rowCount: result.affectedRows ?? result.rows.length };
     }
     async connect() {
+      // O PGlite tem uma única sessão. Mantenha-a reservada até o release da
+      // transação, para consultas concorrentes não entrarem no mesmo BEGIN.
+      const previous = this.available;
+      let release;
+      this.available = new Promise(resolve => { release = resolve; });
+      await previous;
       const connection = new EventEmitter();
-      connection.query = this.query.bind(this);
-      connection.release = () => {};
+      connection.query = this.execute.bind(this);
+      connection.release = () => release();
       return connection;
     }
   }
