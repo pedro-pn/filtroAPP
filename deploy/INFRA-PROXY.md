@@ -1,10 +1,11 @@
 # Integração com o infra-proxy
 
 O proxy reverso compartilhado da VPS pertence ao repositório independente
-`infra-proxy`. Seu checkout sugerido é `../infra-proxy`, ao lado da raiz do
+[pedro-pn/infra-proxy](https://github.com/pedro-pn/infra-proxy). Seu checkout
+sugerido é `../infra-proxy`, ao lado da raiz do
 filtroAPP. O `Caddyfile`, `docker-compose.yml`, `RUNBOOK.md` e `FILTROBOARD.md`
-ficam na raiz desse repositório. O remoto GitHub será configurado quando o novo
-repositório for criado.
+ficam na raiz desse repositório. O acesso ao remoto exige permissão nesse
+repositório privado.
 
 O filtroAPP mantém seu Nginx interno e os stacks de produção e homologação.
 Alterações de domínio, TLS ou roteamento compartilhado devem ser feitas no

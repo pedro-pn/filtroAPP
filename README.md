@@ -544,7 +544,7 @@ O CI repete os testes e auditorias de dependências de backend e frontend, valid
 
 ## Deploy em Produção
 
-A aplicação usa `docker-compose.prod.yml` para PostgreSQL, backend e Nginx interno. O repositório independente `infra-proxy`, mantido em `../infra-proxy` ao lado deste checkout, executa o Caddy, que ocupa as portas públicas 80/443, termina o TLS e encaminha o domínio da aplicação para o Nginx pela rede externa `proxy-net`. O Caddyfile, o Compose e os runbooks do proxy pertencem a esse repositório; veja [deploy/INFRA-PROXY.md](deploy/INFRA-PROXY.md) para o contrato de integração e a migração de uma VPS existente.
+A aplicação usa `docker-compose.prod.yml` para PostgreSQL, backend e Nginx interno. O repositório independente [infra-proxy](https://github.com/pedro-pn/infra-proxy), mantido em `../infra-proxy` ao lado deste checkout, executa o Caddy, que ocupa as portas públicas 80/443, termina o TLS e encaminha o domínio da aplicação para o Nginx pela rede externa `proxy-net`. O Caddyfile, o Compose e os runbooks do proxy pertencem a esse repositório; veja [deploy/INFRA-PROXY.md](deploy/INFRA-PROXY.md) para o contrato de integração e a migração de uma VPS existente.
 
 A homologação usa `https://filtrostaging.filtrovali.com.br` no mesmo Caddy, com acesso restrito pelos IPs de `STAGING_ALLOWED_IPS` e sem publicar a porta `8080`. Veja a configuração e a migração em [deploy/STAGING.md](deploy/STAGING.md).
 
