@@ -9,13 +9,21 @@ import zlib from 'node:zlib';
 function runRestoreWithFakeDocker(env = {}, options = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'restore-preflight-'));
   const backup = path.join(root, 'backup');
+  const project = path.join(root, 'filtroAPP');
   const bin = path.join(root, 'bin');
   const dockerLog = path.join(root, 'docker.log');
   fs.mkdirSync(backup);
+  fs.mkdirSync(project);
   fs.mkdirSync(bin);
   fs.writeFileSync(path.join(backup, 'postgres.sql.gz'), '');
   if (options.reportsArchive) fs.writeFileSync(path.join(backup, 'relatorios.tar.gz'), '');
   if (options.certsArchive) fs.writeFileSync(path.join(backup, 'certs.tar.gz'), '');
+  if (options.proxyArchive) fs.writeFileSync(path.join(backup, 'proxy.tar.gz'), '');
+  if (options.proxyCompose) {
+    const proxyCompose = path.resolve(project, env.PROXY_COMPOSE_FILE || '../infra-proxy/docker-compose.yml');
+    fs.mkdirSync(path.dirname(proxyCompose), { recursive: true });
+    fs.writeFileSync(proxyCompose, 'name: infra-proxy\nservices: {}\n');
+  }
   const dockerScript = options.dockerScript || `#!/usr/bin/env bash\necho "$@" >> "${dockerLog}"\nexit 97\n`;
   fs.writeFileSync(path.join(bin, 'docker'), dockerScript);
   fs.chmodSync(path.join(bin, 'docker'), 0o755);
@@ -26,8 +34,10 @@ function runRestoreWithFakeDocker(env = {}, options = {}) {
       ...process.env,
       PATH: `${bin}${path.delimiter}${process.env.PATH || ''}`,
       BACKUP_SOURCE: backup,
-      PROJECT_DIR: root,
+      PROJECT_DIR: project,
       REQUIRE_CHECKSUMS: 'false',
+      RESTORE_STATUS_FILE: path.join(root, 'restore-status.json'),
+      DOCKER_TEST_LOG: dockerLog,
       ...env
     },
     encoding: 'utf8'
@@ -163,6 +173,74 @@ test('restore script aborts before docker when cert archive is required and miss
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /certs\.tar\.gz/);
   assert.equal(dockerCalls, '');
+});
+
+test('proxy restore aborts before docker when independent checkout is missing', () => {
+  const { result, dockerCalls } = runRestoreWithFakeDocker({
+    RESTORE_REPORTS: 'false', RESTORE_CERTS: 'false', RESTORE_PROXY: 'true'
+  }, { proxyArchive: true });
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /proxy compose not found/);
+  assert.match(result.stderr, /PROXY_COMPOSE_FILE/);
+  assert.equal(dockerCalls, '');
+});
+
+test('proxy restore validates sibling compose before changing services or volumes', () => {
+  const { result, dockerCalls } = runRestoreWithFakeDocker({
+    RESTORE_REPORTS: 'false', RESTORE_CERTS: 'false', RESTORE_PROXY: 'true'
+  }, { proxyArchive: true, proxyCompose: true });
+
+  assert.equal(result.status, 97);
+  assert.equal(dockerCalls, 'compose -f ../infra-proxy/docker-compose.yml config -q\n');
+});
+
+test('proxy restore accepts a custom independent compose path', () => {
+  const { result, dockerCalls } = runRestoreWithFakeDocker({
+    RESTORE_REPORTS: 'false', RESTORE_CERTS: 'false', RESTORE_PROXY: 'true',
+    PROXY_COMPOSE_FILE: 'operations/proxy.yml'
+  }, { proxyArchive: true, proxyCompose: true });
+
+  assert.equal(result.status, 97);
+  assert.equal(dockerCalls, 'compose -f operations/proxy.yml config -q\n');
+});
+
+test('application restore does not require the independent proxy checkout by default', () => {
+  const { result, dockerCalls } = runRestoreWithFakeDocker({
+    RESTORE_REPORTS: 'false', RESTORE_CERTS: 'false', RESTORE_PROXY: 'false'
+  });
+
+  assert.equal(result.status, 97);
+  assert.match(dockerCalls, /up -d --no-recreate postgres/);
+  assert.doesNotMatch(dockerCalls, /infra-proxy/);
+});
+
+test('proxy restore does not replace the volume if stopping the independent proxy fails', () => {
+  const { result, dockerCalls } = runRestoreWithFakeDocker({
+    RESTORE_REPORTS: 'false', RESTORE_CERTS: 'false', RESTORE_PROXY: 'true'
+  }, {
+    proxyArchive: true,
+    proxyCompose: true,
+    dockerScript: `#!/usr/bin/env bash
+echo "$@" >> "$DOCKER_TEST_LOG"
+if [[ "$*" == *"tar -xzf /backup/proxy.tar.gz"* ]]; then
+  for arg in "$@"; do
+    if [[ "$arg" == *:/staging ]]; then
+      mkdir -p "\${arg%:/staging}/proxy"
+    fi
+  done
+fi
+if [[ "$*" == "compose -f ../infra-proxy/docker-compose.yml stop" ]]; then
+  exit 42
+fi
+exit 0
+`
+  });
+
+  assert.equal(result.status, 42);
+  assert.match(dockerCalls, /compose -f \.\.\/infra-proxy\/docker-compose\.yml stop/);
+  assert.doesNotMatch(dockerCalls, /infra_proxy_data:\/to/);
+  assert.doesNotMatch(dockerCalls, /DROP DATABASE IF EXISTS/);
 });
 
 test('restore script stops public services before mutating database or volumes', () => {

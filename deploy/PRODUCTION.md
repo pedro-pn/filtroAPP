@@ -13,7 +13,7 @@ Este repositório agora tem o esqueleto inicial de produção:
 - PostgreSQL isolado na rede interna Docker
 - Backend sem porta exposta diretamente ao host
 - Worker de jobs recorrentes separado do processo HTTP
-- Nginx como único serviço exposto em `80/443`
+- Nginx HTTP interno, conectado ao proxy externo pela rede `proxy-net`
 - Volumes nomeados para banco, relatórios, assets e certificados
 - Frontend React compilado no build da imagem do nginx
 - SPA React servida pelo nginx, com proxy para `/api`, `/assets`, `/uploads` e `/relatorios`
@@ -21,6 +21,20 @@ Este repositório agora tem o esqueleto inicial de produção:
 Na homologação atual, os assets padrão da aplicação são servidos da própria
 imagem do backend. Por isso o `docker-compose.prod.yml` não monta um volume
 separado em `/data/assets`.
+
+## Proxy compartilhado e TLS
+
+O Caddy do repositório independente `infra-proxy` atende as portas públicas
+`80/443`, emite e renova certificados e encaminha o tráfego para o Nginx interno.
+O checkout sugerido é `../infra-proxy`, ao lado da raiz do filtroAPP. Prepare o
+proxy e a rede `proxy-net` antes de subir a aplicação, conforme
+[INFRA-PROXY.md](INFRA-PROXY.md) e o `RUNBOOK.md` externo. Para uma VPS existente,
+migre a montagem do Caddyfile antes de atualizar o checkout do filtroAPP.
+
+Alterações de rotas e domínios são publicadas pelo repositório do proxy. Não há
+Certbot ativo nessa topologia. O backup ainda pode salvar o volume compartilhado
+`infra_proxy_data`; o restore opcional usa o Compose externo, conforme
+[BACKUP.md](BACKUP.md).
 
 ## Frontend React
 

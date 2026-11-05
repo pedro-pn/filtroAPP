@@ -1,7 +1,9 @@
 CHECKLIST DE PRODUCAO - NewRDO
-Atualizado em: 23/04/2026
+Atualizado em: 05/11/2026
 
 1. Infra e acesso
+- Confirmar o checkout independente infra-proxy (../infra-proxy) conforme deploy/INFRA-PROXY.md
+- Confirmar infra-proxy-caddy em Up, atendendo 80/443 e conectado a proxy-net
 - Confirmar docker compose -f docker-compose.prod.yml ps com backend, postgres e nginx em Up
 - Confirmar https://app.filtrovali.com.br abrindo sem alerta de certificado
 - Confirmar https://relatorios.filtrovali.com.br redirecionando para https://app.filtrovali.com.br/rdo
@@ -34,10 +36,10 @@ Atualizado em: 23/04/2026
 - Confirmar que nao existem pendencias ZapSign antigas ou manter credenciais legadas para reconciliacao/download
 
 5. Certificado e renovacao
-- Confirmar script de renovacao do certificado criado no servidor
-- Confirmar cron da renovacao configurado
-- Confirmar execucao manual de /home/ubuntu/renew-cert.sh sem erro
-- Confirmar que /home/ubuntu/renew-cert.log esta sendo gerado
+- Confirmar emissao e renovacao automatica pelo Caddy do repositorio infra-proxy
+- Confirmar que nao ha cron/timer do Certbot disputando as portas 80/443
+- Confirmar backup do volume infra_proxy_data, que guarda a conta ACME e os certificados
+- Validar alteracoes de dominio no Caddyfile do repositorio infra-proxy
 
 6. Backup rotineiro (recorrente, apos go-live)
 - Fazer backup diario do banco com pg_dump

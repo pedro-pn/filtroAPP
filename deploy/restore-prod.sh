@@ -13,7 +13,7 @@ POSTGRES_USER="${POSTGRES_USER:-postgres}"
 REPORTS_VOLUME="${REPORTS_VOLUME:-filtrovali_relatorios}"
 CERTS_VOLUME="${CERTS_VOLUME:-filtrovali_certs}"
 PROXY_VOLUME="${PROXY_VOLUME:-infra_proxy_data}"
-PROXY_COMPOSE_FILE="${PROXY_COMPOSE_FILE:-deploy/infra-proxy/docker-compose.yml}"
+PROXY_COMPOSE_FILE="${PROXY_COMPOSE_FILE:-../infra-proxy/docker-compose.yml}"
 BACKUP_SOURCE="${BACKUP_SOURCE:-}"
 RUN_MIGRATIONS="${RUN_MIGRATIONS:-false}"
 RESTORE_REPORTS="${RESTORE_REPORTS:-true}"
@@ -110,6 +110,14 @@ fi
 
 cd "$PROJECT_DIR"
 
+if [ "$RESTORE_PROXY" = "true" ] && [ -f "$BACKUP_SOURCE/proxy.tar.gz" ]; then
+  if [ ! -f "$PROXY_COMPOSE_FILE" ]; then
+    echo "[restore] proxy compose not found: $PROXY_COMPOSE_FILE; set PROXY_COMPOSE_FILE to the independent infra-proxy checkout" >&2
+    exit 1
+  fi
+  docker compose -f "$PROXY_COMPOSE_FILE" config -q
+fi
+
 if [ "$RESTORE_REPORTS" = "true" ] && [ -f "$BACKUP_SOURCE/relatorios.tar.gz" ]; then
   echo "[restore] validating reports archive into staging"
   docker run --rm --user "$(id -u):$(id -g)" -v "${BACKUP_SOURCE}:/backup:ro" -v "${RESTORE_STAGING_DIR}:/staging" alpine sh -eu -c "rm -rf /staging/relatorios && mkdir -p /staging/relatorios && tar -xzf /backup/relatorios.tar.gz -C /staging/relatorios"
@@ -155,7 +163,7 @@ fi
 # ele rodando corromperia esse estado, entao para-se o proxy durante a troca.
 if [ "$RESTORE_PROXY" = "true" ] && [ -d "$RESTORE_STAGING_DIR/proxy" ]; then
   echo "[restore] stopping infra-proxy before replacing $PROXY_VOLUME"
-  docker compose -f "$PROXY_COMPOSE_FILE" stop || true
+  docker compose -f "$PROXY_COMPOSE_FILE" stop
   echo "[restore] replacing proxy volume $PROXY_VOLUME from staged archive"
   docker run --rm -v "${PROXY_VOLUME}:/to" -v "${RESTORE_STAGING_DIR}:/staging:ro" alpine sh -eu -c "rm -rf /to/.restore-staging && mkdir /to/.restore-staging && cp -a /staging/proxy/. /to/.restore-staging/ && find /to -mindepth 1 -maxdepth 1 ! -name .restore-staging -exec rm -rf {} + && find /to/.restore-staging -mindepth 1 -maxdepth 1 -exec mv {} /to/ \\; && rmdir /to/.restore-staging"
   echo "[restore] starting infra-proxy"

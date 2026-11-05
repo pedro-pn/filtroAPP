@@ -71,7 +71,9 @@ BACKUP_STATUS_FILE=/root/backups/filtrovali/status/backup-latest.json
 `B2_BIN` é opcional. Use apenas se o cron não encontrar o comando `b2`.
 
 `INCLUDE_PROXY` controla o arquivamento de `infra_proxy_data`, o volume do
-infra-proxy (Caddy). Ele guarda a chave da conta ACME e os certificados
+infra-proxy (Caddy), gerenciado em repositório independente; veja
+[INFRA-PROXY.md](INFRA-PROXY.md). O backup continua incluindo esse volume
+compartilhado da VPS e não exige o checkout do proxy. Ele guarda a chave da conta ACME e os certificados
 emitidos — sem ele, um restore em servidor novo reemite tudo do zero e pode
 esbarrar no rate limit do Let's Encrypt. Se o volume não existir, o backup
 apenas avisa no stderr e segue, em vez de gerar um `proxy.tar.gz` vazio.
@@ -298,8 +300,18 @@ BACKUP_SOURCE=/root/backups/filtrovali/2026-04-24-030001 RESTORE_PROXY=true ./de
 ```
 
 O Caddy mantém estado aberto em `/data` (conta ACME e locks), por isso o script
-o para antes de trocar o volume e o sobe de novo em seguida. Se o infra-proxy
-estiver em outro caminho, ajuste `PROXY_COMPOSE_FILE`.
+o para antes de trocar o volume e o sobe de novo em seguida. Por padrão,
+`PROXY_COMPOSE_FILE` aponta para `../infra-proxy/docker-compose.yml`, relativo a
+`PROJECT_DIR`, a raiz do filtroAPP. O checkout independente do proxy é necessário
+somente quando seu volume será restaurado; o script valida seu Compose antes de
+alterar serviços ou volumes. Se ele estiver em outro caminho, use o arquivo que
+gerencia o proxy em execução:
+
+```bash
+BACKUP_SOURCE=/root/backups/filtrovali/2026-04-24-030001 \
+  RESTORE_PROXY=true PROXY_COMPOSE_FILE=/opt/infra-proxy/docker-compose.yml \
+  ./deploy/restore-prod.sh
+```
 
 Restore parcial explícito (uso excepcional, pois o banco pode referenciar arquivos ausentes):
 

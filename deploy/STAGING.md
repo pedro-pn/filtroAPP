@@ -12,7 +12,7 @@ e-mails para clientes bloqueados e acesso restrito por IP.
 | `backend/.env.staging` | Único arquivo de configuração — backend e senha do Postgres (gitignored) |
 | `deploy/nginx/staging.conf` | Nginx com restrição de acesso por IP |
 | `deploy/nginx/15-staging-allowlist.sh` | Gera a lista de IPs autorizados a partir do ambiente |
-| `deploy/infra-proxy/Caddyfile` | Rota HTTPS no proxy compartilhado da VPS |
+| `Caddyfile` no repositório externo `infra-proxy` | Rota HTTPS no proxy compartilhado da VPS; veja [INFRA-PROXY.md](INFRA-PROXY.md) |
 | `deploy/sync-staging.sh` | Sincronização diária do banco com prod |
 
 ## URL
@@ -138,9 +138,10 @@ docker inspect infra-proxy-caddy --format '{{.State.Status}}'
 docker network inspect proxy-net --format '{{.Name}}'
 ```
 
-Se for uma VPS nova, prepare o proxy conforme
-[`infra-proxy/RUNBOOK.md`](infra-proxy/RUNBOOK.md). O Nginx resolve o nome do Caddy
-ao iniciar para determinar o proxy confiável.
+Se for uma VPS nova, prepare o proxy conforme [INFRA-PROXY.md](INFRA-PROXY.md) e o
+`RUNBOOK.md` do repositório independente `infra-proxy` (checkout sugerido:
+`../infra-proxy`, relativo à raiz do filtroAPP). O Nginx resolve o nome do Caddy ao
+iniciar para determinar o proxy confiável.
 
 ### 3. Subir o ambiente pela primeira vez
 
@@ -157,9 +158,11 @@ PROXY_CADDYFILE="$(docker inspect infra-proxy-caddy --format '{{range .Mounts}}{
 printf '%s\n' "$PROXY_CADDYFILE"
 ```
 
-Atualize esse arquivo com a versão de `deploy/infra-proxy/Caddyfile` desta mudança,
-no checkout que o fornece, preservando eventuais rotas locais. Atualizar apenas o
-checkout de staging não atualiza um Caddyfile montado de outro diretório. A rota é:
+Atualize o `Caddyfile` no repositório independente `infra-proxy`, no checkout que
+fornece o arquivo montado, preservando as rotas dos demais apps. Se a montagem
+ainda aponta para o antigo checkout do filtroAPP, faça primeiro a migração de
+[INFRA-PROXY.md](INFRA-PROXY.md). Atualizar o checkout de staging não publica
+alterações no proxy. A rota a manter no repositório externo é:
 
 ```caddyfile
 filtrostaging.filtrovali.com.br {
@@ -243,10 +246,19 @@ docker exec filtrovali-staging-nginx nginx -s reload
 python3 deploy/test-staging-https.py
 ```
 
-O teste usa containers e rede descartáveis, sem portas no host, sem banco e sem
-contatar autoridades de certificação públicas. Valida TLS com uma CA local, rotas,
-restrição de IP, headers encaminhados, redirecionamento HTTP e os domínios de
-produção/legado. Também roda no job Docker do CI.
+O teste usa uma configuração de proxy exclusiva de teste, containers e rede
+descartáveis, sem portas no host, sem banco e sem contatar autoridades de
+certificação públicas. Valida o contrato do filtroAPP: TLS com uma CA local,
+rotas, restrição de IP, headers encaminhados, redirecionamento HTTP e os domínios
+de produção/legado. Também roda no job Docker do CI, sem precisar clonar o
+repositório `infra-proxy`.
+
+Para validar o Caddyfile compartilhado real, inclusive a rota do ComercialAPP
+após reiniciar o proxy, use o teste no repositório externo:
+
+```bash
+FILTROAPP_DIR="$PWD" python3 ../infra-proxy/test-filtroapp-https.py
+```
 
 ## Sincronização diária com produção
 

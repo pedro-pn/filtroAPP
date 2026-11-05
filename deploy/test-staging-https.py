@@ -15,6 +15,23 @@ NGINX_IMAGE = "nginx:1.27-alpine"
 CADDY_IMAGE = "caddy:2.8-alpine"
 NODE_IMAGE = "node:24-alpine"
 
+# Test-only contract for filtroAPP; the shared VPS config lives in infra-proxy.
+CADDYFILE = """{
+    local_certs
+}
+app.filtrovali.com.br {
+    reverse_proxy filtrovali-nginx:80
+}
+filtrostaging.filtrovali.com.br {
+    reverse_proxy filtrovali-staging-nginx:80
+}
+relatorios.filtrovali.com.br {
+    @root path /
+    redir @root https://app.filtrovali.com.br/rdo 301
+    redir https://app.filtrovali.com.br{uri} 301
+}
+"""
+
 
 def docker(*args, **kwargs):
     return subprocess.run(
@@ -40,9 +57,7 @@ def main():
     try:
         with tempfile.TemporaryDirectory(prefix=prefix) as directory:
             scratch = Path(directory)
-            # Use the real Caddyfile, with a local CA so tests never contact ACME.
-            caddyfile = (REPO / "deploy/infra-proxy/Caddyfile").read_text()
-            (scratch / "Caddyfile").write_text(caddyfile.replace("{\n", "{\n\tlocal_certs\n", 1))
+            (scratch / "Caddyfile").write_text(CADDYFILE)
 
             def start(suffix, *args):
                 name = f"{prefix}-{suffix}"
@@ -57,17 +72,12 @@ def main():
             )
             start(
                 "backend", "--network-alias", "backend", "--network-alias", "filtrovali-nginx",
-                "--network-alias", "host.docker.internal",
                 NODE_IMAGE, "node", "-e",
                 "require('http').createServer((req,res)=>{"
                 "res.setHeader('Content-Type','application/json');"
                 "res.end(JSON.stringify({path:req.url,headers:req.headers}));"
                 "}).listen(4000,'0.0.0.0');"
-                "require('http').createServer((req,res)=>res.end('production upstream')).listen(80);"
-                "require('http').createServer((req,res)=>{"
-                "res.setHeader('Content-Type','application/json');"
-                "res.end(JSON.stringify({service:'comercialapp',path:req.url}));"
-                "}).listen(8083);",
+                "require('http').createServer((req,res)=>res.end('production upstream')).listen(80);",
             )
             allowed = start(
                 "allowed", "-v", f"{scratch}:/test:ro", NODE_IMAGE, "sleep", "infinity",
@@ -158,18 +168,10 @@ req.end();
             assert legacy["headers"]["location"] == "https://app.filtrovali.com.br/rdo", legacy
             print("PASS: HTTP redirect and existing production/legacy vhost routing", flush=True)
 
-            def check_comercialapp():
-                response = expect_status(blocked, 200, "/api/health", host="comercial.filtrovali.com.br")
-                assert json.loads(response["body"]) == {
-                    "service": "comercialapp", "path": "/api/health",
-                }, response
-
-            check_comercialapp()
             docker("restart", caddy)
-            eventually(check_comercialapp)
             eventually(lambda: expect_status(allowed, 200, "/health"))
             assert docker("exec", caddy, "cat", "/data/caddy/pki/authorities/local/root.crt") == root_cert
-            print("PASS: ComercialAPP and staging retain trusted TLS and routing after Caddy restart", flush=True)
+            print("PASS: staging retains trusted TLS and routing after Caddy restart", flush=True)
 
             for invalid in ["127.0.0.1;", "999.999.999.999"]:
                 try:
