@@ -481,10 +481,12 @@ export function RomaneioPage() {
                     <article className="report-card" key={item.id}>
                       <div className="report-card-head">
                         <div>
-                          <div className="report-title">{romaneioTypeLabel(item.type)} · {formatDate(item.romaneioDate)} · {item.vehiclePlate}</div>
+                          <div className="report-title">{romaneioTypeLabel(item.type)} · {item.vehiclePlate}</div>
                           <div className="report-subtitle">
-                            {[item.driverName, cargoWeightLabel(item) ? `Peso ${cargoWeightLabel(item)}` : '', `${item.items.length} item(ns)`].filter(Boolean).join(' · ')}
+                            {[`Criado por: ${item.createdBy?.name || 'Não informado'}`, cargoWeightLabel(item) ? `Peso ${cargoWeightLabel(item)}` : '', `${item.items.length} item(ns)`].filter(Boolean).join(' · ')}
                           </div>
+                          <div className="rel-meta">Data de {item.type === 'INBOUND' ? 'entrada' : 'saída'}: {formatDate(item.romaneioDate)}</div>
+                          <div className="rel-meta">Data de criação do romaneio: {formatTimestampDate(item.createdAt)}</div>
                           {item.emailStatus && <div className="rel-meta">E-mail: {item.emailStatus}{item.emailError ? ` (${item.emailError})` : ''}</div>}
                         </div>
                         <div className="report-download-actions">
