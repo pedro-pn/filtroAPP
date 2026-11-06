@@ -22,6 +22,7 @@ const project = {
   contractCode: 'P-1',
   isActive: true,
   visibleToCollaborators: true,
+  inhibitionServiceEnabled: true,
   operatorId: 'colab-1',
   operator: { id: 'colab-1', name: 'Ana' },
   plannedServices: [
@@ -56,6 +57,7 @@ const services = ['UG 1', 'UG 2'].map((scope, i) => ({
   finalized: false,
   extraData: {
     equipmentId: 'EQ-1',
+    'Equipamento(s)': 'EQ-1',
     __scopeKey: JSON.stringify(scope),
     __scopeName: scope,
     material: 'Aço',
@@ -105,11 +107,16 @@ async function mockApp(page: Page, savedReport = report) {
       counters: [],
       equipments: [],
       rdoSlotMap: {},
-      inhibitionOptions: { vessels: [], systems: [] },
+      inhibitionOptions: {
+        vessels: [{ id: 'vessel-1', code: 'EQ-1' }],
+        systems: [{ id: 'system-1', code: 'S1', description: 'Sistema', diagram: 'D1' }]
+      },
       drafts: []
     };
     let response: unknown = [];
     if (path === '/api/auth/me') response = { user };
+    else if (path === '/api/notifications')
+      response = { items: [], criticalItems: [], unreadCount: 0, nextCursor: null, snapshotAt: '2026-10-02T12:00:00Z' };
     else if (
       path.includes('/bootstrap/new-report') ||
       path.includes('/bootstrap/report-detail/')
@@ -171,6 +178,73 @@ async function fillHeader(page: Page) {
   await page
     .getByRole('combobox', { name: 'Adicionar colaborador', exact: true })
     .selectOption('colab-1');
+}
+
+for (const [type, label] of [
+  ['limpeza', 'Limpeza química'],
+  ['pressao', 'Teste de pressão'],
+  ['filtragem', 'Filtragem'],
+  ['flushing', 'Flushing'],
+  ['mecanica', 'Limpeza mecânica'],
+  ['inibicao', 'Inibição']
+]) {
+  test(`${label}: novo RDO exige equipamento e sistema`, async ({ page }) => {
+    const requests = await mockApp(page);
+    await page.goto('/rdo/relatorio/novo?tipo=obra');
+    await fillHeader(page);
+    await page.locator('#rdo-work-location').selectOption('Oficina');
+    await page.getByRole('button', { name: 'Próximo', exact: true }).click();
+    await page.getByRole('button', { name: 'Adicionar serviço', exact: true }).click();
+    await page.getByRole('dialog', { name: 'Tipo de serviço' }).getByRole('button', { name: label, exact: true }).click();
+    await page.getByRole('combobox', { name: /^Escopo/ }).selectOption('"UG 1"');
+    const equipment = page.locator(type === 'inibicao' ? 'select[id$="-equipmentId"]' : 'input[id^="service-equipment-"]');
+    const system = page.locator(type === 'inibicao' ? 'select[id$="-system"]' : 'input[id^="service-system-"]');
+    await expect(equipment).toHaveAttribute('required', '');
+    await expect(system).toHaveAttribute('required', '');
+    await page.getByRole('button', { name: 'Próximo', exact: true }).click();
+    await expect(equipment).toHaveAttribute('aria-invalid', 'true');
+    if (type === 'inibicao') await equipment.selectOption('EQ-1');
+    else await equipment.fill('EQ-1');
+    await page.getByRole('button', { name: 'Próximo', exact: true }).click();
+    await expect(system).toHaveAttribute('aria-invalid', 'true');
+    expect(requests.filter(request => request.path === '/api/rdo/reports')).toHaveLength(0);
+  });
+
+  test(`${label}: edição bloqueia equipamento e sistema vazios e salva após preencher`, async ({ page }) => {
+    const systemValue = type === 'inibicao' ? 'S1;Sistema;D1' : 'Sistema';
+    const savedReport = { ...report, services: [{ ...services[0], serviceType: type, system: systemValue,
+      extraData: { ...services[0].extraData, material: 'Inox', limpezaTubulacao: 'Sim', flushingTubulacao: 'Sim' } }] };
+    const requests = await mockApp(page, savedReport);
+    await page.goto('/rdo/gestor/relatorio/report-1');
+    const equipment = page.locator(type === 'inibicao' ? '#svc-service-0-equipmentId' : '#service-equipment-service-0');
+    const system = page.locator(type === 'inibicao' ? '#svc-service-0-system' : '#service-system-service-0');
+    await expect(equipment).toHaveValue('EQ-1');
+    await expect(system).toHaveValue(systemValue);
+    await expect(equipment).toHaveAttribute('required', '');
+    await expect(system).toHaveAttribute('required', '');
+    if (type === 'inibicao') await equipment.selectOption('');
+    else await equipment.fill('   ');
+    await page.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await expect(equipment).toHaveAttribute('aria-invalid', 'true');
+    await expect(equipment).toBeFocused();
+    expect(requests.filter(request => request.path === '/api/rdo/reports/report-1')).toHaveLength(0);
+    if (type === 'inibicao') {
+      await equipment.selectOption('EQ-1');
+      await system.selectOption('');
+    } else {
+      await equipment.fill('EQ-1');
+      await system.fill('   ');
+    }
+    await page.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await expect(system).toHaveAttribute('aria-invalid', 'true');
+    await expect(system).toBeFocused();
+    expect(requests.filter(request => request.path === '/api/rdo/reports/report-1')).toHaveLength(0);
+    if (type === 'inibicao') await system.selectOption(systemValue);
+    else await system.fill(systemValue);
+    await page.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await expect.poll(() => requests.find(request => request.path === '/api/rdo/reports/report-1')?.body)
+      .toMatchObject({ services: [{ system: systemValue, extraData: { equipmentId: 'EQ-1' } }] });
+  });
 }
 
 test('local e escopo são obrigatórios, independentes por serviço e persistidos no rascunho', async ({
@@ -336,7 +410,8 @@ test('cadastro de projeto adiciona e remove locais antes de salvar', async ({
   const requests = await mockApp(page);
   await page.goto('/rdo/gestor?tab=projetos');
   await page.getByRole('button', { name: 'Novo projeto', exact: true }).click();
-  const form = page.locator('.rdo-manager-projects__legacy-form');
+  const dialog = page.getByRole('dialog', { name: 'Novo projeto', exact: true });
+  const form = dialog.locator('#project-create-form');
   await form.locator('#project-code').fill('103');
   await form.locator('#project-name').fill('Novo projeto');
   await form.locator('#project-client-name').fill('Cliente');
@@ -369,7 +444,7 @@ test('cadastro de projeto adiciona e remove locais antes de salvar', async ({
   await expect(
     form.getByRole('textbox', { name: 'Local da obra 2', exact: true })
   ).toHaveValue('Navio');
-  await form
+  await dialog
     .getByRole('button', { name: 'Criar projeto', exact: true })
     .click();
   await expect
@@ -386,7 +461,8 @@ test('edição dos locais mantém foco e seleção do texto e salva os valores',
   const requests = await mockApp(page);
   await page.goto('/rdo/gestor?tab=projetos');
   await page.getByRole('button', { name: 'Editar', exact: true }).click();
-  const form = page.locator('.rdo-project-edit-form');
+  const dialog = page.getByRole('dialog', { name: 'Editar projeto', exact: true });
+  const form = dialog.locator('#project-edit-form');
   const location = form.getByRole('textbox', {
     name: 'Local da obra',
     exact: true
@@ -428,7 +504,7 @@ test('edição dos locais mantém foco e seleção do texto e salva os valores',
   await expect(thirdLocation).toBeFocused();
   await thirdLocation.pressSequentially('Navio');
   await expect(thirdLocation).toBeFocused();
-  await form
+  await dialog
     .getByRole('button', { name: 'Salvar projeto', exact: true })
     .click();
   await expect

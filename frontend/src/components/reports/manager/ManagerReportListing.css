@@ -197,7 +197,7 @@
   width: 100%;
   max-width: 100%;
   margin: 0;
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-2);
   overflow: hidden;
   border: var(--border-width) solid var(--line);
   border-radius: var(--radius-sm);
@@ -210,12 +210,13 @@
 :where(.fv-ds, [data-fv-ds]) .rdo-manager-listing .signature-progress-head {
   display: flex;
   min-width: 0;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-2);
+  gap: var(--space-1) var(--space-2);
   color: var(--ink);
   font-weight: var(--font-semibold);
-  white-space: nowrap;
+  white-space: normal;
 }
 
 :where(.fv-ds, [data-fv-ds])
@@ -223,9 +224,10 @@
   .signature-progress-head
   span {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  flex: 0 1 auto;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 :where(.fv-ds, [data-fv-ds])
@@ -233,14 +235,15 @@
   .signature-progress-head
   span:last-child {
   color: var(--muted);
+  text-align: start;
 }
 
 :where(.fv-ds, [data-fv-ds]) .rdo-manager-listing .signature-progress-names {
   margin-block-start: var(--space-1);
   overflow: hidden;
   color: var(--muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 :where(.fv-ds, [data-fv-ds]) .rdo-manager-listing__mobile-title {

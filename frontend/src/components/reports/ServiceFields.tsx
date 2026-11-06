@@ -1386,7 +1386,7 @@ export function ServiceFields({
         <ServiceFormSection title="Equipamento e sistema" appearance={appearance}>
           <div className={fieldClass(invalidKey, 'equipmentId')}>
           <label htmlFor={fieldId(groupKey, 'equipmentId')}>Embarcação {requiredMark()}</label>
-          <select id={fieldId(groupKey, 'equipmentId')} value={vesselCode} disabled={disabled} onChange={event => onChange({
+          <select id={fieldId(groupKey, 'equipmentId')} required aria-invalid={invalidKey === 'equipmentId'} value={vesselCode} disabled={disabled} onChange={event => onChange({
             equipmentId: event.target.value,
             system: inhibitionSystemForVessel(systemValue, event.target.value, vesselCode)
           })}>
@@ -1398,7 +1398,7 @@ export function ServiceFields({
           </div>
           <div className={fieldClass(invalidKey, 'system')}>
           <label htmlFor={fieldId(groupKey, 'system')}>Sistema {requiredMark()}</label>
-          <select id={fieldId(groupKey, 'system')} value={systemValue} disabled={disabled} onChange={event => onChange({ system: event.target.value })}>
+          <select id={fieldId(groupKey, 'system')} required aria-invalid={invalidKey === 'system'} value={systemValue} disabled={disabled} onChange={event => onChange({ system: event.target.value })}>
             <option value="">Selecionar...</option>
             {(inhibitionOptions?.systems || []).map(system => {
               const value = inhibitionSystemValue(system, vesselCode);

@@ -423,8 +423,10 @@ jobs:
       - name: Install Chromium for notification and equipment regressions
         run: npx playwright install --with-deps chromium
 
-      - name: Verify notifications and report equipment selection in the browser
-        run: npx playwright test --config=playwright.rdo.config.ts rdo-notifications-equipment.behavior.spec.ts
+      - name: Verify RDO forms, notifications and equipment selection in the browser
+        run: >-
+          npx playwright test --config=playwright.rdo.config.ts
+          rdo-notifications-equipment.behavior.spec.ts rdo-project-context.behavior.spec.ts
 
       - name: Upload browser regression report
         if: failure()

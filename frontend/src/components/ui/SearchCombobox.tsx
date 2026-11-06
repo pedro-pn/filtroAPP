@@ -203,6 +203,8 @@ export function SearchCombobox({
           value={query}
           placeholder={placeholder}
           disabled={disabled}
+          required={required}
+          aria-required={required || undefined}
           aria-invalid={Boolean(error)}
           aria-expanded={open}
           aria-controls={listId}

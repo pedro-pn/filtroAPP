@@ -480,6 +480,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const isSaving = saveAction !== null;
   const [invalidFinalizationServiceId, setInvalidFinalizationServiceId] = useState<string | null>(null);
   const [invalidSystemTypeServiceId, setInvalidSystemTypeServiceId] = useState<string | null>(null);
+  const [invalidServiceIdentification, setInvalidServiceIdentification] = useState<{ serviceId: string; field: 'equipmentId' | 'system' } | null>(null);
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const [reissueOpen, setReissueOpen] = useState(false);
   const [showServiceModal, setShowServiceModal] = useState(false);
@@ -731,6 +732,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   }
 
   function updateService(id: string, data: Partial<RdoServiceForm>) {
+    if (id === invalidServiceIdentification?.serviceId && data.data?.[invalidServiceIdentification.field] !== undefined) setInvalidServiceIdentification(null);
     if (id === invalidFinalizationServiceId && typeof data.data?.finalized === 'boolean') setInvalidFinalizationServiceId(null);
     if (id === invalidSystemTypeServiceId && (data.data?.tipoSistema !== undefined || data.data?.limpezaTubulacao !== undefined || data.data?.flushingTubulacao !== undefined)) {
       setInvalidSystemTypeServiceId(null);
@@ -746,6 +748,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   }
 
   function removeService(id: string) {
+    if (id === invalidServiceIdentification?.serviceId) setInvalidServiceIdentification(null);
     if (id === invalidFinalizationServiceId) setInvalidFinalizationServiceId(null);
     if (id === invalidSystemTypeServiceId) setInvalidSystemTypeServiceId(null);
     setForm(current => ({ ...current, services: current.services.filter(service => service.id !== id) }));
@@ -797,6 +800,19 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         return false;
       }
     }
+    for (const [serviceIndex, service] of form.services.entries()) {
+      for (const field of ['equipmentId', 'system'] as const) {
+        const value = service.data[field];
+        if (typeof value === 'string' && value.trim()) continue;
+        const inhibition = normalizeServiceType(service.type) === 'inibicao';
+        const label = field === 'system' ? 'o sistema' : inhibition ? 'a embarcação' : 'o equipamento do cliente';
+        setInvalidServiceIdentification({ serviceId: service.id, field });
+        showToast(`Informe ${label} do serviço ${serviceIndex + 1}.`, 'error');
+        document.getElementById(inhibition ? `svc-${service.id}-${field}` : `service-${field === 'system' ? 'system' : 'equipment'}-${service.id}`)?.focus();
+        return false;
+      }
+    }
+    setInvalidServiceIdentification(null);
     const missingServiceTime = firstMissingRequiredServiceTime(form.services);
     if (missingServiceTime) {
       const label = missingServiceTime.field === 'startTime' ? 'hora de início' : 'hora de término/pausa';
@@ -1157,24 +1173,28 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                         <h4 className="rdo-service-section__title">Equipamento e sistema</h4>
                         <div className="rdo-service-section__grid">
                           <div className="field-group">
-                            <label htmlFor={`service-equipment-${service.id}`}>Equipamento(s)</label>
+                            <label htmlFor={`service-equipment-${service.id}`}>Equipamento(s) <span style={{ color: 'var(--rd)' }}>*</span></label>
                             <ProjectSystemInput
                               projectId={form.projectId}
                               data={service.data}
                               serviceType={service.type}
                               field="equipmentId"
+                              required
+                              error={invalidServiceIdentification?.serviceId === service.id && invalidServiceIdentification.field === 'equipmentId' ? 'Informe o equipamento do cliente.' : undefined}
                               id={`service-equipment-${service.id}`}
                               disabled={readOnly || manualReport}
                               onChange={patch => updateService(service.id, { data: patch })}
                             />
                           </div>
                           <div className="field-group">
-                            <label htmlFor={`service-system-${service.id}`}>Sistema</label>
+                            <label htmlFor={`service-system-${service.id}`}>Sistema <span style={{ color: 'var(--rd)' }}>*</span></label>
                             <ProjectSystemInput
                               projectId={form.projectId}
                               data={service.data}
                               serviceType={service.type}
                               field="system"
+                              required
+                              error={invalidServiceIdentification?.serviceId === service.id && invalidServiceIdentification.field === 'system' ? 'Informe o sistema.' : undefined}
                               id={`service-system-${service.id}`}
                               disabled={readOnly || manualReport}
                               onChange={patch => updateService(service.id, { data: patch })}
@@ -1244,7 +1264,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                     groupKey={service.id}
                     transferServiceId={service.id}
                     projectId={form.projectId}
-                    invalidKey={invalidSystemTypeServiceId === service.id ? 'tipoSistema' : invalidFinalizationServiceId === service.id ? 'finalized' : null}
+                    invalidKey={invalidServiceIdentification?.serviceId === service.id ? invalidServiceIdentification.field : invalidSystemTypeServiceId === service.id ? 'tipoSistema' : invalidFinalizationServiceId === service.id ? 'finalized' : null}
                     hideFinalization={serviceReportMode}
                     hideUploads={manualReport}
                     hideNotes={manualReport}
