@@ -438,7 +438,7 @@ export function PontoImportPanel() {
               size="sm"
               onClick={() => setDetailTab('rdo-simulation')}
             >
-              Simulação por RDO
+              Custos nos projetos
             </Button>
           </div>
         ) : null}

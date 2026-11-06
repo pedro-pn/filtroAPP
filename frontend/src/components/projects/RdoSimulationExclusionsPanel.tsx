@@ -31,16 +31,17 @@ export function RdoSimulationExclusionsPanel() {
         current?.map(collaborator => collaborator.id === updated.id ? { ...collaborator, ...updated } : collaborator)
       );
       showToast(updated.rdoCostSimulationExcluded
-        ? 'Colaborador excluído da simulação por RDO.'
-        : 'Colaborador incluído na simulação por RDO.', 'success');
+        ? 'Colaborador excluído dos custos dos projetos.'
+        : 'Colaborador incluído nos custos dos projetos.', 'success');
       await Promise.all([
         queryClient.invalidateQueries({ queryKey }),
         queryClient.invalidateQueries({ queryKey: ['project-detail'] }),
-        queryClient.invalidateQueries({ queryKey: ['mission-group-detail'] })
+        queryClient.invalidateQueries({ queryKey: ['mission-group-detail'] }),
+        queryClient.invalidateQueries({ queryKey: ['project-cards'] })
       ]);
     },
     onError: (error: Error) => {
-      showToast(error.message || 'Não foi possível salvar a preferência de simulação.', 'error');
+      showToast(error.message || 'Não foi possível salvar a preferência de custo.', 'error');
     }
   });
   const matches = createSearchMatcher(search);
@@ -52,11 +53,11 @@ export function RdoSimulationExclusionsPanel() {
 
   return (
     <section className="acp-cost-ds__surface" aria-labelledby="rdo-simulation-title">
-      <h3 id="rdo-simulation-title" className="acp-cost-ds__section-title">Simulação por RDO</h3>
+      <h3 id="rdo-simulation-title" className="acp-cost-ds__section-title">Custos nos projetos</h3>
       <p className="acp-cost-ds__copy">
-        Escolha quem deve ficar sem custo simulado quando houver horas em RDOs sem apropriação pelo ponto.
+        Escolha quem deve ficar sem custo de mão de obra nos projetos, tanto na apropriação pelo ponto e pelo Efetivo quanto na estimativa por RDO.
         A escolha vale para todos os acompanhamentos, inclusive períodos anteriores.
-        As horas dos RDOs e os custos calculados pelo ponto são preservados. Você pode reincluir o colaborador a qualquer momento.
+        As horas dos RDOs e o cálculo mensal da aba Custos são preservados. Você pode reincluir o colaborador a qualquer momento.
       </p>
       <div className="ponto-filter-row">
         <Field id="rdo-simulation-search" className="ponto-filter-grow" label="Buscar colaborador" optionalText="">
@@ -68,7 +69,7 @@ export function RdoSimulationExclusionsPanel() {
             onChange={event => setSearch(event.target.value)}
           />
         </Field>
-        <Field label="Simulação" optionalText="">
+        <Field label="Custos nos projetos" optionalText="">
           <Select value={filter} onChange={event => setFilter(event.target.value)}>
             <option value="all">Todos</option>
             <option value="excluded">Excluídos do cálculo</option>
@@ -79,15 +80,15 @@ export function RdoSimulationExclusionsPanel() {
       {isPending ? <p className="acp-cost-ds__copy" role="status"><BrandLoading label="Carregando colaboradores" inline size="sm" /></p> : null}
       {isError ? (
         <Alert tone="danger" action={<Button variant="secondary" size="sm" onClick={() => void refetch()}>Tentar novamente</Button>}>
-          Não foi possível carregar as preferências de simulação.
+          Não foi possível carregar as preferências de custo.
         </Alert>
       ) : null}
       {!isPending && !isError ? (
         <>
           <p className="acp-cost-ds__copy" role="status">
-            {excludedCount} de {collaborators.length} colaborador(es) excluído(s) da simulação.
+            {excludedCount} de {collaborators.length} colaborador(es) excluído(s) dos custos dos projetos.
           </p>
-          <div className="ponto-local-scroll ponto-employee-directory" role="region" aria-label="Preferências de simulação por colaborador" tabIndex={0}>
+          <div className="ponto-local-scroll ponto-employee-directory" role="region" aria-label="Preferências de custo por colaborador" tabIndex={0}>
             {visible.map(collaborator => (
               <div key={collaborator.id} className="ponto-employee-row">
                 <div className="ponto-link-copy">
@@ -96,17 +97,17 @@ export function RdoSimulationExclusionsPanel() {
                     {collaborator.code}{collaborator.jobRole?.name ? ` · ${collaborator.jobRole.name}` : ''}
                     {collaborator.isActive ? '' : ' · Inativo'}
                   </span>
-                  <span>{collaborator.rdoCostSimulationExcluded ? 'Excluído do cálculo simulado' : 'Incluído no cálculo simulado'}</span>
+                  <span>{collaborator.rdoCostSimulationExcluded ? 'Excluído dos custos dos projetos' : 'Incluído nos custos dos projetos'}</span>
                 </div>
                 <Button
                   variant="secondary"
                   disabled={mutation.isPending}
-                  aria-label={`${collaborator.rdoCostSimulationExcluded ? 'Reincluir' : 'Excluir'} ${collaborator.name} ${collaborator.rdoCostSimulationExcluded ? 'no' : 'do'} cálculo simulado`}
+                  aria-label={`${collaborator.rdoCostSimulationExcluded ? 'Reincluir' : 'Excluir'} ${collaborator.name} ${collaborator.rdoCostSimulationExcluded ? 'nos' : 'dos'} custos dos projetos`}
                   onClick={() => mutation.mutate({ collaboratorId: collaborator.id, excluded: !collaborator.rdoCostSimulationExcluded })}
                 >
                   {mutation.isPending && mutation.variables?.collaboratorId === collaborator.id
                     ? 'Salvando…'
-                    : collaborator.rdoCostSimulationExcluded ? 'Reincluir no cálculo' : 'Excluir do cálculo'}
+                    : collaborator.rdoCostSimulationExcluded ? 'Reincluir nos custos' : 'Excluir dos custos'}
                 </Button>
               </div>
             ))}
