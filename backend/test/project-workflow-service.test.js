@@ -30,7 +30,7 @@ function fullClientContactChecklist() {
 
 function fakeDatabase() {
   const state = {
-    project: { id: 'project-1', code: 'P-001', name: 'Flushing', clientName: 'Cliente', location: 'Santos', mobilizationDate: null, startDate: null, demobilizationDate: null },
+    project: { id: 'project-1', code: 'P-001', name: 'Flushing', clientName: 'Cliente', clientEmailPrimary: 'cliente@example.com', isActive: true, location: 'Santos', mobilizationDate: null, startDate: null, demobilizationDate: null },
     workflow: null,
     checklists: [],
     teamMemberChecks: [],
@@ -125,7 +125,7 @@ function fakeDatabase() {
       }
     },
     project: {
-      findFirst: async input => input.where.id === state.project.id ? { ...state.project, defaultReportResponsibleUser: users[state.project.defaultReportResponsibleUserId] || null, plannedServices: [{ serviceType: 'FLUSHING' }], efetivoMissionPlans: state.operationalMission ? [state.operationalMission] : [], ...(input.select?.workflow ? { workflow: withRelations() } : {}) } : null,
+      findFirst: async input => input.where.id === state.project.id && (input.where.isActive !== true || state.project.isActive) ? { ...state.project, defaultReportResponsibleUser: users[state.project.defaultReportResponsibleUserId] || null, plannedServices: [{ serviceType: 'FLUSHING' }], efetivoMissionPlans: state.operationalMission ? [state.operationalMission] : [], ...(input.select?.workflow ? { workflow: withRelations() } : {}) } : null,
       findUnique: async input => input.where.id === state.project.id ? { ...state.project, plannedServices: [{ serviceType: 'FLUSHING' }] } : null,
       update: async input => {
         state.project = { ...state.project, ...input.data };
@@ -806,6 +806,9 @@ test('fluxo legado resumido fecha o projeto direto quando a etapa escolhida é E
   assert.equal(result.workflow.stage, 'FINISHED');
   assert.equal(result.workflow.fieldCompletionDate, '2026-08-10');
   assert.ok(result.workflow.closedAt);
+  assert.equal(state.project.isActive, false);
+  assert.equal(state.project.acompanhamentoReviewedAt, null);
+  assert.ok(state.project.acompanhamentoReportArchivedAt);
   assert.equal(state.project.demobilizationDate.toISOString().slice(0, 10), '2026-08-12');
 });
 
@@ -828,7 +831,9 @@ test('admin encerra handover pelo fluxo resumido sem missão, preservando dados 
   assert.equal(detail.workflow.permissions.canConvertLegacySummary, true);
   assert.equal(detail.workflow.permissions.canEdit, false);
   assert.equal(state.operationalMission, null);
-  assert.deepEqual(state.project, previous.project);
+  assert.deepEqual(state.project, {
+    ...previous.project, isActive: false, acompanhamentoReviewedAt: null, acompanhamentoReportArchivedAt: now
+  });
   assert.deepEqual(state.checklists, previous.checklists);
   assert.deepEqual(state.authorizedUsers, previous.authorizedUsers);
   assert.deepEqual(state.events.slice(0, -1), previous.events);
@@ -856,10 +861,25 @@ test('admin reposiciona o fluxo resumido em qualquer etapa e limpa o encerrament
     if (stage !== 'FINISHED') {
       assert.equal(state.workflow.closedAt, null);
       assert.equal(state.workflow.closedByUserId, null);
+      assert.equal(state.project.isActive, true);
+      assert.equal(state.project.acompanhamentoReportArchivedAt, null);
     }
   }
   assert.equal(state.events[2].data.previousStage, 'FINISHED');
   assert.ok(state.events[2].data.previousClosedAt);
+});
+
+test('falha ao arquivar desfaz o encerramento e preserva a versão e o histórico', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1' }, manager, { database });
+  const previous = structuredClone(state);
+  database.project.update = async () => { throw new Error('Falha ao arquivar'); };
+  await assert.rejects(convertProjectWorkflowToLegacySummary('project-1', {
+    version: 1, stage: 'FINISHED', reason: 'Obra concluída.'
+  }, manager, { database }), /Falha ao arquivar/);
+  assert.deepEqual(state.workflow, previous.workflow);
+  assert.deepEqual(state.project, previous.project);
+  assert.deepEqual(state.events, previous.events);
 });
 
 test('conversão administrativa não fica disponível para gestor, líder ou demais contas internas', async () => {
@@ -2015,6 +2035,13 @@ test('Encerramento registra autoria e reabertura exige justificativa auditável'
   assert.equal(detail.workflow.stage, 'FINISHED');
   assert.equal(detail.workflow.closedAt.toISOString(), '2026-10-01T12:00:00.000Z');
   assert.equal(detail.workflow.closedBy.name, 'Líder A');
+  assert.equal(state.project.isActive, false);
+  assert.equal(state.project.acompanhamentoReviewedAt, null);
+  assert.equal(state.project.acompanhamentoReportArchivedAt.toISOString(), '2026-10-01T12:00:00.000Z');
+  const listing = await listProjectWorkflows({}, leader, { database });
+  assert.equal(listing.items[0].workflow.stage, 'FINISHED');
+  assert.equal(listing.items[0].clientEmailPrimary, 'cliente@example.com');
+  assert.ok(state.lastProjectFindManyInput.where.AND.some(condition => condition.OR?.some(item => item.workflow?.is?.stage === 'FINISHED')));
   assert.equal(detail.workflow.permissions.canEdit, false);
   assert.equal(detail.workflow.permissions.canReopen, true);
   assert.deepEqual(synchronizedStages, ['FINISHED']);
@@ -2036,6 +2063,8 @@ test('Encerramento registra autoria e reabertura exige justificativa auditável'
   assert.equal(detail.workflow.stage, 'FINAL_MEASUREMENT');
   assert.equal(detail.workflow.closedAt, null);
   assert.equal(detail.workflow.closedBy, null);
+  assert.equal(state.project.isActive, true);
+  assert.equal(state.project.acompanhamentoReportArchivedAt, null);
   assert.deepEqual(synchronizedStages, ['FINISHED', 'FINAL_MEASUREMENT']);
   assert.equal(state.events.at(-1).data.reason, 'Cliente solicitou ajuste no valor final.');
 });

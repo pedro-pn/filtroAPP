@@ -428,6 +428,17 @@ jobs:
           npx playwright test --config=playwright.rdo.config.ts
           rdo-notifications-equipment.behavior.spec.ts rdo-project-context.behavior.spec.ts
 
+      - name: Verify Efetivo project closeout and satisfaction surveys in the browser
+        run: npx playwright test --config=playwright.efetivo.config.ts
+
+      - name: Upload Efetivo browser regression report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: efetivo-closeout-browser-report
+          path: output/playwright/efetivo
+          if-no-files-found: warn
+
       - name: Upload browser regression report
         if: failure()
         uses: actions/upload-artifact@v7

@@ -20,7 +20,7 @@ import {
 import { hasModuleRole } from '../../module-roles.js';
 import { ensureCommercialProposalSync } from '../../projects/commercial-proposal-sync-state.js';
 import { projectAllowsChannel } from '../../projects/distribution.js';
-import { efetivoProjectWhere } from '../project-visibility.js';
+import { efetivoWorkflowProjectWhere } from '../project-visibility.js';
 import { conflictError, notFound, planningError } from '../planning/errors.js';
 import { resolvePlanningDatabase } from '../planning/plan-context.js';
 
@@ -244,7 +244,7 @@ async function runTransaction(database, operation) {
 
 async function loadProject(database, projectId) {
   const project = await database.project.findFirst({
-    where: { id: projectId, isActive: true, deletedAt: null, ...efetivoProjectWhere() },
+    where: efetivoWorkflowProjectWhere({ id: projectId }, { includeFinished: true }),
     select: {
       id: true,
       code: true,

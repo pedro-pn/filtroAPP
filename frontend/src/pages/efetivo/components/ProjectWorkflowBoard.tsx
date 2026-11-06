@@ -46,6 +46,7 @@ import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { SearchBar } from '../../../components/ui/SearchBar';
 import { useToast } from '../../../components/ui/ToastContext';
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
+import { useSurveyMutations } from '../../../hooks/useSurveys';
 import { displayDateOnly } from '../../../utils/calendarGrid';
 import { refreshMissionPlanningQueries } from '../../../utils/efetivoPlanningQueries';
 import { missionPendencies } from '../../../utils/missionPendencies';
@@ -366,6 +367,7 @@ export function ProjectWorkflowBoard({
 }) {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const surveyMutations = useSurveyMutations();
   const debouncedSearch = useDebouncedValue(search, 200);
   const list = useQuery({
     queryKey: ['project-workflows', debouncedSearch, page],
@@ -414,6 +416,7 @@ export function ProjectWorkflowBoard({
   const [teamContextLoadingProjectId, setTeamContextLoadingProjectId] = useState<string | null>(null);
   const [teamContext, setTeamContext] = useState<InitialTeamContext | undefined>(undefined);
   const [completionTarget, setCompletionTarget] = useState<CompletionTarget | null>(null);
+  const [surveyProject, setSurveyProject] = useState<ProjectWorkflowProject | null>(null);
   const [adminSummaryProjectId, setAdminSummaryProjectId] = useState<string | null>(null);
   const [executionStartTarget, setExecutionStartTarget] = useState<ExecutionStartTarget | null>(null);
   const [blockedMoveFocus, setBlockedMoveFocus] = useState<BlockedMoveFocus | null>(null);
@@ -511,6 +514,30 @@ export function ProjectWorkflowBoard({
     queryClient.invalidateQueries({ queryKey: ['mission-group-detail'] })
   ]);
 
+  async function refreshReportArchive() {
+    await Promise.all(
+      ['projects', 'bootstrap', 'reports', 'project-cards', 'project-detail', 'statistics', 'commercial-dashboard']
+        .map(key => queryClient.invalidateQueries({ queryKey: [key] }))
+    );
+  }
+
+  async function offerCompletionSurvey(project: ProjectWorkflowProject) {
+    await refreshReportArchive();
+    onProjectSelect(undefined);
+    setSurveyProject(project);
+  }
+
+  async function sendCompletionSurvey() {
+    if (!surveyProject || surveyMutations.sendProjectSurvey.isPending) return;
+    try {
+      await surveyMutations.sendProjectSurvey.mutateAsync(surveyProject.id);
+      setSurveyProject(null);
+      toast('Pesquisa de satisfação enviada ao cliente.', 'success');
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'Não foi possível enviar a pesquisa. O projeto permanece encerrado e arquivado.', 'error');
+    }
+  }
+
   const start = useMutation({
     mutationFn: (values: { leaderUserId: string; plannerUserId: string; plannedMobilizationDate?: string }) => startProjectWorkflow(selectedProjectId!, values),
     onSuccess: async data => {
@@ -522,9 +549,10 @@ export function ProjectWorkflowBoard({
 
   const startLegacySummary = useMutation({
     mutationFn: (payload: ProjectWorkflowLegacySummaryInput) => startLegacyProjectWorkflowSummary(selectedProjectId!, payload),
-    onSuccess: async data => {
+    onSuccess: async (data, payload) => {
       await refresh(data);
       await queryClient.invalidateQueries({ queryKey: ['efetivo-planning-missions'] });
+      if (payload.stage === 'FINISHED') await offerCompletionSurvey(data.project);
       toast('Gestão resumida iniciada.', 'success');
     },
     onError: (error: Error) => {
@@ -534,11 +562,13 @@ export function ProjectWorkflowBoard({
 
   const convertLegacySummary = useMutation({
     mutationFn: (payload: ProjectWorkflowLegacySummaryConversionInput) => convertProjectWorkflowToLegacySummary(adminSummaryProjectId!, payload),
-    onSuccess: async data => {
+    onSuccess: async (data, payload) => {
       await refresh(data);
       await refreshMissionPlanningQueries(queryClient);
       setAdminSummaryProjectId(null);
       setBlockedMoveFocus(null);
+      if (payload.stage === 'FINISHED') await offerCompletionSurvey(data.project);
+      else await refreshReportArchive();
       toast('Projeto convertido para o fluxo resumido.', 'success');
     },
     onError: (error: Error) => {
@@ -552,6 +582,10 @@ export function ProjectWorkflowBoard({
     onSuccess: async (data, payload) => {
       await refresh(data);
       if (payload.action === 'stage' && payload.stage === 'EXECUTION') await refreshExecutionStart(data.project.id);
+      if (payload.action === 'stage') {
+        if (payload.stage === 'FINISHED') await offerCompletionSurvey(data.project);
+        else await refreshReportArchive();
+      }
       setBlockedMoveFocus(null);
       toast('Gestão do projeto atualizada.', 'success');
     },
@@ -623,6 +657,7 @@ export function ProjectWorkflowBoard({
         queryClient.invalidateQueries({ queryKey: ['efetivo-planning-availability'] })
       ]);
       if (variables.target === 'EXECUTION') await refreshExecutionStart(data.project.id);
+      if (variables.target === 'FINISHED') await offerCompletionSurvey(data.project);
       onMobileStageChange(variables.target);
       toast('Etapa do projeto atualizada.', 'success');
     },
@@ -655,6 +690,8 @@ export function ProjectWorkflowBoard({
         queryClient.invalidateQueries({ queryKey: ['efetivo-planning-availability'] })
       ]);
       if (variables.stage === 'EXECUTION') await refreshExecutionStart(variables.project.id);
+      if (variables.stage === 'FINISHED') await offerCompletionSurvey(variables.project);
+      else if (variables.project.operationalMission?.stage === 'FINISHED') await refreshReportArchive();
       const projectStage = Object.entries(LEGACY_PROJECT_STAGE_TO_MISSION)
         .find(([, missionStage]) => missionStage === variables.stage)?.[0] || 'HANDOVER';
       onMobileStageChange(projectStage as ProjectKanbanStage);
@@ -1176,6 +1213,21 @@ export function ProjectWorkflowBoard({
           setColumns(moveProjectInColumns(columns, project.id, 'FINISHED'));
           moveLegacyMission.mutate({ project, stage: 'FINISHED', order, returnDate, snapshot });
         }}
+      />
+      <ConfirmDialog
+        open={Boolean(surveyProject)}
+        appearance="design-system"
+        title="Enviar pesquisa de satisfação?"
+        description={surveyProject?.clientEmailPrimary?.trim()
+          ? 'O projeto foi encerrado e arquivado em Relatórios. Deseja enviar a pesquisa de satisfação ao cliente?'
+          : 'O projeto foi encerrado e arquivado em Relatórios. Cadastre o e-mail principal do cliente para enviar a pesquisa de satisfação.'}
+        highlight={surveyProject ? `${surveyProject.code} · ${surveyProject.name}` : undefined}
+        danger={false}
+        cancelLabel="Continuar sem enviar"
+        confirmLabel={surveyMutations.sendProjectSurvey.isPending ? 'Enviando…' : 'Enviar pesquisa'}
+        confirmDisabled={!surveyProject?.clientEmailPrimary?.trim() || surveyMutations.sendProjectSurvey.isPending}
+        onConfirm={() => void sendCompletionSurvey()}
+        onCancel={() => { if (!surveyMutations.sendProjectSurvey.isPending) setSurveyProject(null); }}
       />
       <ProjectWorkflowModal
         detail={selectedProjectId ? detail.data || null : null}

@@ -1,5 +1,5 @@
 import { getProjectDetail } from '../../acompanhamento/project-detail.js';
-import { efetivoProjectWhere } from '../project-visibility.js';
+import { efetivoWorkflowProjectWhere } from '../project-visibility.js';
 import { notFound } from '../planning/errors.js';
 import { resolvePlanningDatabase } from '../planning/plan-context.js';
 import { buildProjectExecutionDashboard } from './execution-dashboard.js';
@@ -88,7 +88,7 @@ async function loadProjectDetail(projectId, dependency) {
 export async function getProjectCloseoutDashboard(projectId, context = {}, dependencies = {}) {
   const database = await resolvePlanningDatabase(dependencies.database);
   const project = await database.project.findFirst({
-    where: { id: projectId, isActive: true, deletedAt: null, ...efetivoProjectWhere() },
+    where: efetivoWorkflowProjectWhere({ id: projectId }, { includeFinished: true }),
     select: {
       id: true,
       workflow: {
@@ -126,6 +126,6 @@ export async function getProjectCloseoutDashboard(projectId, context = {}, depen
     targetData: project.workflow.executionReportTargets,
     financial: detail?.faturamento,
     measurement: project.workflow.measurement,
-    canEdit: canEditWorkflow(project.workflow, context)
+    canEdit: project.workflow.stage !== 'FINISHED' && canEditWorkflow(project.workflow, context)
   });
 }

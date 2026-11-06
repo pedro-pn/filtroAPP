@@ -45,6 +45,7 @@ test('consulta documental expõe a causa da ausência sem reiniciar erros nem pr
 
 test('consulta de projeto encerrado ou sem gestão não inicializa importação', async () => {
   const { database, state } = createProjectDocumentsDatabase({ stage: 'FINISHED' });
+  state.project.isActive = false;
   state.project.contractCode = '4064';
   assert.equal((await listProjectDocuments('project_1', {}, context, { database })).commercialProposalSync, null);
   state.project.workflow = null;
@@ -110,7 +111,8 @@ test('aceite registra autoria e uma nova versão reinicia a decisão e invalida 
 });
 
 test('projeto encerrado permanece somente leitura', async () => {
-  const { database } = createProjectDocumentsDatabase({ stage: 'FINISHED' });
+  const { database, state } = createProjectDocumentsDatabase({ stage: 'FINISHED' });
+  state.project.isActive = false;
   await assert.rejects(createProjectDocument('project_1', {
     type: 'OTHER', title: 'Documento tardio', acceptanceMode: 'NONE'
   }, context, { database }), error => error.code === 'PROJECT_FINISHED');

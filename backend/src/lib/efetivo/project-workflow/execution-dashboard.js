@@ -5,7 +5,7 @@ import {
 } from '../../../../../shared/schemas/project-execution.js';
 import { getProjectDetail } from '../../acompanhamento/project-detail.js';
 import { createRecord, listProjectDeviations } from '../../qualidade/service.js';
-import { efetivoProjectWhere } from '../project-visibility.js';
+import { efetivoWorkflowProjectWhere } from '../project-visibility.js';
 import { notFound, planningError } from '../planning/errors.js';
 import { resolvePlanningDatabase, runPlanningTransaction } from '../planning/plan-context.js';
 import { canEditWorkflow } from './service.js';
@@ -151,9 +151,9 @@ export function buildProjectExecutionDashboard({ tracking = null, reports = [], 
   };
 }
 
-async function requireProjectWorkflow(database, projectId) {
+async function requireProjectWorkflow(database, projectId, { includeFinished = false } = {}) {
   const project = await database.project.findFirst({
-    where: { id: projectId, isActive: true, deletedAt: null, ...efetivoProjectWhere() },
+    where: efetivoWorkflowProjectWhere({ id: projectId }, { includeFinished }),
     select: {
       id: true,
       workflow: { select: { projectId: true, stage: true, leaderUserId: true, plannerUserId: true, executionReportTargets: true, legacySummaryEntryStage: true, createdAt: true } }
@@ -215,7 +215,7 @@ function loadOfficialMission(database, projectId) {
 
 export async function getProjectExecutionDashboard(projectId, context = {}, dependencies = {}) {
   const database = await resolvePlanningDatabase(dependencies.database);
-  const workflow = await requireProjectWorkflow(database, projectId);
+  const workflow = await requireProjectWorkflow(database, projectId, { includeFinished: true });
   const [tracking, reports, deviations, scope, progress, mission, weeklyReviewRows] = await Promise.all([
     loadTracking(projectId, dependencies.getProjectDetail || getProjectDetail),
     database.report.findMany({
@@ -263,7 +263,7 @@ export async function getProjectExecutionDashboard(projectId, context = {}, depe
     now: dependencies.now || new Date(),
     targetData: workflow.executionReportTargets,
     deviations,
-    canEdit: canEditWorkflow(workflow, context),
+    canEdit: workflow.stage !== 'FINISHED' && canEditWorkflow(workflow, context),
     canVerifyWeekly: canEditWorkflow(workflow, context)
   });
 }
