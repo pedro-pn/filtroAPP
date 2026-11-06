@@ -1,5 +1,6 @@
-export type RdoExtraPermission = 'REVIEW_REPORTS';
+export type RdoExtraPermission = 'REVIEW_REPORTS' | 'CREATE_SERVICE_ONLY_REPORTS';
 export const REVIEW_REPORTS: RdoExtraPermission;
+export const CREATE_SERVICE_ONLY_REPORTS: RdoExtraPermission;
 
 export interface RdoAccount {
   role?: string | null;
@@ -11,5 +12,7 @@ export interface RdoAccount {
 export function canReceiveRdoExtraPermissions(user: RdoAccount | null | undefined): boolean;
 
 export function canReviewRdoReports(user: RdoAccount | null | undefined): boolean;
+
+export function canCreateServiceOnlyRdoReports(user: RdoAccount | null | undefined): boolean;
 
 export function normalizeRdoExtraPermissions(value: readonly string[] | null | undefined, user: RdoAccount): RdoExtraPermission[];

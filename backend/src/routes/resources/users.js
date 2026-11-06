@@ -19,7 +19,7 @@ import { userDeletionImpact } from '../../lib/assinaturas/service.js';
 import { requireAuth, requireHubAdmin } from '../../middleware/auth.js';
 import { normalizeReportEmissionPermissions } from '../../lib/operational-reports/permissions.js';
 import { PROJECT_TAXES_AND_BILLING, canReceiveAcompanhamentoExtraPermissions, normalizeAcompanhamentoExtraPermissions } from '../../../../shared/modules/acompanhamento-permissions.js';
-import { REVIEW_REPORTS, canReceiveRdoExtraPermissions, normalizeRdoExtraPermissions } from '../../../../shared/modules/rdo-permissions.js';
+import { REVIEW_REPORTS, CREATE_SERVICE_ONLY_REPORTS, canReceiveRdoExtraPermissions, normalizeRdoExtraPermissions } from '../../../../shared/modules/rdo-permissions.js';
 
 const router = Router();
 const ACCOUNT_ROLE_LABELS = {
@@ -38,7 +38,7 @@ const schema = z.object({
   accountType: z.nativeEnum(AccountType).optional(),
   moduleRoles: z.array(z.string()).optional(),
   acompanhamentoExtraPermissions: z.array(z.enum([PROJECT_TAXES_AND_BILLING])).optional(),
-  rdoExtraPermissions: z.array(z.enum([REVIEW_REPORTS])).optional(),
+  rdoExtraPermissions: z.array(z.enum([REVIEW_REPORTS, CREATE_SERVICE_ONLY_REPORTS])).optional(),
   reportEmissionPermissions: z.array(z.enum(['SITE_RDO', 'MAINTENANCE', 'PRODUCTION'])).optional(),
   isActive: z.boolean().optional(),
   collaboratorId: z.string().nullable().optional()

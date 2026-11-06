@@ -1,4 +1,5 @@
 export const REVIEW_REPORTS = 'REVIEW_REPORTS';
+export const CREATE_SERVICE_ONLY_REPORTS = 'CREATE_SERVICE_ONLY_REPORTS';
 
 // Apenas contas internas com o papel de coordenador do RDO podem receber a
 // permissão: são as que já enxergam a fila de pendentes de todos os projetos.
@@ -16,9 +17,15 @@ export function canReviewRdoReports(user) {
     && user.rdoExtraPermissions?.includes(REVIEW_REPORTS) === true;
 }
 
+export function canCreateServiceOnlyRdoReports(user) {
+  if (user?.role === 'MANAGER') return true;
+  return canReceiveRdoExtraPermissions(user)
+    && user.rdoExtraPermissions?.includes(CREATE_SERVICE_ONLY_REPORTS) === true;
+}
+
 export function normalizeRdoExtraPermissions(value, user) {
   const permissions = value ?? [];
-  if (!Array.isArray(permissions) || permissions.some(permission => permission !== REVIEW_REPORTS)) {
+  if (!Array.isArray(permissions) || permissions.some(permission => ![REVIEW_REPORTS, CREATE_SERVICE_ONLY_REPORTS].includes(permission))) {
     throw new Error('Permissão adicional de RDO inválida.');
   }
   return canReceiveRdoExtraPermissions(user) ? [...new Set(permissions)] : [];

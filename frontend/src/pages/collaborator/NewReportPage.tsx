@@ -17,6 +17,7 @@ import { DraftSaveStatus, type DraftSaveStatusValue } from '../../components/rep
 import { NewReportSpecialConditions } from '../../components/reports/NewReportSpecialConditions';
 import { useConfirmDialog } from '../../components/ui/useConfirmDialog';
 import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
+import { HelpTip } from '../../components/ui/HelpTip';
 import { PhotoCaptureNovelty } from '../../components/reports/PhotoCaptureNovelty';
 import { RdoDdsNovelty } from '../../components/reports/RdoDdsNovelty';
 import { ReportWorkforceNotices } from '../../components/reports/ReportWorkforceNotices';
@@ -55,7 +56,7 @@ import { buildContinuedServiceData, formServiceOngoingKeys, isPendingServiceFrom
 import { requiresSystemType, systemTypeValue } from '../../utils/cleaningMeasurement';
 import { isPressureHoseEquipment, isPressureHoseUnits, pressureHoseQuantity } from '../../utils/pressureHoseMeasurement';
 import { dateInputValue, formatDateOnlyPtBr, todayDateOnly } from '../../utils/dateOnly';
-import { canReviewRdoReports } from '../../../../shared/modules/rdo-permissions.js';
+import { canCreateServiceOnlyRdoReports, canReviewRdoReports } from '../../../../shared/modules/rdo-permissions.js';
 import { sortProjects } from '../../utils/projectSort';
 import { autosaveDraftTargetId, createDraftSaveQueue } from '../../utils/draftAutosave';
 import { ApiClientError } from '../../api/client';
@@ -98,7 +99,7 @@ const TEXT = {
   identification: 'Identificação',
   schedules: 'Horários',
   serviceOnly: 'Somente serviço',
-  serviceOnlyHint: 'Cria apenas relatórios de serviço, liberados diretamente para o cliente.'
+  serviceOnlyHint: 'Cria relatórios de serviço sem gerar um RDO de obra. Ao enviar, os relatórios são aprovados e liberados diretamente para o cliente.'
 };
 
 const serviceTypeModalOptions = [
@@ -232,7 +233,7 @@ function SiteRdoFormPage() {
   const [ddsNoveltyActive, setDdsNoveltyActive] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [draftSaveStatus, setDraftSaveStatus] = useState<DraftSaveStatusValue>('idle');
-  const canCreateServiceOnly = user?.role === 'MANAGER';
+  const canCreateServiceOnly = canCreateServiceOnlyRdoReports(user);
   const canCreateReportWithoutLeader = user?.role === 'MANAGER' || user?.role === 'COORDINATOR';
   const canReview = canReviewRdoReports(user);
   const effectiveServiceOnly = canCreateServiceOnly && serviceOnly;
@@ -887,6 +888,17 @@ function SiteRdoFormPage() {
     if (!validateHeader()) return;
     if (!validateServices()) return;
 
+    if (effectiveServiceOnly && user.role === 'COORDINATOR') {
+      const confirmed = await confirm({
+        title: 'Enviar relatório diretamente para o cliente?',
+        description: 'Ao confirmar, os relatórios de serviço serão aprovados automaticamente e disponibilizados diretamente para o cliente, sem aprovação de um administrador.',
+        confirmLabel: 'Confirmar envio',
+        cancelLabel: 'Cancelar',
+        danger: false
+      });
+      if (!confirmed) return;
+    }
+
     isSubmittingRef.current = true;
     setIsSubmitting(true);
     if (draftSaveTimerRef.current) {
@@ -1073,8 +1085,7 @@ function SiteRdoFormPage() {
           {canCreateServiceOnly ? (
             <Switch
               containerClassName="rdo-service-only-switch"
-              label={TEXT.serviceOnly}
-              description={TEXT.serviceOnlyHint}
+              label={<>{TEXT.serviceOnly} <HelpTip icon help={TEXT.serviceOnlyHint} /></>}
               checked={effectiveServiceOnly}
               onChange={event => {
                 setHeaderField('serviceOnly', event.target.checked);

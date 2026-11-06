@@ -427,6 +427,7 @@ jobs:
         run: >-
           npx playwright test --config=playwright.rdo.config.ts
           rdo-notifications-equipment.behavior.spec.ts rdo-project-context.behavior.spec.ts
+          rdo-service-only-permission.behavior.spec.ts
 
       - name: Verify Efetivo project closeout and satisfaction surveys in the browser
         run: npx playwright test --config=playwright.efetivo.config.ts

@@ -3,6 +3,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { PasswordSetupLinkCard } from '../../components/accounts/PasswordSetupLinkCard';
 import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
+import { HelpTip } from '../../components/ui/HelpTip';
 import { Alert, Badge, Button, Card, DataTable, EmptyState, Field, Input, SearchInput, Select, Skeleton, type DataTableColumn } from '../../components/ui/ds';
 import { useUserMutations, useUsers } from '../../hooks/useUsers';
 import { useCollaborators } from '../../hooks/useCollaborators';
@@ -13,7 +14,7 @@ import type { UserDeletionImpact, UserPayload } from '../../api/users';
 import type { AccountType, ModuleRole, ReportEmissionPermission, UserRole } from '../../types/auth';
 import type { InternalUserSummary } from '../../types/domain';
 import { PROJECT_TAXES_AND_BILLING, canReceiveAcompanhamentoExtraPermissions, normalizeAcompanhamentoExtraPermissions, type AcompanhamentoExtraPermission } from '../../../../shared/modules/acompanhamento-permissions.js';
-import { REVIEW_REPORTS, canReceiveRdoExtraPermissions, normalizeRdoExtraPermissions, type RdoExtraPermission } from '../../../../shared/modules/rdo-permissions.js';
+import { REVIEW_REPORTS, CREATE_SERVICE_ONLY_REPORTS, canReceiveRdoExtraPermissions, normalizeRdoExtraPermissions, type RdoExtraPermission } from '../../../../shared/modules/rdo-permissions.js';
 import { AdminModuleAppShell } from './AdminModuleAppShell';
 import './AdminAccountsPage.ds.css';
 
@@ -458,7 +459,7 @@ export function AdminAccountsPage() {
             <section className="admin-account-permission-group admin-account-form__wide" aria-labelledby="account-rdo-title">
               <h3 id="account-rdo-title">Permissões adicionais do RDO</h3>
               {form.accountType === 'ADMIN' ? (
-                <div className="form-hint">Administradores já revisam, editam e aprovam relatórios de qualquer projeto.</div>
+                <div className="form-hint">Administradores já revisam, editam e aprovam relatórios de qualquer projeto e podem criar relatórios somente de serviço.</div>
               ) : (
                 <>
                   <label className="admin-role-option">
@@ -467,7 +468,9 @@ export function AdminAccountsPage() {
                       checked={form.rdoExtraPermissions.includes(REVIEW_REPORTS)}
                       onChange={event => setForm(current => ({
                         ...current,
-                        rdoExtraPermissions: event.target.checked ? [REVIEW_REPORTS] : []
+                        rdoExtraPermissions: event.target.checked
+                          ? [...current.rdoExtraPermissions, REVIEW_REPORTS]
+                          : current.rdoExtraPermissions.filter(permission => permission !== REVIEW_REPORTS)
                       }))}
                     />
                     <span>Revisar relatórios: abrir a tela de edição do gestor, aprovar e devolver</span>
@@ -476,6 +479,22 @@ export function AdminAccountsPage() {
                     Inclui baixar DOCX, alterar a numeração, descartar edições pendentes e consultar a auditoria.
                     Não inclui excluir relatórios nem acessar projetos visíveis somente para o gestor.
                   </div>
+                  <label className="admin-role-option">
+                    <input
+                      type="checkbox"
+                      checked={form.rdoExtraPermissions.includes(CREATE_SERVICE_ONLY_REPORTS)}
+                      onChange={event => setForm(current => ({
+                        ...current,
+                        rdoExtraPermissions: event.target.checked
+                          ? [...current.rdoExtraPermissions, CREATE_SERVICE_ONLY_REPORTS]
+                          : current.rdoExtraPermissions.filter(permission => permission !== CREATE_SERVICE_ONLY_REPORTS)
+                      }))}
+                    />
+                    <span>
+                      Criar relatórios somente de serviço{' '}
+                      <HelpTip icon help="Permite usar a opção Somente serviço para criar relatórios de serviço sem gerar um RDO de obra. Ao enviar, os relatórios são aprovados e liberados diretamente para o cliente." />
+                    </span>
+                  </label>
                 </>
               )}
             </section>
