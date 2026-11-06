@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
+import { signatureSignerNameError } from '../../../../shared/modules/signature-signer-name.js';
 import { ApiClientError } from '../../api/client';
 import { confirmPublicSignature, publicSignaturePage, publicSignaturePdf } from '../../api/assinaturas';
 import { PrivacyNotice } from '../../components/privacy/PrivacyNotice';
@@ -117,6 +118,7 @@ export function AssinaturasPublicSignPage() {
         backdropClassName="assinaturas-public__dialog-backdrop"
         title={invite.documents?.length ? 'Assinar documentos do convite' : 'Assinar documento'}
         initialSignerName={invite.signer.name}
+        validateSignerName={signatureSignerNameError}
         allowCachedSignerName={false}
         maxUploadMb={10}
         isSubmitting={submitting}

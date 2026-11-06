@@ -66,6 +66,18 @@ test('uma confirmação assina o conjunto atomicamente, preserva evidências e �
   assert.equal(scheduled.length, 2, 'cada PDF é finalizado de forma independente');
 });
 
+test('assinatura agrupada recusa emoji sem alterar o lote e normaliza nomes em todos os documentos', async () => {
+  const { db, token } = await published();
+  const auditsBefore = db.state.audits.length;
+  await assert.rejects(() => confirmSignature(db.client, token, { ...input, signerName: 'Daniel Dias🇧🇷' }), error => error.statusCode === 400);
+  assert.equal(db.state.audits.length, auditsBefore);
+  assert.ok(db.state.documents.every(document => document.signers[0].status === 'PENDENTE'));
+  assert.ok(db.state.documents.every(document => document.status === 'AGUARDANDO_ASSINATURAS'));
+
+  await confirmSignature(db.client, token, { ...input, signerName: '  Joa\u0303o D’Ávila  ' }, {}, { scheduleFinalization() {} });
+  assert.ok(db.state.documents.every(document => document.signers[0].declaredSignerName === 'João D’Ávila'));
+});
+
 test('falha no segundo documento reverte assinaturas e finalizações de todo o conjunto', async () => {
   const { db, token } = await published();
   const update = db.client.signatureDocumentSigner.updateMany;

@@ -86,6 +86,32 @@ test('assinantes exigem nome, posições sequenciais e e-mails únicos', () => {
   }]);
 });
 
+test('nomes aceitam acentos e pontuação em português e normalizam acentos decompostos', () => {
+  const names = ['João da Conceição', "Ana-Paula D’Ávila", 'José A. de Sá (Júnior)', 'Ma\u0301rcia D\'Ávila'];
+  const parsed = normalizeSignerInputs(names.map((name, index) => ({ name, position: index + 1 })));
+  assert.deepEqual(parsed.map(signer => signer.name), [
+    'João da Conceição', 'Ana-Paula D’Ávila', 'José A. de Sá (Júnior)', "Márcia D'Ávila"
+  ]);
+});
+
+test('cadastro recusa emojis, outros alfabetos, números e caracteres invisíveis no nome', () => {
+  for (const name of ['Daniel Dias🇧🇷', 'Maria 😀 Silva', 'João 123', 'Ana Жуков', 'Ana 王', 'Ana\u200b Souza', 'Ana\nSouza', 'Ana × Souza', 'Ana ÷ Souza', 'Ana\ufe0f Souza', '...', '- '.repeat(3), 'A'.repeat(161)]) {
+    assert.throws(() => normalizeSignerInputs([{ name, position: 1 }]), undefined, name);
+  }
+});
+
+test('publicação bloqueia nomes legados com emoji antes de emitir convites', async () => {
+  const { client, document, audits } = publicationClient();
+  document.signers[0].name = 'Daniel Dias🇧🇷';
+  assert.match(validatePublishableSnapshot(document).join(' '), /sem emojis/i);
+  await assert.rejects(() => publishDocument(client, document.id, document.ownerUserId, { expiresInDays: 15 }, {
+    loadSource: async () => Buffer.from('%PDF')
+  }), error => error?.statusCode === 400);
+  assert.equal(document.status, 'RASCUNHO');
+  assert.equal(audits.length, 0);
+  assert.ok(document.signers.every(signer => !signer.tokenHash));
+});
+
 test('campos rejeitam propriedades físicas do cliente e derivam as quatro rotações do documento', () => {
   const document = {
     id: 'document-1',

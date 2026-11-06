@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
+import { normalizeSignatureSignerName, signatureSignerNameError } from '../../../../../shared/modules/signature-signer-name.js';
 import type { SignatureSigner } from '../../../api/assinaturas';
 import { AppIcon } from '../../../components/icons/AppIcon';
 import { Alert, Badge, Button, Card, Field, Input } from '../../../components/ui/ds';
@@ -10,7 +11,10 @@ import { RemoveIconButton } from '../../../components/ui/RemoveIconButton';
 import { DS_ICONS } from '../../../components/ui/ds/icons';
 
 const schema = z.object({
-  name: z.string().trim().min(2, 'Informe o nome do assinante.'),
+  name: z.string().transform(normalizeSignatureSignerName).superRefine((name, ctx) => {
+    const message = signatureSignerNameError(name);
+    if (message) ctx.addIssue({ code: 'custom', message });
+  }),
   email: z.string().trim().email('Informe um e-mail válido.').or(z.literal(''))
 });
 type Values = z.infer<typeof schema>;
@@ -59,7 +63,7 @@ export function SignerList({
       <Card className="assinaturas-setup__signer-form" padding="md" title={<h2>Adicionar assinante</h2>}>
         <form className="signature-signer-form" onSubmit={form.handleSubmit(add)} aria-busy={busy || undefined}>
           <Field id="signature-signer-name" label="Nome" required errorText={form.formState.errors.name?.message} disabled={busy}>
-            <Input size="sm" {...form.register('name')} />
+            <Input size="sm" maxLength={160} {...form.register('name')} />
           </Field>
           <Field id="signature-signer-email" label="E-mail" errorText={form.formState.errors.email?.message} helperText="Sem e-mail, você compartilha o link manualmente." disabled={busy}>
             <Input size="sm" type="email" {...form.register('email')} />

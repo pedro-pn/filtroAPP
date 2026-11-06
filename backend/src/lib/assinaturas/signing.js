@@ -1,3 +1,4 @@
+import { normalizeSignatureSignerName, signatureSignerNameError } from '../../../../shared/modules/signature-signer-name.js';
 import {
   SIGNATURE_AVULSA_NOTICE_VERSION,
   validatePrivacyNoticeAcknowledgement
@@ -167,10 +168,9 @@ export async function loadInvite(client, token, evidence = {}, { now = new Date(
 }
 
 export async function confirmSignature(client, token, input, evidence = {}, dependencies = {}) {
-  const signerName = String(input?.signerName || '').trim();
-  if (signerName.length < 2 || signerName.length > 160) {
-    throw httpError('Informe o nome completo do assinante.', 400);
-  }
+  const signerName = normalizeSignatureSignerName(String(input?.signerName || ''));
+  const nameError = signatureSignerNameError(signerName);
+  if (nameError) throw httpError(nameError, 400);
   const privacyError = validatePrivacyNoticeAcknowledgement(input, SIGNATURE_AVULSA_NOTICE_VERSION);
   if (privacyError) throw httpError(privacyError, 400);
   const signatureImage = await decodableSignatureImageDataUrl(input?.signatureImageDataUrl, {
@@ -181,7 +181,7 @@ export async function confirmSignature(client, token, input, evidence = {}, depe
   const now = dependencies.now || new Date();
   const preflight = await resolveInviteByToken(client, token);
   assertInviteUsable(preflight, now);
-  if (preflight.members) return confirmGroupedSignature(client, token, input, evidence, { ...dependencies, now });
+  if (preflight.members) return confirmGroupedSignature(client, token, { ...input, signerName }, evidence, { ...dependencies, now });
   let transitionedToFinalizing = false;
   const result = await client.$transaction(async tx => {
     const invite = await resolveInviteByToken(tx, token);
@@ -276,7 +276,7 @@ async function confirmGroupedSignature(client, token, input, evidence, dependenc
         id: member.id, groupInviteId: invite.groupInviteId, status: { in: ['PENDENTE', 'VISUALIZADO'] },
         document: { status: 'AGUARDANDO_ASSINATURAS', deletedAt: null }
       }, data: {
-        status: 'ASSINADO', declaredSignerName: String(input.signerName).trim(), signatureImageDataUrl: input.signatureImageDataUrl,
+        status: 'ASSINADO', declaredSignerName: input.signerName, signatureImageDataUrl: input.signatureImageDataUrl,
         ipAddress: evidence.ipAddress || null, userAgent: evidence.userAgent || null,
         privacyNoticeAcceptedAt: now, privacyNoticeVersion: SIGNATURE_AVULSA_NOTICE_VERSION, signedAt: now
       } });
