@@ -24,6 +24,7 @@ import {
 } from '../src/lib/assinaturas/jobs.js';
 import {
   createStandaloneValidationCode,
+  normalizeSignerInputs,
   validateByCode
 } from '../src/lib/assinaturas/service.js';
 
@@ -165,6 +166,21 @@ test('builder recusa hash-base divergente e gera PDF com evidências', async () 
   const finalPdfSource = await fs.readFile(new URL('../src/lib/assinaturas/final-pdf.js', import.meta.url), 'utf8');
   assert.match(finalPdfSource, /ASSINATURA ELETRONICA - FILTROVALI/);
   assert.match(finalPdfSource, /LOGO_COLORIDO\.png/);
+});
+
+test('nomes permitidos com acentos e pontuação pt-BR geram o PDF de evidências', async () => {
+  const pdf = await PDFDocument.create();
+  pdf.addPage([612, 792]);
+  const sourceBytes = Buffer.from(await pdf.save());
+  const name = normalizeSignerInputs([{
+    name: `  Joa\u0303o Çç ÁÉÍÓÚ ÂÊÔ ÃÕ À Üü ªº .,'’‘"“”()-–—  `, position: 1
+  }])[0].name;
+  const finalBytes = await buildFinalPdfBytes({
+    title: 'Contrato', sourceDocumentHash: createHash('sha256').update(sourceBytes).digest('hex'),
+    signers: [{ id: 'signer-1', name, declaredSignerName: name, signatureImageDataUrl, signedAt: new Date() }],
+    fields: [{ signerId: 'signer-1', pageNumber: 1, x: .1, y: .2, width: .3, height: .1 }]
+  }, sourceBytes);
+  assert.equal((await PDFDocument.load(finalBytes)).getPageCount(), 2);
 });
 
 test('PDF concluído contém apenas a assinatura realizada, ignorando campos e evidência do convite revogado', async () => {

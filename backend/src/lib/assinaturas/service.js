@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 
+import { normalizeSignatureSignerName, signatureSignerNameError } from '../../../../shared/modules/signature-signer-name.js';
 import env from '../../config/env.js';
 import { normalizeSignerEmail } from '../signatures/common.js';
 import {
@@ -66,7 +67,10 @@ export function assertUserDeletionImpactReady(impact) {
 
 const signerInputSchema = z.strictObject({
   id: z.string().trim().min(1).optional(),
-  name: z.string().trim().min(2, 'Informe o nome completo do assinante.').max(160),
+  name: z.string().transform(normalizeSignatureSignerName).superRefine((name, ctx) => {
+    const message = signatureSignerNameError(name);
+    if (message) ctx.addIssue({ code: 'custom', message });
+  }),
   email: z.string().trim().email('Informe um e-mail válido.').optional().nullable().or(z.literal('')),
   position: z.number().int().positive()
 });
@@ -181,7 +185,8 @@ export function validatePublishableSnapshot(document) {
   if (signers.length > env.assinaturasMaxSigners) issues.push(`Use no máximo ${env.assinaturasMaxSigners} assinantes.`);
   const emails = [];
   for (const signer of signers) {
-    if (String(signer.name || '').trim().length < 2) issues.push('Todo assinante precisa ter um nome válido.');
+    const nameError = signatureSignerNameError(String(signer.name || ''));
+    if (nameError) issues.push(nameError);
     const email = normalizeSignerEmail(signer.email);
     if (email) emails.push(email);
     if (!Array.isArray(signer.fields) || !signer.fields.length) {

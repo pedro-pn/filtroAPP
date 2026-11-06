@@ -136,6 +136,26 @@ test('imagem inválida é rejeitada antes de abrir transação', async () => {
   assert.ok(validSignatureImageDataUrl.length < 750_000);
 });
 
+test('confirmação rejeita nomes com caracteres proibidos antes de consultar ou gravar o convite', async () => {
+  for (const signerName of ['Daniel Dias🇧🇷', 'Ana 123', 'Ana Жуков', 'Ana\u200b Souza', 'Ana\nSouza', '...']) {
+    await assert.rejects(() => confirmSignature({}, 'a'.repeat(64), {
+      signerName, signatureImageDataUrl: validSignatureImageDataUrl,
+      privacyNoticeAccepted: true, privacyNoticeVersion: 'signature_avulsa_v1'
+    }), error => error?.statusCode === 400 && /nome/i.test(error.message));
+  }
+});
+
+test('confirmação preserva acentos, apóstrofos e hífens e grava o nome em NFC', async () => {
+  const token = 'f'.repeat(64);
+  const { client, state } = signingClient(token);
+  await confirmSignature(client, token, {
+    signerName: '  Joa\u0303o-Paulo D’Ávila  ', signatureImageDataUrl: validSignatureImageDataUrl,
+    privacyNoticeAccepted: true, privacyNoticeVersion: 'signature_avulsa_v1'
+  }, {}, { now: new Date('2026-08-28T15:00:00Z'), scheduleFinalization() {} });
+  assert.equal(state.invite.declaredSignerName, 'João-Paulo D’Ávila');
+  assert.equal(state.invite.status, 'ASSINADO');
+});
+
 test('assinatura válida é idempotente e a última apenas inicia FINALIZANDO', async () => {
   const token = 'b'.repeat(64);
   const { client, state } = signingClient(token);

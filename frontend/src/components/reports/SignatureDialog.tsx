@@ -12,6 +12,7 @@ interface SignatureDialogProps {
   backdropClassName?: string;
   title: string;
   initialSignerName?: string | null;
+  validateSignerName?: (name: string) => string;
   cacheIdentity?: string | null;
   allowCachedSignerName?: boolean;
   maxUploadMb?: number;
@@ -109,6 +110,7 @@ export function SignatureDialog({
   backdropClassName,
   title,
   initialSignerName = '',
+  validateSignerName,
   cacheIdentity = '',
   allowCachedSignerName = true,
   maxUploadMb = 1.5,
@@ -133,8 +135,10 @@ export function SignatureDialog({
   const [confirmAttempted, setConfirmAttempted] = useState(false);
   const [uploadDragOver, setUploadDragOver] = useState(false);
   const signatureCacheKey = allowCachedSignerName ? cacheKey(cacheIdentity) : '';
-  const signerNameInvalid = (signerNameTouched || confirmAttempted) && !hasFirstAndLastName(signerName);
-  const visibleError = signerNameInvalid ? SIGNER_FULL_NAME_ERROR : error || submissionError;
+  const nameValidationError = validateSignerName?.(signerName)
+    || (!hasFirstAndLastName(signerName) ? SIGNER_FULL_NAME_ERROR : '');
+  const signerNameInvalid = (signerNameTouched || confirmAttempted) && Boolean(nameValidationError);
+  const visibleError = signerNameInvalid ? nameValidationError : error || submissionError;
   const isDesignSystem = appearance === 'design-system';
 
   useEffect(() => {
@@ -253,10 +257,7 @@ export function SignatureDialog({
       return;
     }
     const trimmedSignerName = signerName.trim();
-    if (!hasFirstAndLastName(trimmedSignerName)) {
-      setError(SIGNER_FULL_NAME_ERROR);
-      return;
-    }
+    if (nameValidationError) return;
     if (mode === 'upload') {
       if (!uploadedDataUrl) {
         setError('Envie uma imagem da assinatura.');
