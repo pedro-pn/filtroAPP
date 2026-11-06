@@ -14,6 +14,8 @@ import {
 } from '../../lib/survey-mail.js';
 import { decryptSurveyToken, surveyTokenData } from '../../lib/survey-token.js';
 import { hasModuleRole } from '../../lib/module-roles.js';
+import { isEfetivoManager } from '../../lib/efetivo/access.js';
+import { efetivoProjectWhere } from '../../lib/efetivo/project-visibility.js';
 import { SURVEY_NOTICE_VERSION, validatePrivacyNoticeAcknowledgement } from '../../lib/privacy-consent.js';
 import { requireAuth, requireManager, requireModuleRole } from '../../middleware/auth.js';
 
@@ -373,7 +375,34 @@ router.put('/questions', requireAuth, requireManager, asyncHandler(async (req, r
   res.json(saved.map(safeQuestion));
 }));
 
-router.post('/:projectId/send', requireAuth, requireManager, asyncHandler(async (req, res) => {
+export async function requireProjectSurveySender(req, res, next) {
+  const user = req.auth?.user;
+  if (user?.accountType === 'ADMIN' && hasModuleRole(user, 'rdo:manager')) return next();
+  if (!isEfetivoManager(user) && !hasModuleRole(user, 'efetivo:viewer')) {
+    return res.status(403).json({ error: 'Sem permissão para enviar a pesquisa deste projeto.' });
+  }
+  const project = await prisma.project.findFirst({
+    where: { id: req.params.projectId, isActive: false, ...efetivoProjectWhere() },
+    select: {
+      workflow: { select: { stage: true, leaderUserId: true, plannerUserId: true } },
+      efetivoMissionPlans: {
+        where: { stage: 'FINISHED', deletedAt: null, scheduleStatus: { not: 'CANCELLED' }, plan: { kind: 'OFFICIAL', status: 'ACTIVE' } },
+        select: { id: true }, take: 1
+      }
+    }
+  });
+  const finished = project?.workflow
+    ? project.workflow.stage === 'FINISHED'
+    : Boolean(project?.efetivoMissionPlans.length);
+  const canSend = isEfetivoManager(user)
+    || [project?.workflow?.leaderUserId, project?.workflow?.plannerUserId].includes(user?.id);
+  if (!finished || !canSend) {
+    return res.status(403).json({ error: 'Somente o gestor, o Líder de Projetos ou o Gestor de Contrato pode enviar a pesquisa de um projeto encerrado.' });
+  }
+  return next();
+}
+
+router.post('/:projectId/send', requireAuth, asyncHandler(requireProjectSurveySender), asyncHandler(async (req, res) => {
   const project = await prisma.project.findUniqueOrThrow({
     where: { id: req.params.projectId }
   });

@@ -92,7 +92,7 @@ test('concluir missão aceita desmobilização anterior ao fim previsto e sincro
       }
     },
     projectWorkflow: { findUnique: async () => null },
-    project: { update: async input => { projectUpdate = input; } },
+    project: { update: async input => { projectUpdate = { data: { ...projectUpdate?.data, ...input.data } }; } },
     efetivoAuditEvent: { create: async () => ({ id: 'audit-1' }) }
   };
   const moved = await moveMissionStage('mission-1', {
@@ -102,6 +102,8 @@ test('concluir missão aceita desmobilização anterior ao fim previsto e sincro
   assert.ok(missionUpdates.some(input => input.data.returnDate?.toISOString() === '2026-08-08T00:00:00.000Z'));
   assert.equal(moved.returnDate.toISOString(), '2026-08-08T00:00:00.000Z');
   assert.equal(moved.executionEndDate.toISOString(), '2026-08-10T00:00:00.000Z');
+  assert.equal(projectUpdate.data.isActive, false);
+  assert.ok(projectUpdate.data.acompanhamentoReportArchivedAt);
 });
 
 function legacyExecutionDatabase(kind = 'OFFICIAL') {
@@ -144,6 +146,27 @@ function legacyExecutionDatabase(kind = 'OFFICIAL') {
   };
   return { database, state };
 }
+
+test('encerrar missão oficial arquiva em Relatórios, reordenar preserva a data e reabrir restaura', async () => {
+  const { database, state } = legacyExecutionDatabase();
+  const now = new Date('2026-10-01T12:00:00Z');
+  await moveMissionStage('mission-1', { stage: 'FINISHED', order: 0 }, { version: 1 }, { database, now });
+  assert.equal(state.project.isActive, false);
+  assert.equal(state.project.acompanhamentoReportArchivedAt, now);
+  assert.equal(state.project.acompanhamentoReviewedAt, null);
+  await moveMissionStage('mission-1', { stage: 'FINISHED', order: 0 }, { version: 2 }, { database });
+  assert.equal(state.project.acompanhamentoReportArchivedAt, now);
+  await moveMissionStage('mission-1', { stage: 'FINAL_MEASUREMENT', order: 0 }, { version: 3 }, { database });
+  assert.equal(state.project.isActive, true);
+  assert.equal(state.project.acompanhamentoReportArchivedAt, null);
+});
+
+test('encerrar missão de cenário não arquiva o projeto oficial', async () => {
+  const { database, state } = legacyExecutionDatabase('SCENARIO');
+  const previous = structuredClone(state.project);
+  await moveMissionStage('mission-1', { stage: 'FINISHED', order: 0 }, { version: 1 }, { database });
+  assert.deepEqual(state.project, previous);
+});
 
 test('missão antiga também confirma operador e início real e libera a equipe para relatórios', async () => {
   const { database, state } = legacyExecutionDatabase();

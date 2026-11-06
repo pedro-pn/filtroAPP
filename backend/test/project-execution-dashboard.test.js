@@ -6,6 +6,7 @@ import { makeProjectExecutionSchemas } from '../../shared/schemas/project-execut
 import {
   buildProjectExecutionDashboard,
   buildProjectExecutionWeeklyReview,
+  getProjectExecutionDashboard,
   overdueRdoDays,
   createProjectExecutionDeviation,
   saveProjectExecutionWeeklyReview,
@@ -16,6 +17,7 @@ import { isWeeklyReviewComplete } from '../src/lib/efetivo/project-workflow/week
 
 function fakeDatabase() {
   const state = {
+    isActive: true,
     workflow: { projectId: 'project-1', stage: 'EXECUTION', leaderUserId: 'leader-1', plannerUserId: 'planner-1', version: 7, executionReportTargets: {}, createdAt: new Date('2026-09-01T12:00:00Z') },
     events: [],
     weeklyReviews: new Map(),
@@ -25,7 +27,7 @@ function fakeDatabase() {
   const database = {
     $transaction: callback => callback(database),
     project: {
-      findFirst: async input => input.where.id === 'project-1' ? {
+      findFirst: async input => input.where.id === 'project-1' && (input.where.isActive !== true || state.isActive) ? {
         id: 'project-1',
         workflow: Object.fromEntries(Object.keys(input.select.workflow.select).map(key => [key, state.workflow[key]]))
       } : null
@@ -78,6 +80,19 @@ const viewer = { actorUserId: 'viewer-1', user: { id: 'viewer-1', accountType: '
 const tracking = async () => ({ diasCorridos: { elapsed: 1, planned: 10, pct: 10 }, avancoPct: 5, footer: {} });
 const noDeviations = async () => [];
 const emptyWeeklyChecks = () => Object.fromEntries(['PROGRESS', 'SERVICE_FRONTS', 'DIFFICULTIES', 'DEVIATIONS_INCIDENTS', 'REPORT_DELIVERY', 'REPORT_SIGNATURES', 'WEEKLY_TARGET'].map(key => [key, false]));
+
+test('projeto encerrado e arquivado permite consulta da execução sem liberar alterações', async () => {
+  const { database, state } = fakeDatabase();
+  state.isActive = false;
+  state.workflow.stage = 'FINISHED';
+  const dashboard = await getProjectExecutionDashboard('project-1', leader, {
+    database, getProjectDetail: tracking, listProjectDeviations: noDeviations
+  });
+  assert.equal(dashboard.permissions.canEdit, false);
+  await assert.rejects(updateProjectExecutionReportTargets('project-1', {
+    targets: [{ reportType: 'RTP', expectedCount: 1 }]
+  }, leader, { database }), error => error.code === 'NOT_FOUND');
+});
 
 test('contratos rejeitam metas e desvios incompletos', () => {
   const schemas = makeProjectExecutionSchemas(z);

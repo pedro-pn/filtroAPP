@@ -11,6 +11,7 @@ import {
 } from './allocation-period.js';
 import { resolveSelectedMissionTeam, syncSelectedMissionTeam } from './mission-team.js';
 import { efetivoProjectWhere } from '../project-visibility.js';
+import { synchronizeProjectReportArchive } from '../project-report-archive.js';
 import { assertProjectMobilizationAuthorized } from '../project-workflow/operational-gate.js';
 import { assignMissionReportTeam, reportOperatorUserSelect, validateMissionReportOperator } from '../report-team.js';
 import {
@@ -560,6 +561,9 @@ export async function moveMissionStage(missionId, payload, context = {}, depende
       ...source.map((item, order) => tx.efetivoMissionPlan.update({ where: { id: item.id }, data: { kanbanOrder: order } })),
       ...target.map((item, order) => tx.efetivoMissionPlan.update({ where: { id: item.id }, data: { stage: payload.stage, kanbanOrder: order } }))
     ]);
+    if (plan.kind === 'OFFICIAL') {
+      await synchronizeProjectReportArchive(tx, existing.projectId || existing.project.id, existing.stage, payload.stage, dependencies.now);
+    }
     const moved = await tx.efetivoMissionPlan.update({
       where: { id: missionId },
       data: {

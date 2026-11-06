@@ -23,7 +23,8 @@ import { canEditEfetivoChecklistArea } from '../access.js';
 import { assignMissionReportTeam, canOperateReports, reportOperatorUserSelect, validateMissionReportOperator } from '../report-team.js';
 import { hasModuleRole } from '../../module-roles.js';
 import { ensureCommercialProposalSync } from '../../projects/commercial-proposal-sync-state.js';
-import { efetivoProjectWhere } from '../project-visibility.js';
+import { efetivoWorkflowProjectWhere as eligibleProjectWhere } from '../project-visibility.js';
+import { synchronizeProjectReportArchive } from '../project-report-archive.js';
 import { conflictError, notFound, planningError } from '../planning/errors.js';
 import { confirmOfficialMissionMobilization } from '../planning/cycles.js';
 import { resolvePlanningDatabase, runPlanningTransaction } from '../planning/plan-context.js';
@@ -332,10 +333,6 @@ function operationalMissionSummary(project) {
       jobRole: allocation.jobRole
     }))
   };
-}
-
-function eligibleProjectWhere(extra = {}) {
-  return { isActive: true, deletedAt: null, ...efetivoProjectWhere(), ...extra };
 }
 
 function contextIsManager(context) {
@@ -833,8 +830,7 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
 }
 
 async function findEligibleProject(database, projectId, { workflow = false, includeInactive = false } = {}) {
-  const where = eligibleProjectWhere({ id: projectId });
-  if (includeInactive) delete where.isActive;
+  const where = eligibleProjectWhere({ id: projectId }, { includeFinished: workflow, includeInactive });
   return database.project.findFirst({
     where,
     select: {
@@ -949,7 +945,7 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
         { clientName: { contains: search, mode: 'insensitive' } }
       ]
     } : {})
-  });
+  }, { includeFinished: true });
   const [total, projects] = await Promise.all([
     database.project.count({ where }),
     database.project.findMany({
@@ -1053,6 +1049,7 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
         code: project.code,
         name: project.name,
         clientName: project.clientName,
+        clientEmailPrimary: project.clientEmailPrimary,
         location: project.location,
         startDate: dateKey(project.startDate),
         operatorId: project.operatorId || null,
@@ -1125,8 +1122,9 @@ export async function getProjectWorkflowStatuses(projectIds, dependencies = {}) 
   const ids = [...new Set(projectIds)];
   if (!ids.length) return new Map();
   const database = await resolvePlanningDatabase(dependencies.database);
-  const where = eligibleProjectWhere({ id: { in: ids } });
-  if (dependencies.includeInactive === true) delete where.isActive;
+  const where = eligibleProjectWhere({ id: { in: ids } }, {
+    includeFinished: true, includeInactive: dependencies.includeInactive === true
+  });
   const projects = await database.project.findMany({
     where,
     select: {
@@ -1332,6 +1330,7 @@ export async function startLegacyProjectWorkflowSummary(projectId, payload, cont
     // valida que ela tem o mínimo (líder, datas, equipe) para a etapa escolhida — mesma checagem usada quando o
     // fluxo normal avança de etapa.
     await (dependencies.synchronizeOfficialMissionStage || synchronizeOfficialMissionStage)(tx, projectId, payload.stage, context);
+    await synchronizeProjectReportArchive(tx, projectId, null, payload.stage, now);
     await recordEvent(tx, projectId, context.actorUserId, 'WORKFLOW_STARTED', {
       legacySummary: true,
       stage: payload.stage,
@@ -1375,6 +1374,7 @@ export async function convertProjectWorkflowToLegacySummary(projectId, payload, 
     await (dependencies.synchronizeOfficialMissionStage || synchronizeOfficialMissionStage)(
       tx, projectId, payload.stage, context, { force: true }
     );
+    await synchronizeProjectReportArchive(tx, projectId, workflow.stage, payload.stage, now);
     await recordEvent(tx, projectId, context.actorUserId, 'WORKFLOW_ADMIN_LEGACY_SUMMARY', {
       stage: payload.stage,
       reason: payload.reason,
@@ -2346,6 +2346,7 @@ async function applyStage(tx, workflow, payload, now, context, dependencies) {
     data.closedByUserId = null;
   }
   await tx.projectWorkflow.update({ where: { projectId: workflow.projectId }, data });
+  await synchronizeProjectReportArchive(tx, workflow.projectId, workflow.stage, payload.stage, now);
 }
 
 async function applyPostJob(tx, workflow, payload, context, dependencies, now) {
