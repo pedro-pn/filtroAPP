@@ -2496,10 +2496,19 @@ export async function laborCostByProject(importId = null) {
 }
 
 async function laborCostByProjectUncached(importId = null) {
-  const { pontoImport, periodStart, periodEnd, byCollaboratorId } = await computeCollaboratorRates(importId);
+  const { pontoImport, periodStart, periodEnd, byCollaboratorId: monthlyByCollaboratorId } = await computeCollaboratorRates(importId);
   if (!pontoImport) {
     return { pontoImport: null, periodStart: null, periodEnd: null, byProjectId: new Map(), idle: { cost: 0, costBase: 0, hours: 0 }, byCollaboratorId: new Map() };
   }
+  // A exclusão gerencial vale também para a apropriação do ponto/Efetivo. Aplicamos
+  // somente na projeção dos projetos, preservando o cálculo mensal da aba Custos.
+  const excluded = monthlyByCollaboratorId.size ? await prisma.collaborator.findMany({
+    where: { id: { in: [...monthlyByCollaboratorId.keys()] }, rdoCostSimulationExcluded: true },
+    select: { id: true }
+  }) : [];
+  const excludedIds = new Set(excluded.map(item => item.id));
+  const byCollaboratorId = new Map([...monthlyByCollaboratorId]
+    .filter(([id]) => !excludedIds.has(id)));
   const byProjectId = new Map();
   const idle = { cost: 0, costBase: 0, hours: 0 };
   for (const entry of byCollaboratorId.values()) {

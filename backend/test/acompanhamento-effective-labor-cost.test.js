@@ -5,8 +5,10 @@ import {
   buildEffectiveAllocationIndex,
   classifyProjectHours,
   computeCollaboratorRates,
+  laborCostByProject,
   monthsWithEffectiveAllocationDays
 } from '../src/lib/acompanhamento/labor-cost.js';
+import { clearProjectDerivedCaches } from '../src/lib/resource-list-cache.js';
 import { buildProjectDetailCollaborator, divisionLaborAllocation } from '../src/lib/acompanhamento/project-detail.js';
 import { buildAllocationAudit, groupUnallocatedDays } from '../src/lib/acompanhamento/allocation-audit.js';
 import { computeMonthlyCost } from '../src/lib/acompanhamento/cost-engine.js';
@@ -30,7 +32,7 @@ function allocation(overrides = {}) {
 
 function mockCalculation(t, {
   start = '2026-09-01', end = '2026-09-30', days = [], reports = [], allocations = [allocation()],
-  laborSleepModeByCollaborator = { c1: 'HOME' }
+  laborSleepModeByCollaborator = { c1: 'HOME' }, person = collaborator
 } = {}) {
   const stub = (model, method, implementation) => {
     const original = prisma[model][method];
@@ -40,10 +42,10 @@ function mockCalculation(t, {
   const mock = (model, method, value) => stub(model, method, async () => value);
   mock('pontoImport', 'findMany', [{ id: 'i1', createdAt: '2026-10-01', periodStart: start, periodEnd: end }]);
   mock('pontoPeriodSummary', 'findMany', [{
-    collaboratorId: 'c1', collaborator, monthly: { '2026-09': { days } }
+    collaboratorId: 'c1', collaborator: person, monthly: { '2026-09': { days } }
   }]);
   mock('pontoExternalEmployee', 'findMany', []);
-  mock('jobRole', 'findMany', [{ name: 'Operador', costProfile: { parameterSets: [
+  mock('jobRole', 'findMany', [{ name: person.jobRole.name, costProfile: { parameterSets: [
     { effectiveDate: '2026-01-01', params: { salarioBase: 3960 } }
   ] } }]);
   mock('costProfile', 'findMany', [{ key: 'operador', parameterSets: [{ effectiveDate: '2026-01-01', params: modelParams }] }]);
@@ -59,7 +61,71 @@ function mockCalculation(t, {
   mock('collaboratorAbsence', 'findMany', []);
   mock('workforceHoliday', 'findMany', []);
   mock('workforceCalendarState', 'findUnique', { revision: 1 });
+  mock('collaborator', 'findMany', person.rdoCostSimulationExcluded ? [{ id: person.id }] : []);
+  clearProjectDerivedCaches();
+  t.after(clearProjectDerivedCaches);
 }
+
+test('exclusão cadastrada impede custo e horas de apropriação sintética no dashboard, preservando o cálculo mensal', async t => {
+  for (const role of ['Gerente de Operação', 'Coordenador(a) de Operações']) {
+    await t.test(role, async t => {
+      mockCalculation(t, {
+        start: '2026-09-21', end: '2026-09-27',
+        person: { ...collaborator, jobRole: { id: 'role1', name: role }, rdoCostSimulationExcluded: true }
+      });
+      const monthly = (await computeCollaboratorRates()).byCollaboratorId.get('c1');
+      near(monthly.analyticalByProject.p1.hours, 61.6);
+      assert.ok(monthly.analyticalByProject.p1.cost > 0);
+      assert.deepEqual(monthly.workedDates, []);
+
+      const projectLabor = await laborCostByProject();
+      assert.equal(projectLabor.byCollaboratorId.has('c1'), false);
+      assert.equal(projectLabor.byProjectId.has('p1'), false);
+      const detail = buildProjectDetailCollaborator({
+        workedMinutes: 480, workedMinutesByDate: new Map([['2026-09-21', 480]]),
+        allocation: projectLabor.byCollaboratorId.get('c1')?.analyticalByProject.p1,
+        includeCollaboratorCosts: true
+      });
+      assert.equal(detail.horas, 8);
+      assert.equal(detail.horasApropriadas, null);
+      assert.equal(detail.custo, null);
+      assert.equal(detail.custoHora, null);
+      assert.equal(detail.custoEstimadoRdo, null);
+    });
+  }
+});
+
+test('excluir e reincluir nos projetos também vale com ponto real, sem alterar o cálculo mensal', async t => {
+  mockCalculation(t, {
+    start: '2026-09-21', end: '2026-09-21',
+    days: [{ date: '2026-09-21', workedMinutes: 600, extrasMinutes: 0 }],
+    reports: [{
+      reportType: 'RDO', projectId: 'p1', project: { code: '1001' }, reportDate: '2026-09-21',
+      daytimeWorkedMinutes: 480, collaborators: [{ collaboratorId: 'c1' }]
+    }]
+  });
+  let excluded = false;
+  prisma.collaborator.findMany = async () => excluded ? [{ id: 'c1' }] : [];
+  const monthlyBefore = (await computeCollaboratorRates()).byCollaboratorId.get('c1');
+  const included = await laborCostByProject();
+  assert.ok(included.byProjectId.get('p1').laborCost > 0);
+  near(included.byProjectId.get('p1').hours, 10);
+
+  excluded = true;
+  clearProjectDerivedCaches();
+  const hidden = await laborCostByProject();
+  assert.equal(hidden.byProjectId.has('p1'), false);
+  assert.equal(hidden.byCollaboratorId.has('c1'), false);
+  const monthlyAfter = (await computeCollaboratorRates()).byCollaboratorId.get('c1');
+  near(monthlyAfter.totalMensal, monthlyBefore.totalMensal);
+  assert.deepEqual(monthlyAfter.analyticalByProject, monthlyBefore.analyticalByProject);
+  assert.deepEqual(monthlyAfter.workedDates, monthlyBefore.workedDates);
+
+  excluded = false;
+  clearProjectDerivedCaches();
+  const restored = await laborCostByProject();
+  assert.deepEqual(restored.byProjectId.get('p1'), included.byProjectId.get('p1'));
+});
 
 test('mobilização em 20/09 inclui dez dias de custo antes do primeiro RDO de 30/09', async t => {
   mockCalculation(t, {
