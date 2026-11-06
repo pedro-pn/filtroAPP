@@ -10,7 +10,17 @@ export async function assertReportServicesProject(client, project, services) {
   if (hasInhibition && !project?.inhibitionServiceEnabled) {
     throw Object.assign(new Error('Serviço de inibição não está habilitado para este projeto.'), { statusCode: 400 });
   }
-  for (const service of services || []) {
+  for (const [index, service] of (services || []).entries()) {
+    const data = service.extraData || {};
+    const equipment = data.equipmentId ?? data['Equipamento(s)'] ?? data['Embarcação'];
+    const system = service.system ?? data.system ?? data.Sistema;
+    if (typeof equipment !== 'string' || !equipment.trim()) {
+      const label = service.serviceType === 'inibicao' ? 'a embarcação' : 'o equipamento do cliente';
+      throw Object.assign(new Error(`Informe ${label} do serviço ${index + 1}.`), { statusCode: 400 });
+    }
+    if (typeof system !== 'string' || !system.trim()) {
+      throw Object.assign(new Error(`Informe o sistema do serviço ${index + 1}.`), { statusCode: 400 });
+    }
     assertCleaningMeasurement(service);
     assertPressureHoseMeasurement(service);
     assertSystemTypeWhenVisible(service);

@@ -145,7 +145,7 @@ test('service-only route also rejects the whole transaction if draft cleanup fai
   const state = mockReportDatabase(t, { failCleanup: true });
   await assert.rejects(invokeCreate({
     ...input, draftId: 'service-only',
-    services: [{ serviceType: 'mecanica', startTime: '08:00', endTime: '17:00', finalized: true }]
+    services: [{ serviceType: 'mecanica', system: 'Sistema', extraData: { equipmentId: 'EQ-1' }, startTime: '08:00', endTime: '17:00', finalized: true }]
   }, '/service-only', { user: { id: auth.user.id, role: 'MANAGER' } }), /Draft cleanup unavailable/);
   assert.deepEqual(state.drafts, initialDrafts());
   assert.equal(state.reports.length, 0);

@@ -1324,6 +1324,7 @@ function SiteRdoFormPage() {
                                 data={service.data}
                                 serviceType={service.type}
                                 field="equipmentId"
+                                required
                                 className={service.data._prefilled && service.data.equipmentId ? 'pre' : ''}
                                 error={invalidTarget === `${service.id}:equipmentId` ? 'Informe o equipamento do cliente.' : undefined}
                                 onChange={patch => updateService(service.id, patch)}
@@ -1340,6 +1341,7 @@ function SiteRdoFormPage() {
                                 data={service.data}
                                 serviceType={service.type}
                                 field="system"
+                                required
                                 className={service.data._prefilled && service.data.system ? 'pre' : ''}
                                 error={invalidTarget === `${service.id}:system` ? 'Informe o sistema.' : undefined}
                                 onChange={patch => updateService(service.id, patch)}

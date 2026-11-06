@@ -195,10 +195,11 @@ function reportPayload(overrides = {}) {
     collaboratorIds: [],
     services: [{
       serviceType: 'mecanica',
+      system: 'Sistema',
       startTime: '08:00',
       endTime: '12:00',
       finalized: false,
-      extraData: {}
+      extraData: { equipmentId: 'EQ-1' }
     }],
     ...overrides
   };
@@ -212,9 +213,10 @@ function serviceOnlyPayload(overrides = {}) {
     collaboratorIds: [],
     services: [{
       serviceType: 'mecanica',
+      system: 'Sistema',
       startTime: '08:00',
       endTime: '12:00',
-      extraData: {}
+      extraData: { equipmentId: 'EQ-1' }
     }],
     ...overrides
   };
