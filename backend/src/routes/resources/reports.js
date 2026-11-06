@@ -127,7 +127,7 @@ import { registerReportPublicViewRoutes } from './report-public-view-routes.js';
 import { registerReportRegenerationRoutes } from './report-regeneration-routes.js';
 import { registerReportPdfAttachmentRoutes } from './report-pdf-attachment-routes.js';
 import { createReportPdfAttachmentAppender, withReportPdfAttachmentCount } from '../../lib/reports/pdf-attachments.js';
-import { canReviewRdoReports } from '../../../../shared/modules/rdo-permissions.js';
+import { canCreateServiceOnlyRdoReports, canReviewRdoReports } from '../../../../shared/modules/rdo-permissions.js';
 import { isValidReportDate, REPORT_DATE_ERROR } from '../../../../shared/modules/report-date.js';
 import { assertReviewerReachesReport, requireRdoReviewer } from '../../lib/reports/review-access.js';
 
@@ -6284,8 +6284,8 @@ router.delete('/:id/services/:serviceId', requireAuth, requireRdoAccess, asyncHa
 }));
 
 router.post('/service-only', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
-  if (req.auth.user.role !== 'MANAGER') {
-    return res.status(403).json({ error: 'Apenas o gestor pode criar relatórios somente de serviço.' });
+  if (!canCreateServiceOnlyRdoReports(req.auth.user)) {
+    return res.status(403).json({ error: 'Sua conta não tem permissão para criar relatórios somente de serviço.' });
   }
 
   const data = serviceOnlySchema.parse(req.body);

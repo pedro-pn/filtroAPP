@@ -24,6 +24,7 @@ enum AcompanhamentoExtraPermission {
 
 enum RdoExtraPermission {
   REVIEW_REPORTS
+  CREATE_SERVICE_ONLY_REPORTS
 }
 
 enum ReportEmissionPermission {
