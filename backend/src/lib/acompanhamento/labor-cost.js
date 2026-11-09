@@ -26,6 +26,7 @@
  */
 
 import prisma from '../prisma.js';
+import { laborReportQuery, loadLaborReportSources } from './labor-report-sources.js';
 import { laborCostCache } from '../resource-list-cache.js';
 import { computeMonthlyCost } from './cost-engine.js';
 import { getAnnualCollaboratorCosts } from './settings.js';
@@ -643,33 +644,7 @@ export function rdoDataByCollaboratorFromReports(reports) {
 
 // RDO por colaborador: por projeto (offshore) e o projeto/horas de cada dia.
 async function getRdoDataByCollaborator(periodStart, periodEndExclusive, database = prisma) {
-  const reports = await database.report.findMany({
-    where: {
-      deletedAt: null,
-      OR: [
-        { reportType: 'RDO' },
-        {
-          reportDate: { gte: periodStart, lt: periodEndExclusive },
-          OR: [
-            { daytimeWorkedMinutes: { gt: 0 } },
-            { nighttimeWorkedMinutes: { gt: 0 } },
-            { services: { some: { startTime: { not: null }, endTime: { not: null } } } }
-          ]
-        }
-      ]
-    },
-    select: {
-      reportType: true,
-      sequenceNumber: true,
-      projectId: true,
-      reportDate: true,
-      daytimeWorkedMinutes: true,
-      nighttimeWorkedMinutes: true,
-      project: { select: { code: true, offshore: true, laborSleepModeByCollaborator: true, mobilizationDate: true } },
-      collaborators: { select: { collaboratorId: true } },
-      services: { select: { startTime: true, endTime: true } }
-    }
-  });
+  const reports = await database.report.findMany(laborReportQuery(periodStart, periodEndExclusive, { includeProject: true }));
   return rdoDataByCollaboratorFromReports(reports);
 }
 
@@ -2006,12 +1981,12 @@ export async function computeCollaboratorRates(importId = null) {
   const periodEndExclusive = endExclusive(pontoScope.periodEnd);
   const fileStart = pontoScope.periodStart;
   const fileEnd = pontoScope.periodEnd;
+  const projectAllocationContextPromise = getProjectAllocationContext();
   const [
     periodRows,
     ignoredEmployees,
     roleParams,
-    rdoData,
-    offshoreYearsByCollaborator,
+    reportSources,
     annualCosts,
     projectAllocationContext,
     manualDayOverrides,
@@ -2040,16 +2015,20 @@ export async function computeCollaboratorRates(importId = null) {
       select: { externalEmployeeId: true }
     }),
     getRoleParamsResolver(),
-    getRdoDataByCollaborator(pontoScope.periodStart, periodEndExclusive),
-    getOffshoreYearsByCollaborator(pontoScope.periodStart, pontoScope.periodEnd),
+    loadLaborReportSources({
+      database: prisma, periodStart: pontoScope.periodStart, periodEnd: pontoScope.periodEnd,
+      projects: projectAllocationContextPromise.then(context => context.projects)
+    }),
     getAnnualCollaboratorCosts(),
-    getProjectAllocationContext(),
+    projectAllocationContextPromise,
     prisma.pontoDayProjectOverride.findMany({
       where: { workDate: { gte: pontoScope.periodStart, lt: periodEndExclusive } },
       select: { collaboratorId: true, workDate: true, projectId: true }
     }),
     loadConfirmedReviewDays({ from: pontoScope.periodStart, to: periodEndExclusive })
   ]);
+  const rdoData = rdoDataByCollaboratorFromReports(reportSources.reports);
+  const offshoreYearsByCollaborator = offshoreYearsByCollaboratorFromReports(reportSources.offshoreReports);
   const periods = mergePontoPeriods(filterIgnoredPontoPeriods(
     periodRows,
     ignoredEmployees.map(item => item.externalEmployeeId)

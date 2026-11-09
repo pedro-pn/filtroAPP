@@ -59,9 +59,15 @@ import {
 } from '../../lib/acompanhamento/comercialapp-bridge.js';
 import { resolveProjectDocumentFile } from '../../lib/efetivo/project-workflow/documents.js';
 import { removeContribution, resolveContributionScope } from '../../lib/acompanhamento/commercial-contributions.js';
+import { progressReadModeSchema } from '../../lib/acompanhamento/progress-projection.js';
 import { requestAdditionalProposalQuery } from '../../lib/projects/commercial-proposal-sync.js';
 
 const router = Router();
+const detailReadQuerySchema = z.object({
+  progress: progressReadModeSchema.default('full'),
+  fields: z.literal('progress').optional()
+});
+const projectDetailReadQuerySchema = detailReadQuerySchema.extend({ division: z.string().max(500).optional() });
 
 // Serve the frozen copy before any operational handler can read or write its ID.
 router.use('/projetos/:projectId', requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res, next) => {
@@ -615,10 +621,14 @@ router.get(
   requireAuth,
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
+    const query = detailReadQuerySchema.safeParse(req.query);
+    if (!query.success) return res.status(400).json({ error: 'Opções de leitura inválidas.' });
     try {
       const includeCollaboratorCosts = canViewAcompanhamentoLaborCosts(req.auth?.user);
       const includeAdminOnlyCategories = req.auth?.user?.accountType === 'ADMIN';
       const detail = await getMissionGroupDetail(req.params.groupId, {
+        progressMode: query.data.progress,
+        projection: query.data.fields === 'progress' ? 'progress' : 'detail',
         includeCollaboratorCosts,
         includeAdminOnlyCategories
       });
@@ -1024,15 +1034,18 @@ router.get(
   requireAuth,
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
+    const query = projectDetailReadQuerySchema.safeParse(req.query);
+    if (!query.success) return res.status(400).json({ error: 'Opções de leitura inválidas.' });
     try {
-      const divisionKey = typeof req.query.division === 'string' ? req.query.division : null;
-      if (divisionKey && divisionKey.length > 500) return res.status(400).json({ error: 'Divisão inválida.' });
+      const divisionKey = query.data.division;
       const divisions = divisionKey ? await getTrackingDivisions(req.params.projectId) : null;
       const division = divisionKey ? divisions.divisions.find(item => item.key === divisionKey) : null;
       if (divisionKey && !division) return res.status(404).json({ error: 'Divisão não encontrada.' });
       const includeCollaboratorCosts = canViewAcompanhamentoLaborCosts(req.auth?.user);
       const includeAdminOnlyCategories = req.auth?.user?.accountType === 'ADMIN';
       const detail = await getProjectDetail(req.params.projectId, {
+        progressMode: query.data.progress,
+        projection: query.data.fields === 'progress' ? 'progress' : 'detail',
         includeCollaboratorCosts,
         includeAdminOnlyCategories,
         division

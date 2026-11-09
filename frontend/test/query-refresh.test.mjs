@@ -3,17 +3,66 @@ import test, { before, after } from 'node:test';
 import { createServer } from 'vite';
 import { QueryObserver, focusManager } from '@tanstack/react-query';
 
-let server, updates, clients, api, accumulated;
+let server, updates, clients, api, accumulated, detailRefresh;
 before(async () => {
   server = await createServer({ configFile: false, root: new URL('..', import.meta.url).pathname, server: { middlewareMode: true }, appType: 'custom' });
   updates = await server.ssrLoadModule('/src/api/dataUpdates.ts');
   clients = await server.ssrLoadModule('/src/queryClient.ts');
   api = (await server.ssrLoadModule('/src/api/client.ts')).apiClient;
   accumulated = await server.ssrLoadModule('/src/utils/accumulatedReportRefresh.ts');
+  detailRefresh = await server.ssrLoadModule('/src/components/projects/acompanhamentoRefresh.ts');
   globalThis.localStorage = { getItem: () => null };
 });
 after(async () => { delete globalThis.localStorage; await server?.close(); });
 const pause = () => new Promise(resolve => setTimeout(resolve, 20));
+
+test('histórico por revisão resiste a invalidações amplas e só relê uma revisão nova', async () => {
+  const client = clients.createAppQueryClient();
+  let reads = 0;
+  const options = revision => ({
+    ...detailRefresh.progressRevisionQueryOptions,
+    queryKey: ['project-detail', 'p1', 'progress', 'history', revision],
+    queryFn: async () => { reads++; return { revision }; }
+  });
+  const observer = new QueryObserver(client, options('r1'));
+  const unsubscribe = observer.subscribe(() => {});
+  try {
+    await pause();
+    assert.equal(reads, 1);
+    await client.invalidateQueries({ queryKey: ['project-detail'] });
+    await client.refetchQueries({ queryKey: ['project-detail'] });
+    assert.equal(reads, 1, 'a revisão carregada não deve ser recalculada por alterações de outros campos');
+    observer.setOptions(options('r2'));
+    await pause();
+    assert.equal(reads, 2);
+    assert.equal(observer.getCurrentResult().data.revision, 'r2');
+  } finally { unsubscribe(); client.clear(); }
+});
+
+test('gravação durante a primeira leitura de histórico cancela a resposta antiga e reinicia a consulta', async () => {
+  const client = clients.createAppQueryClient();
+  const dispose = clients.installQueryDataUpdates(client);
+  let releaseFirst, reads = 0, revision = 1;
+  const firstRead = new Promise(resolve => { releaseFirst = resolve; });
+  const key = ['project-detail', 'p1', 'progress', 'history', 'r1'];
+  const observer = new QueryObserver(client, {
+    ...detailRefresh.progressRevisionQueryOptions,
+    queryKey: key,
+    queryFn: async () => { const version = revision; if (++reads === 1) await firstRead; return { version }; }
+  });
+  const unsubscribe = observer.subscribe(() => {});
+  try {
+    await pause();
+    revision = 2;
+    await api.put('/rdo/projects/p1', {}, { adapter: async config => ({ config, data: {}, status: 200, statusText: 'OK', headers: {} }) });
+    await pause();
+    assert.equal(reads, 2);
+    assert.equal(client.getQueryData(key).version, 2);
+    releaseFirst();
+    await pause();
+    assert.equal(client.getQueryData(key).version, 2);
+  } finally { releaseFirst(); unsubscribe(); dispose(); client.clear(); }
+});
 
 for (const [path, affected, unrelated] of [
   ['/rdo/projects/p1', ['projects', 'project-cards', 'project-workflows', 'romaneio-projects', 'estoque', 'qualidade'], ['assinaturas']],

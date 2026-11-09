@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
-import { getGestorBootstrap, getNewReportBootstrap, getReportDetailBootstrap } from '../api/bootstrap';
+import { getGestorBootstrap, getNewReportBootstrap, getReportDetailBootstrap, type GestorBootstrapSection } from '../api/bootstrap';
 import { useAuth } from '../auth/AuthContext';
 import { queryKeys } from './queryKeys';
 
@@ -21,11 +21,11 @@ export function useReportDetailBootstrap(reportId: string, enabled = true) {
   });
 }
 
-export function useGestorBootstrap(enabled = true) {
+export function useGestorBootstrap(enabled = true, section?: GestorBootstrapSection) {
   const { user } = useAuth();
   return useQuery({
-    queryKey: queryKeys.gestorBootstrap(user?.id),
-    queryFn: getGestorBootstrap,
+    queryKey: [...queryKeys.gestorBootstrap(user?.id), section || 'all'],
+    queryFn: () => getGestorBootstrap(section),
     enabled
   });
 }

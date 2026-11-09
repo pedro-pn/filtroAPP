@@ -57,10 +57,12 @@ const report = {
 } as ReportSummary;
 
 const projectCreateRequests: unknown[] = [];
-Object.assign(window, { projectCreateRequests });
+const gestorReadRequests: Array<{ url: string; params: unknown }> = [];
+Object.assign(window, { projectCreateRequests, gestorReadRequests });
 
 apiClient.defaults.adapter = async config => {
   const url = config.url || '';
+  if (config.method === 'get') gestorReadRequests.push({ url, params: config.params });
   let data: unknown = [];
   if (url.endsWith('/notifications')) {
     data = { items: [], criticalItems: [], unreadCount: 0, snapshotAt: new Date().toISOString(), nextCursor: null };

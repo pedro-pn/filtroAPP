@@ -11,8 +11,11 @@ export const BRAND_LOGO_ASSETS = {
   color: { src: brandAsset('LOGO_COLORIDO.png'), width: 3505, height: 943 },
   header: { src: brandAsset('LOGO_HEADER.png'), width: 3519, height: 1065 },
   white: { src: brandAsset('LOGO_BRANCA.png'), width: 3514, height: 974 },
-  login: { src: brandAsset('LOGO_LOGIN.png'), width: 2756, height: 1978 },
-  symbol: { src: brandAsset('LOGO_TAB.png'), width: 2011, height: 2028 },
+  login: { src: loginLogoUrl, width: 640, height: 459 },
+  symbol: { src: symbolLogoUrl, width: 256, height: 258 },
   green: { src: brandAsset('LOGO_VERDE.png'), width: 4501, height: 1240 }
 } as const;
+
+import loginLogoUrl from '../../assets/brand/login.webp';
+import symbolLogoUrl from '../../assets/brand/symbol.webp';
 

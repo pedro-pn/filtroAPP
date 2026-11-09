@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import { listCollaboratorsWithCurrentJobRole } from '../../lib/collaborators/job-role-service.js';
@@ -130,7 +131,18 @@ router.get('/report-detail/:reportId', asyncHandler(async (req, res) => {
   });
 }));
 
-router.get('/gestor', requireRdoManager, asyncHandler(async (req, res) => {
+const gestorBootstrapSections = {
+  projetos: ['activeProjects', 'collaborators', 'projectSegments'],
+  arquivados: ['archivedProjects', 'projectSegments'],
+  equipe: ['collaborators'],
+  usuarios: ['activeProjects', 'archivedProjects', 'collaborators'],
+  nps: ['surveys', 'surveyQuestions'],
+  relatorios: ['activeProjects', 'archivedProjects', 'collaborators']
+};
+const gestorBootstrapQuery = z.object({ section: z.enum(Object.keys(gestorBootstrapSections)).optional() }).strict();
+
+export async function gestorBootstrapData(auth, section) {
+  const includes = key => !section || gestorBootstrapSections[section].includes(key);
   const [
     activeProjects,
     archivedProjects,
@@ -139,30 +151,30 @@ router.get('/gestor', requireRdoManager, asyncHandler(async (req, res) => {
     projectSegments,
     surveyQuestions
   ] = await Promise.all([
-    prisma.project.findMany({
-      where: await projectListWhereForAuth(req.auth, 'true'),
+    includes('activeProjects') ? prisma.project.findMany({
+      where: await projectListWhereForAuth(auth, 'true'),
       include: projectListInclude,
       orderBy: { name: 'asc' }
-    }),
-    prisma.project.findMany({
-      where: await projectListWhereForAuth(req.auth, 'false'),
+    }) : [],
+    includes('archivedProjects') ? prisma.project.findMany({
+      where: await projectListWhereForAuth(auth, 'false'),
       include: projectListInclude,
       orderBy: { name: 'asc' }
-    }),
-    cachedCollaboratorsWithCurrentJobRole(),
-    prisma.satisfactionSurvey.findMany({
+    }) : [],
+    includes('collaborators') ? cachedCollaboratorsWithCurrentJobRole() : [],
+    includes('surveys') ? prisma.satisfactionSurvey.findMany({
       where: { project: { deletedAt: null } },
       include: { project: true },
       orderBy: { createdAt: 'desc' }
-    }),
-    prisma.clientSegment.findMany({
+    }) : [],
+    includes('projectSegments') ? prisma.clientSegment.findMany({
       where: { isActive: true },
       orderBy: [{ order: 'asc' }, { label: 'asc' }]
-    }),
-    activeSurveyQuestions()
+    }) : [],
+    includes('surveyQuestions') ? activeSurveyQuestions() : []
   ]);
 
-  res.json({
+  return {
     activeProjects,
     archivedProjects,
     collaborators,
@@ -179,7 +191,12 @@ router.get('/gestor', requireRdoManager, asyncHandler(async (req, res) => {
     })),
     projectSegments,
     surveyQuestions: surveyQuestions.map(safeQuestion)
-  });
+  };
+}
+
+router.get('/gestor', requireRdoManager, asyncHandler(async (req, res) => {
+  const { section } = gestorBootstrapQuery.parse(req.query);
+  res.json(await gestorBootstrapData(req.auth, section));
 }));
 
 export default router;

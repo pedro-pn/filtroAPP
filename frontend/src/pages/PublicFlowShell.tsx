@@ -17,7 +17,7 @@ export function PublicFlowShell({ title, description, children, wide = false, pr
     <section className="public-flow-card" aria-labelledby="public-flow-title">
       {preview ? <div className="public-flow-preview"><span>Demonstração visual · nenhum dado será enviado</span><Link to="/visualizar">Ver todos os links</Link></div> : null}
       <header className="public-flow-header">
-        <BrandLogo className="public-flow-logo" variant={logoVariant} />
+        <BrandLogo className="public-flow-logo" variant={logoVariant} fetchPriority="high" />
         <h1 id="public-flow-title" className={titleHidden ? 'fv-sr-only' : undefined}>{title}</h1>
         {description ? <p>{description}</p> : null}
       </header>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef } from 'react';
 import { useLocation, useSearchParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { CircleHelp } from 'lucide-react';
@@ -6,18 +6,19 @@ import { AppIcon } from '../../components/icons/AppIcon';
 
 import { useAuth } from '../../auth/AuthContext';
 import { markAcompanhamentoNoveltySeen } from '../../auth/moduleNavigation';
-import { Button, IconButton } from '../../components/ui/ds';
-import { AcompanhamentoDashboard } from '../../components/projects/AcompanhamentoDashboard';
-import { ProjectCardsBoard } from '../../components/projects/ProjectCardsBoard';
-import { ProjectSystemReconciliation } from '../../components/projects/ProjectSystemReconciliation';
-import { SedeCostsBoard } from '../../components/projects/SedeCostsBoard';
-import { CostEngineManager } from '../../components/projects/CostEngineManager';
+import { Button, IconButton, Skeleton } from '../../components/ui/ds';
 import { getPontoPendencyCounts } from '../../api/acompanhamentoPonto';
 import { AcompanhamentoTutorial } from '../../components/AcompanhamentoTutorial';
 import { AcompanhamentoAppShell } from './AcompanhamentoAppShell';
 import { parseSection, sectionSearchParams, type AcompanhamentoSection } from './navigation';
 import { canViewProjectFinancials } from '../../../../shared/modules/acompanhamento-permissions.js';
 import './AcompanhamentoPage.ds.css';
+
+const AcompanhamentoDashboard = lazy(() => import('../../components/projects/AcompanhamentoDashboard').then(module => ({ default: module.AcompanhamentoDashboard })));
+const ProjectCardsBoard = lazy(() => import('../../components/projects/ProjectCardsBoard').then(module => ({ default: module.ProjectCardsBoard })));
+const ProjectSystemReconciliation = lazy(() => import('../../components/projects/ProjectSystemReconciliation').then(module => ({ default: module.ProjectSystemReconciliation })));
+const SedeCostsBoard = lazy(() => import('../../components/projects/SedeCostsBoard').then(module => ({ default: module.SedeCostsBoard })));
+const CostEngineManager = lazy(() => import('../../components/projects/CostEngineManager').then(module => ({ default: module.CostEngineManager })));
 
 function tutorialUserKey(user: ReturnType<typeof useAuth>['user'], isManager: boolean) {
   const identity = String(user?.email || user?.username || user?.id || '').trim().toLowerCase();
@@ -68,11 +69,13 @@ export function AcompanhamentoPage() {
     }>
       <main className="acp-page">
         <section className="acp-page__content">
+          <Suspense fallback={<Skeleton height={240} />}>
           {reconciliationProject ? <ProjectSystemReconciliation key={reconciliationProject} projectId={reconciliationProject} canManage={isManager} onBack={closeReconciliation} />
             : section === 'projetos' ? <ProjectCardsBoard canManage={hasAcompanhamentoAccess} canManageGroups={isManager} canManageManualCosts={isManager} canManageProjectNotes={isManager} progressHistoryNoveltyUser={user} />
             : section === 'sede' ? <SedeCostsBoard />
             : section === 'custo' && isManager ? <CostEngineManager canManageCosts={isManager} />
             : <AcompanhamentoDashboard canManage={hasAcompanhamentoAccess} canManageProposal={isManager} canViewFinancials={canViewProjectFinancials(user)} />}
+          </Suspense>
         </section>
       </main>
       <AcompanhamentoTutorial userKey={userKey} ready={section === 'dashboard'} goToSection={setSection}

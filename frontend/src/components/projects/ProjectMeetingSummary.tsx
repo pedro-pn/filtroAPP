@@ -36,12 +36,13 @@ function daysAgo(date: string | null) {
  * Resumo de reunião do dashboard do projeto: quatro indicadores, leitura e pontos de
  * atenção. Cada card abre o seu detalhe logo abaixo da fileira, um por vez.
  */
-export function ProjectMeetingSummary({ meeting, scopeLabel, weekly, details, defaultOpen = null }: {
+export function ProjectMeetingSummary({ meeting, scopeLabel, weekly, details, defaultOpen = null, onOpenChange }: {
   meeting: ProjectMeeting;
   scopeLabel?: string;
   weekly?: ReactNode;
   details: Partial<Record<MeetingKpiKey, ReactNode>>;
   defaultOpen?: MeetingKpiKey | null;
+  onOpenChange?: (key: MeetingKpiKey | null) => void;
 }) {
   const [open, setOpen] = useState<MeetingKpiKey | null>(defaultOpen);
   const [scrollToDetail, setScrollToDetail] = useState(false);
@@ -59,6 +60,7 @@ export function ProjectMeetingSummary({ meeting, scopeLabel, weekly, details, de
   const close = () => {
     const key = open;
     setOpen(null);
+    onOpenChange?.(null);
     if (key) cardRefs.current[key]?.focus();
   };
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -107,6 +109,7 @@ export function ProjectMeetingSummary({ meeting, scopeLabel, weekly, details, de
 
   const openFromAttention = (key: MeetingKpiKey) => {
     setOpen(key);
+    onOpenChange?.(key);
     setScrollToDetail(true);
   };
 
@@ -114,7 +117,11 @@ export function ProjectMeetingSummary({ meeting, scopeLabel, weekly, details, de
     <div className="acp-meeting-kpis" role="group" aria-label="Indicadores do projeto">
       {cards.map(card => <button key={card.key} type="button" ref={element => { cardRefs.current[card.key] = element; }}
         className={`acp-meeting-kpi is-${card.tone}`} aria-expanded={open === card.key} aria-controls={`acp-meeting-detail-${card.key}`}
-        data-acp-meeting-kpi={card.key} onClick={() => setOpen(current => current === card.key ? null : card.key)}>
+        data-acp-meeting-kpi={card.key} onClick={() => {
+          const next = open === card.key ? null : card.key;
+          setOpen(next);
+          onOpenChange?.(next);
+        }}>
         <span className="acp-meeting-kpi__top">
           <span className="acp-meeting-kpi__label">{card.label ?? KPI_LABELS[card.key]}</span>
           <Badge tone={card.tone}>{card.status}</Badge>

@@ -22,7 +22,6 @@ import { estimateReportLaborCostByDate, summarizeReportLaborCost } from './repor
 import { getManualProjectCostsByProject } from './manual-costs.js';
 import { buildWorkedHoursProgress } from './project-cards.js';
 import {
-  buildRequiredWeeklyProgress,
   computeProjectProgressDetails,
   computeDivisionProgressDetails,
   isConfirmedReportParticipant,
@@ -40,6 +39,9 @@ import { getStockConsumptionCostByProject } from './stock-cost.js';
 import prisma from '../prisma.js';
 import { dateInDivision, divisionDateWhere, divisionLaborPeriod } from './tracking-divisions.js';
 import { getProjectInvoices } from './project-invoices.js';
+import { progressReadOptions } from './progress-projection.js';
+import { addCalendarDays, projectProgressCalendar, projectProgressProjection } from './project-progress-projection.js';
+export { buildProjectCalendarPeriod } from './project-progress-projection.js';
 
 function toNum(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -66,19 +68,6 @@ function journeyMinutes(project, reportDate) {
 
 function dateKey(date) {
   return new Date(date).toISOString().slice(0, 10);
-}
-
-function diffCalendarDays(from, to) {
-  const a = new Date(from); const b = new Date(to);
-  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return null;
-  return Math.floor((b.getTime() - a.getTime()) / 86400000);
-}
-
-function addCalendarDays(startDate, days) {
-  const d = new Date(startDate);
-  if (Number.isNaN(d.getTime())) return null;
-  d.setTime(d.getTime() + days * 86400000);
-  return d.toISOString();
 }
 
 function normalizeRole(value) {
@@ -391,14 +380,6 @@ function purchaseDivisionWhere(division) {
   ] };
 }
 
-export function buildProjectCalendarPeriod({ division = null, startDate = null, referenceDate = new Date() } = {}) {
-  const activeStartDate = division ? division.mobilizationDate ?? null : startDate;
-  return {
-    startDate: activeStartDate,
-    elapsed: activeStartDate ? Math.max(0, diffCalendarDays(activeStartDate, referenceDate) ?? 0) : null
-  };
-}
-
 export function buildProjectTimelineDates({ division = null, startDate = null, mobilizationDate = null } = {}) {
   return division
     ? { mobilizationDate: division.mobilizationDate ?? null, startDate: division.startDate }
@@ -416,13 +397,16 @@ export function buildRdoSignatureSummary(reports = []) {
 export async function getProjectDetail(projectId, {
   includeCollaboratorCosts = false,
   includeAdminOnlyCategories = true,
+  progressMode = 'full',
+  projection = 'detail',
+  dashboardRow: preloadedDashboardRow = null,
   progressDetails: preloadedProgressDetails = null,
   plannedHoursByProject: preloadedPlannedHoursByProject = null,
   division = null,
   projectChannel = 'acompanhamento',
   includeUnlinked = false
 } = {}) {
-  const rows = await listCommercialDashboard({
+  const rows = preloadedDashboardRow ? [preloadedDashboardRow] : await listCommercialDashboard({
     includeAdminOnlyCategories,
     projectIds: [projectId],
     includeProgress: false, projectChannel, includeUnlinked
@@ -433,6 +417,17 @@ export async function getProjectDetail(projectId, {
   if (division) {
     division = { ...division, ...Object.fromEntries(['plannedCost', 'plannedRevenue', 'plannedHours', 'plannedDays']
       .map(field => [field, scaleProposalValue(division[field], row.proposalPercentage)])) };
+  }
+  if (projection === 'progress') {
+    const [details, latestRdo] = await Promise.all([
+      division ? computeDivisionProgressDetails(projectId, division, progressReadOptions(progressMode))
+        : preloadedProgressDetails ?? computeProjectProgressDetails(projectId, progressReadOptions(progressMode)),
+      prisma.report.aggregate({
+        where: { projectId, reportType: 'RDO', deletedAt: null, ...divisionDateWhere('reportDate', division) },
+        _max: { reportDate: true }
+      })
+    ]);
+    return projectProgressProjection(details, progressMode, projectProgressCalendar(row, division, latestRdo._max.reportDate));
   }
   const categoryWhere = await buildOmieCostCategoryWhere({
     includeAdminOnly: includeAdminOnlyCategories,
@@ -491,14 +486,13 @@ export async function getProjectDetail(projectId, {
     getStockConsumptionCostByProject([projectId], prisma, division),
     getManualProjectCostsByProject([projectId], { includeEntries: true, division }),
     preloadedPlannedHoursByProject ?? loadPlannedHours([projectId]),
-    division ? computeDivisionProgressDetails(projectId, division) : preloadedProgressDetails ?? computeProjectProgressDetails(projectId)
+    division
+      ? computeDivisionProgressDetails(projectId, division, progressReadOptions(progressMode))
+      : preloadedProgressDetails ?? computeProjectProgressDetails(projectId, progressReadOptions(progressMode))
   ]);
   const {
     project,
-    progress: projectProgress,
-    progressHistory,
-    dailyProgressHistory,
-    progressSlices
+    progress: projectProgress
   } = loadedProgressDetails;
   const { reports, collaborators } = selectRealizedSourceReportData(queriedReports, queriedCollaborators);
 
@@ -657,15 +651,11 @@ export async function getProjectDetail(projectId, {
     .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 
   // --- Prazos / dias ---
-  const plannedDays = division ? division.plannedDays : toNum(row.plannedDays);
+  const calendar = projectProgressCalendar(row, division, lastRdoDate);
+  const { plannedDays, referenceDate: projectReferenceDate, startDate: activeStartDate, elapsed: elapsedCorridos, expectedEndDate } = calendar;
   const plannedWorkedDays = division ? division.plannedDays : toNum(row.workedDays) ?? plannedDays;
-  const today = new Date();
 
-  // --- Equipamentos em obra (módulo Equipamentos), mesma lógica do card de projetos ---
-  const projectReferenceDate = division
-    ? division.endDate && division.endDate < today.toISOString().slice(0, 10)
-      ? new Date(`${division.endDate}T00:00:00.000Z`) : today
-    : row.archived && lastRdoDate ? new Date(lastRdoDate) : today;
+  // --- Equipamentos em obra, no mesmo período usado pelo avanço ---
   const equipmentEndDate = projectReferenceDate;
   const equipamentos = (equipmentByProject.get(projectId) || [])
     .filter(e => !division || new Date(e.sinceDate) <= equipmentEndDate)
@@ -677,9 +667,6 @@ export async function getProjectDetail(projectId, {
     })
     .sort((a, b) => b.days - a.days);
 
-  const { startDate: activeStartDate, elapsed: elapsedCorridos } = buildProjectCalendarPeriod({
-    division, startDate: row.startDate, referenceDate: projectReferenceDate
-  });
   const { businessDays } = projectElapsedDays(activeStartDate, projectReferenceDate);
   const stoppedDays = countStoppedReportDays(byDay, date => journeyMinutes(project, date));
   const diasCorridos = {
@@ -711,33 +698,10 @@ export async function getProjectDetail(projectId, {
     reports
   );
 
-  const expectedEndDate = division ? division.endDate ?? null : (activeStartDate && plannedDays ? addCalendarDays(activeStartDate, plannedDays) : null);
   const avancoPct = projectProgress.progressPct ?? null;
   const projectedEndByPace = (activeStartDate && elapsedCorridos && elapsedCorridos > 0 && avancoPct && avancoPct > 0)
     ? addCalendarDays(activeStartDate, elapsedCorridos * (100 / avancoPct))
     : null;
-  const requiredWeeklyProgress = buildRequiredWeeklyProgress(projectProgress, {
-    startDate: activeStartDate,
-    expectedEndDate,
-    referenceDate: projectReferenceDate
-  });
-  // Avanço por recorte (escopo e/ou equipamento do cliente); só projetos com o que filtrar.
-  const progressFilters = progressSlices ? {
-    scopes: progressSlices.scopes,
-    equipments: progressSlices.equipments,
-    lookup: progressSlices.lookup,
-    slices: progressSlices.slices.map(({ progress, progressHistory, dailyProgressHistory }) => ({
-      avancoPct: progress.progressPct,
-      progressHistory,
-      dailyProgressHistory,
-      requiredWeeklyProgress: buildRequiredWeeklyProgress(progress, {
-        startDate: activeStartDate,
-        expectedEndDate,
-        referenceDate: projectReferenceDate
-      })
-    }))
-  } : null;
-
   const alerts = [...(division ? [] : plannedHoursAlerts(hours?.hoursPlan)), ...computeAlerts({
     startDate: activeStartDate ?? null,
     plannedDays,
@@ -799,12 +763,7 @@ export async function getProjectDetail(projectId, {
     workedHours,
     maioresGastos,
     manualCosts: manualCost.entries,
-    avancoPct,
-    avancoMethod: projectProgress.progressMethod ?? null,
-    progressHistory,
-    dailyProgressHistory,
-    requiredWeeklyProgress,
-    progressFilters,
+    ...projectProgressProjection(loadedProgressDetails, progressMode, calendar),
     standby: { count: standbyCount, minutes: standbyMinutesTotal },
     ultimosDias,
     overtimeMinutes: overtimeMinutesTotal,

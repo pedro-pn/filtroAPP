@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { combineRecentDays, groupProjectDetails } from '../src/lib/acompanhamento/project-detail-groups.js';
+import { combineRecentDays, groupProjectDetails, groupProgressProjection } from '../src/lib/acompanhamento/project-detail-groups.js';
 
 function group() {
   return {
@@ -542,4 +542,23 @@ test('detalhe do grupo soma dias úteis e parados sem usar só os últimos dias'
   })));
   assert.equal(result.businessDays, 17);
   assert.equal(result.stoppedDays, 4);
+});
+
+test('progress-only group preserves manual weighting without cost or billing response fields', () => {
+  const entries = [20, 80].map((value, index) => ({
+    projectId: `p${index}`, progress: { hasScope: false, progressPct: value, services: [] },
+    detail: { avancoPct: value, progressRevision: `r${index}`,
+      consumo: { previsto: (index + 1) * 100, previstoIntegral: 1000 }, faturamento: { previsto: '2000' },
+      progressHistory: [{ date: '2026-10-01', progressPct: value }],
+      dailyProgressHistory: [{ date: '2026-10-01', progressPct: value, services: [] }] }
+  }));
+  const expected = groupProgressProjection(entries, { includeRevision: true });
+  const projected = entries.map(entry => {
+    const { consumo, faturamento, ...progressDetail } = entry.detail;
+    return { ...entry, detail: progressDetail, dashboardRow: {
+      plannedTotalCost: String(consumo.previsto), fullPlannedTotalCost: consumo.previstoIntegral, salePrice: faturamento.previsto
+    } };
+  });
+  assert.deepEqual(groupProgressProjection(projected, { includeRevision: true }), expected);
+  assert.equal(expected.avancoPct, 60);
 });

@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import test from 'node:test';
+import { createReviewMonthFixture } from './fixtures/allocation-review-month.fixture.js';
 
 import {
   assembleReviewWeek,
@@ -196,8 +198,8 @@ test('visão do mês junta as semanas, recorta os dias do mês e soma dias por p
     report: { findMany: async () => [] },
     pontoDayProjectOverride: { findMany: async () => [] },
     collaboratorAbsence: { findMany: async () => [] },
-    allocationReviewWeek: { findUnique: async () => null },
-    collaborator: { findMany: async () => [{ id: 'c1', name: 'Ana', isActive: true, admissionDate: null, terminationDate: null, jobRole: null }] },
+    allocationReviewWeek: { findMany: async () => [] },
+    collaborator: { findMany: async () => [{ id: 'c1', name: 'Ana', isActive: true, admissionDate: null, terminationDate: null, jobRole: { isActive: true, isOperational: true } }] },
     project: { findMany: async () => [] },
     user: { findUnique: async () => null }
   };
@@ -215,5 +217,32 @@ test('visão do mês junta as semanas, recorta os dias do mês e soma dias por p
   assert.equal(month.rows[0].days.length, 31);
   const folga = month.rows[0].totals.find(item => item.kind === 'FOLGA');
   assert.equal(folga.days, 9);
-  assert.equal(weeksLoaded.length, 5);
+  assert.deepEqual(weeksLoaded, ['2026-09-21']);
+});
+
+test('mês de seis semanas mantém o resultado anterior com uma leitura de cada fonte', async () => {
+  const fixture = createReviewMonthFixture();
+  const month = await getReviewMonth({ yearMonth: '2026-11', now: new Date('2026-12-10T15:00:00.000Z'), user: { accountType: 'ADMIN' } }, fixture.deps);
+  // Hash obtido com a implementação anterior que lia cada semana de forma independente.
+  assert.equal(createHash('sha256').update(JSON.stringify(month)).digest('hex'), 'df9c7bd57eeb58141f469d28df9e1c3c29e8a355a3e24aacbb75efad0fd07e92');
+  assert.equal(month.weeks.length, 6);
+  assert.equal(month.rows.find(row => row.collaborator.id === 'c2').days.find(day => day.date === '2026-11-11').eligible, false);
+  assert.equal(month.rows.find(row => row.collaborator.id === 'c3').days.find(day => day.date === '2026-11-05').eligible, false);
+  assert.deepEqual(month.rows.find(row => row.collaborator.id === 'c1').days[0].value, { kind: 'TRAVEL', projectIds: ['p1'] });
+  assert.ok(Object.values(fixture.calls).every(count => count === 1), JSON.stringify(fixture.calls));
+});
+
+test('leituras mensais não reutilizam fontes antigas entre requisições', async () => {
+  const fixture = createReviewMonthFixture();
+  const options = { yearMonth: '2026-11', now: new Date('2026-12-10T15:00:00.000Z') };
+  const before = await getReviewMonth(options, fixture.deps);
+  fixture.reports.push({
+    id: 'new', sequenceNumber: 99, status: 'APPROVED', projectId: 'p2', reportDate: new Date('2026-11-24T00:00:00.000Z'),
+    collaborators: [{ collaboratorId: 'c1' }]
+  });
+  const after = await getReviewMonth(options, fixture.deps);
+  const day = month => month.rows.find(row => row.collaborator.id === 'c1').days.find(item => item.date === '2026-11-24');
+  assert.notDeepEqual(day(before), day(after));
+  assert.deepEqual(day(after).value, { kind: 'PROJECT', projectIds: ['p2'] });
+  assert.ok(Object.values(fixture.calls).every(count => count === 2), JSON.stringify(fixture.calls));
 });

@@ -40,6 +40,8 @@ export interface GestorBootstrap {
   surveyQuestions: SurveyQuestion[];
 }
 
+export type GestorBootstrapSection = 'projetos' | 'arquivados' | 'equipe' | 'usuarios' | 'nps' | 'relatorios';
+
 export async function getNewReportBootstrap() {
   const response = await apiClient.get<NewReportBootstrap>(rdoApiPath('/bootstrap/new-report'));
   return response.data;
@@ -50,7 +52,7 @@ export async function getReportDetailBootstrap(reportId: string) {
   return response.data;
 }
 
-export async function getGestorBootstrap() {
-  const response = await apiClient.get<GestorBootstrap>(rdoApiPath('/bootstrap/gestor'));
+export async function getGestorBootstrap(section?: GestorBootstrapSection) {
+  const response = await apiClient.get<GestorBootstrap>(rdoApiPath('/bootstrap/gestor'), { params: section ? { section } : undefined });
   return response.data;
 }

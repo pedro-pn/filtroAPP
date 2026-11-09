@@ -332,8 +332,10 @@ export function GestorPage() {
     { status: 'SIGNED', projectActive: true }
   ]);
   const [pendingTotalCount, approvedTotalCount, signedTotalCount] = reportCountsQuery.data ?? [0, 0, 0];
-  const draftsQuery = useDrafts();
-  const gestorBootstrapQuery = useGestorBootstrap();
+  const draftsQuery = useDrafts(undefined, tab === 'pendentes');
+  const bootstrapSection = manualReportModalOpen ? 'relatorios' : projectsTab ? 'projetos'
+    : archivedProjectsTab ? 'arquivados' : teamTab ? 'equipe' : usersTab ? 'usuarios' : npsTab ? 'nps' : undefined;
+  const gestorBootstrapQuery = useGestorBootstrap(Boolean(bootstrapSection), bootstrapSection);
   const activeProjectsQuery = {
     data: gestorBootstrapQuery.data?.activeProjects,
     isLoading: gestorBootstrapQuery.isLoading,
@@ -349,9 +351,9 @@ export function GestorPage() {
     () => new Map(activeProjectReportCountQueries.map((query, index) => [query.projectId, activeProjectReportCountsQuery.data?.[index]])),
     [activeProjectReportCountQueries, activeProjectReportCountsQuery.data]
   );
-  const commercialPendenciasQuery = useQuery({ queryKey: ['commercial-pendencias'], queryFn: getCommercialPendencias });
+  const commercialPendenciasQuery = useQuery({ queryKey: ['commercial-pendencias'], queryFn: getCommercialPendencias, enabled: projectsTab });
   const commercialPendenciaByProject = useMemo(() => commercialPendenciaMapByProject(commercialPendenciasQuery.data || []), [commercialPendenciasQuery.data]);
-  const jobRolesQuery = useQuery({ queryKey: ['job-roles', 'all'], queryFn: () => listJobRoles(true) });
+  const jobRolesQuery = useQuery({ queryKey: ['job-roles', 'all'], queryFn: () => listJobRoles(true), enabled: teamTab });
   const ddsThemesQuery = useQuery({
     queryKey: ['dds-themes', 'all'],
     queryFn: () => listDdsThemes(true),
@@ -384,8 +386,8 @@ export function GestorPage() {
     isError: gestorBootstrapQuery.isError,
     refetch: gestorBootstrapQuery.refetch
   };
-  const internalUsersQuery = useUsers('internal');
-  const clientUsersQuery = useUsers('client');
+  const internalUsersQuery = useUsers('internal', usersTab || projectsTab || archivedProjectsTab || Boolean(projectTeamDialogProject));
+  const clientUsersQuery = useUsers('client', usersTab);
   const surveysQuery = { data: gestorBootstrapQuery.data?.surveys, isLoading: gestorBootstrapQuery.isLoading };
   const projectSegmentsQuery = { data: gestorBootstrapQuery.data?.projectSegments, isLoading: gestorBootstrapQuery.isLoading };
   const surveyQuestionsQuery = { data: gestorBootstrapQuery.data?.surveyQuestions, isLoading: gestorBootstrapQuery.isLoading };
@@ -1388,6 +1390,7 @@ export function GestorPage() {
 
   async function handleManualReportSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (gestorBootstrapQuery.isLoading || gestorBootstrapQuery.isError) return;
     if (manualReportSubmitting || manualReportReadInProgress.current) return;
     if (!manualReportTarget && !manualReportForm.files.length) {
       showToast('Selecione ao menos um PDF.', 'error');
@@ -1970,13 +1973,18 @@ export function GestorPage() {
             <Button variant="secondary" size="sm" type="button" disabled={submitting} onClick={closeManualReportModal}>
               Cancelar
             </Button>
-            <Button variant="primary" size="sm" type="submit" form="manual-report-form" disabled={submitting || (replacing ? !manualReportForm.projectId : !manualReportForm.files.length)}>
+            <Button variant="primary" size="sm" type="submit" form="manual-report-form" disabled={submitting || gestorBootstrapQuery.isLoading || gestorBootstrapQuery.isError || (replacing ? !manualReportForm.projectId : !manualReportForm.files.length)}>
               {manualReportReading ? 'Lendo PDFs...' : submitting ? 'Salvando...' : replacing ? 'Salvar alterações' : manualReportForm.files.length > 1 ? 'Adicionar relatórios' : 'Adicionar relatório'}
             </Button>
           </>
         }
       >
         <form id="manual-report-form" className="admin-form admin-form-grid manual-report-form" onSubmit={handleManualReportSubmit}>
+          {gestorBootstrapQuery.isLoading ? <div className="field-group-wide" role="status">Carregando projetos e colaboradores…</div> : null}
+          {gestorBootstrapQuery.isError ? <div className="field-group-wide" role="alert">
+            Não foi possível carregar os projetos e colaboradores.
+            <Button variant="secondary" size="sm" type="button" onClick={() => void gestorBootstrapQuery.refetch()}>Tentar novamente</Button>
+          </div> : null}
           <div className="field-group">
             <label htmlFor="manual-report-project">Projeto</label>
             <select id="manual-report-project" value={manualReportForm.projectId} onChange={(event) => setManualReportForm((current) => ({ ...current, projectId: event.target.value }))} required>
