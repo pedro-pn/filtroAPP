@@ -7,6 +7,11 @@
   background: var(--surface-2);
 }
 
+.loading-preview-stage--green {
+  --fv-brand-loading-center-filter: brightness(0) invert(1);
+  background: var(--brand);
+}
+
 .loading-preview-option {
   display: grid;
   gap: var(--space-3);

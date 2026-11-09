@@ -204,6 +204,7 @@ export function UploadField({ label, value, projectId, disabled = false, appeara
   const [reordering, setReordering] = useState<UploadDrag | null>(null);
   const [orderAnnouncement, setOrderAnnouncement] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number>();
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<{ index: number; ref: string; fileName: string } | null>(null);
@@ -278,6 +279,7 @@ export function UploadField({ label, value, projectId, disabled = false, appeara
     if (!selected.length) return;
 
     setIsUploading(true);
+    setUploadProgress(undefined);
     setError('');
 
     try {
@@ -293,7 +295,9 @@ export function UploadField({ label, value, projectId, disabled = false, appeara
           };
         })
       );
-      const uploaded = await uploadFiles(items);
+      const uploaded = await uploadFiles(items, (completed, total) => {
+        setUploadProgress(total > 0 ? completed / total * 100 : undefined);
+      });
       // Outros campos do serviço podem ter mudado durante o envio.
       latestFiles.current.onChange([...latestFiles.current.value, ...uploaded]);
     } catch (err) {
@@ -366,11 +370,11 @@ export function UploadField({ label, value, projectId, disabled = false, appeara
           disabled={disabled || isUploading}
           onChange={event => void handleFiles(event.target.files)}
         />
-        <span className="upload-dropzone-icon" aria-hidden="true">
-          {isUploading ? <BrandLoading inline size="sm" label="Enviando fotos" /> : appearance === 'design-system' ? <AppIcon icon={DS_ICONS.upload} /> : '⤓'}
+        <span className="upload-dropzone-icon" aria-hidden={!isUploading || undefined}>
+          {isUploading ? <BrandLoading inline size="sm" progress={uploadProgress} label={uploadProgress === undefined ? 'Preparando fotos' : 'Enviando fotos'} /> : appearance === 'design-system' ? <AppIcon icon={DS_ICONS.upload} /> : '⤓'}
         </span>
         <span className="upload-dropzone-text">
-          <strong>{isUploading ? 'Enviando…' : 'Arraste as fotos aqui'}</strong>
+          <strong>{isUploading ? uploadProgress === undefined ? 'Preparando fotos…' : `Enviando… ${Math.round(uploadProgress)}%` : 'Arraste as fotos aqui'}</strong>
           <small>{value.length ? `${value.length} arquivo(s) · clique ou solte para adicionar` : 'ou clique para selecionar'}</small>
         </span>
       </div>
