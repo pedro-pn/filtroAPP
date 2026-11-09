@@ -130,6 +130,7 @@
 :root,
 .light {
   color-scheme: light;
+  --fv-brand-loading-center-filter: opacity(1);
 
   --canvas: var(--gray-50);
   --canvas-subtle: var(--gray-100);
@@ -179,6 +180,7 @@
 /* 4. Dark theme. Components remain theme-agnostic and consume these tokens. */
 .dark {
   color-scheme: dark;
+  --fv-brand-loading-center-filter: brightness(0) invert(1);
 
   --canvas: var(--gray-950);
   --canvas-subtle: #131b16;
@@ -235,6 +237,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not(.light):not(.dark) {
     color-scheme: dark;
+    --fv-brand-loading-center-filter: brightness(0) invert(1);
 
     --canvas: var(--gray-950);
     --canvas-subtle: #131b16;

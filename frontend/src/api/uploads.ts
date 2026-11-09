@@ -20,8 +20,20 @@ export async function uploadFile(item: UploadItem) {
   return response.data;
 }
 
-export async function uploadFiles(items: UploadItem[]) {
-  return Promise.all(items.map(item => uploadFile(item)));
+export async function uploadFiles(items: UploadItem[], onProgress?: (completed: number, total: number) => void) {
+  let completed = 0;
+  let reporting = true;
+  onProgress?.(0, items.length);
+  try {
+    return await Promise.all(items.map(async item => {
+      const uploaded = await uploadFile(item);
+      if (reporting) onProgress?.(++completed, items.length);
+      return uploaded;
+    }));
+  } finally {
+    // Other requests may finish after this batch has failed.
+    reporting = false;
+  }
 }
 
 export interface DeleteUploadResult {

@@ -61,6 +61,7 @@
 }
 
 :where(.fv-ds, [data-fv-ds]) .fv-button--primary {
+  --fv-brand-loading-center-filter: brightness(0) invert(1);
   border-color: var(--brand);
   background: var(--brand);
   color: var(--on-brand);

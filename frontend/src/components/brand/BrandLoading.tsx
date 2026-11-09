@@ -1,4 +1,4 @@
-import { useId, useState, type CSSProperties, type HTMLAttributes } from 'react';
+import { useId, type CSSProperties, type HTMLAttributes } from 'react';
 
 import { BRAND_LOGO_ASSETS } from './brandAssets';
 import './BrandLoading.css';
@@ -13,6 +13,8 @@ export interface BrandLoadingProps extends HTMLAttributes<HTMLElement> {
   label?: string;
   fullscreen?: boolean;
   mode?: 'auto' | 'spin' | 'progress';
+  variant?: 'adaptive' | 'color' | 'white';
+  /** Measured completion from 0 to 100. Omit while the total is unknown. */
   progress?: number;
   size?: 'sm' | 'md' | 'lg';
   inline?: boolean;
@@ -23,6 +25,7 @@ export function BrandLoading({
   label = 'Carregando',
   fullscreen = false,
   mode = 'auto',
+  variant = 'adaptive',
   progress,
   size = 'lg',
   inline = false,
@@ -31,19 +34,18 @@ export function BrandLoading({
   style,
   ...props
 }: BrandLoadingProps) {
-  const [randomMode] = useState<'spin' | 'progress'>(() => Math.random() < 0.5 ? 'spin' : 'progress');
   const filterId = useId().replace(/:/g, '');
   const arrowsFilterId = `${filterId}-arrows`;
   const centerFilterId = `${filterId}-center`;
   const isDeterminate = typeof progress === 'number' && Number.isFinite(progress);
-  const isProgress = isDeterminate || (mode === 'auto' ? randomMode : mode) === 'progress';
+  const isProgress = isDeterminate || mode === 'progress';
   const value = isDeterminate ? Math.min(100, Math.max(0, progress)) : 0;
   const Root = inline ? 'span' : 'div';
 
   return (
     <Root
       {...props}
-      className={`fv-ds fv-brand-loading fv-brand-loading--${size}${fullscreen ? ' fv-brand-loading--fullscreen' : ''}${inline ? ' fv-brand-loading--inline' : ''} ${className}`.trim()}
+      className={`fv-ds fv-brand-loading fv-brand-loading--${size} fv-brand-loading--${variant}${fullscreen ? ' fv-brand-loading--fullscreen' : ''}${inline ? ' fv-brand-loading--inline' : ''} ${className}`.trim()}
       style={style}
       role={decorative ? undefined : isDeterminate ? 'progressbar' : 'status'}
       aria-hidden={decorative || undefined}
@@ -72,11 +74,11 @@ export function BrandLoading({
         </svg>
         {isProgress ? <>
           <img src={BRAND_LOGO_ASSETS.symbol.src} alt="" className="fv-brand-logo fv-brand-loading__progress-gray" style={{ filter: `url(#${arrowsFilterId}) brightness(0) invert(.65)` }} />
-          <img src={BRAND_LOGO_ASSETS.symbol.src} alt="" className={`fv-brand-logo fv-brand-loading__progress-color${isDeterminate ? '' : ' fv-brand-loading__progress-color--animated'}`} style={{ filter: `url(#${arrowsFilterId})`, ...(isDeterminate ? { '--fv-brand-loading-fill': `${value}%` } : {}) } as CSSProperties} />
+          <img src={BRAND_LOGO_ASSETS.symbol.src} alt="" className={`fv-brand-logo fv-brand-loading__progress-color${isDeterminate ? '' : ' fv-brand-loading__progress-color--indeterminate'}`} style={{ filter: `url(#${arrowsFilterId})`, ...(isDeterminate ? { '--fv-brand-loading-fill': `${value}%` } : {}) } as CSSProperties} />
         </> : <span className="fv-brand-loading__spin-ring">
           {spinningArrows.map(arrow => <img key={arrow.name} src={BRAND_LOGO_ASSETS.symbol.src} alt="" className="fv-brand-logo fv-brand-loading__spin-arrow" style={{ filter: `url(#${filterId}-spin-${arrow.name})`, transform: `translate(${arrow.offsetX}, ${arrow.offsetY})` }} />)}
         </span>}
-        <img src={BRAND_LOGO_ASSETS.symbol.src} alt="" className="fv-brand-logo fv-brand-loading__center" style={{ filter: `url(#${centerFilterId})` }} />
+        <img src={BRAND_LOGO_ASSETS.symbol.src} alt="" className="fv-brand-logo fv-brand-loading__center" style={{ filter: `url(#${centerFilterId}) var(--fv-brand-loading-center-filter, opacity(1))` }} />
       </span>
     </Root>
   );

@@ -4,6 +4,12 @@
   initial-value: 0%;
 }
 
+@property --fv-brand-loading-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 250deg;
+}
+
 .fv-brand-loading {
   display: grid;
   min-height: 8rem;
@@ -15,6 +21,10 @@
 .fv-brand-loading--md { --fv-brand-loading-size: 3rem; }
 .fv-brand-loading--lg { --fv-brand-loading-size: clamp(3.5rem, 12vw, 5rem); }
 .fv-brand-loading--inline { display: inline-grid; min-height: 0; vertical-align: middle; }
+
+/* Adaptive loaders inherit the theme or the surrounding surface's contrast. */
+.fv-brand-loading--color { --fv-brand-loading-center-filter: opacity(1); }
+.fv-brand-loading--white { --fv-brand-loading-center-filter: brightness(0) invert(1); }
 
 .fv-brand-loading--fullscreen {
   min-height: 100dvh;
@@ -29,18 +39,18 @@
 }
 
 .fv-brand-loading__progress-color {
-  -webkit-mask-image: conic-gradient(from 250deg at 50.3% 53.5%, #000 0 var(--fv-brand-loading-fill), transparent var(--fv-brand-loading-fill) 100%);
-  mask-image: conic-gradient(from 250deg at 50.3% 53.5%, #000 0 var(--fv-brand-loading-fill), transparent var(--fv-brand-loading-fill) 100%);
+  -webkit-mask-image: conic-gradient(from var(--fv-brand-loading-angle, 250deg) at 50.3% 53.5%, #000 0 var(--fv-brand-loading-fill), transparent var(--fv-brand-loading-fill) 100%);
+  mask-image: conic-gradient(from var(--fv-brand-loading-angle, 250deg) at 50.3% 53.5%, #000 0 var(--fv-brand-loading-fill), transparent var(--fv-brand-loading-fill) 100%);
   transition: --fv-brand-loading-fill 180ms linear;
 }
 
-.fv-brand-loading__progress-color--animated {
-  animation: fv-brand-arrows-fill 360ms ease-out both;
+.fv-brand-loading__progress-color--indeterminate {
+  --fv-brand-loading-fill: 25%;
+  animation: fv-brand-arrows-sweep 1.8s linear infinite;
 }
 
-@keyframes fv-brand-arrows-fill {
-  0% { --fv-brand-loading-fill: 0%; }
-  85%, 100% { --fv-brand-loading-fill: 100%; }
+@keyframes fv-brand-arrows-sweep {
+  to { --fv-brand-loading-angle: 610deg; }
 }
 
 .fv-brand-loading__filters {
@@ -82,5 +92,5 @@
 
 @media (prefers-reduced-motion: reduce) {
   .fv-brand-loading__spin-ring { animation: none; }
-  .fv-brand-loading__progress-color { animation: none; transition: none; --fv-brand-loading-fill: 100%; }
+  .fv-brand-loading__progress-color { animation: none; transition: none; }
 }

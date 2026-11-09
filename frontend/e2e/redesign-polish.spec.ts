@@ -47,25 +47,23 @@ for (const viewport of [{ name: 'mobile', width: 390, height: 844 }, { name: 'ta
       await expect(page.locator('.acp-detail-history-tip')).toContainText('20%');
       await page.screenshot({ path: info.outputPath('chart.png') });
       await page.goto('/visualizar/carregamento');
-      const loader = page.getByRole('status', { name: 'Preenchimento rápido do carregamento' });
+      const loader = page.getByRole('status', { name: 'Carregamento sem percentual', exact: true });
       const fill = loader.locator('.fv-brand-loading__progress-color');
-      await page.getByRole('button', { name: 'Reproduzir preenchimento rápido' }).click();
-      const duration = await fill.evaluate(e => getComputedStyle(e).animationDuration);
-      expect(duration).toBe('0.36s');
-      await expect.poll(() => fill.evaluate(e => getComputedStyle(e).getPropertyValue('--fv-brand-loading-fill').trim()), { timeout: 1000 }).toBe('100%');
-      await page.waitForTimeout(500);
-      await expect(fill).toHaveCSS('--fv-brand-loading-fill', '100%');
+      await expect(fill).toHaveCSS('animation-iteration-count', 'infinite');
+      await expect(fill).toHaveCSS('--fv-brand-loading-fill', '25%');
       await expect(loader).not.toHaveAttribute('aria-valuenow');
       await page.getByRole('slider', { name: /Progresso/ }).evaluate(element => {
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(element, '33');
         element.dispatchEvent(new Event('input', { bubbles: true }));
         element.dispatchEvent(new Event('change', { bubbles: true }));
       });
-      await expect(page.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '33');
+      const measured = page.getByRole('progressbar', { name: 'Progresso do carregamento' });
+      await expect(measured).toHaveAttribute('aria-valuenow', '33');
+      await expect(measured.locator('.fv-brand-loading__progress-color')).toHaveCSS('--fv-brand-loading-fill', '33%');
       await page.emulateMedia({ reducedMotion: 'reduce' });
-      await page.getByRole('button', { name: 'Reproduzir preenchimento rápido' }).click();
       await expect(fill).toHaveCSS('animation-name', 'none');
-      await expect(fill).toHaveCSS('--fv-brand-loading-fill', '100%');
+      await expect(fill).toHaveCSS('--fv-brand-loading-fill', '25%');
+      await expect(measured.locator('.fv-brand-loading__progress-color')).toHaveCSS('--fv-brand-loading-fill', '33%');
     });
   }
 }

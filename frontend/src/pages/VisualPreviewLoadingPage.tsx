@@ -43,21 +43,33 @@ export function VisualPreviewLoadingPage() {
           </div>
           <figcaption>Animação</figcaption>
         </figure>
+        <figure>
+          <div className="loading-preview-stage loading-preview-stage--green">
+            <BrandLoading mode="spin" label="Setas girando com F branco sobre fundo verde" />
+          </div>
+          <figcaption>F branco no fundo verde</figcaption>
+        </figure>
+        <figure>
+          <div className="loading-preview-stage dark">
+            <BrandLoading mode="spin" label="Setas girando com F branco sobre fundo escuro" />
+          </div>
+          <figcaption>F branco no fundo escuro</figcaption>
+        </figure>
       </div>
     </section>
     <section className="loading-preview-option" aria-labelledby="loading-preview-auto-title">
-      <h2 id="loading-preview-auto-title">Preenchimento rápido das telas</h2>
+      <h2 id="loading-preview-auto-title">Carregamento sem percentual</h2>
       <div className="loading-preview-stage">
-        <BrandLoading key={replay} mode="progress" label="Preenchimento rápido do carregamento" />
+        <BrandLoading mode="progress" label="Carregamento sem percentual" />
       </div>
-      <p>As setas ficam coloridas em cerca de 300 ms e permanecem completas durante a espera.</p>
-      <Button variant="secondary" size="sm" type="button" onClick={() => setReplay(value => value + 1)}>Reproduzir preenchimento rápido</Button>
+      <p>Quando o total é desconhecido, a animação continua durante a espera.</p>
     </section>
     <section className="loading-preview-option" aria-labelledby="loading-preview-progress-title">
       <h2 id="loading-preview-progress-title">Setas colorindo conforme o progresso</h2>
       <div className="loading-preview-stage">
         <BrandLoading mode="progress" progress={progress} label="Progresso do carregamento" />
       </div>
+      <p>Simulação de progresso. No envio de fotos, o preenchimento acompanha os arquivos concluídos.</p>
       <div className="loading-preview-controls">
         <label htmlFor="loading-preview-progress">Progresso <output htmlFor="loading-preview-progress">{progress}%</output></label>
         <input id="loading-preview-progress" type="range" min="0" max="100" value={progress} onChange={event => { setPlaying(false); setProgress(Number(event.target.value)); }} />

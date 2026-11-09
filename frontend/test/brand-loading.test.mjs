@@ -16,14 +16,25 @@ test('loading logo preserves accessible status, honest progress and compact shar
     assert.match(spin, /aria-label="Carregando projeto"/);
     assert.match(spin, /fv-brand-loading__spin-ring/);
     assert.doesNotMatch(spin, /aria-valuenow/);
-    const animated = render({ mode: 'progress' });
-    assert.match(animated, /progress-color--animated/);
-    assert.doesNotMatch(animated, /aria-valuenow/);
+    const automatic = render({});
+    assert.match(automatic, /fv-brand-loading__spin-ring/);
+    assert.doesNotMatch(automatic, /aria-valuenow/);
+    const indeterminate = render({ mode: 'progress' });
+    assert.match(indeterminate, /progress-color--indeterminate/);
+    assert.doesNotMatch(indeterminate, /aria-valuenow/);
     const progress = render({ mode: 'spin', progress: 140 });
     assert.match(progress, /role="progressbar"/);
     assert.match(progress, /aria-valuenow="100"/);
-    assert.doesNotMatch(progress, /progress-color--animated/);
+    assert.doesNotMatch(progress, /progress-color--indeterminate/);
+    assert.match(progress, /--fv-brand-loading-fill:100%/);
+    assert.match(render({ progress: 33 }), /--fv-brand-loading-fill:33%/);
+    assert.match(render({ progress: 0 }), /aria-valuenow="0"/);
     assert.match(render({ progress: -3 }), /aria-valuenow="0"/);
+    for (const progress of [NaN, Infinity, -Infinity]) {
+      const unknown = render({ progress });
+      assert.match(unknown, /fv-brand-loading__spin-ring/);
+      assert.doesNotMatch(unknown, /aria-valuenow/);
+    }
     assert.doesNotMatch(render({ decorative: true }), /role="status"/);
     const compact = renderToStaticMarkup(createElement(Spinner, { decorative: true, size: 'sm' }));
     assert.match(compact, /fv-brand-loading--inline/);
