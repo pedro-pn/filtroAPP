@@ -142,6 +142,9 @@ export interface StockMovement {
   item: Pick<StockItem, 'id' | 'code' | 'name' | 'unitLabel'>;
   batch: { id: string; lotNumber: string; expiryDate: string | null };
   quantity: string;
+  balanceAfter?: string | null;
+  romaneioEdit?: boolean;
+  reversedByRomaneioEdit?: boolean;
   date: string;
   project: { id: string; code: string; name: string } | null;
   nfNumber: string | null;
@@ -199,6 +202,19 @@ export interface StockMovementListParams {
   dateOrder?: 'asc' | 'desc';
   page?: number;
   pageSize?: number;
+  includeReversed?: boolean;
+}
+
+export interface StockProjectActivity {
+  project: { id: string; code: string; name: string };
+  outbound: string;
+  inbound: string;
+  netOutbound: string;
+}
+
+export async function getStockItemProjects(itemId: string) {
+  const response = await apiClient.get<{ projects: StockProjectActivity[] }>(estoqueApiPath(`/itens/${itemId}/obras`));
+  return response.data.projects;
 }
 
 export async function listStockItems(params?: { type?: StockItemType; search?: string; includeInactive?: boolean }) {

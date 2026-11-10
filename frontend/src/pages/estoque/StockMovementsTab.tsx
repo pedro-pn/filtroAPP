@@ -13,7 +13,8 @@ import {
 } from '../../api/estoque';
 import { listProjects } from '../../api/projects';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
-import { SearchCombobox } from '../../components/ui/SearchCombobox';
+import { StockFilter } from './StockFilter';
+import { formatStockQuantity } from './stockQuantity';
 import { useToast } from '../../components/ui/ToastContext';
 import { Badge, Select } from '../../components/ui/ds';
 import { formatDateOnlyPtBr, todayDateOnly } from '../../utils/dateOnly';
@@ -59,6 +60,8 @@ function downloadCsv(fileName: string, rows: unknown[][]) {
 }
 
 function movementStatus(movement: StockMovement) {
+  if (movement.romaneioEdit && movement.reversalOfId) return 'Compensação da edição';
+  if (movement.reversedByRomaneioEdit) return 'Substituída por edição';
   if (movement.reversalOfId) return 'Estorno';
   if (movement.reversedById) return 'Estornada';
   return 'Ativa';
@@ -70,16 +73,17 @@ function movementProjectLabel(movement: StockMovement) {
 
 function exportRows(movements: StockMovement[]) {
   return [
-    ['Data', 'Tipo', 'Motivo', 'Código', 'Item', 'Lote', 'Validade', 'Quantidade', 'Unidade', 'Projeto', 'NF', 'Fornecedor', 'Solicitante', 'Autor', 'Status', 'Observações'],
+    ['Data', 'Tipo', 'Motivo', 'Código', 'Item', 'Lote', 'Validade', 'Quantidade', 'Saldo após', 'Unidade', 'Projeto', 'NF', 'Fornecedor', 'Solicitante', 'Autor', 'Status', 'Origem', 'Observações'],
     ...movements.map(movement => [
       formatDate(movement.date),
       typeLabel(movement.type),
-      reasonLabel(movement.reason),
+      movement.romaneioEdit ? (movement.reversalOfId ? 'Compensação da edição' : 'Quantidade corrigida') : reasonLabel(movement.reason),
       movement.item.code,
       movement.item.name,
       movement.batch.lotNumber || 'Avulso',
       formatDate(movement.batch.expiryDate),
       movement.quantity,
+      movement.balanceAfter ?? '',
       movement.item.unitLabel,
       movementProjectLabel(movement),
       movement.nfNumber || '',
@@ -87,6 +91,7 @@ function exportRows(movements: StockMovement[]) {
       movement.requestedBy || '',
       movement.createdBy?.name || '',
       movementStatus(movement),
+      movement.romaneioEdit || movement.reversedByRomaneioEdit ? 'Edição de romaneio' : '',
       movement.notes || ''
     ])
   ];
@@ -195,40 +200,23 @@ export function StockMovementsTab({ isManager, onRegisterMovement }: Props) {
 
       <div className="stock-movement-filters">
         <div className="stock-filter-item">
-          <SearchCombobox
+          <StockFilter
             label="Filtrar item"
-            hideLabel
             value={itemId}
             onChange={value => resetPage(() => setItemId(value))}
-            variant="select"
-            portal
             placeholder="Pesquisar item"
-            options={[{ value: '', label: 'Todos os itens' }, ...(itemsQuery.data || []).map(item => ({ value: item.id, label: `${item.code} — ${item.name}` }))]}
+            options={[{ value: '', label: 'Todos os itens' }, ...(itemsQuery.data || []).map(item => ({ value: item.id, label: `${item.name} · ${item.code}` }))]}
           />
         </div>
-        <Select aria-label="Filtrar tipo" value={type} onChange={event => resetPage(() => setType(event.target.value as StockMovementType | ''))}>
-          <option value="">Entrada e saída</option>
-          <option value="ENTRADA">Entrada</option>
-          <option value="SAIDA">Saída</option>
-        </Select>
-        <Select aria-label="Filtrar motivo" value={reason} onChange={event => resetPage(() => setReason(event.target.value as StockMovementReason | ''))}>
-          <option value="">Todos os motivos</option>
-          <option value="COMPRA">Compra</option>
-          <option value="USO_EM_PROJETO">Uso em projeto</option>
-          <option value="DEVOLUCAO_OBRA">Devolução de obra</option>
-          <option value="INVENTARIO">Inventário</option>
-          <option value="PERDA">Perda</option>
-          <option value="DESCARTE_VALIDADE">Descarte por validade</option>
-          <option value="ESTORNO">Estorno</option>
-        </Select>
+        <StockFilter label="Filtrar tipo" value={type} onChange={value => resetPage(() => setType(value as StockMovementType | ''))}
+          options={[{ value: '', label: 'Entrada e saída' }, { value: 'ENTRADA', label: 'Entrada' }, { value: 'SAIDA', label: 'Saída' }]} />
+        <StockFilter label="Filtrar motivo" value={reason} onChange={value => resetPage(() => setReason(value as StockMovementReason | ''))}
+          options={[{ value: '', label: 'Todos os motivos' }, ...(['COMPRA', 'USO_EM_PROJETO', 'DEVOLUCAO_OBRA', 'INVENTARIO', 'PERDA', 'DESCARTE_VALIDADE', 'ESTORNO'] as const).map(value => ({ value, label: reasonLabel(value) }))]} />
         <div className="stock-filter-project">
-          <SearchCombobox
+          <StockFilter
             label="Filtrar projeto"
-            hideLabel
             value={projectId}
             onChange={value => resetPage(() => setProjectId(value))}
-            variant="select"
-            portal
             placeholder="Pesquisar projeto"
             options={[{ value: '', label: 'Todos os projetos' }, ...(projectsQuery.data || []).map(project => ({ value: project.id, label: `${project.code} — ${project.name}` }))]}
           />
@@ -279,6 +267,7 @@ export function StockMovementsTab({ isManager, onRegisterMovement }: Props) {
                 <th>Item</th>
                 <th>Lote</th>
                 <th>Quantidade</th>
+                <th>Saldo após</th>
                 <th>Projeto</th>
                 <th>NF</th>
                 <th>Autor</th>
@@ -290,26 +279,30 @@ export function StockMovementsTab({ isManager, onRegisterMovement }: Props) {
                 <tr key={movement.id}>
                   <td data-label="Data" data-sort-value={movement.date}>{formatDate(movement.date)}</td>
                   <td data-label="Tipo"><Badge tone={movement.type === 'SAIDA' ? 'warning' : 'success'}>{typeLabel(movement.type)}</Badge></td>
-                  <td data-label="Motivo">{reasonLabel(movement.reason)}</td>
-                  <td data-label="Item">
-                    <strong>{movement.item.code}</strong>
-                    <span className="stock-table-muted">{movement.item.name}</span>
+                  <td data-label="Motivo">
+                    {movement.romaneioEdit || movement.reversedByRomaneioEdit ? <Badge tone="info">Edição de romaneio</Badge> : null}
+                    <span className={movement.romaneioEdit || movement.reversedByRomaneioEdit ? 'stock-table-muted' : undefined}>{movement.romaneioEdit ? (movement.reversalOfId ? 'Compensação da edição' : 'Quantidade corrigida') : reasonLabel(movement.reason)}</span>
+                  </td>
+                  <td data-label="Item" data-sort-value={movement.item.name}>
+                    <strong>{movement.item.name}</strong>
+                    <span className="stock-table-muted">{movement.item.code}</span>
                   </td>
                   <td data-label="Lote">{movement.batch.lotNumber || 'Avulso'}</td>
-                  <td data-label="Quantidade" data-sort-value={Number(movement.quantity)}>{movement.quantity} {movement.item.unitLabel}</td>
+                  <td data-label="Quantidade" data-sort-value={Number(movement.quantity)}>{formatStockQuantity(movement.quantity)} {movement.item.unitLabel}</td>
+                  <td data-label="Saldo após" className="stock-running-balance" data-sort-value={movement.balanceAfter == null ? null : Number(movement.balanceAfter)}><strong>{movement.balanceAfter == null ? '—' : `${formatStockQuantity(movement.balanceAfter)} ${movement.item.unitLabel}`}</strong></td>
                   <td data-label="Projeto">{movementProjectLabel(movement)}</td>
                   <td data-label="NF">{movement.nfNumber || '-'}</td>
                   <td data-label="Autor">{movement.createdBy?.name || '-'}</td>
                   <td data-label="Status" data-sort-value={movement.reversalOfId ? "Estorno" : movement.reversedById ? "Estornada" : "Ativa"}>
                     <div className="stock-table-status">
-                      {movement.reversalOfId ? <Badge tone="info">Estorno</Badge> : null}
-                      {movement.reversedById ? <Badge tone="neutral">Estornada</Badge> : null}
+                      {movement.reversalOfId ? <Badge tone="info">{movementStatus(movement)}</Badge> : null}
+                      {movement.reversedById ? <Badge tone="neutral">{movementStatus(movement)}</Badge> : null}
                       {!movement.reversalOfId && !movement.reversedById ? <Badge tone="success">Ativa</Badge> : null}
                       {isManager && !movement.reversalOfId && !movement.reversedById ? (
                         <button
                           className="mini-btn alt stock-table-action"
                           type="button"
-                          onClick={() => setReverseTarget({ id: movement.id, label: `${formatDate(movement.date)} · ${movement.item.code} · ${movement.quantity}` })}
+                          onClick={() => setReverseTarget({ id: movement.id, label: `${formatDate(movement.date)} · ${movement.item.name} · ${movement.quantity}` })}
                         >
                           Estornar
                         </button>

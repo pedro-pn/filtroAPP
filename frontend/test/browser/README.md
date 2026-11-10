@@ -1,5 +1,12 @@
 # Search regression in a browser
 
+For stock by product and project, open `/test/browser/estoque.html` and run
+`playwright-cli run-code --filename frontend/test/browser/estoque.js`.
+It checks running balances in both tabs (including project filters and audit history),
+romaneio edit tags, searchable filters and cancellation, project totals, pagination,
+optional reversal history, empty products, product names in Movements, the default
+combobox and 390/320 px layouts. The API is simulated and accepts only reads.
+
 For the five-day document sharing announcement in Assinaturas, open
 `/test/browser/signature-batch.html?novelty=1` and run
 `playwright-cli run-code --filename frontend/test/browser/signature-sharing-novelty.js`.

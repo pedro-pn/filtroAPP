@@ -8,6 +8,7 @@ import {
   reverseMovementInTransaction
 } from '../src/lib/estoque/stock-movements.js';
 import { buildStockCatalogRows, syncStockCatalogRows } from '../src/lib/romaneio-catalog.js';
+import { createRomaneioStockMovements, syncRomaneioStockMovements } from '../src/lib/romaneio/romaneio-stock.js';
 
 function stockItem(overrides = {}) {
   return {
@@ -35,7 +36,7 @@ function batch(overrides = {}) {
 function movement(overrides = {}) {
   return {
     id: overrides.id || `movement-${Math.random()}`,
-    itemId: 'stock-item-1',
+    itemId: overrides.itemId || 'stock-item-1',
     batchId: overrides.batchId || 'batch-1',
     romaneioId: overrides.romaneioId || null,
     type: overrides.type || 'ENTRADA',
@@ -54,6 +55,7 @@ function movement(overrides = {}) {
 
 function fakeTx({
   item = stockItem(),
+  items = [item],
   batches = [batch()],
   movements = [movement()],
   project = { id: 'project-1' },
@@ -61,6 +63,7 @@ function fakeTx({
 } = {}) {
   const state = {
     item,
+    items,
     batches: [...batches],
     movements: [...movements],
     project
@@ -91,7 +94,7 @@ function fakeTx({
     const reversedBy = state.movements.find(candidate => candidate.reversalOfId === row.id);
     return {
       ...row,
-      item: state.item,
+      item: state.items.find(item => item.id === row.itemId),
       batch: state.batches.find(item => item.id === row.batchId),
       project: row.projectId ? state.project : null,
       createdBy: { id: row.createdById, name: 'Usuario' },
@@ -103,7 +106,7 @@ function fakeTx({
     state,
     $queryRaw: async () => null,
     stockItem: {
-      findUnique: async args => (args.where.id === state.item.id ? state.item : null)
+      findUnique: async args => state.items.find(item => item.id === args.where.id) || null
     },
     stockBatch: {
       findMany: async args => state.batches.filter(row => row.itemId === args.where.itemId),
@@ -123,6 +126,9 @@ function fakeTx({
     },
     projectWorkflow: { findUnique: async () => workflow },
     stockMovement: {
+      findMany: async args => state.movements
+        .filter(row => row.romaneioId === args.where.romaneioId && row.reason !== args.where.reason.not)
+        .map(movementWithRelations),
       findUnique: async args => movementWithRelations(state.movements.find(row => row.id === args.where.id)),
       create: async args => {
         movementSeq += 1;
@@ -361,4 +367,168 @@ test('romaneio-linked stock reversal preserves romaneioId and project cost exclu
   assert.equal(reversed.movement.romaneioId, 'romaneio-1');
   assert.equal(reversed.movement.excludeFromProjectCost, true);
   assert.equal(reversed.movement.reversalOfId, 'romaneio-exit');
+});
+
+const editor = { id: 'editor-1', name: 'Coordenador' };
+
+function romaneioItem(itemId, quantity, overrides = {}) {
+  return {
+    catalogItem: { sourceType: 'STOCK', sourceId: itemId },
+    quantity: new Prisma.Decimal(quantity),
+    isExtra: false,
+    ...overrides
+  };
+}
+
+function outboundRomaneio(items, overrides = {}) {
+  return {
+    id: 'romaneio-1',
+    type: 'OUTBOUND',
+    projectId: 'project-1',
+    romaneioDate: new Date('2026-07-09T15:00:00.000Z'),
+    items,
+    ...overrides
+  };
+}
+
+function seadrillFixture() {
+  const quantities = [4500, 420, 400, 725, 425];
+  const items = quantities.map((_, index) => stockItem({ id: `chemical-${index}` }));
+  const allocations = quantities.flatMap((quantity, index) => (index === 1 ? [70, 350] : [quantity])
+    .map((amount, lot) => ({ itemId: items[index].id, quantity: amount, batchId: `batch-${index}-${lot}` })));
+  const tx = fakeTx({
+    items,
+    batches: allocations.map(row => batch({ id: row.batchId, itemId: row.itemId })),
+    movements: allocations.flatMap(row => [
+      movement({ ...row, id: `purchase-${row.batchId}` }),
+      movement({
+        ...row, id: `exit-${row.batchId}`, type: 'SAIDA', reason: 'USO_EM_PROJETO',
+        romaneioId: 'romaneio-1', projectId: 'project-1', date: new Date('2026-07-09T15:00:00.000Z')
+      })
+    ])
+  });
+  return { tx, romaneio: outboundRomaneio(quantities.map((quantity, index) => romaneioItem(items[index].id, quantity))) };
+}
+
+function netQuantity(tx, itemId) {
+  return tx.state.movements
+    .filter(row => row.romaneioId === 'romaneio-1' && row.itemId === itemId)
+    .reduce((total, row) => row.type === 'SAIDA' ? total.plus(row.quantity) : total.minus(row.quantity), new Prisma.Decimal(0))
+    .toString();
+}
+
+test('editing one Seadrill chemical preserves the other four products and reverses only the changed product', async () => {
+  const { tx, romaneio } = seadrillFixture();
+  const before = [...tx.state.movements];
+  romaneio.items[1].quantity = new Prisma.Decimal(385);
+
+  const created = await syncRomaneioStockMovements(tx, romaneio, editor);
+
+  assert.deepEqual(created.map(row => [row.itemId, row.batchId, row.quantity.toString()]), [
+    ['chemical-1', 'batch-1-0', '70'],
+    ['chemical-1', 'batch-1-1', '315']
+  ]);
+  const added = tx.state.movements.slice(before.length);
+  assert.equal(added.length, 4);
+  assert.ok(added.every(row => row.itemId === 'chemical-1'));
+  assert.deepEqual(added.filter(row => row.reason === 'ESTORNO').map(row => row.reversalOfId), [
+    'exit-batch-1-0', 'exit-batch-1-1'
+  ]);
+  assert.deepEqual(romaneio.items.map(row => netQuantity(tx, row.catalogItem.sourceId)), ['4500', '385', '400', '725', '425']);
+  assert.ok(before.every(row => tx.state.movements.includes(row)));
+
+  // Saving again must ignore previous reversals and preserve the new allocations.
+  assert.deepEqual(await syncRomaneioStockMovements(tx, romaneio, editor), []);
+  assert.equal(tx.state.movements.length, before.length + 4);
+});
+
+test('editing only transport data, equipment or item order creates no stock movements', async () => {
+  const { tx, romaneio } = seadrillFixture();
+  const before = [...tx.state.movements];
+  romaneio.driverName = 'Outro motorista';
+  romaneio.vehiclePlate = 'ABC1D23';
+  romaneio.items.reverse();
+  romaneio.items.push(romaneioItem('equipment-1', 3, { catalogItem: { sourceType: 'EQUIPAMENTOS' } }));
+  tx.state.items[0].isActive = false;
+
+  assert.deepEqual(await syncRomaneioStockMovements(tx, romaneio, editor), []);
+  assert.deepEqual(tx.state.movements, before);
+});
+
+test('adding and removing stock products adjusts only those products', async () => {
+  const { tx, romaneio } = seadrillFixture();
+  const before = tx.state.movements.length;
+  tx.state.items.push(stockItem({ id: 'new-chemical' }));
+  tx.state.batches.push(batch({ id: 'new-batch', itemId: 'new-chemical' }));
+  tx.state.movements.push(movement({ id: 'new-purchase', itemId: 'new-chemical', batchId: 'new-batch', quantity: 10 }));
+  romaneio.items = romaneio.items.filter(row => row.catalogItem.sourceId !== 'chemical-2');
+  romaneio.items.push(romaneioItem('new-chemical', 5));
+
+  await syncRomaneioStockMovements(tx, romaneio, editor);
+
+  assert.deepEqual(tx.state.movements.slice(before + 1).map(row => [row.itemId, row.type, row.reason]), [
+    ['chemical-2', 'ENTRADA', 'ESTORNO'],
+    ['new-chemical', 'SAIDA', 'USO_EM_PROJETO']
+  ]);
+  assert.equal(netQuantity(tx, 'chemical-2'), '0');
+  assert.equal(netQuantity(tx, 'new-chemical'), '5');
+});
+
+for (const [label, overrides] of [
+  ['project', { projectId: 'project-2' }],
+  ['date', { romaneioDate: new Date('2026-07-10T15:00:00.000Z') }],
+  ['direction', { type: 'INBOUND' }]
+]) {
+  test(`editing romaneio ${label} replaces affected movements even when quantities are unchanged`, async () => {
+    const tx = fakeTx();
+    const romaneio = outboundRomaneio([romaneioItem('stock-item-1', 2)]);
+    await createRomaneioStockMovements(tx, romaneio, editor);
+    Object.assign(romaneio, overrides);
+    const before = tx.state.movements.length;
+
+    const created = await syncRomaneioStockMovements(tx, romaneio, editor);
+
+    assert.equal(tx.state.movements.length, before + 2);
+    assert.equal(tx.state.movements[before].reason, 'ESTORNO');
+    assert.equal(created[0].projectId, romaneio.projectId);
+    assert.equal(created[0].date.toISOString(), romaneio.romaneioDate.toISOString());
+    assert.equal(created[0].type, romaneio.type === 'OUTBOUND' ? 'SAIDA' : 'ENTRADA');
+    assert.equal(netQuantity(tx, 'stock-item-1'), romaneio.type === 'OUTBOUND' ? '2' : '-2');
+  });
+}
+
+test('editing an inbound extra flag updates cost exclusion without changing stock balance', async () => {
+  const tx = fakeTx();
+  const romaneio = outboundRomaneio([romaneioItem('stock-item-1', 2)], { type: 'INBOUND' });
+  await createRomaneioStockMovements(tx, romaneio, editor);
+  romaneio.items[0].isExtra = true;
+
+  const created = await syncRomaneioStockMovements(tx, romaneio, editor);
+
+  assert.equal(created.length, 1);
+  assert.equal(created[0].excludeFromProjectCost, true);
+  assert.equal(netQuantity(tx, 'stock-item-1'), '-2');
+  const before = tx.state.movements.length;
+  assert.deepEqual(await syncRomaneioStockMovements(tx, romaneio, editor), []);
+  assert.equal(tx.state.movements.length, before);
+});
+
+test('stock comparison sums duplicate item rows with decimal precision', async () => {
+  const tx = fakeTx();
+  const romaneio = outboundRomaneio([romaneioItem('stock-item-1', '0.3')]);
+  await createRomaneioStockMovements(tx, romaneio, editor);
+  const before = tx.state.movements.length;
+  romaneio.items = [romaneioItem('stock-item-1', '0.1'), romaneioItem('stock-item-1', '0.2')];
+
+  assert.deepEqual(await syncRomaneioStockMovements(tx, romaneio, editor), []);
+  assert.equal(tx.state.movements.length, before);
+});
+
+test('editing stock quantities still enforces available balance', async () => {
+  const tx = fakeTx();
+  const romaneio = outboundRomaneio([romaneioItem('stock-item-1', 2)]);
+  await createRomaneioStockMovements(tx, romaneio, editor);
+  romaneio.items[0].quantity = new Prisma.Decimal(6);
+
+  await assert.rejects(syncRomaneioStockMovements(tx, romaneio, editor), /Saldo insuficiente/);
 });
