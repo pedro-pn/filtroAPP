@@ -29,6 +29,7 @@ import prisma from '../prisma.js';
 import { laborReportQuery, loadLaborReportSources } from './labor-report-sources.js';
 import { withPontoImportDates } from './ponto-period-sources.js';
 import { withCollaboratorRoleNames } from './collaborator-role-sources.js';
+import { loadOfficialAllocationSources, officialMissionWhere } from './effective-allocation-sources.js';
 import { laborCostCache } from '../resource-list-cache.js';
 import { computeMonthlyCost } from './cost-engine.js';
 import { getAnnualCollaboratorCosts } from './settings.js';
@@ -667,11 +668,7 @@ export function findOfficialEffectiveAllocations(database = prisma) {
   return database.efetivoMissionAllocation.findMany({
     where: {
       deletedAt: null,
-      mission: {
-        deletedAt: null,
-        scheduleStatus: 'CONFIRMED',
-        plan: { kind: 'OFFICIAL', status: 'ACTIVE' }
-      }
+      mission: officialMissionWhere
     },
     select: {
       id: true,
@@ -702,7 +699,7 @@ export async function loadEffectiveAllocationIndex(database = prisma) {
 }
 
 async function getProjectAllocationContext(database = prisma) {
-  const [projects, tagAliases, missionGroups, effectiveAllocations, effectiveMissions] = await Promise.all([
+  const [projects, tagAliases, missionGroups, effectiveSources] = await Promise.all([
     database.project.findMany({
       select: {
         id: true,
@@ -728,23 +725,14 @@ async function getProjectAllocationContext(database = prisma) {
         members: { select: { projectId: true } }
       }
     }),
-    findOfficialEffectiveAllocations(database),
-    database.efetivoMissionPlan.findMany({
-      where: {
-        deletedAt: null,
-        scheduleStatus: 'CONFIRMED',
-        plan: { kind: 'OFFICIAL', status: 'ACTIVE' }
-      },
-      select: { projectId: true }
-    })
+    loadOfficialAllocationSources(database)
   ]);
-  const effectiveMissionProjectIds = new Set(effectiveMissions.map(mission => mission.projectId));
   return {
     projects,
     resolveTag: buildProjectTagResolver({ projects, tagAliases }),
     missionGroupProjectsByProjectId: buildMissionGroupProjectIndex(missionGroups),
-    scheduleWindows: buildScheduleWindows(projects, effectiveMissionProjectIds),
-    effectiveAllocationIndex: buildEffectiveAllocationIndex(effectiveAllocations),
+    scheduleWindows: buildScheduleWindows(projects, effectiveSources.missionProjectIds),
+    effectiveAllocationIndex: buildEffectiveAllocationIndex(effectiveSources.allocations),
     // Centros de custo da Sede: etiqueta "em viagem" nunca leva custo para eles.
     sedeProjectIds: new Set(projects.filter(project => SEDE_PROJECT_CODES.has(String(project.code || '').trim())).map(project => project.id))
   };

@@ -3,6 +3,7 @@ import test from 'node:test';
 import { performance } from 'node:perf_hooks';
 import { seedLaborPerformanceFixture } from '../scripts/fixtures/labor-performance.js';
 import { captureLaborQueries } from '../scripts/fixtures/labor-query-profile.js';
+import { seedEffectiveAllocationFixture } from '../scripts/fixtures/effective-allocation.js';
 
 const databaseUrl = process.env.LABOR_PERFORMANCE_TEST_DATABASE_URL;
 test('PostgreSQL: fontes enxutas preservam folha, rateio, trilhas e atualização após gravação', { skip: !databaseUrl }, async t => {
@@ -11,10 +12,13 @@ test('PostgreSQL: fontes enxutas preservam folha, rateio, trilhas e atualizaçã
   process.env.DATABASE_URL = url.toString();
   const { default: database } = await import('../src/lib/prisma.js');
   const { computeCollaboratorRates, rdoDataByCollaboratorFromReports, getRoleParamsResolver, buildRoleParamsResolver,
-    loadAllocatedAttendanceDays, debugCollaboratorMonth } = await import('../src/lib/acompanhamento/labor-cost.js');
+    loadAllocatedAttendanceDays, debugCollaboratorMonth, findOfficialEffectiveAllocations,
+    buildEffectiveAllocationIndex, buildScheduleWindows } = await import('../src/lib/acompanhamento/labor-cost.js');
+  const { loadOfficialAllocationSources } = await import('../src/lib/acompanhamento/effective-allocation-sources.js');
   const { laborReportQuery, loadLaborReportSources } = await import('../src/lib/acompanhamento/labor-report-sources.js');
-  let fixture;
+  let fixture, effectiveFixture;
   t.after(async () => {
+    if (effectiveFixture) await effectiveFixture.cleanup();
     if (fixture) {
       await database.pontoImport.deleteMany({ where: { id: fixture.prefix + '-newer-import' } });
       await fixture.cleanup();
@@ -82,6 +86,12 @@ test('PostgreSQL: fontes enxutas preservam folha, rateio, trilhas e atualizaçã
   assert.equal(roleQueries.length, 1, 'Current/history role names must reuse the same catalog as the cost resolver');
   assert.equal(sqlQueries.filter(query => query.sqlSnippet.includes('"PontoImport"')).length, 1,
     'Import dates must come from the scope read, without a second nested Import query');
+  assert.equal(sqlQueries.filter(query => query.sqlSnippet.includes('"EfetivoMissionPlan"')).length, 1,
+    'The complete official mission set is loaded once, even without allocations');
+  for (const table of ['EfetivoAllocationCycle', 'EfetivoMissionCycle', 'EfetivoPlan']) {
+    assert.equal(sqlQueries.filter(query => query.sqlSnippet.includes('"' + table + '"')).length, 0,
+      'Empty official allocations must not trigger related ' + table + ' reads');
+  }
   assert.deepEqual(after, before);
   assert.equal(after.rates.length, 21);
   assert.ok(after.rates.filter(row => ![fixture.prefix + '-person-1', fixture.prefix + '-person-2'].includes(row.collaboratorId))
@@ -142,4 +152,35 @@ test('PostgreSQL: fontes enxutas preservam folha, rateio, trilhas e atualizaçã
     assert.equal(periodReads, 4);
   } finally { database.pontoPeriodSummary.findMany = originalPeriods; }
   assert.deepEqual((await computeCollaboratorRates(fixture.importId)).byCollaboratorId.get(person3), beforeOverlap.byCollaboratorId.get(person3));
+
+  effectiveFixture = await seedEffectiveAllocationFixture(database, fixture);
+  const compareOfficialSources = async () => {
+    const legacy = await findOfficialEffectiveAllocations(database);
+    const loaded = await loadOfficialAllocationSources(database);
+    assert.deepEqual(buildEffectiveAllocationIndex(loaded.allocations), buildEffectiveAllocationIndex(legacy));
+    const missions = await database.efetivoMissionPlan.findMany({
+      where: { deletedAt: null, scheduleStatus: 'CONFIRMED', plan: { kind: 'OFFICIAL', status: 'ACTIVE' } }, select: { projectId: true }
+    });
+    assert.deepEqual(loaded.missionProjectIds, new Set(missions.map(row => row.projectId)));
+    return loaded;
+  };
+  const loaded = await compareOfficialSources();
+  assert.equal(loaded.allocations.length, 3, 'Deleted allocations/missions, draft missions, scenarios and inactive plans are excluded');
+  assert.ok(loaded.missionProjectIds.has(effectiveFixture.projectIds[0]), 'A confirmed mission without allocations still excludes its project');
+  assert.equal(buildScheduleWindows(await database.project.findMany(), loaded.missionProjectIds)
+    .some(window => window.projectId === effectiveFixture.projectIds[0]), false);
+  const index = buildEffectiveAllocationIndex(loaded.allocations);
+  const windows = person => index.get(fixture.prefix + '-person-' + person).windows.map(row => [row.startKey, row.endKey]);
+  assert.deepEqual(windows(0), [['2026-09-02', '2026-09-04'], ['2026-09-24', '2026-09-30']]);
+  assert.deepEqual(windows(1), [['2026-09-01', '2026-09-10'], ['2026-09-20', '2026-09-30']]);
+  assert.deepEqual(windows(2), [['2026-09-12', '2026-09-16']]);
+  await database.efetivoAllocationCycle.update({ where: { id: effectiveFixture.prefix + '-individual-1' }, data: { demobilizationDate: new Date('2026-09-05') } });
+  await database.efetivoMissionCycle.update({ where: { id: effectiveFixture.prefix + '-general-1' }, data: { demobilizationDate: new Date('2026-09-12') } });
+  const refreshedIndex = buildEffectiveAllocationIndex((await compareOfficialSources()).allocations);
+  assert.equal(refreshedIndex.get(fixture.prefix + '-person-0').windows[0].endKey, '2026-09-05');
+  assert.equal(refreshedIndex.get(fixture.prefix + '-person-1').windows[0].endKey, '2026-09-12');
+  await database.efetivoMissionPlan.update({ where: { id: effectiveFixture.missionIds[1] }, data: { scheduleStatus: 'CANCELLED' } });
+  assert.equal((await compareOfficialSources()).missionProjectIds.has(effectiveFixture.projectIds[0]), false);
+  await database.efetivoPlan.update({ where: { id: effectiveFixture.planIds[0] }, data: { status: 'SUPERSEDED' } });
+  assert.equal((await compareOfficialSources()).allocations.length, 0, 'Next request sees official plan deactivation');
 });

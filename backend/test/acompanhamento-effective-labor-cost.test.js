@@ -61,8 +61,11 @@ function mockCalculation(t, {
   mock('project', 'findMany', [{ id: 'p1', code: '1001', laborSleepModeByCollaborator }]);
   mock('pontoProjectTagAlias', 'findMany', []);
   mock('acompanhamentoMissionGroup', 'findMany', []);
-  mock('efetivoMissionAllocation', 'findMany', allocations);
-  mock('efetivoMissionPlan', 'findMany', allocations.map(item => ({ projectId: item.mission.projectId })));
+  mock('efetivoMissionAllocation', 'findMany', allocations.map(({ mission, cycles, ...item }) => ({ ...item, missionId: mission.id })));
+  mock('efetivoMissionPlan', 'findMany', allocations.map(({ mission: { plan, cycles, ...mission } }) => ({ ...mission, planId: 'official' })));
+  mock('efetivoAllocationCycle', 'findMany', allocations.flatMap(item => (item.cycles || []).map(cycle => ({ ...cycle, allocationId: item.id }))));
+  mock('efetivoMissionCycle', 'findMany', allocations.flatMap(item => (item.mission.cycles || []).map(cycle => ({ ...cycle, missionId: item.mission.id }))));
+  mock('efetivoPlan', 'findMany', [{ id: 'official', kind: 'OFFICIAL', status: 'ACTIVE' }]);
   mock('pontoDayProjectOverride', 'findMany', []);
   mock('allocationReviewDay', 'findMany', []);
   stub('collaboratorAbsence', 'findMany', async args => availabilityRead ? availabilityRead(args) : []);
