@@ -23,6 +23,7 @@ export function summarizeHttpSamples(samples) {
       return values[Math.ceil(values.length * fraction) - 1];
     };
     const enoughSamples = rows.length >= 100;
+    const queueWait = row => (row.server.stages?.['labor.sources.queue'] || 0) + (row.server.stages?.['detail.sources.queue'] || 0);
     return { scenario: first.scenario, profile: first.profile, phase: first.phase,
       status: first.status, aborted: first.server.aborted, requests: rows.length, enoughSamples,
       clientMedianMs: percentile(row => row.clientMs, .5),
@@ -32,6 +33,11 @@ export function summarizeHttpSamples(samples) {
       maxBytes: Math.max(...rows.map(row => row.bytes)),
       databaseCallsMedian: percentile(row => row.server.databaseCalls || 0, .5),
       databaseCallsMax: Math.max(...rows.map(row => row.server.databaseCalls || 0)),
+      ...(rows.some(row => row.server.stages && (Object.hasOwn(row.server.stages, 'labor.sources.queue') || Object.hasOwn(row.server.stages, 'detail.sources.queue'))) ? {
+        sourceQueueWaitTotalMedianMs: percentile(queueWait, .5),
+        sourceQueueWaitTotalP95Ms: enoughSamples ? percentile(queueWait, .95) : null,
+        sourceQueueWaitTotalMaxMs: Math.max(...rows.map(queueWait))
+      } : {}),
       ...(rows.some(row => row.server.databaseQueriesPeak != null) ? {
         databaseQueriesPeakMedian: percentile(row => row.server.databaseQueriesPeak || 0, .5),
         databaseQueriesPeakMax: Math.max(...rows.map(row => row.server.databaseQueriesPeak || 0))

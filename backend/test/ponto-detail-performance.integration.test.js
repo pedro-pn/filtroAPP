@@ -22,6 +22,7 @@ test('PostgreSQL + HTTP: point projections and batched group sources preserve co
   t.after(async () => {
     if (server) await new Promise(resolve => { server.close(resolve); server.closeAllConnections(); });
     if (fixture) {
+      await database.pontoExternalEmployee.deleteMany({ where: { externalEmployeeId: fixture.prefix + '-ignored' } });
       await database.report.deleteMany({ where: { id: { in: extras } } });
       await database.collaborator.deleteMany({ where: { id: { in: [fixture.prefix + '-outside', fixture.prefix + '-private-only'] } } });
       await database.omiePurchase.deleteMany({ where: { omieId: { startsWith: fixture.prefix } } });
@@ -147,7 +148,19 @@ test('PostgreSQL + HTTP: point projections and batched group sources preserve co
     const response = await fetch(endpoint + suffix, { headers: token ? { authorization: 'Bearer ' + token } : {} });
     return { status: response.status, body: await response.json() };
   };
-  const full = await request(''), explicitFull = await request('?view=full'), summary = await request('?view=summary');
+  await database.pontoExternalEmployee.create({ data: { externalEmployeeId: fixture.prefix + '-ignored',
+    externalName: 'Pessoa ignorada sintética', ignoredAt: new Date() } });
+  await database.pontoPeriodSummary.create({ data: { importId: fixture.importId,
+    rawName: 'Pessoa ignorada sintética', normalizedName: 'pessoa ignorada sintetica',
+    periodStart: new Date('2026-09-01'), periodEnd: new Date('2026-09-30'), workedMinutes: 0 } });
+  let ignoredReads = 0, full;
+  const originalIgnoredRead = database.pontoExternalEmployee.findMany;
+  database.pontoExternalEmployee.findMany = (...args) => { ignoredReads++; return originalIgnoredRead.apply(database.pontoExternalEmployee, args); };
+  try { full = await request(''); }
+  finally { database.pontoExternalEmployee.findMany = originalIgnoredRead; }
+  assert.equal(ignoredReads, 1, 'Full/summary metadata must reuse the engine read of ignored employees');
+  assert.equal(Object.hasOwn(full.body, 'ignoredExternalEmployees'), false, 'Internal employee metadata must not enter the public contract');
+  const explicitFull = await request('?view=full'), summary = await request('?view=summary');
   assert.deepEqual(explicitFull, full);
   assert.equal(summary.status, 200);
   assert.equal(summary.body.rates.length, full.body.rates.length);
@@ -167,6 +180,12 @@ test('PostgreSQL + HTTP: point projections and batched group sources preserve co
   const metadata = { ...full.body }; delete metadata.rates;
   assert.equal(reconciliation.status, 200);
   assert.deepEqual(reconciliation.body, metadata);
+  assert.equal(metadata.unmatched.length, 0);
+  await database.pontoExternalEmployee.update({ where: { externalEmployeeId: fixture.prefix + '-ignored' }, data: { ignoredAt: null } });
+  for (const view of ['full', 'summary', 'reconciliation']) {
+    assert.ok((await request('?view=' + view)).body.unmatched.some(row => row.normalizedName === 'pessoa ignorada sintetica'));
+  }
+  await database.pontoExternalEmployee.update({ where: { externalEmployeeId: fixture.prefix + '-ignored' }, data: { ignoredAt: new Date() } });
   for (const view of ['summary', 'reconciliation']) {
     assert.equal((await request('?view=' + view, null)).status, 401);
     assert.equal((await request('?view=' + view, fixture.sessions.blocked[0])).status, 403);

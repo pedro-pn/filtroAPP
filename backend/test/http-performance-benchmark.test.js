@@ -30,6 +30,12 @@ test('HTTP percentiles separate phase, profile, status and aborts and suppress p
   })));
   assert.equal(withPeaks.databaseQueriesPeakMedian, 3);
   assert.equal(withPeaks.databaseQueriesPeakMax, 7);
+  const [withWait] = summarizeHttpSamples(samples.slice(0, 100).map(sample => ({
+    ...sample, server: { ...sample.server, stages: { 'labor.sources.queue': 10, 'detail.sources.queue': 20 } }
+  })));
+  assert.equal(withWait.sourceQueueWaitTotalMedianMs, 30);
+  assert.equal(withWait.sourceQueueWaitTotalP95Ms, 30);
+  assert.equal(Object.hasOwn(groups[0], 'sourceQueueWaitTotalMedianMs'), false);
 });
 
 test('pool target uses active interval samples and detects sustained observed queueing', () => {

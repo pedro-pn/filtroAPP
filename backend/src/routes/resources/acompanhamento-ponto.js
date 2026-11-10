@@ -557,9 +557,9 @@ router.get(
   asyncHandler(async (req, res) => {
     const view = collaboratorViewSchema.safeParse(req.query.view);
     if (!view.success) return res.status(400).json({ error: 'Opção de leitura inválida.' });
-    const { pontoImport, pontoImports = [], periodStart, periodEnd, fileName, rates = [] } = view.data === 'reconciliation'
+    const { pontoImport, pontoImports = [], periodStart, periodEnd, fileName, rates = [], ignoredExternalEmployees: preloadedIgnoredEmployees } = view.data === 'reconciliation'
       ? await getPontoImportScope() ?? {}
-      : await computeCollaboratorRates();
+      : await computeCollaboratorRates(null, { includeIgnoredNames: true });
     const xlsxImportIds = pontoImports
       .filter(item => item.source !== 'PONTOMAIS_API')
       .map(item => item.id);
@@ -573,7 +573,7 @@ router.get(
           select: { rawName: true, normalizedName: true },
           orderBy: { createdAt: 'asc' }
         }),
-        prisma.pontoExternalEmployee.findMany({
+        preloadedIgnoredEmployees ?? prisma.pontoExternalEmployee.findMany({
           where: { ignoredAt: { not: null } },
           select: { externalName: true }
         })

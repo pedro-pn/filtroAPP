@@ -10,11 +10,13 @@ test('PostgreSQL: fontes enxutas preservam folha, rateio, trilhas e atualizaçã
   assert.match(url.pathname, /_test$/);
   process.env.DATABASE_URL = url.toString();
   const { default: database } = await import('../src/lib/prisma.js');
-  const { computeCollaboratorRates, rdoDataByCollaboratorFromReports, getRoleParamsResolver, buildRoleParamsResolver } = await import('../src/lib/acompanhamento/labor-cost.js');
+  const { computeCollaboratorRates, rdoDataByCollaboratorFromReports, getRoleParamsResolver, buildRoleParamsResolver,
+    loadAllocatedAttendanceDays, debugCollaboratorMonth } = await import('../src/lib/acompanhamento/labor-cost.js');
   const { laborReportQuery, loadLaborReportSources } = await import('../src/lib/acompanhamento/labor-report-sources.js');
   let fixture;
   t.after(async () => {
     if (fixture) {
+      await database.pontoImport.deleteMany({ where: { id: fixture.prefix + '-newer-import' } });
       await fixture.cleanup();
       await database.jobRole.deleteMany({ where: { id: fixture.prefix + '-unconfigured' } });
     }
@@ -78,6 +80,8 @@ test('PostgreSQL: fontes enxutas preservam folha, rateio, trilhas e atualizaçã
   assert.ok(serviceQueries[0].parameterCount < 10, 'Service interval SQL must not bind every historical report ID');
   const roleQueries = sqlQueries.filter(query => query.sqlSnippet.includes('"JobRole"'));
   assert.equal(roleQueries.length, 1, 'Current/history role names must reuse the same catalog as the cost resolver');
+  assert.equal(sqlQueries.filter(query => query.sqlSnippet.includes('"PontoImport"')).length, 1,
+    'Import dates must come from the scope read, without a second nested Import query');
   assert.deepEqual(after, before);
   assert.equal(after.rates.length, 21);
   assert.ok(after.rates.filter(row => ![fixture.prefix + '-person-1', fixture.prefix + '-person-2'].includes(row.collaboratorId))
@@ -99,4 +103,35 @@ test('PostgreSQL: fontes enxutas preservam folha, rateio, trilhas e atualizaçã
   const conflicts = refreshed.byCollaboratorId.get(person);
   assert.notDeepEqual(refreshed, after);
   assert.ok(JSON.stringify(conflicts).includes('WORK_DURING_ABSENCE'));
+
+  // A later import must win even when its summary row was created earlier.
+  const person3 = fixture.prefix + '-person-3', newerImportId = fixture.prefix + '-newer-import';
+  const beforeOverlap = await computeCollaboratorRates();
+  const sourcePeriod = await database.pontoPeriodSummary.findFirst({ where: { importId: fixture.importId, collaboratorId: person3 } });
+  await database.pontoImport.create({ data: { id: newerImportId, fileName: 'newer-synthetic.xlsx', contentHash: newerImportId,
+    periodStart: sourcePeriod.periodStart, periodEnd: sourcePeriod.periodEnd, createdAt: new Date('2026-10-02') } });
+  const { id: _id, importId: _importId, createdAt: _createdAt, ...periodData } = sourcePeriod;
+  const monthly = structuredClone(sourcePeriod.monthly);
+  monthly['2026-09'].normalMinutes += 60; monthly['2026-09'].days[0].workedMinutes += 60;
+  await database.pontoPeriodSummary.create({ data: { ...periodData, importId: newerImportId,
+    workedMinutes: sourcePeriod.workedMinutes + 60, monthly, createdAt: new Date('2026-09-01') } });
+  const originalPeriods = database.pontoPeriodSummary.findMany;
+  let periodReads = 0;
+  database.pontoPeriodSummary.findMany = (...args) => {
+    periodReads++;
+    assert.equal(Object.hasOwn(args[0].include, 'import'), false, 'Reuse scoped import dates in all three consumers');
+    return originalPeriods.apply(database.pontoPeriodSummary, args);
+  };
+  try {
+    const overlap = await computeCollaboratorRates();
+    assert.equal(overlap.byCollaboratorId.get(person3).normalHoras, beforeOverlap.byCollaboratorId.get(person3).normalHoras + 1);
+    assert.equal(overlap.pontoImports.length, 2);
+    const { ignoredExternalEmployees, ...withMetadata } = await computeCollaboratorRates(null, { includeIgnoredNames: true });
+    assert.ok(Array.isArray(ignoredExternalEmployees));
+    assert.deepEqual(withMetadata, overlap, 'Optional listing metadata must not change the financial calculation or default contract');
+    await loadAllocatedAttendanceDays({ database });
+    await debugCollaboratorMonth('Pessoa sintética 3', '2026-09');
+    assert.equal(periodReads, 4);
+  } finally { database.pontoPeriodSummary.findMany = originalPeriods; }
+  assert.deepEqual((await computeCollaboratorRates(fixture.importId)).byCollaboratorId.get(person3), beforeOverlap.byCollaboratorId.get(person3));
 });

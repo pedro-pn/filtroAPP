@@ -27,6 +27,7 @@
 
 import prisma from '../prisma.js';
 import { laborReportQuery, loadLaborReportSources } from './labor-report-sources.js';
+import { withPontoImportDates } from './ponto-period-sources.js';
 import { laborCostCache } from '../resource-list-cache.js';
 import { computeMonthlyCost } from './cost-engine.js';
 import { getAnnualCollaboratorCosts } from './settings.js';
@@ -1593,7 +1594,7 @@ export async function loadAllocatedAttendanceDays({ database = prisma } = {}) {
   const [periodRows, ignored, roleParams, rdoData, context, overrides, reviewDays] = await Promise.all([
     database.pontoPeriodSummary.findMany({
       where: { importId: { in: scope.pontoImports.map(row => row.id) }, collaboratorId: { not: null } },
-      include: { import: { select: { createdAt: true } }, collaborator: { select: {
+      include: { collaborator: { select: {
         jobRole: { select: { name: true } }, jobRoleHistory: { select: {
           effectiveDate: true, jobRoleId: true, jobRole: { select: { id: true, name: true } }
         }, orderBy: { effectiveDate: 'asc' } }
@@ -1606,7 +1607,7 @@ export async function loadAllocatedAttendanceDays({ database = prisma } = {}) {
       select: { collaboratorId: true, workDate: true, projectId: true } }),
     loadConfirmedReviewDays({ from: scope.periodStart, to: end }, database)
   ]);
-  const periods = mergePontoPeriods(filterIgnoredPontoPeriods(periodRows, ignored.map(row => row.externalEmployeeId)));
+  const periods = mergePontoPeriods(filterIgnoredPontoPeriods(withPontoImportDates(periodRows, scope.pontoImports), ignored.map(row => row.externalEmployeeId)));
   const manual = manualProjectsByCollaborator(overrides, reviewDays);
   const eligible = buildScheduleWindowEligibility(context.scheduleWindows, rdoData);
   const output = [];
@@ -1984,7 +1985,7 @@ function costProjectsFromClassification(classified) {
 
 // Custo/hora e rateio por obra de cada colaborador para o ponto vigente (ou o import indicado),
 // somando a divisão mensal.
-export async function computeCollaboratorRates(importId = null) {
+export async function computeCollaboratorRates(importId = null, { includeIgnoredNames = false } = {}) {
   const pontoScope = await getPontoImportScope(importId);
   if (!pontoScope) return { pontoImport: null, pontoImports: [], periodStart: null, periodEnd: null, fileName: null, rates: [], byCollaboratorId: new Map() };
 
@@ -2009,21 +2010,20 @@ export async function computeCollaboratorRates(importId = null) {
               orderBy: { effectiveDate: 'asc' }
             }
           }
-        },
-        import: { select: { createdAt: true } }
+        }
       }
     }),
     prisma.pontoExternalEmployee.findMany({
       where: { ignoredAt: { not: null } },
-      select: { externalEmployeeId: true }
+      select: { externalEmployeeId: true, ...(includeIgnoredNames ? { externalName: true } : {}) }
     })
   ]).then(async ([periodRows, ignoredEmployees]) => {
-    const periods = mergePontoPeriods(filterIgnoredPontoPeriods(periodRows, ignoredEmployees.map(item => item.externalEmployeeId)));
+    const periods = mergePontoPeriods(filterIgnoredPontoPeriods(withPontoImportDates(periodRows, pontoScope.pontoImports), ignoredEmployees.map(item => item.externalEmployeeId)));
     const actualAvailability = periods.length ? await checkWorkforceAvailability(prisma, {
       collaboratorIds: periods.map(period => period.collaboratorId).filter(Boolean),
       startDate: dateKeyUTC(pontoScope.periodStart), endDate: dateKeyUTC(pontoScope.periodEnd), context: 'ACTUAL_REPORT'
     }) : { calendarRevision: 1, conflicts: [] };
-    return { periods, actualAvailability };
+    return { periods, actualAvailability, ...(includeIgnoredNames ? { ignoredExternalEmployees: ignoredEmployees } : {}) };
   });
   const projectAllocationContextPromise = getProjectAllocationContext();
   const [
@@ -2341,7 +2341,8 @@ export async function computeCollaboratorRates(importId = null) {
     periodEnd: pontoScope.periodEnd,
     fileName: pontoScope.fileName,
     rates: annotatedRates,
-    byCollaboratorId: annotatedByCollaboratorId
+    byCollaboratorId: annotatedByCollaboratorId,
+    ...(includeIgnoredNames ? { ignoredExternalEmployees: periodState.ignoredExternalEmployees } : {})
   };
 }
 
@@ -2377,8 +2378,7 @@ export async function debugCollaboratorMonth(nameQuery, monthKey, importId = nul
               orderBy: { effectiveDate: 'asc' }
             }
           }
-        },
-        import: { select: { createdAt: true } }
+        }
       }
     }),
     prisma.pontoExternalEmployee.findMany({
@@ -2398,7 +2398,7 @@ export async function debugCollaboratorMonth(nameQuery, monthKey, importId = nul
   ]);
   const query = String(nameQuery || '').trim().toLowerCase();
   const period = mergePontoPeriods(filterIgnoredPontoPeriods(
-    periodRows,
+    withPontoImportDates(periodRows, pontoScope.pontoImports),
     ignoredEmployees.map(item => item.externalEmployeeId)
   )).find(item => (
     String(item.collaborator?.name || item.rawName || '').toLowerCase().includes(query)
