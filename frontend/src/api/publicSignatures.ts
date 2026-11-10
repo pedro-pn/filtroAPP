@@ -86,6 +86,7 @@ export function publicReportPdfUrl(token: string) {
 }
 
 export interface PublicSignatureConfirmPayload {
+  comment?: string | null;
   signatureId?: string;
   signerName: string;
   signatureImageDataUrl: string;
@@ -108,6 +109,7 @@ export async function confirmPublicSignature(token: string, payload: PublicSigna
 
 export interface PublicSignatureBatchConfirmPayload extends Omit<PublicSignatureConfirmPayload, 'signatureId'> {
   signatureIds: string[];
+  comments?: Record<string, string>;
 }
 
 export interface PublicSignatureBatchResult {
@@ -124,7 +126,8 @@ export async function confirmPublicSignatureBatch(token: string, payload: Public
     try {
       const response = await apiClient.post<{ results: PublicSignatureBatchResult[]; emailDelivery: PublicSignatureEmailDelivery }>(
         `/reports/public-sign/${encodeURIComponent(token)}/confirm-batch`,
-        { ...payload, signatureIds: payload.signatureIds.slice(offset, offset + 100) }
+        { ...payload, signatureIds: payload.signatureIds.slice(offset, offset + 100),
+          comments: Object.fromEntries(payload.signatureIds.slice(offset, offset + 100).map(id => [id, payload.comments?.[id] ?? payload.comment ?? ''])) }
       );
       results.push(...response.data.results);
       emailDeliveries.push(response.data.emailDelivery);

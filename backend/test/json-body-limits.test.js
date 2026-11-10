@@ -21,6 +21,13 @@ test('o limite maior não vaza para rotas parecidas', () => {
   assert.equal(jsonBodyLimitForRequest('POST', '/api/rdo/reports'), '1mb');
 });
 
+test('pasta de equipamentos comporta PDFs de 20 MB após codificação base64', () => {
+  const encodedBytes = 4 * Math.ceil(20 * 1024 * 1024 / 3) + 1024;
+  assert.ok(encodedBytes < 30 * 1024 * 1024);
+  assert.equal(jsonBodyLimitForRequest('POST', '/api/equipamentos/abc123/documents'), '30mb');
+  assert.equal(jsonBodyLimitForRequest('POST', '/api/equipamentos/abc123/documents-other'), '25mb');
+});
+
 test('upload, substituição, extração e assinatura física aceitam PDFs de 50 MB em base64 nos dois caminhos da API', () => {
   for (const prefix of ['/api/reports', '/api/rdo/reports']) {
     for (const [method, suffix] of [

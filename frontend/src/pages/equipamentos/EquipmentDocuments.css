@@ -1,0 +1,12 @@
+.equip-documents-equipment { margin: 0 0 16px; color: var(--muted); }
+.equip-documents-upload { margin-bottom: var(--space-5); }
+.equip-documents-list { list-style: none; padding: 0; margin: 16px 0 0; }
+.equip-documents-list li { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line, #e2e8f0); }
+.equip-documents-info { display: grid; gap: 4px; flex: 1; min-width: 0; }
+.equip-documents-info strong { overflow-wrap: anywhere; }
+.equip-documents-info span { font-size: 12px; color: var(--muted); }
+.equip-documents-actions { display: flex; gap: 8px; align-items: center; }
+@media (max-width: 540px) {
+  .equip-documents-list li { flex-wrap: wrap; }
+  .equip-documents-actions { width: 100%; justify-content: flex-end; }
+}

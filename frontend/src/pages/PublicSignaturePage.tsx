@@ -88,6 +88,7 @@ export function PublicSignaturePage({ readOnly = false }: { readOnly?: boolean }
   const [signingSignatureIds, setSigningSignatureIds] = useState<string[]>([]);
   const [rejectedSignatureId, setRejectedSignatureId] = useState<string>();
   const [rejectionReason, setRejectionReason] = useState('');
+  const [comments, setComments] = useState<Record<string, string>>({});
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [batchResults, setBatchResults] = useState<PublicSignatureBatchResult[]>([]);
   const [emailDeliveries, setEmailDeliveries] = useState<PublicSignatureEmailDelivery[]>([]);
@@ -107,8 +108,8 @@ export function PublicSignaturePage({ readOnly = false }: { readOnly?: boolean }
   const confirmMutation = useMutation({
     mutationFn: async (payload: PublicSignatureBatchConfirmPayload) => {
       if (payload.signatureIds.length > 1) return confirmPublicSignatureBatch(token, payload);
-      const { signatureIds, ...confirmation } = payload;
-      const data = await confirmPublicSignature(token, { ...confirmation, signatureId: signatureIds[0] });
+      const { signatureIds, comments: reportComments, ...confirmation } = payload;
+      const data = await confirmPublicSignature(token, { ...confirmation, signatureId: signatureIds[0], comment: reportComments?.[signatureIds[0]] || null });
       return { results: [{ signatureId: signatureIds[0], success: true, completed: data.completed }], emailDeliveries: [data.emailDelivery] };
     },
     onSuccess: data => {
@@ -274,6 +275,12 @@ export function PublicSignaturePage({ readOnly = false }: { readOnly?: boolean }
 
           {canSign ? <section id="public-signature-consent" className="public-signature-consent" aria-label="Confirmar assinatura">
             <PrivacyNotice variant="signatureRdo" checked={privacyAccepted} onCheckedChange={setPrivacyAccepted} disabled={confirmMutation.isPending} />
+            {selectedItem?.status === 'ACTIVE' ? <Field id="public-signature-comment" label={`Nota do cliente · ${reportLabel(selectedItem)}`} helperText="Esta nota será incluída no PDF final deste relatório, junto à sua assinatura.">
+              <Textarea rows={3} maxLength={4000} value={comments[selectedItem.signatureId || ''] || ''}
+                placeholder="Escreva uma nota para este relatório"
+                disabled={confirmMutation.isPending}
+                onChange={event => setComments(current => ({ ...current, [selectedItem.signatureId || '']: event.target.value }))} />
+            </Field> : null}
             <div className="public-signature-confirm-bar">
               <div><strong>{activeItems.length > 1 ? 'Como deseja assinar?' : 'Tudo pronto para assinar'}</strong><p>{activeItems.length > 1 ? 'Assine somente o documento em visualização ou todos os RDOs pendentes.' : 'Confira o documento e confirme sua assinatura.'}</p></div>
               <div className="public-signature-confirm-buttons">
@@ -297,7 +304,9 @@ export function PublicSignaturePage({ readOnly = false }: { readOnly?: boolean }
         cacheIdentity={`${signer?.email || token}:public-rdo`}
         isSubmitting={confirmMutation.isPending} loadingLabel={signingItems.length > 1 ? 'Assinando RDOs' : 'Assinando relatório'}
         submissionError={confirmMutation.error instanceof Error ? confirmMutation.error.message : ''}
-        notice={signingItems.length > 1 ? <div className="public-signature-batch-confirmation"><strong>Sua assinatura será aplicada a estes documentos:</strong><ul>{signingItems.map(item => <li key={item.signatureId}>{reportLabel(item)} · {formatDateOnlyPtBr(item.report.reportDate || '')}</li>)}</ul><p>Ao confirmar, você declara que conferiu e aprova todos os RDOs listados.</p></div> : null}
+        notice={<div className="public-signature-batch-confirmation"><strong>Sua assinatura será aplicada a estes documentos:</strong><ul>{signingItems.map(item => <li key={item.signatureId}>{reportLabel(item)} · {formatDateOnlyPtBr(item.report.reportDate || '')}
+          {comments[item.signatureId || '']?.trim() ? <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>Nota: {comments[item.signatureId || ''].trim()}</p> : null}
+        </li>)}</ul><p>Ao confirmar, você declara que conferiu e aprova os RDOs listados e suas notas.</p></div>}
         onCancel={() => { if (!confirmMutation.isPending) setSignatureOpen(false); }}
         onConfirm={confirmation => {
           if (preview) {
@@ -305,7 +314,9 @@ export function PublicSignaturePage({ readOnly = false }: { readOnly?: boolean }
             setBatchResults(signingSignatureIds.map(signatureId => ({ signatureId, success: true })));
             setSignatureOpen(false); showToast('Assinatura simulada.', 'success'); return;
           }
-          confirmMutation.mutate({ ...confirmation, signatureIds: signingSignatureIds, privacyNoticeAccepted: true, privacyNoticeVersion: SIGNATURE_RDO_NOTICE_VERSION });
+          confirmMutation.mutate({ ...confirmation, signatureIds: signingSignatureIds,
+            comments: Object.fromEntries(signingSignatureIds.map(id => [id, (comments[id] || '').trim()])),
+            privacyNoticeAccepted: true, privacyNoticeVersion: SIGNATURE_RDO_NOTICE_VERSION });
         }} />
     </main>
   );

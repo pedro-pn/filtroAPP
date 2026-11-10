@@ -5,6 +5,7 @@ import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { Badge, Button } from '../../components/ui/ds';
 import { calibrationStatus, formatDate, statusLabel, statusTone } from './equipmentStatus';
 import { useEquipmentDocumentUpload, type EquipmentDocumentKind } from './useEquipmentDocumentUpload';
+import { EquipmentDocuments } from './EquipmentDocuments';
 
 interface Props {
   item: CompanyEquipment;
@@ -76,6 +77,7 @@ export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onO
         {status !== 'none' && <Badge tone={statusTone[status]} dot multiline>{statusLabel[status]}</Badge>}
       </div>
       <div className="equip-card-name">{item.name}</div>
+      <EquipmentDocuments item={item} category={category} isManager={isManager} />
       <dl className="equip-attrs">
         {category.fieldSchema.map(field => (
           <div key={field.key}>

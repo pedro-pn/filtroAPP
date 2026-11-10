@@ -7,6 +7,7 @@ import { SortableTable } from '../../components/ui/SortableTable';
 import { Badge, Button } from '../../components/ui/ds';
 import { calibrationStatus, formatDate, statusLabel, statusTone } from './equipmentStatus';
 import { useEquipmentDocumentUpload, type EquipmentDocumentKind } from './useEquipmentDocumentUpload';
+import { EquipmentDocuments } from './EquipmentDocuments';
 
 export interface EquipmentTableActions {
   isManager: boolean;
@@ -63,6 +64,7 @@ function EquipmentRow({ category, item, showCategory, isManager, onEdit, onRemov
       </td>
       <td>
         <div className="equip-category-table__documents">
+          <EquipmentDocuments item={item} category={category} isManager={isManager} />
           {item.calibrationCertificate ? (
             <a className="fv-button fv-button--secondary fv-button--sm equip-category-table__doc-link" href={item.calibrationCertificate.publicUrl} target="_blank" rel="noreferrer" data-equip-cert-link>
               Certificado PDF
@@ -92,7 +94,7 @@ function EquipmentRow({ category, item, showCategory, isManager, onEdit, onRemov
               />
             </div>
           ) : null}
-          {!item.calibrationCertificate && !currentDoc && !canCert && !canTech ? <span className="equip-category-table__muted">Nenhum documento</span> : null}
+          {!category.attachmentsEnabled && !item.documents?.length && !item.calibrationCertificate && !currentDoc && !canCert && !canTech ? <span className="equip-category-table__muted">Nenhum documento</span> : null}
         </div>
       </td>
       <td>
@@ -132,7 +134,7 @@ export function EquipmentTable({ categories, items, showCategory = false, ...act
         item.code, item.name,
         ...(showCategory ? [category.name] : []),
         item.hasCalibration ? statusLabel[calibrationStatus(item)] : 'Não se aplica',
-        Number(Boolean(item.calibrationCertificate)) + Number(Boolean(item.technicalDoc || item.technicalDocGenerated))
+        Number(Boolean(item.calibrationCertificate)) + Number(Boolean(item.technicalDoc || item.technicalDocGenerated)) + (item.documents?.length || 0)
       ])}>
         <caption className="fv-sr-only">{showCategory ? 'Todos os equipamentos' : `Equipamentos da categoria ${categories[0]?.name || ''}`}</caption>
         <colgroup>

@@ -446,6 +446,7 @@ export async function signInternalReportVersion(tx, {
   userId,
   evidence,
   signatureImageDataUrl,
+  clientComment = null,
   privacyNoticeVersion = null,
   deferAuditLog = false
 }) {
@@ -475,6 +476,7 @@ export async function signInternalReportVersion(tx, {
       status: ReportSignatureStatus.SIGNED,
       signerName,
       declaredSignerName,
+      clientComment: stringValue(clientComment) || null,
       userId,
       ipAddress: evidence.ipAddress || null,
       userAgent: evidence.userAgent || null,
@@ -548,6 +550,33 @@ function summarizedUserAgent(value) {
 
 function drawText(page, text, x, y, options) {
   page.drawText(String(text || ''), { x, y, ...options });
+}
+
+// Standard PDF fonts use WinAnsi. Keep Portuguese accents, normalize unsupported
+// characters and wrap even long unbroken text so notes never leave the page.
+function wrapClientComment(comment, font) {
+  const supported = new Set(font.getCharacterSet());
+  const text = Array.from(String(comment).normalize('NFC').replace(/\r\n?/g, '\n'))
+    .map(char => char === '\n' ? char : char === '\t' ? '    ' : supported.has(char.codePointAt(0)) ? char : '?').join('');
+  return text.split('\n').flatMap(paragraph => {
+    const lines = [];
+    let line = '';
+    for (const word of paragraph.split(/(\s+)/)) {
+      if (line && font.widthOfTextAtSize(line + word, 10) > 499) {
+        lines.push(line.trimEnd());
+        line = '';
+      }
+      for (const char of word) {
+        if (line && font.widthOfTextAtSize(line + char, 10) > 499) {
+          lines.push(line);
+          line = '';
+        }
+        line += char;
+      }
+    }
+    lines.push(line.trimEnd());
+    return lines;
+  });
 }
 
 function truncateText(text, maxLength) {
@@ -735,7 +764,7 @@ export async function writeFinalEvidencePdf({
   for (const signature of signatures) {
     if (signature.status === ReportSignatureStatus.INVALIDATED) continue;
     if (signature.isRequired === false && signature.status !== ReportSignatureStatus.SIGNED) continue;
-    if (y < 120) {
+    if (y < 240) {
       page = pdf.addPage([595.28, 841.89]);
       y = 790;
     }
@@ -784,6 +813,26 @@ export async function writeFinalEvidencePdf({
       height
     });
     y -= maxHeight + 18;
+    if (stringValue(signature.clientComment)) {
+      const lines = wrapClientComment(signature.clientComment, font);
+      if (y < 122) {
+        page = pdf.addPage([595.28, 841.89]);
+        y = 790;
+      }
+      drawText(page, 'Notas do cliente:', 48, y, { font: bold, size: 10, color: black });
+      y -= 16;
+      for (const line of lines) {
+        if (y < 90) {
+          page = pdf.addPage([595.28, 841.89]);
+          y = 790;
+          drawText(page, `Notas do cliente (continuacao) - ${signerDisplayName}`, 48, y, { font: bold, size: 10, color: black });
+          y -= 20;
+        }
+        drawText(page, line, 48, y, { font, size: 10, color: black });
+        y -= 14;
+      }
+      y -= 18;
+    }
   }
 
   drawText(page, 'A trilha completa de auditoria permanece registrada no sistema Filtrovali RDO.', 48, 64, { font, size: 9, color: muted });

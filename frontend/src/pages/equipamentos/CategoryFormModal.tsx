@@ -55,6 +55,7 @@ export function CategoryFormModal({ open, category, saving, technicalStandards, 
   const [fields, setFields] = useState<EquipmentFieldDefinition[]>(category?.fieldSchema?.length ? category.fieldSchema : []);
   const [technicalDocEnabled, setTechnicalDocEnabled] = useState(Boolean(category?.technicalDocEnabled));
   const [technicalStandardId, setTechnicalStandardId] = useState(category?.technicalStandardId || '');
+  const [attachmentsEnabled, setAttachmentsEnabled] = useState(Boolean(category?.attachmentsEnabled));
 
   function updateField(index: number, patch: Partial<EquipmentFieldDefinition>) {
     setFields(prev => prev.map((field, i) => (i === index ? { ...field, ...patch } : field)));
@@ -66,6 +67,7 @@ export function CategoryFormModal({ open, category, saving, technicalStandards, 
       name: name.trim(),
       supportsCalibration,
       supportsTechnicalDoc,
+      attachmentsEnabled,
       showInMaintenance,
       syncToRomaneio,
       checklistEnabled,
@@ -106,6 +108,11 @@ export function CategoryFormModal({ open, category, saving, technicalStandards, 
         </div>
 
         <div className="equip-flags">
+          <label className="equip-toggle">
+            <input type="checkbox" checked={attachmentsEnabled} onChange={e => setAttachmentsEnabled(e.target.checked)} />
+            <span>Anexar documentos</span>
+          </label>
+          <p className="form-hint">Disponibiliza uma pasta de documentos PDF em cada equipamento desta categoria. Desativar preserva os arquivos já anexados.</p>
           <label className="equip-toggle">
             <input type="checkbox" checked={supportsCalibration} onChange={e => setSupportsCalibration(e.target.checked)} />
             <span>Permite calibração</span>
