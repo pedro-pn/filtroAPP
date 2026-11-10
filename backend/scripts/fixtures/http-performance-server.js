@@ -2,6 +2,8 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import http from 'node:http';
 import { performance } from 'node:perf_hooks';
 import pg from 'pg';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { assertLocalPerformanceDatabase, createActivePoolReport } from '../lib/http-performance-report.js';
 
 assertLocalPerformanceDatabase(process.env.DATABASE_URL);
@@ -22,8 +24,9 @@ console.info = (...args) => {
     databaseCalls.delete(id);
   }
 };
-const { default: app } = await import('../../src/app.js');
-const { default: database, getDatabasePoolMetrics } = await import('../../src/lib/prisma.js');
+const sourceRoot = process.argv[2] || fileURLToPath(new URL('../../', import.meta.url));
+const { default: app } = await import(pathToFileURL(path.join(sourceRoot, 'src/app.js')));
+const { default: database, getDatabasePoolMetrics } = await import(pathToFileURL(path.join(sourceRoot, 'src/lib/prisma.js')));
 let active = 0, report = createActivePoolReport();
 const sampler = setInterval(() => report.add(getDatabasePoolMetrics(), performance.now(), active), 10);
 sampler.unref();

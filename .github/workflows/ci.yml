@@ -306,6 +306,8 @@ jobs:
       - run: npm run prisma:deploy
       - name: Verify concurrency, permissions, trace privacy and worker freshness
         run: node --test test/http-performance-benchmark.test.js test/http-performance.integration.test.js
+      - name: Verify point projections and batched group parity
+        run: node --test test/ponto-detail-performance.integration.test.js
 
   conecta-allocation:
     name: Conecta allocation (PostgreSQL)

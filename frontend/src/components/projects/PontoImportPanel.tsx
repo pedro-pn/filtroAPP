@@ -3,7 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
   deletePontoImport,
-  getPontoColaboradores,
+  getPontoReconciliation,
+  pontoColaboradoresQueryKeys,
   getPontoImports,
   getPontoMaisIgnoredProjectTags,
   getPontoLinkCollaborators,
@@ -201,8 +202,8 @@ export function PontoImportPanel() {
     ...acompanhamentoRefreshQueryOptions
   });
   const { data: colaboradores } = useQuery({
-    queryKey: ['ponto-colaboradores'],
-    queryFn: getPontoColaboradores,
+    queryKey: pontoColaboradoresQueryKeys.reconciliation,
+    queryFn: getPontoReconciliation,
     ...acompanhamentoRefreshQueryOptions
   });
   const { data: linkCollaborators } = useQuery({

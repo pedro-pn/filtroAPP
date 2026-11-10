@@ -41,6 +41,7 @@ import { dateInDivision, divisionDateWhere, divisionLaborPeriod } from './tracki
 import { getProjectInvoices } from './project-invoices.js';
 import { progressReadOptions } from './progress-projection.js';
 import { addCalendarDays, projectProgressCalendar, projectProgressProjection } from './project-progress-projection.js';
+import { projectAccessCacheKey } from '../projects/access-scope.js';
 export { buildProjectCalendarPeriod } from './project-progress-projection.js';
 
 function toNum(value) {
@@ -208,9 +209,9 @@ export function buildProjectReportHours(reports, collaboratorIdsByReport, projec
   return byCollaborator;
 }
 
-async function getReportLaborCostEstimates(project, hoursByCollaborator) {
+async function getReportLaborCostEstimates(project, hoursByCollaborator, loadCatalog = null) {
   if (!hoursByCollaborator.size) return new Map();
-  const [collaborators, roleParams, annualCosts] = await Promise.all([
+  const [collaborators, [roleParams, annualCosts]] = await Promise.all([
     prisma.collaborator.findMany({
       where: { id: { in: [...hoursByCollaborator.keys()] } },
       select: {
@@ -222,8 +223,7 @@ async function getReportLaborCostEstimates(project, hoursByCollaborator) {
         }
       }
     }),
-    getRoleParamsResolver(),
-    getAnnualCollaboratorCosts()
+    loadCatalog ? loadCatalog() : Promise.all([getRoleParamsResolver(), getAnnualCollaboratorCosts()])
   ]);
   return new Map(collaborators.map(collaborator => [collaborator.id, estimateReportLaborCostByDate({
     collaborator, roleParams, project, annualCosts,
@@ -402,6 +402,7 @@ export async function getProjectDetail(projectId, {
   dashboardRow: preloadedDashboardRow = null,
   progressDetails: preloadedProgressDetails = null,
   plannedHoursByProject: preloadedPlannedHoursByProject = null,
+  sharedSources = null,
   division = null,
   projectChannel = 'acompanhamento',
   includeUnlinked = false
@@ -429,7 +430,10 @@ export async function getProjectDetail(projectId, {
     ]);
     return projectProgressProjection(details, progressMode, projectProgressCalendar(row, division, latestRdo._max.reportDate));
   }
-  const categoryWhere = await buildOmieCostCategoryWhere({
+  const sources = !division && sharedSources?.projectIds.has(projectId)
+    && sharedSources.includeAdminOnlyCategories === includeAdminOnlyCategories
+    && sharedSources.accessScope === projectAccessCacheKey() ? sharedSources : null;
+  const categoryWhere = sources?.categoryWhere ?? await buildOmieCostCategoryWhere({
     includeAdminOnly: includeAdminOnlyCategories,
     excludeChemicalProducts: true
   });
@@ -471,20 +475,20 @@ export async function getProjectDetail(projectId, {
         report: { select: { daytimeWorkedMinutes: true, nighttimeWorkedMinutes: true } }
       }
     }),
-    prisma.omiePurchase.groupBy({
+    sources?.costGroupsByProject.get(projectId) ?? prisma.omiePurchase.groupBy({
       by: ['categoriaCodigo', 'categoriaDescricao'],
       where: { projectId, ...categoryWhere, ...purchaseDivisionWhere(division) },
       _sum: { valor: true }
     }),
-    prisma.omiePurchase.groupBy({
+    sources?.costStatusGroupsByProject.get(projectId) ?? prisma.omiePurchase.groupBy({
       by: ['statusTitulo', 'categoriaCodigo', 'categoriaDescricao'],
       where: { projectId, ...categoryWhere, ...purchaseDivisionWhere(division) },
       _sum: { valor: true }
     }),
     laborCostByProject(), // custo de mão de obra (HH) do ponto vigente
-    getEquipmentUsageByProject([projectId]),
-    getStockConsumptionCostByProject([projectId], prisma, division),
-    getManualProjectCostsByProject([projectId], { includeEntries: true, division }),
+    sources?.equipmentByProject ?? getEquipmentUsageByProject([projectId]),
+    sources?.stockCosts ?? getStockConsumptionCostByProject([projectId], prisma, division),
+    sources?.manualCostsByProject ?? getManualProjectCostsByProject([projectId], { includeEntries: true, division }),
     preloadedPlannedHoursByProject ?? loadPlannedHours([projectId]),
     division
       ? computeDivisionProgressDetails(projectId, division, progressReadOptions(progressMode))
@@ -585,7 +589,7 @@ export async function getProjectDetail(projectId, {
   const reportCostEstimates = includeCollaboratorCosts
     ? await getReportLaborCostEstimates(project, new Map(
         [...reportHoursByCollaborator].filter(([id]) => !hasAllocatedHours(id))
-      ))
+      ), sources?.loadReportCostCatalog)
     : new Map();
   const confirmedReportParticipantIds = new Set();
   for (const item of collaborators) {

@@ -8,8 +8,8 @@ import { performance } from 'node:perf_hooks';
 import { seedHttpPerformanceFixture } from './fixtures/http-performance.js';
 import { assertLocalPerformanceDatabase, mapConcurrent, summarizeHttpSamples } from './lib/http-performance-report.js';
 
-async function startServer({ poolLimit, directory }) {
-  const child = fork(fileURLToPath(new URL('./fixtures/http-performance-server.js', import.meta.url)), [], {
+async function startServer({ poolLimit, directory, sourceRoot }) {
+  const child = fork(fileURLToPath(new URL('./fixtures/http-performance-server.js', import.meta.url)), [sourceRoot], {
     stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
     env: { ...process.env, NODE_ENV: 'test', DATABASE_CONNECTION_LIMIT: String(poolLimit),
       HTTP_PERFORMANCE_ENABLED: 'true', HTTP_PERFORMANCE_WINDOW_MS: '900000', HTTP_PERFORMANCE_SAMPLE_MS: '10',
@@ -71,7 +71,7 @@ async function startServer({ poolLimit, directory }) {
   };
 }
 
-function verifyResponse(scenario, profile, response, fixture) {
+function verifyResponse(scenario, profile, response, fixture, pontoView) {
   const diagnostic = response.status === 200 ? '' : String(response.body.error || response.body.code || 'unexpected status')
     .split(fixture.prefix).join('[fixture]').replace(/postgres(?:ql)?:\/\/\S+/gi, '[database]').slice(-800);
   assert.equal(response.status, 200, scenario + '/' + profile + ': expected authenticated success. ' + diagnostic);
@@ -80,6 +80,11 @@ function verifyResponse(scenario, profile, response, fixture) {
   assert.ok(response.bytes > 0);
   assert.equal(response.bytes, response.server.responseBytes);
   if (scenario === 'ponto') {
+    if (pontoView === 'reconciliation') {
+      assert.equal(response.body.importId, fixture.importId);
+      assert.ok(Array.isArray(response.body.unmatched));
+      return;
+    }
     assert.equal(response.body.rates.length, fixture.collaborators);
     assert.ok(response.body.rates.every(rate => rate.hasCostProfile && rate.totalMensal > 0));
     return;
@@ -100,9 +105,13 @@ function verifyResponse(scenario, profile, response, fixture) {
 }
 
 export async function runHttpPerformanceBenchmark({
-  requests = 100, concurrency = 4, coldRounds = 3, reportCount = 1200, scopeCount = 297, poolLimit = 8
+  requests = 100, concurrency = 4, coldRounds = 3, reportCount = 1200, scopeCount = 297, poolLimit = 8,
+  pontoView = 'full', sourceRoot = fileURLToPath(new URL('..', import.meta.url))
 } = {}) {
   assertLocalPerformanceDatabase(process.env.DATABASE_URL);
+  assert.ok(['full', 'summary', 'reconciliation'].includes(pontoView));
+  sourceRoot = path.resolve(sourceRoot);
+  await fs.access(path.join(sourceRoot, 'src/app.js'));
   for (const [value, max] of [[requests, 500], [coldRounds, 100], [reportCount, 6000], [scopeCount, 297], [concurrency, 8], [poolLimit, 50]]) {
     assert.ok(Number.isInteger(value) && value >= 1 && value <= max, 'Benchmark option outside its bounded range');
   }
@@ -127,28 +136,28 @@ export async function runHttpPerformanceBenchmark({
       cards: '/api/acompanhamento/comercial/projetos-cards',
       detail: '/api/acompanhamento/comercial/projetos/' + fixture.projectId + '/detalhe?progress=current',
       group: '/api/acompanhamento/comercial/grupos-missoes/' + fixture.groupId + '/detalhe?progress=current',
-      ponto: '/api/acompanhamento/ponto/colaboradores'
+      ponto: '/api/acompanhamento/ponto/colaboradores' + (pontoView === 'full' ? '' : '?view=' + pontoView)
     };
     const request = async (scenario, profile, phase, session = 0) => {
       attemptedScenarioRequests++;
       const response = await server.request(routes[scenario], fixture.sessions[profile][session]);
       const { body, ...sample } = response;
       samples.push({ scenario, profile, phase, ...sample });
-      verifyResponse(scenario, profile, response, fixture);
+      verifyResponse(scenario, profile, response, fixture, pontoView);
       return body;
     };
     // Each cold sample is the first application request in its own API process.
     // Fixture setup and PostgreSQL page caches are shared and explicitly excluded.
     for (const scenario of Object.keys(routes)) for (const profile of ['admin', 'viewer']) {
       for (let round = 0; round < coldRounds; round++) {
-        server = await startServer({ poolLimit, directory });
+        server = await startServer({ poolLimit, directory, sourceRoot });
         await server.begin();
         await request(scenario, profile, 'first-process', round % 2);
         pool.push({ scenario, profile, phase: 'first-process', round, ...await server.pool() });
         await server.stop(); server = null;
       }
     }
-    server = await startServer({ poolLimit, directory });
+    server = await startServer({ poolLimit, directory, sourceRoot });
     const before = {};
     for (const scenario of Object.keys(routes)) for (const profile of ['admin', 'viewer']) {
       before[scenario + ':' + profile] = await request(scenario, profile, 'warmup');
@@ -178,7 +187,8 @@ export async function runHttpPerformanceBenchmark({
       const changed = scenario === 'detail' || scenario === 'group'
         ? body.progressRevision !== reference.progressRevision && body.avancoPct !== reference.avancoPct
         : scenario === 'ponto'
-          ? body.rates.find(rate => rate.collaboratorId === fixture.prefix + '-person-0').normalHoras !== reference.rates.find(rate => rate.collaboratorId === fixture.prefix + '-person-0').normalHoras
+          ? pontoView === 'reconciliation' ? body.unmatched.length !== reference.unmatched.length
+            : body.rates.find(rate => rate.collaboratorId === fixture.prefix + '-person-0').normalHoras !== reference.rates.find(rate => rate.collaboratorId === fixture.prefix + '-person-0').normalHoras
           : null;
       if (scenario !== 'cards') assert.equal(changed, true, 'Worker changes must be visible to the next completed request: ' + scenario);
       refresh.push({ scenario, profile, session, changed, completedAfterCommitMs: performance.now() - committedAt });
@@ -191,7 +201,7 @@ export async function runHttpPerformanceBenchmark({
     };
     return {
       method: 'Synthetic loopback HTTP against the real Express app and migrated PostgreSQL. Authentication validates persisted hashed sessions through requireAuth; password login is not exercised. First-process samples use a fresh API process per request, with warm database pages and process imports excluded. Warm requests mix surfaces, profiles and two sessions per profile under a bounded shared concurrency. Client timing includes response-body receipt; server timing includes authentication and serialization. Active-pool interval samples are observations, not individual query wait times. No Nginx, TLS, browser rendering, external API or production load is measured.',
-      environment: { nodeVersion: process.version, apiPoolLimit: poolLimit, concurrency, poolSampleIntervalMs: 10 },
+      environment: { nodeVersion: process.version, apiPoolLimit: poolLimit, concurrency, poolSampleIntervalMs: 10, pontoView },
       complete: true, attemptedScenarioRequests,
       fixture: { syntheticProjects: 3, groupMembers: 2, reports: fixture.reportCount, services: fixture.serviceCount,
         collaborators: fixture.collaborators, scopeLines: scopeCount, divisions: 11, authenticatedSessions: 4,
@@ -225,7 +235,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     result = await runHttpPerformanceBenchmark({
       requests: Number(arg('requests') || 100), concurrency: Number(arg('concurrency') || 4),
       coldRounds: Number(arg('cold-rounds') || 3), reportCount: Number(arg('reports') || 1200),
-      scopeCount: Number(arg('scopes') || 297), poolLimit: Number(arg('pool-limit') || 8)
+      scopeCount: Number(arg('scopes') || 297), poolLimit: Number(arg('pool-limit') || 8),
+      pontoView: arg('ponto-view') || 'full',
+      ...(arg('source-root') ? { sourceRoot: arg('source-root') } : {})
     });
   } catch (error) {
     if (arg('output') && error.httpBenchmark) await fs.writeFile(arg('output'), JSON.stringify(error.httpBenchmark, null, 2) + '\n');

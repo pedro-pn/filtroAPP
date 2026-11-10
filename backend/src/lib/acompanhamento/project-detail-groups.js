@@ -18,6 +18,7 @@ import { combineProgressBreakdowns, progressContributionWeight } from './progres
 import { listCommercialDashboard } from './access-import.js';
 import { summarizeReportLaborCost } from './report-labor-cost.js';
 import { progressReadOptions, progressSourceRevision } from './progress-projection.js';
+import { loadGroupDetailSources } from './project-detail-sources.js';
 
 const DAY_STATUS_ORDER = {
   TRABALHADO: 0,
@@ -605,11 +606,12 @@ export async function getMissionGroupDetail(groupId, {
     .slice()
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const memberIds = members.map(member => member.projectId);
-  const [progressDetailsByProject, plannedHoursByProject, dashboardRows] = await Promise.all([
+  const [progressDetailsByProject, plannedHoursByProject, dashboardRows, sharedSources] = await Promise.all([
     // O grupo publica curvas consolidadas, sem os recortes individuais de cada missão.
     computeProgressDetailsForProjects(memberIds, { ...progressReadOptions(progressMode), includeSlices: false }),
     projection === 'progress' ? null : loadPlannedHours(memberIds),
-    listCommercialDashboard({ projectIds: memberIds, includeAdminOnlyCategories, includeProgress: false })
+    listCommercialDashboard({ projectIds: memberIds, includeAdminOnlyCategories, includeProgress: false }),
+    projection === 'progress' ? null : loadGroupDetailSources(memberIds, { includeAdminOnlyCategories })
   ]);
   const dashboardById = new Map(dashboardRows.map(row => [row.projectId, row]));
   const entries = await Promise.all(
@@ -622,7 +624,7 @@ export async function getMissionGroupDetail(groupId, {
         includeAdminOnlyCategories,
         progressMode, projection, dashboardRow,
         progressDetails,
-        plannedHoursByProject
+        plannedHoursByProject, sharedSources
       });
       return {
         projectId: member.projectId,

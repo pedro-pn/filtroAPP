@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
-import { getPontoColaboradores, type CollaboratorRate, type IdleBucket } from '../../api/acompanhamentoPonto';
+import { getPontoColaboradores, pontoColaboradoresQueryKeys, type CollaboratorRate, type IdleBucket } from '../../api/acompanhamentoPonto';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
 import { brl } from './costFields';
 import { Card, DataTable, EmptyState, Field, Select, Skeleton } from '../ui/ds';
@@ -44,7 +44,7 @@ function viewFor(r: CollaboratorRate, month: string): RateView | null {
 
 export function LaborRateTable() {
   const { data, isLoading } = useQuery({
-    queryKey: ['ponto-colaboradores'],
+    queryKey: pontoColaboradoresQueryKeys.rates,
     queryFn: getPontoColaboradores,
     ...acompanhamentoRefreshQueryOptions
   });

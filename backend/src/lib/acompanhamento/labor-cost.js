@@ -187,7 +187,7 @@ function pontoImportScopeFromRows(imports) {
   };
 }
 
-async function getPontoImportScope(importId, database = prisma) {
+export async function getPontoImportScope(importId, database = prisma) {
   if (importId) {
     const item = await database.pontoImport.findUnique({ where: { id: importId } });
     return item ? pontoImportScopeFromRows([item]) : null;

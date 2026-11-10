@@ -73,6 +73,9 @@ export async function seedHttpPerformanceFixture(database, { reportCount = 1200,
         monthly['2026-09'].normalMinutes += 60;
         monthly['2026-09'].days[0].workedMinutes += 60;
         await database.pontoPeriodSummary.update({ where: { id: period.id }, data: { monthly, workedMinutes: period.workedMinutes + 60 } });
+        await database.pontoPeriodSummary.create({ data: { importId: labor.importId,
+          rawName: 'Pessoa sintética sem vínculo', normalizedName: 'pessoa sintetica sem vinculo',
+          periodStart: period.periodStart, periodEnd: period.periodEnd, workedMinutes: 0 } });
         const projectAfter = await database.project.findUnique({ where: { id: projectId } });
         return { projectTimestampUnchanged: projectBefore.updatedAt.getTime() === projectAfter.updatedAt.getTime() };
       }

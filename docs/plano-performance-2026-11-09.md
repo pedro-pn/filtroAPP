@@ -292,8 +292,8 @@ não depender de reverter ou apagar dados para reverter o código.
 - [ ] T03 Healthchecks de Nginx/progresso do worker implementados localmente; série publicada pendente.
 - [x] T04 Consultas do Gestor por necessidade da aba, verificadas localmente.
 - [x] T05 Pacote completo de avanço otimizado com paridade, verificado localmente.
-- [ ] T06 Implementação local: projeção de avanço elimina leituras alheias ao histórico; aceite multicliente/HTTP pendente.
-- [ ] T07 Parcial: fontes compartilhadas, catálogo de cargos em lote, intervalos por período e calendário antecipado; meta fria em todos os cenários e aceite HTTP pendentes.
+- [ ] T06 Implementação local: projeção de avanço, custos dos grupos em lote e leituras de ponto por finalidade; meta de fila do pool e aceite publicado pendentes.
+- [ ] T07 Parcial: fontes compartilhadas, catálogos em lote, intervalos por período, calendário antecipado e conciliação sem motor de custos; meta fria geral e aceite HTTP pendentes.
 - [ ] T08 Seções/modais e painéis do Gestor carregados sob demanda localmente; aceite publicado pendente.
 - [ ] T09 Imagens otimizadas e CSS exclusivo da administração extraído; aceite LCP publicado pendente.
 - [ ] T10 Sondagens vazias agregadas e retenção opt-in validada localmente; política e aplicação pendentes.
@@ -308,8 +308,8 @@ não depender de reverter ou apagar dados para reverter o código.
 | T03 | Healthchecks locais do Nginx e de progresso do worker, incluindo filas de aprovação/e-mail/Data Book | Publicação manual e série de 24 h/sete dias |
 | T04 | Bootstrap projetado por seção, cache separado por seção e usuário, consultas condicionais, tratamento de carga/falha no upload manual e compatibilidade do contrato anterior | Aceite HTTP em ambiente publicado |
 | T05 | Associação das medições e preparo do escopo reutilizados dentro de cada cálculo; curvas não montam grupos de exibição descartados; resultado completo comparado com o anterior | Aceite HTTP em ambiente publicado |
-| T06 | Avanço atual a cada 15 s; histórico/recortes por revisão; projeção exclusiva de avanço e fonte comercial em lote; ensaio HTTP local de permissões e escrita entre processos | Reduzir fila de pool observada no ensaio e validar concorrência/p95 no ambiente publicado |
-| T07 | Fontes mensais/globais compartilhadas; custos anuais e catálogo de cargos em lote; horários de serviço lidos por período sem lista de IDs históricos; ausências/calendário antecipados | Atingir a meta fria em todos os cenários e validar HTTP concorrente; planos SQL locais verificados sem justificar novo índice |
+| T06 | Avanço atual a cada 15 s; histórico/recortes por revisão; projeção exclusiva de avanço; fontes comercial e de custos em lote para grupos; leituras de ponto por finalidade; ensaio HTTP local de permissões e escrita entre processos | Reduzir fila de pool observada no ensaio e validar concorrência/p95 no ambiente publicado |
+| T07 | Fontes mensais/globais compartilhadas; custos anuais e catálogo de cargos em lote; horários por período; ausências/calendário antecipados; conciliação sem calcular custos e catálogo de fallback compartilhado entre membros | Reduzir as 40 chamadas da tabela de custos e atingir a meta fria geral; planos SQL locais verificados sem justificar novo índice |
 | T08 | Seções do Efetivo/Acompanhamento, cinco modais de workflow e painéis do Gestor sob demanda; visão geral estatística separada dos overlays | Aceite das superfícies autenticadas no ambiente publicado |
 | T09 | Variantes lossless, favicon/hash/prioridade do login e CSS da administração de credenciais separado do shell, preservando a camada legacy | Aceite LCP publicado; outros estilos globais podem ser divididos conforme medição |
 | T10 | Uma linha por janela de 15 min para sondagens vazias de finalização/quarentena; trabalho e falhas individuais; preview/retenção em lotes sem prazo padrão | Aprovar prazo/política antes de aplicação manual; medir linhas/dia publicado |
@@ -323,9 +323,13 @@ ou execução em servidores nesta implementação local.
 
 1. **Pool e volume por requisição — T06/T07:** reduzir a pressão confirmada no
    ensaio HTTP já implementado. Com quatro requisições simultâneas e pool de oito,
-   apenas 22,3% das amostras ativas ficaram sem fila, abaixo da meta de 95%.
-   Priorizar as 40 chamadas ao banco e 738.561 B do ponto e as 62–64 chamadas
-   medianas do grupo, preservando permissões e atualização após gravação.
+   a comparação desta continuação passou de 22,4% para 24,9% das amostras
+   ativas sem fila com a tabela de custos e 29,7% com a conciliação, ainda abaixo
+   da meta de 95%. O grupo passou de 62–64 para 49–50 chamadas medianas;
+   a conciliação do ponto passou de 40 para oito e a tabela de custos caiu de
+   738.561 B para 21.167 B, mantendo suas 40 chamadas. Priorizar leituras de
+   RDOs/colaboradores dos grupos e o cálculo da tabela de custos, preservando
+   as regras financeiras, os filtros de acesso e a atualização após gravação.
 2. **Carga fria — T07:** atingir a redução de pelo menos 50% em todos os
    cenários-alvo. A comparação direta com o início do plano deu 40,6% no cenário
    com poucos serviços e 50,1% no denso; isso ainda não fecha o aceite geral.
@@ -841,10 +845,113 @@ NODE_ENV=test npm --prefix backend run performance:http -- \
   --concurrency=4 --pool-limit=8 --output=/tmp/filtro-http-performance.json
 ```
 
-O próximo incremento passa a ser reduzir consultas simultâneas e volume das
-respostas de ponto/grupos. Os aceites publicados, a redução fria geral de 50%,
-a política de retenção e as séries operacionais continuam pendentes. Backups
+O incremento de consultas/volume de ponto e grupos foi implementado na
+continuação abaixo. Os aceites publicados, a redução fria geral de 50%, a
+política de retenção e as séries operacionais continuam pendentes. Backups
 permanecem adiados.
+
+### Continuação local: leituras de ponto por finalidade e custos dos grupos em lote
+
+O ensaio HTTP anterior foi consolidado no commit local `edd393bb`
+(`perf: adicionar ensaio HTTP autenticado e concorrente`), sem push nesta rodada.
+Esta continuação modifica a aplicação apenas no código local.
+
+A aba de importação usava somente os nomes não vinculados da resposta completa
+de colaboradores. Agora pede `view=reconciliation`: lê os metadados do ponto
+vigente, os nomes não vinculados e as exclusões, sem calcular custos nem consultar
+o histórico de RDOs. A tabela de custos pede `view=summary`, com identidade,
+horas, valores, ociosidade e todos os meses necessários ao filtro. Os dados de
+apropriação e as trilhas permanecem disponíveis no contrato completo padrão
+(`view=full` ou sem parâmetro) e nas rotas de auditoria existentes. As duas
+consultas do frontend possuem caches distintos e continuam sendo invalidadas
+pelo prefixo compartilhado `ponto-colaboradores` após alterações.
+
+O detalhe de grupo agora lê de uma vez categorias, somas financeiras do Omie,
+equipamentos, consumo de estoque e custos manuais dos membros. As somas continuam
+no PostgreSQL, sem novo somatório em JavaScript. O catálogo de custos/cargos
+usado no fallback de horas dos RDOs é carregado uma vez, sob demanda, dentro da
+requisição. Não foi acrescentado cache entre requisições nem ampliado o pool.
+A projeção exclusiva de avanço não carrega essas fontes. O reaproveitamento
+exige mesmo projeto, escopo de acesso e opção de categorias administrativas;
+divisões continuam usando suas próprias leituras com o recorte correspondente.
+
+A regressão com PostgreSQL real compara o objeto completo de cada membro e do
+grupo com a montagem anterior, incluindo centavos, categoria administrativa,
+membro sem despesas Omie, colaborador sem ponto, custos manuais e divisão.
+Também verifica custos atualizados na próxima requisição, equivalência de cada
+campo/mês do resumo com o contrato completo, conciliação sem leitura de RDO,
+401/403 e acesso do visualizador. No frontend, um teste executa os clientes reais
+e o QueryClient para verificar parâmetros, separação dos caches e invalidação.
+
+Foram executadas três coortes sequenciais com o mesmo volume e configuração:
+referência `edd393bb` com resposta completa; candidato com tabela resumida;
+candidato com conciliação. A ferramenta aceita `--source-root` para medir o
+código arquivado da referência e `--ponto-view` para selecionar o consumidor.
+As dependências são as mesmas. Cada coorte usa dados sintéticos equivalentes:
+1.203 relatórios, 4.802 serviços, 21 colaboradores, 297 linhas de escopo e grupo
+com dois membros; PostgreSQL 16 com uma CPU/768 MiB, pool oito e concorrência
+quatro. Foram cem respostas aquecidas por rota/perfil, totalizando 800, mais
+oito primeiras respostas em processos novos, oito aquecimentos e 16 leituras
+após gravação: **832 respostas medidas 200 por coorte**, além das oito negativas
+esperadas. Não houve interrupção ou erro inesperado.
+
+| Superfície aquecida | Antes: chamadas medianas / maior JSON | Depois: chamadas medianas / maior JSON |
+| --- | ---: | ---: |
+| Grupo, administrador | 62 / 453.475 B | 49 / 453.475 B |
+| Grupo, visualizador | 64 / 452.068 B | 50 / 452.068 B |
+| Tabela de custos do ponto | 40 / 738.561 B | 40 / 21.167 B |
+| Conciliação da importação | 40 / 738.561 B | 8 / 240 B |
+
+A tabela de custos transfere **97,1% menos JSON**. A conciliação realiza **80%
+menos chamadas ao banco**; ela tem finalidade diferente da tabela de custos e
+não substitui o cálculo quando os valores são necessários. Os grupos reduzem
+suas chamadas em aproximadamente 21–22%, com igualdade dos resultados completos.
+
+| p95 do cliente, aquecido | Referência completa | Candidato com tabela | Candidato com conciliação |
+| --- | ---: | ---: | ---: |
+| Cards, administrador / visualizador | 229,8 / 118,7 ms | 198,5 / 117,8 ms | 157,4 / 127,5 ms |
+| Detalhe individual, administrador / visualizador | 284,1 / 430,2 ms | 297,0 / 349,4 ms | 237,2 / 323,2 ms |
+| Grupo, administrador / visualizador | 574,5 / 650,9 ms | 432,1 / 593,5 ms | 422,4 / 437,5 ms |
+| Ponto, administrador / visualizador | 501,9 / 392,0 ms | 391,0 / 331,7 ms | 266,6 / 202,6 ms |
+
+As latências são observações de coortes sequenciais, sem pares aleatorizados
+ou repetição estatística da comparação HTTP. Não demonstram ganho universal:
+o detalhe individual do administrador ficou cerca de 4,5% mais lento na coorte
+com tabela resumida. As medições não incluem Nginx, TLS ou navegador. A única
+amostra fria de cada rota/perfil não permite p95 nem fecha o aceite frio geral.
+
+| Pool durante atividade aquecida | Referência completa | Candidato com tabela | Candidato com conciliação |
+| --- | ---: | ---: | ---: |
+| Amostras sem fila / total | 615 / 2.745 | 556 / 2.232 | 540 / 1.818 |
+| Proporção sem fila | 22,4% | 24,9% | 29,7% |
+| Pico de consultas esperando | 43 | 43 | 44 |
+| Maior sequência observada com fila | 1.146,3 ms | 480,4 ms | 339,6 ms |
+
+**A meta de 95% sem fila continua pendente**, e o pico de fila não caiu. A
+amostragem a cada 10 ms depende do event loop e não mede espera individual de
+consulta; não houve sequência observada acima de cinco segundos. Após gravação
+por outro processo, a coorte de conciliação verificou as leituras em até 906,5 ms,
+contados após confirmar a escrita e preparar a coleta. Os cards continuam sujeitos
+à expiração normal de seu cache; não se afirma atualização imediata dessa rota.
+
+Os dados numéricos das três coortes, o código medido e a validação estão nas
+[evidências de ponto/grupos](evidence/performance-point-groups-20261110.json).
+O CI executa a regressão PostgreSQL em etapa separada do ensaio HTTP para não
+semear duas fixtures simultaneamente no banco exclusivo do job.
+
+Validação: **2.765 testes de backend aprovados e 42 ignorados**, **896 testes
+de frontend aprovados**, além dos dois testes específicos de DTO/paridade com
+PostgreSQL real. Build TypeScript/Vite, ESLint, seis orçamentos de tamanho,
+arquitetura e configuração do CI passaram. Na primeira execução simultânea
+das suítes, o teste existente de isolamento em PostgreSQL WASM excedeu 30 s;
+passou sozinho em 5,5 s e na repetição completa do backend, sem alterar timeout
+ou código desse teste. O banco descartável foi removido ao concluir a validação.
+
+O próximo incremento local é reduzir as leituras restantes dos grupos e da
+tabela de custos sem alterar regras de apropriação ou atualização. Permanecem
+também a meta fria geral de T07, os aceites publicados de conteúdo útil/LCP/HTTP,
+as séries de 24 h/sete dias e a política de retenção. Backups seguem adiados;
+não houve execução em servidores ou migration nova.
 
 ### Uso local das ferramentas de medição
 
