@@ -16,7 +16,8 @@ import {
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { SearchBar } from '../../components/ui/SearchBar';
-import { Badge, DataTable, Select, type DataTableColumn } from '../../components/ui/ds';
+import { Badge, DataTable, type DataTableColumn } from '../../components/ui/ds';
+import { StockFilter } from './StockFilter';
 import { useToast } from '../../components/ui/ToastContext';
 import { StockCategoryFormModal } from './StockCategoryFormModal';
 
@@ -162,11 +163,8 @@ export function StockCategoriesTab({ isManager }: Props) {
           />
         </div>
         <div className="nps-tab-toolbar-right">
-          <Select aria-label="Filtrar tipo de categoria" value={type} onChange={event => setType(event.target.value as StockItemType | '')}>
-            <option value="">Todos os tipos</option>
-            <option value="FILTRO">Filtros</option>
-            <option value="PRODUTO_QUIMICO">Produtos químicos</option>
-          </Select>
+          <StockFilter label="Filtrar tipo de categoria" value={type} onChange={value => setType(value as StockItemType | '')}
+            options={[{ value: '', label: 'Todos os tipos' }, { value: 'FILTRO', label: 'Filtros' }, { value: 'PRODUTO_QUIMICO', label: 'Produtos químicos' }]} />
           <label className="equip-toggle">
             <input type="checkbox" checked={includeInactive} onChange={event => setIncludeInactive(event.target.checked)} />
             <span>Inativas</span>

@@ -9,9 +9,9 @@ import env from '../../config/env.js';
 import asyncHandler from '../../lib/async-handler.js';
 import { buildRomaneioCreatedEmailTemplate } from '../../lib/email-templates.js';
 import {
-  createAutomaticRomaneioStockMovementsInTransaction,
-  reverseMovementInTransaction
-} from '../../lib/estoque/stock-movements.js';
+  createRomaneioStockMovements,
+  syncRomaneioStockMovements
+} from '../../lib/romaneio/romaneio-stock.js';
 import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
 import { hasModuleRole } from '../../lib/module-roles.js';
 import prisma from '../../lib/prisma.js';
@@ -942,33 +942,6 @@ function authUserLabel(user) {
   return String(user?.name || user?.email || user?.username || 'Conta autenticada').trim();
 }
 
-function stockMovementNoteForRomaneio(romaneio) {
-  return `Movimentação automática do romaneio ${romaneioTypeLabel(romaneio.type).toLowerCase()} ${romaneio.id}.`;
-}
-
-async function createRomaneioStockMovements(tx, romaneio, authUser) {
-  const stockItems = (romaneio.items || []).filter(item => item.catalogItem?.sourceType === 'STOCK');
-  if (!stockItems.length) return [];
-
-  const movements = [];
-  for (const item of stockItems) {
-    const created = await createAutomaticRomaneioStockMovementsInTransaction(tx, {
-      romaneioType: romaneio.type,
-      itemId: item.catalogItem.sourceId,
-      quantity: item.quantity,
-      date: romaneio.romaneioDate,
-      projectId: romaneio.projectId,
-      requestedBy: authUserLabel(authUser),
-      notes: stockMovementNoteForRomaneio(romaneio),
-      excludeFromProjectCost: romaneio.type === 'INBOUND' && item.isExtra,
-      createdById: authUser.id,
-      romaneioId: romaneio.id
-    });
-    movements.push(...created);
-  }
-  return movements;
-}
-
 export async function assertRomaneioOutboundProjectAvailable(type, projectId, client = prisma) {
   if (type !== 'OUTBOUND') return null;
   // A saída do romaneio fica temporariamente independente da autorização de mobilização do Efetivo.
@@ -982,30 +955,6 @@ export async function assertRomaneioOutboundProjectAvailable(type, projectId, cl
       issues: [{ message: 'Selecione uma obra não concluída.' }]
     }
   );
-}
-
-async function reverseRomaneioStockMovements(tx, romaneioId, createdById) {
-  if (typeof tx.stockMovement?.findMany !== 'function') return [];
-  const movements = await tx.stockMovement.findMany({
-    where: {
-      romaneioId,
-      reason: { not: 'ESTORNO' }
-    },
-    include: {
-      reversedBy: { select: { id: true } }
-    },
-    orderBy: { createdAt: 'asc' }
-  });
-  const reversed = [];
-  for (const movement of movements) {
-    if (movement.reversedBy) continue;
-    reversed.push(await reverseMovementInTransaction(tx, {
-      movementId: movement.id,
-      notes: `Estorno automático por edição do romaneio ${romaneioId}.`,
-      createdById
-    }));
-  }
-  return reversed;
 }
 
 export async function cleanupFailedRomaneioCreate({
@@ -1605,8 +1554,8 @@ router.put('/:id', requireAuth, requireRomaneioAccess, requireRomaneioEditor, as
     files = await saveRomaneioPdf(preview);
     files.checklist = await saveRomaneioChecklistPdfFile(preview, checklistSnapshots);
     const updated = await prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM "Romaneio" WHERE id = ${existing.id} FOR UPDATE`;
       await assertRomaneioOutboundProjectAvailable(payload.type, resolvedProjectId, tx);
-      await reverseRomaneioStockMovements(tx, existing.id, req.auth.user.id);
       await tx.romaneioItem.deleteMany({ where: { romaneioId: existing.id } });
       await tx.romaneioChecklist.deleteMany({ where: { romaneioId: existing.id } });
       const romaneio = await tx.romaneio.update({
@@ -1643,7 +1592,7 @@ router.put('/:id', requireAuth, requireRomaneioAccess, requireRomaneioEditor, as
         },
         ...selectedFields()
       });
-      await createRomaneioStockMovements(tx, romaneio, req.auth.user);
+      await syncRomaneioStockMovements(tx, romaneio, req.auth.user);
       return romaneio;
     });
 

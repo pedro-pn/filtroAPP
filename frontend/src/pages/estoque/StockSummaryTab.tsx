@@ -5,9 +5,11 @@ import { useQuery } from '@tanstack/react-query';
 
 import { getStockSummary, type StockSummaryItem } from '../../api/estoque';
 import { SearchBar } from '../../components/ui/SearchBar';
-import { SearchCombobox } from '../../components/ui/SearchCombobox';
-import { Badge, Select } from '../../components/ui/ds';
+import { Badge } from '../../components/ui/ds';
 import { formatDateOnlyPtBr } from '../../utils/dateOnly';
+import { StockFilter } from './StockFilter';
+import { StockItemActivity } from './StockItemActivity';
+import { formatStockQuantity } from './stockQuantity';
 
 interface Props {
   isManager: boolean;
@@ -20,10 +22,6 @@ function alertBadges(row: StockSummaryItem) {
   if (row.batches.some(batch => batch.expired)) badges.push('Lote vencido');
   if (row.batches.some(batch => batch.expiringSoon)) badges.push('Vencendo');
   return badges;
-}
-
-function typeLabel(type: StockSummaryItem['item']['type']) {
-  return type === 'FILTRO' ? 'Filtro' : 'Produto químico';
 }
 
 function itemDetailFields(row: StockSummaryItem) {
@@ -93,7 +91,7 @@ export function StockSummaryTab({ isManager, onRegisterMovement }: Props) {
   return (
     <section className="page-card stock-panel">
       <div className="admin-toolbar stock-panel-header">
-        <div className="sec">Estoque</div>
+        <div><div className="sec">Produtos em estoque</div><p className="rel-meta">Consulte o saldo e abra um produto para ver suas entradas, saídas e obras.</p></div>
         {isManager ? (
           <button className="mini-btn" type="button" onClick={onRegisterMovement}>Registrar movimentação</button>
         ) : null}
@@ -101,39 +99,27 @@ export function StockSummaryTab({ isManager, onRegisterMovement }: Props) {
 
       <div className="stock-summary-filters">
         <SearchBar value={search} onChange={setSearch} placeholder="Buscar item, código ou lote" ariaLabel="Buscar no estoque" count={{ shown: filteredRows.length, total: rows.length }} />
-        <SearchCombobox
+        <StockFilter
           label="Filtrar item"
-          hideLabel
           value={itemId}
           onChange={setItemId}
-          variant="select"
-          portal
           placeholder="Pesquisar item"
-          options={[{ value: '', label: 'Todos os itens' }, ...rows.map(row => ({ value: row.item.id, label: `${row.item.code} — ${row.item.name}` }))]}
+          options={[{ value: '', label: 'Todos os itens' }, ...rows.map(row => ({ value: row.item.id, label: `${row.item.name} · ${row.item.code}` }))]}
         />
-        <Select aria-label="Filtrar tipo de item" value={type} onChange={event => setType(event.target.value)}>
-          <option value="">Todos os tipos</option>
-          <option value="FILTRO">Filtros</option>
-          <option value="PRODUTO_QUIMICO">Produtos químicos</option>
-        </Select>
-        <SearchCombobox
+        <StockFilter label="Filtrar tipo de item" value={type} onChange={setType}
+          options={[{ value: '', label: 'Todos os tipos' }, { value: 'FILTRO', label: 'Filtros' }, { value: 'PRODUTO_QUIMICO', label: 'Produtos químicos' }]} />
+        <StockFilter
           label="Filtrar categoria"
-          hideLabel
           value={categoryId}
           onChange={setCategoryId}
-          variant="select"
-          portal
           placeholder="Pesquisar categoria"
           options={[{ value: '', label: 'Todas as categorias' }, ...categories.map(([id, name]) => ({ value: id, label: name }))]}
         />
-        <Select aria-label="Filtrar situação do estoque" value={status} onChange={event => setStatus(event.target.value)}>
-          <option value="">Todas as situações</option>
-          <option value="REGULAR">Regular</option>
-          <option value="BELOW_MIN">Abaixo do mínimo</option>
-          <option value="EXPIRING">Vencendo</option>
-          <option value="EXPIRED">Lote vencido</option>
-          <option value="INACTIVE">Inativo</option>
-        </Select>
+        <StockFilter label="Filtrar situação do estoque" value={status} onChange={setStatus} options={[
+          { value: '', label: 'Todas as situações' }, { value: 'REGULAR', label: 'Regular' },
+          { value: 'BELOW_MIN', label: 'Abaixo do mínimo' }, { value: 'EXPIRING', label: 'Vencendo' },
+          { value: 'EXPIRED', label: 'Lote vencido' }, { value: 'INACTIVE', label: 'Inativo' }
+        ]} />
       </div>
 
       {summaryQuery.isLoading ? <p className="placeholder-copy"><BrandLoading label="Carregando resumo" inline size="sm" /></p> : null}
@@ -145,11 +131,8 @@ export function StockSummaryTab({ isManager, onRegisterMovement }: Props) {
           <SortableTable className="equip-table stock-summary-table">
             <thead>
               <tr>
-                <th>Código</th>
                 <th>Produto</th>
                 <th>Categoria</th>
-                <th>Tipo</th>
-                <th>Unidade</th>
                 <th>Saldo total</th>
                 <th>Estoque mínimo</th>
                 <th>Status</th>
@@ -165,12 +148,12 @@ export function StockSummaryTab({ isManager, onRegisterMovement }: Props) {
                 return (
                   <Fragment key={row.item.id}>
                     <tr className="stock-summary-item-row" onClick={() => toggle(row.item.id)}>
-                      <td>{row.item.code}</td>
                       <td data-sort-value={row.item.name}>
                         <button
                           className="stock-summary-product-button"
                           type="button"
                           aria-expanded={isExpanded}
+                          aria-label={row.item.name}
                           aria-controls={detailId}
                           onClick={event => {
                             event.stopPropagation();
@@ -180,12 +163,11 @@ export function StockSummaryTab({ isManager, onRegisterMovement }: Props) {
                           <span aria-hidden="true">{isExpanded ? '▾' : '›'}</span>
                           <strong>{row.item.name}</strong>
                         </button>
+                        <span className="stock-table-muted">{row.item.code} · {row.item.type === 'FILTRO' ? 'Filtro' : 'Produto químico'}</span>
                       </td>
                       <td>{row.item.category?.name || '-'}</td>
-                      <td>{typeLabel(row.item.type)}</td>
-                      <td>{row.item.unitLabel}</td>
-                      <td data-sort-value={Number(row.balance)}>{row.balance}</td>
-                      <td data-sort-value={Number(row.item.minQuantity)}>{row.item.minQuantity || '-'}</td>
+                      <td className="stock-summary-balance" data-sort-value={Number(row.balance)}><strong>{formatStockQuantity(row.balance)} {row.item.unitLabel}</strong></td>
+                      <td data-sort-value={Number(row.item.minQuantity)}>{row.item.minQuantity === null ? '-' : `${formatStockQuantity(row.item.minQuantity)} ${row.item.unitLabel}`}</td>
                       <td>
                         <div className="stock-summary-status">
                           {badges.map(label => <Badge key={label} tone={label === 'Vencendo' ? 'warning' : 'danger'}>{label}</Badge>)}
@@ -204,14 +186,15 @@ export function StockSummaryTab({ isManager, onRegisterMovement }: Props) {
                             toggle(row.item.id);
                           }}
                         >
-                          {isExpanded ? 'Ocultar' : 'Detalhes'}
+                          {isExpanded ? 'Ocultar' : 'Ver movimentações'}
                         </button>
                       </td>
                     </tr>
                     {isExpanded ? (
                       <tr className="stock-summary-detail-row" id={detailId}>
-                        <td colSpan={9}>
+                        <td colSpan={6}>
                           <div className="stock-summary-detail">
+                            <StockItemActivity itemId={row.item.id} unitLabel={row.item.unitLabel} />
                             {details.length ? (
                               <dl className="stock-summary-metadata">
                                 {details.map(([label, value]) => (
@@ -248,7 +231,7 @@ export function StockSummaryTab({ isManager, onRegisterMovement }: Props) {
                                       <td data-label="Validade" data-sort-value={batch.expiryDate}>{formatDateOnlyPtBr(batch.expiryDate)}</td>
                                       <td data-label="NF">{batch.nfNumber || '-'}</td>
                                       <td data-label="Fornecedor">{batch.supplier || '-'}</td>
-                                      <td data-label="Saldo" data-sort-value={Number(batch.balance)}>{batch.balance} {row.item.unitLabel}</td>
+                                      <td data-label="Saldo" data-sort-value={Number(batch.balance)}>{formatStockQuantity(batch.balance)} {row.item.unitLabel}</td>
                                       <td data-label="Status">{batchStatus(batch)}</td>
                                     </tr>
                                   ))}

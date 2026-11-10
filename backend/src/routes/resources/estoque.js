@@ -21,6 +21,7 @@ import {
   getItemBalances
 } from '../../lib/estoque/stock-balance.js';
 import { getAvailableStockBatchRows } from '../../lib/estoque/stock-batches.js';
+import { getStockHistoryMetadata } from '../../lib/estoque/stock-history.js';
 import { normalizeChecklistItems } from '../../lib/equipamentos/equipment-checklist.js';
 import prisma from '../../lib/prisma.js';
 import { syncRomaneioCatalog } from '../../lib/romaneio-catalog.js';
@@ -178,6 +179,9 @@ export function serializeStockMovement(movement) {
       expiryDate: serializeDateOnly(movement.batch.expiryDate)
     } : null,
     quantity: serializedDecimal(movement.quantity),
+    balanceAfter: movement.balanceAfter ?? null,
+    romaneioEdit: Boolean(movement.romaneioEdit),
+    reversedByRomaneioEdit: Boolean(movement.reversedByRomaneioEdit),
     date: serializeDateOnly(movement.date),
     project: movement.project ? {
       id: movement.project.id,
@@ -276,6 +280,11 @@ export function stockMovementListArgs(query) {
     ...(query.type ? { type: String(query.type) } : {}),
     ...(query.reason ? { reason: String(query.reason) } : {}),
     ...(query.projectId ? { projectId: String(query.projectId) } : {}),
+    ...(query.includeReversed === 'false' || query.includeReversed === false ? {
+      reason: { not: 'ESTORNO', ...(query.reason ? { equals: String(query.reason) } : {}) },
+      reversalOfId: null,
+      reversedBy: { is: null }
+    } : {}),
     ...((from || to) ? {
       date: {
         ...(from ? { gte: from } : {}),
@@ -290,7 +299,7 @@ export function stockMovementListArgs(query) {
     pageSize,
     skip: (page - 1) * pageSize,
     take: pageSize,
-    orderBy: [{ date: dateOrder }, { createdAt: dateOrder }]
+    orderBy: [{ date: dateOrder }, { createdAt: dateOrder }, { id: dateOrder }]
   };
 }
 
@@ -313,8 +322,12 @@ export async function listStockMovements(client, query) {
     client.stockMovement.count({ where: args.where })
   ]);
 
+  const metadata = await getStockHistoryMetadata(client, [...new Set(movements.map(row => row.itemId))], {
+    includeReversed: query.includeReversed !== 'false' && query.includeReversed !== false
+  });
+
   return {
-    movements: movements.map(serializeStockMovement),
+    movements: movements.map(row => serializeStockMovement({ ...row, ...metadata.get(row.id) })),
     total,
     page: args.page,
     pageSize: args.pageSize
@@ -649,6 +662,32 @@ router.delete('/itens/:id', requireEstoqueManager, asyncHandler(async (req, res)
 
 router.get('/resumo', asyncHandler(async (_req, res) => {
   res.json({ summary: await buildStockSummary(prisma) });
+}));
+
+export async function getStockItemProjectActivity(client, itemId) {
+  const rows = await client.stockMovement.groupBy({
+    by: ['projectId', 'type'],
+    where: { itemId, projectId: { not: null }, reason: { not: 'ESTORNO' }, reversalOfId: null, reversedBy: { is: null } },
+    _sum: { quantity: true }
+  });
+  if (!rows.length) return [];
+  const projects = await client.project.findMany({
+    where: { id: { in: [...new Set(rows.map(row => row.projectId))] } },
+    select: { id: true, code: true, name: true },
+    orderBy: [{ code: 'asc' }, { name: 'asc' }]
+  });
+  return projects.map(project => {
+    const totals = rows.filter(row => row.projectId === project.id);
+    const outbound = new Prisma.Decimal(totals.find(row => row.type === 'SAIDA')?._sum.quantity || 0);
+    const inbound = new Prisma.Decimal(totals.find(row => row.type === 'ENTRADA')?._sum.quantity || 0);
+    return { project, outbound: decimalBalanceString(outbound), inbound: decimalBalanceString(inbound), netOutbound: decimalBalanceString(outbound.minus(inbound)) };
+  });
+}
+
+router.get('/itens/:id/obras', asyncHandler(async (req, res) => {
+  const item = await prisma.stockItem.findUnique({ where: { id: req.params.id }, select: { id: true } });
+  if (!item) return res.status(404).json({ error: 'Item de estoque não encontrado.' });
+  res.json({ projects: await getStockItemProjectActivity(prisma, item.id) });
 }));
 
 router.get('/movimentacoes', asyncHandler(async (req, res) => {

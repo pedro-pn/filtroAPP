@@ -127,6 +127,26 @@
 .stock-page-v2 .stock-summary-detail { border-color: var(--brand); }
 .stock-page-v2 .stock-summary-product-button > span { color: var(--brand); }
 .stock-page-v2 .stock-summary-item-row:hover { background: var(--surface-2); }
+.stock-page-v2 .stock-summary-table { min-width: 740px; }
+.stock-page-v2 .stock-summary-balance { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.stock-page-v2 .stock-running-balance { white-space: nowrap; font-variant-numeric: tabular-nums; background: var(--surface-2); }
+.stock-page-v2 .stock-item-activity { display: grid; min-width: 0; gap: var(--space-5); }
+.stock-page-v2 .stock-item-activity section { min-width: 0; }
+.stock-page-v2 .stock-item-activity h3 { margin: 0 0 var(--space-2); }
+.stock-page-v2 .stock-item-activity .rel-meta { margin: 0 0 var(--space-3); }
+.stock-page-v2 .stock-activity-table-wrap { border: 1px solid var(--line); border-radius: var(--radius-md); overflow-x: auto; background: var(--surface); }
+.stock-page-v2 .stock-activity-table { min-width: 600px; width: 100%; margin: 0; }
+.stock-page-v2 .stock-activity-table td { font-variant-numeric: tabular-nums; }
+.stock-page-v2 .stock-project-button { border: 0; padding: 0; background: transparent; color: var(--brand-text); font: inherit; text-align: left; cursor: pointer; }
+.stock-page-v2 .stock-project-button:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+.stock-page-v2 .stock-activity-selected { background: var(--surface-2); }
+.stock-page-v2 .stock-activity-filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); }
+.stock-page-v2 .stock-activity-filters > .app-combobox { flex: 1 1 190px; min-width: 0; }
+.stock-page-v2 .stock-history-toggle { display: flex; align-items: center; justify-content: flex-start; gap: var(--space-2); font-size: var(--text-sm); text-align: left; }
+.stock-page-v2 .stock-history-toggle input { flex: 0 0 auto; width: 16px; height: 16px; margin: 0; }
+.stock-page-v2 .stock-history-movement { display: grid; justify-items: start; gap: var(--space-1); }
+.stock-page-v2 .stock-history-pagination { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-3); }
+.stock-page-v2 .stock-history-pagination .rel-meta { margin: 0; }
 .stock-page-v2 .stock-table-muted,
 .stock-page-v2 .rel-meta { color: var(--muted); }
 
@@ -255,16 +275,14 @@
   .stock-page-v2 .stock-movements-table td::before { content: attr(data-label); }
   .stock-page-v2 .stock-movements-table td:nth-child(4) { display: block !important; text-align: left !important; }
   .stock-page-v2 .stock-movements-table td:nth-child(4)::before { display: block; margin-bottom: var(--space-1); }
-  .stock-page-v2 .stock-movements-table td:nth-child(10) { align-items: center !important; }
-  .stock-page-v2 .stock-summary-item-row td:nth-child(1)::before { content: 'Código'; }
-  .stock-page-v2 .stock-summary-item-row td:nth-child(2) { order: -1; justify-content: flex-start !important; text-align: left !important; font-size: var(--text-base) !important; }
-  .stock-page-v2 .stock-summary-item-row td:nth-child(3)::before { content: 'Categoria'; }
-  .stock-page-v2 .stock-summary-item-row td:nth-child(4)::before { content: 'Tipo'; }
-  .stock-page-v2 .stock-summary-item-row td:nth-child(5)::before { content: 'Unidade'; }
-  .stock-page-v2 .stock-summary-item-row td:nth-child(6)::before { content: 'Saldo total'; }
-  .stock-page-v2 .stock-summary-item-row td:nth-child(7)::before { content: 'Mínimo'; }
-  .stock-page-v2 .stock-summary-item-row td:nth-child(8)::before { content: 'Situação'; }
-  .stock-page-v2 .stock-summary-item-row td:nth-child(9) { justify-content: flex-end !important; }
+  .stock-page-v2 .stock-movements-table td:nth-child(11) { align-items: center !important; }
+  .stock-page-v2 .stock-summary-table { min-width: 0; }
+  .stock-page-v2 .stock-summary-item-row td:nth-child(1) { display: block !important; text-align: left !important; font-size: var(--text-base) !important; }
+  .stock-page-v2 .stock-summary-item-row td:nth-child(2)::before { content: 'Categoria'; }
+  .stock-page-v2 .stock-summary-item-row td:nth-child(3)::before { content: 'Saldo total'; }
+  .stock-page-v2 .stock-summary-item-row td:nth-child(4)::before { content: 'Mínimo'; }
+  .stock-page-v2 .stock-summary-item-row td:nth-child(5)::before { content: 'Situação'; }
+  .stock-page-v2 .stock-summary-item-row td:nth-child(6) { justify-content: flex-end !important; }
   .stock-page-v2 .stock-summary-detail-row { margin-top: calc(-1 * var(--space-3)); border-top: 0 !important; border-radius: 0 0 var(--radius-md) var(--radius-md) !important; background: var(--surface-2) !important; }
   .stock-page-v2 .stock-summary-detail-row > td { display: block !important; text-align: left !important; }
   .stock-page-v2 .stock-summary-detail { padding: 0; border: 0; }
@@ -281,6 +299,19 @@
   .stock-page-v2 .stock-summary-batches-table tbody td::before { content: attr(data-label); color: var(--muted); font-size: var(--text-xs); font-weight: var(--font-semibold); }
   .stock-page-v2 .stock-summary-batches-table tbody td[colspan] { display: block; text-align: left; }
   .stock-page-v2 .stock-summary-batches-table tbody td[colspan]::before { content: none; }
+  .stock-page-v2 .stock-activity-table-wrap { border: 0; overflow: visible; }
+  .stock-page-v2 .stock-activity-table,
+  .stock-page-v2 .stock-activity-table tbody { display: block; width: 100%; min-width: 0; }
+  .stock-page-v2 .stock-activity-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+  .stock-page-v2 .stock-activity-table tbody { display: grid; gap: var(--space-2); }
+  .stock-page-v2 .stock-activity-table tr { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
+  .stock-page-v2 .stock-activity-table td { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-2); padding: 0; border: 0; text-align: right; overflow-wrap: anywhere; }
+  .stock-page-v2 .stock-activity-table td::before { content: attr(data-label); color: var(--muted); font-size: var(--text-xs); font-weight: var(--font-semibold); text-align: left; }
+  .stock-page-v2 .stock-activity-table td:first-child,
+  .stock-page-v2 .stock-product-history td:nth-child(3) { display: block; text-align: left; }
+  .stock-page-v2 .stock-activity-table td:first-child::before,
+  .stock-page-v2 .stock-product-history td:nth-child(3)::before { display: block; margin-bottom: var(--space-1); }
+  .stock-page-v2 .stock-history-movement { justify-items: end; }
   .fv-ds .stock-dialog .equip-toggle-fields.stock-return-header-fields,
   .fv-ds .stock-dialog .stock-return-line-fields,
   .fv-ds .stock-dialog .stock-movement-line-fields { grid-template-columns: minmax(0, 1fr); }
