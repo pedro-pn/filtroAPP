@@ -309,7 +309,7 @@ não depender de reverter ou apagar dados para reverter o código.
 | T04 | Bootstrap projetado por seção, cache separado por seção e usuário, consultas condicionais, tratamento de carga/falha no upload manual e compatibilidade do contrato anterior | Aceite HTTP em ambiente publicado |
 | T05 | Associação das medições e preparo do escopo reutilizados dentro de cada cálculo; curvas não montam grupos de exibição descartados; resultado completo comparado com o anterior | Aceite HTTP em ambiente publicado |
 | T06 | Avanço atual a cada 15 s; histórico/recortes por revisão; projeção exclusiva de avanço; fontes comercial, de custos e de identidade da equipe compartilhadas nos grupos; nomes de cargos reutilizados no custo de RDO; leituras de ponto por finalidade; ensaio autenticado com medição de rajadas SQL | Reduzir fila de pool observada no ensaio e validar concorrência/p95 no ambiente publicado |
-| T07 | Fontes mensais/globais compartilhadas; catálogos em lote; horários por período; ausências/calendário antecipados; conciliação sem custos; cargos, horas de RDO, datas de importação e exclusões reutilizados; missões oficiais compartilhadas e ciclos sob demanda; custo por pessoa compartilhado nos grupos | Reduzir o trabalho restante da tabela de custos e a pressão simultânea sem piorar HTTP; atingir a meta fria geral; planos SQL locais verificados sem justificar novo índice |
+| T07 | Fontes mensais/globais compartilhadas; catálogos em lote; horários por período; ausências/calendário antecipados; conciliação sem custos; cargos, horas de RDO, datas de importação e exclusões reutilizados; missões oficiais e classificações equivalentes dos eixos compartilhadas; ciclos sob demanda; custo por pessoa compartilhado nos grupos | Reduzir o trabalho restante da tabela de custos e a pressão simultânea sem piorar HTTP; atingir a meta fria geral; planos SQL locais verificados sem justificar novo índice |
 | T08 | Seções do Efetivo/Acompanhamento, cinco modais de workflow e painéis do Gestor sob demanda; visão geral estatística separada dos overlays | Aceite das superfícies autenticadas no ambiente publicado |
 | T09 | Variantes lossless, favicon/hash/prioridade do login e CSS da administração de credenciais separado do shell, preservando a camada legacy | Aceite LCP publicado; outros estilos globais podem ser divididos conforme medição |
 | T10 | Uma linha por janela de 15 min para sondagens vazias de finalização/quarentena; trabalho e falhas individuais; preview/retenção em lotes sem prazo padrão | Aprovar prazo/política antes de aplicação manual; medir linhas/dia publicado |
@@ -324,11 +324,12 @@ ou execução em servidores nesta implementação local.
 1. **Pool e volume por requisição — T06/T07:** reduzir a pressão confirmada no
    ensaio HTTP já implementado. Com quatro requisições simultâneas e pool de oito,
    a repetição mais recente, com RDOs nos dois membros e tabela de custos
-   resumida, observou 30,6% das amostras ativas sem fila, contra 28,0% na
-   referência. A meta continua em 95%; os picos foram 35 e 41, respectivamente.
-   A tabela de custos passou de 36 para 32 chamadas medianas no cenário sem
-   alocações oficiais; com alocações ativas, a comparação direta retirou uma
-   consulta por cálculo. Detalhe e grupo aquecidos mantiveram 51–52. Datas das
+   resumida, observou 30,3% das amostras ativas sem fila, contra 30,8% na
+   referência. A meta continua em 95%; os picos foram 36 e 41, respectivamente.
+   A tabela de custos mantém 32 chamadas medianas no cenário sem alocações
+   oficiais, após a redução anterior de 36 para 32. Detalhe e grupo aquecidos
+   mantiveram 51–52. A classificação dos eixos é reutilizada quando equivalente,
+   mantendo passagens separadas para compartilhamentos. Datas das
    importações, exclusões, cargos e fontes oficiais do Efetivo já são
    reutilizados. As latências variaram entre coortes; a ordem
    inversa também foi medida, sem aceite geral de p95 ou afirmação de ganho
@@ -339,8 +340,10 @@ ou execução em servidores nesta implementação local.
    crítico das fontes; qualquer coordenação futura precisa medir a espera na
    aplicação e o HTTP completo, preservando regras, acesso e atualização.
 2. **Carga fria — T07:** atingir a redução de pelo menos 50% em todos os
-   cenários-alvo. A comparação direta com o início do plano deu 40,6% no cenário
-   com poucos serviços e 50,1% no denso; isso ainda não fecha o aceite geral.
+   cenários-alvo. A repetição mais recente contra o início do plano deu 41,0% no
+   cenário com poucos serviços e 46,4% no denso, em cinco pares de serviço por
+   modo/cenário; isso ainda não fecha o aceite geral. As coortes anteriores
+   observaram 40,6%/50,1%; não se atribui essa variação a uma mudança isolada.
 3. **Aceite publicado — T01/T04/T05/T06/T08/T09:** verificar as metas HTTP e
    de conteúdo útil/LCP da tabela inicial, a transferência por rota, dois
    navegadores, perfis com/sem acesso financeiro, gravações do worker e atualização
@@ -1431,9 +1434,10 @@ medindo o HTTP completo sem adotar os limites de fontes já rejeitados.
 
 A etapa anterior foi registrada no commit **`61010fcd`**
 (`perf: compartilhar cargos no custeio de RDO e horas alocadas`), na worktree
-`/home/relat/apps/filtroAPP-performance`. Não houve push nesta rodada. A nova
-etapa descrita a seguir também permanece local, ainda sem commit. A pasta
-original e suas alterações de outra frente não foram modificadas por esta tarefa.
+`/home/relat/apps/filtroAPP-performance`. A etapa das fontes oficiais descrita
+nesta seção foi posteriormente registrada em **`ae2caee9`**, também local e sem
+push. A pasta original e suas alterações de outra frente não foram modificadas
+por esta tarefa.
 
 O perfil SQL da referência mostrou seis consultas para montar as fontes oficiais
 do Efetivo: alocações, ciclos individuais, missões relacionadas, ciclos gerais,
@@ -1542,6 +1546,132 @@ aceites publicados. O novo commit e a continuação precisam de CI após envio;
 o último CI remoto verificado continua sendo o de `be1fad15`. Retenção depende
 da política aprovada; **backups permanecem adiados**. Não houve publicação ou
 alteração em produção.
+
+### Classificação dos eixos de custo — continuação local de 10/11
+
+A etapa das fontes oficiais foi registrada em **`ae2caee9`**
+(`perf: carregar fontes oficiais do Efetivo sob demanda`). A implementação
+continua exclusivamente em `/home/relat/apps/filtroAPP-performance`, na branch
+`fix/page-loading-performance`. Não houve push nesta rodada; a continuação desta
+seção permanece local e sem novo commit.
+
+O cálculo executava novamente a classificação das mesmas horas para os eixos
+contábil e analítico dentro de cada segmento de mês/cargo/parâmetros. A nova
+função monta o par e reutiliza o resultado completo da primeira classificação
+quando todas as decisões são iguais entre os eixos. Os consumidores leem esse
+resultado; os mapas e trilhas de entrada não são alterados.
+
+Três decisões exigem pesos diferentes: execução compartilhada, divisão manual
+entre projetos e divisão confirmada na conferência semanal. Se qualquer dia do
+segmento tiver uma delas, o segmento inteiro conserva as duas classificações,
+incluindo seu contexto original de vizinhos para viagem. A classificação de
+auditoria do período continua independente; ela não é reaproveitada em outros
+recortes de mês, cargo ou vigência dos parâmetros. As fórmulas de custo de cada
+eixo permanecem separadas.
+
+O teste focado verifica o resultado completo dos dois eixos e confirma uma única
+resolução de etiquetas/vizinhos nos casos equivalentes. Também cobre múltiplas
+etiquetas normais com rateio, consolidação no projeto principal, pendências,
+dias vazios e folga conferida. No PostgreSQL real, a execução compartilhada,
+a divisão manual e a divisão confirmada preservam soma dos pesos contábeis
+igual a um e soma dos pesos analíticos igual a dois para os dois projetos.
+
+Foram comparados oito resultados completos normalizados com o backend arquivado
+de `ae2caee9`, em processos separados lendo exatamente as mesmas linhas: ponto
+explícito/consolidado, horas alocadas, diagnóstico, detalhe, grupo, divisão e grupo
+sem custos individuais/categorias administrativas. As nove fases incluem as
+alterações de cargo/salário/horas, alocações oficiais/ciclos, cancelamento,
+desativação de plano, execução compartilhada, ajustes manuais, conferência e
+consolidação. Os **72 pares de resultados permaneceram idênticos**.
+
+O benchmark de serviço agora registra `process.cpuUsage()` na janela de cada
+cálculo, além do tempo de parede. São observações do processo Node/Prisma,
+incluindo trabalho em segundo plano executado nessa janela; não medem CPU do
+PostgreSQL nem atribuem todo o consumo à classificação. A janela começa depois
+dos imports explícitos. A soma de CPU pode superar a duração de parede quando
+threads trabalham ao mesmo tempo. A leitura anterior de sessão continua sendo
+um `SELECT`, sem autenticação HTTP.
+
+Foram executados cinco pares por modo/cenário, alternando a ordem dos backends
+nos mesmos dados, com 1.203 relatórios, 21 colaboradores, 500 preferências de
+projeto e dois ou 4.802 serviços. Houve comparações separadas contra `ae2caee9`
+e contra o início do plano (`3db7e76f`): **60 pares completos iguais**, totalizando
+120 cálculos medidos. Não houve testes ou outro benchmark desta tarefa durante
+essas medições; o host da API não foi isolado.
+
+| Serviço: referência `ae2caee9` → continuação | Parede mediana | CPU mediana do processo |
+| --- | ---: | ---: |
+| Poucos serviços, aquecido | 62,2 → 67,9 ms | 100,3 → 108,8 ms |
+| Poucos serviços, processo novo | 299,1 → 306,7 ms | 661,9 → 661,1 ms |
+| Poucos serviços, após SELECT de sessão | 211,5 → 197,6 ms | 416,9 → 401,1 ms |
+| Denso, aquecido | 74,3 → 65,4 ms | 118,8 → 107,1 ms |
+| Denso, processo novo | 308,9 → 306,8 ms | 711,0 → 703,7 ms |
+| Denso, após SELECT de sessão | 192,2 → 204,7 ms | 416,4 → 424,7 ms |
+
+Não há redução uniforme de CPU ou latência nesses ensaios. O ganho comprovado
+é eliminar uma segunda passagem de classificação nos segmentos equivalentes,
+com resultados preservados. A nova comparação cumulativa de serviço frio foi:
+
+| Cenário em processo novo | Início do plano `3db7e76f` | Continuação local | Redução observada |
+| --- | ---: | ---: | ---: |
+| Poucos serviços | 535,5 ms | 315,8 ms | 41,0% |
+| Denso | 609,7 ms | 326,7 ms | 46,4% |
+
+A meta fria geral de **50% continua pendente**. A comparação anterior havia
+observado 40,6%/50,1%; as coortes e a inicialização variam, sem evidência para
+atribuir essa diferença a uma alteração isolada. Essas medições são de serviço,
+com páginas do banco aquecidas e imports/boot fora da duração, sem aceite HTTP
+publicado.
+
+O ensaio HTTP usou o mesmo cenário distribuído entre membros, PostgreSQL 16
+descartável com uma CPU/768 MiB, pool oito e concorrência quatro. A ordem
+referência → candidato foi repetida como candidato → referência. Cada coorte
+teve 832 respostas 200: 800 aquecidas, oito primeiras respostas em processos
+novos, oito aquecimentos e 16 leituras após escrita. Houve oito negativas de
+acesso esperadas por coorte, separadas das **3.328 respostas medidas**, sem
+interrupções. Consultas e JSON permaneceram iguais: cards com 11 chamadas e
+máximo 7.021 B; detalhe/grupo com 51–52 chamadas e 302.068/442.319 B; ponto
+resumido com 32 chamadas e 20.447 B no fixture sem alocações oficiais.
+
+| p95 cliente aquecido, administrador / visualizador | Referência inicial | Candidato inicial | Candidato na ordem inversa | Referência na ordem inversa |
+| --- | ---: | ---: | ---: | ---: |
+| Detalhe individual | 260,3 / 272,7 ms | 240,5 / 253,2 ms | 210,8 / 280,3 ms | 232,0 / 256,3 ms |
+| Grupo | 333,3 / 400,5 ms | 328,1 / 412,5 ms | 347,2 / 392,0 ms | 325,3 / 388,6 ms |
+| Ponto | 266,7 / 235,9 ms | 266,9 / 235,1 ms | 272,5 / 251,6 ms | 264,7 / 229,7 ms |
+
+O detalhe do administrador ficou mais rápido nessas coortes, mas houve variação
+nos demais casos, incluindo maior p95 do ponto na ordem inversa. Não há novo
+aceite geral nem afirmação de ganho causal de latência.
+
+| Pool aquecido | Referência inicial | Candidato inicial | Candidato na ordem inversa | Referência na ordem inversa |
+| --- | ---: | ---: | ---: | ---: |
+| Amostras sem fila / total | 610 / 2.032 | 622 / 2.057 | 613 / 2.020 | 626 / 2.031 |
+| Proporção sem fila | 30,0% | 30,2% | 30,3% | 30,8% |
+| Pico de consultas esperando | 44 | 41 | 36 | 41 |
+| Maior sequência observada com fila | 313,6 ms | 290,5 ms | 320,7 ms | 328,7 ms |
+
+A meta de **95% sem fila permanece pendente**. Não houve sequência observada
+com fila acima de cinco segundos; os picos por requisição seguiram em 18 no
+detalhe, 14 no grupo e 15 no ponto, incluindo consultas esperando no pool.
+No candidato, as leituras após escrita terminaram em até 826,1 ms, a partir da
+confirmação/preparo da coleta; cards mantêm sua expiração normal. Não foram
+medidos proxy, TLS, renderização ou produção; uma amostra fria por rota/perfil
+não permite p95.
+
+As [evidências dos eixos de custo](evidence/performance-cost-axes-20261110.json)
+guardam as quatro coortes HTTP com todas as amostras numéricas, os quatro
+ensaios de serviço/CPU, as nove fases de paridade e hashes dos quatro arquivos
+de implementação/benchmark/testes. Validação final: **2.776 testes de backend
+aprovados e 42 ignorados**, sem falhas ou cancelamentos; também passaram os
+12 contratos/regressões HTTP/PostgreSQL e os 70 testes focados. Sintaxe,
+arquitetura, diff e integridade/privacidade das evidências foram verificados.
+O banco descartável e seus volumes foram removidos após a validação.
+
+Continuam pendentes o trabalho/caminho crítico e a pressão do pool, a meta fria
+geral, o envio/CI dos commits locais e os aceites publicados de HTTP/conteúdo
+útil/LCP e séries de 24 h/sete dias. O último CI remoto verificado ainda é o
+de `be1fad15`. Retenção depende de política aprovada; **backups seguem adiados**.
+Não houve publicação ou alteração em produção.
 
 ### Uso local das ferramentas de medição
 

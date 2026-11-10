@@ -1507,6 +1507,29 @@ export function classifyProjectHours(
   return { byProject, unresolvedDays, dayTrail, costNormalHours };
 }
 
+// These are the only decisions in buildDailyProjectWeights whose weights
+// depend on the cost axis. Keep the full analytical pass for an entire segment
+// containing any of them, including its original travel-neighbor context.
+const AXIS_DEPENDENT_ALLOCATION_REASONS = new Set([
+  'SHARED_EXECUTION_ACCOUNTING', 'MANUAL_SHARED_OVERRIDE', 'REVIEW_SHARED_CONFIRMED'
+]);
+
+export function classifyProjectHoursForCostAxes(
+  dayRows, rdo, resolveTag, projectMetaById, manualProjectByDate,
+  missionGroupProjectsByProjectId, scheduleWindowContext
+) {
+  const accounting = classifyProjectHours(dayRows, rdo, resolveTag, projectMetaById,
+    manualProjectByDate, missionGroupProjectsByProjectId, 'ACCOUNTING', scheduleWindowContext);
+  // Consumers only read these classification snapshots. Reuse all aggregates
+  // and trails when the analytical decisions would be identical; do not reuse
+  // the audit classification from another month/role/parameter segment.
+  const analytical = accounting.dayTrail.some(day => AXIS_DEPENDENT_ALLOCATION_REASONS.has(day.reason))
+    ? classifyProjectHours(dayRows, rdo, resolveTag, projectMetaById,
+      manualProjectByDate, missionGroupProjectsByProjectId, 'ANALYTICAL', scheduleWindowContext)
+    : accounting;
+  return { accounting, analytical };
+}
+
 // Fração do mês coberta pelo arquivo (para proporcionalizar o fixo no mês parcial).
 function monthCoverage(monthKey, fileStart, fileEnd) {
   const bounds = monthBounds(monthKey);
@@ -2176,14 +2199,13 @@ export async function computeCollaboratorRates(importId = null, { includeIgnored
           const he70S = segmentDays.reduce((sum, day) => sum + (day.he70Horas || 0), 0);
           const he100S = segmentDays.reduce((sum, day) => sum + (day.he100Horas || 0), 0);
 
-          const classified = classifyProjectHours(
+          const { accounting: classified, analytical: analyticalClassified } = classifyProjectHoursForCostAxes(
             segmentDays,
             rdo,
             projectAllocationContext.resolveTag,
             projectMetaById,
             manualProjects.get(period.collaboratorId) || new Map(),
             projectAllocationContext.missionGroupProjectsByProjectId,
-            'ACCOUNTING',
             scheduleWindowContext
           );
           const normalHoursS = classified.costNormalHours;
@@ -2192,16 +2214,6 @@ export async function computeCollaboratorRates(importId = null, { includeIgnored
             if (day.costNormalHours > 0) costWorkedSet.add(day.date);
           }
           const folgaS = countFolgaWeekdays(segCov.start, segCov.end, costWorkedSet) * HORAS_POR_DIA;
-          const analyticalClassified = classifyProjectHours(
-            segmentDays,
-            rdo,
-            projectAllocationContext.resolveTag,
-            projectMetaById,
-            manualProjects.get(period.collaboratorId) || new Map(),
-            projectAllocationContext.missionGroupProjectsByProjectId,
-            'ANALYTICAL',
-            scheduleWindowContext
-          );
           // O dashboard detalha exatamente os segmentos que participaram do custo. Manter esta
           // trilha aqui evita exibir dias fora da vigência do perfil financeiro do colaborador.
           entry.analyticalAllocationTrail.push(...analyticalClassified.dayTrail);

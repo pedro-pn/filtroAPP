@@ -16,8 +16,12 @@ test('PostgreSQL: fontes enxutas preservam folha, rateio, trilhas e atualizaçã
     buildEffectiveAllocationIndex, buildScheduleWindows } = await import('../src/lib/acompanhamento/labor-cost.js');
   const { loadOfficialAllocationSources } = await import('../src/lib/acompanhamento/effective-allocation-sources.js');
   const { laborReportQuery, loadLaborReportSources } = await import('../src/lib/acompanhamento/labor-report-sources.js');
-  let fixture, effectiveFixture;
+  let fixture, effectiveFixture, axesGroupId, axesReportId, axesWeekId;
   t.after(async () => {
+    if (axesWeekId) await database.allocationReviewWeek.deleteMany({ where: { id: axesWeekId } });
+    if (axesGroupId) await database.acompanhamentoMissionGroup.deleteMany({ where: { id: axesGroupId } });
+    if (axesReportId) await database.report.deleteMany({ where: { id: axesReportId } });
+    if (fixture) await database.pontoDayProjectOverride.deleteMany({ where: { collaboratorId: fixture.prefix + '-person-0' } });
     if (effectiveFixture) await effectiveFixture.cleanup();
     if (fixture) {
       await database.pontoImport.deleteMany({ where: { id: fixture.prefix + '-newer-import' } });
@@ -183,4 +187,31 @@ test('PostgreSQL: fontes enxutas preservam folha, rateio, trilhas e atualizaçã
   assert.equal((await compareOfficialSources()).missionProjectIds.has(effectiveFixture.projectIds[0]), false);
   await database.efetivoPlan.update({ where: { id: effectiveFixture.planIds[0] }, data: { status: 'SUPERSEDED' } });
   assert.equal((await compareOfficialSources()).allocations.length, 0, 'Next request sees official plan deactivation');
+
+  const axesProjects = [fixture.projectId, effectiveFixture.projectIds[0]], axesPerson = fixture.prefix + '-person-0';
+  axesGroupId = fixture.prefix + '-axes-group'; axesReportId = fixture.prefix + '-axes-report';
+  await database.acompanhamentoMissionGroup.create({ data: { id: axesGroupId, name: 'Grupo sintético', laborAllocationMode: 'SHARED_EXECUTION',
+    members: { create: axesProjects.map((projectId, order) => ({ projectId, activeProjectId: projectId, order })) } } });
+  await database.report.create({ data: { id: axesReportId, projectId: axesProjects[1], reportType: 'RDO', status: 'APPROVED',
+    reportDate: new Date('2026-09-21'), arrivalTime: '08:00', departureTime: '17:00', lunchBreak: '01:00', daytimeCount: 1,
+    daytimeWorkedMinutes: 240, collaborators: { create: { collaboratorId: axesPerson } } } });
+  const assertSeparateAxes = async reason => {
+    const rate = (await computeCollaboratorRates(fixture.importId)).byCollaboratorId.get(axesPerson);
+    const accounting = rate.allocationTrail.find(row => row.date === '2026-09-21');
+    const analytical = rate.analyticalAllocationTrail.find(row => row.date === '2026-09-21');
+    assert.equal(accounting.reason, reason);
+    assert.equal(accounting.allocations.reduce((sum,row)=>sum+row.weight,0), 1);
+    assert.equal(analytical.allocations.reduce((sum,row)=>sum+row.weight,0), 2);
+  };
+  await assertSeparateAxes('SHARED_EXECUTION_ACCOUNTING');
+  await database.pontoDayProjectOverride.createMany({ data: axesProjects.map(projectId => ({ collaboratorId: axesPerson,
+    externalEmployeeId: axesPerson, workDate: new Date('2026-09-21'), projectId })) });
+  await assertSeparateAxes('MANUAL_SHARED_OVERRIDE');
+  axesWeekId = fixture.prefix + '-axes-week';
+  await database.allocationReviewWeek.create({ data: { id: axesWeekId, weekStart: new Date('2026-09-21'),
+    rows: { create: { collaboratorId: axesPerson, confirmedAt: new Date(), days: { create: {
+      collaboratorId: axesPerson, workDate: new Date('2026-09-21'), kind: 'PROJECT',
+      projects: { create: axesProjects.map(projectId => ({ projectId })) }
+    } } } } } });
+  await assertSeparateAxes('REVIEW_SHARED_CONFIRMED');
 });

@@ -48,10 +48,13 @@ if (mode) {
       }
     }
     const startedAt = performance.now();
+    const cpuStartedAt = process.cpuUsage();
     const result = await computeCollaboratorRates(importId);
     const durationMs = performance.now() - startedAt;
+    const cpuMicros = process.cpuUsage(cpuStartedAt);
     const sqlQueries = sqlProfile ? await sqlProfile.finish(startedAt) : undefined;
-    console.log(JSON.stringify({ durationMs, result, initialization: { serviceImportMs, priorReadMs },
+    console.log(JSON.stringify({ durationMs, cpuMicros, cpuTotalMs: (cpuMicros.user + cpuMicros.system) / 1000,
+      result, initialization: { serviceImportMs, priorReadMs },
       queries: queries.map(query => ({ ...query, startedAt: query.startedAt - startedAt })), sqlQueries }, encode));
   } finally { sqlProfile?.restore(); await database.$disconnect(); }
 } else {
@@ -81,11 +84,16 @@ if (mode) {
         assert.deepEqual(pair[0].result, pair[1].result, `Complete calculation differs in ${mode}`);
         const [before, after] = index % 2 ? [pair[1], pair[0]] : pair;
         samples[mode].push({ beforeMs: before.durationMs, afterMs: after.durationMs,
+          beforeCpuMs: before.cpuTotalMs, afterCpuMs: after.cpuTotalMs,
+          cpuMicros: { before: before.cpuMicros, after: after.cpuMicros },
           initialization: { before: before.initialization, after: after.initialization } });
       }
       const median = key => samples[mode].map(row => row[key]).sort((a, b) => a - b)[Math.floor(rounds / 2)];
-      summary[mode] = { beforeMs: median('beforeMs'), afterMs: median('afterMs') };
+      summary[mode] = { beforeMs: median('beforeMs'), afterMs: median('afterMs'),
+        beforeCpuMs: median('beforeCpuMs'), afterCpuMs: median('afterCpuMs') };
       summary[mode].reductionPct = (1 - summary[mode].afterMs / summary[mode].beforeMs) * 100;
+      summary[mode].cpuReductionPct = summary[mode].beforeCpuMs > 0
+        ? (1 - summary[mode].afterCpuMs / summary[mode].beforeCpuMs) * 100 : null;
     }
     const profiles = [];
     if (process.argv.includes('--profile')) for (const mode of ['new-process', 'after-session']) for (const root of [baseline, localRoot]) {
@@ -100,6 +108,7 @@ if (mode) {
       initializationProfiles.push({ revision: root === baseline ? 'baseline' : 'candidate', ...JSON.parse(child.stdout) });
     }
     const evidence = { method: 'Local paired uncached service calculations on PostgreSQL with warm database pages; not HTTP latency. Timings exclude process boot and module imports. Fresh Node/Prisma processes for every cold sample. After-session performs a SELECT, not HTTP authentication. Prisma operation profiles include mapping; sqlQueries capture pg pool calls and replay SELECTs with EXPLAIN ANALYZE after the calculation. Pool call durations overlap and include queue/event-loop delays. Initialization diagnostics run in separate processes and do not warm timed samples. Result bytes are JSON sizes, not network traffic.',
+      cpuMethod: 'process.cpuUsage delta around the calculation only, before EXPLAIN replay; includes Node/Prisma CPU, excludes PostgreSQL, module imports and process boot. CPU and wall time are separate observations.',
       environment: { nodeVersion: process.version, databaseConnectionLimit: getDatabasePoolMetrics().max },
       fixture: { reports: fixture.reportCount, services: fixture.serviceCount, collaborators: fixture.collaborators, projectPreferenceEntries: 500 },
       samples, summary, exactParity: true, profiles, initializationProfiles };
