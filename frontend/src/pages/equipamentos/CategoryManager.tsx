@@ -19,6 +19,7 @@ interface Props {
 
 function categorySettings(category: EquipmentCategory) {
   return [
+    category.attachmentsEnabled && 'Anexar documentos',
     category.supportsCalibration && 'Calibração',
     category.supportsTechnicalDoc && 'Documentação técnica',
     category.technicalDocEnabled && 'Dados técnicos',

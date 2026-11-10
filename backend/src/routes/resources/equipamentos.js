@@ -18,6 +18,7 @@ import { requireAuth, requireEquipamentosAccess, requireEquipamentosManager } fr
 import { maintenanceConfigSchema, maintenanceProfileSchema, maintenanceRecordInclude } from '../../lib/operational-reports/domain.js';
 import { serializeMaintenanceAttachment } from '../../lib/operational-reports/maintenance-attachments.js';
 import { hasModuleRole } from '../../lib/module-roles.js';
+import { removeEquipmentDocument } from '../../lib/equipment-attachments.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -72,6 +73,7 @@ const categorySchema = z.object({
   checklistItems: checklistItemsSchema.optional(),
   supportsCalibration: z.boolean().optional(),
   supportsTechnicalDoc: z.boolean().optional(),
+  attachmentsEnabled: z.boolean().optional(),
   syncToRomaneio: z.boolean().optional()
 });
 
@@ -337,6 +339,7 @@ router.post(
       technicalDocEnabled: data.technicalDocEnabled ?? false,
       supportsCalibration: data.supportsCalibration ?? false,
       supportsTechnicalDoc: data.supportsTechnicalDoc ?? true,
+      attachmentsEnabled: data.attachmentsEnabled ?? false,
       syncToRomaneio: data.syncToRomaneio ?? false
     };
     const category = data.technicalSchema !== undefined || data.technicalStandardId !== undefined
@@ -379,6 +382,7 @@ router.put(
       ...(data.technicalDocEnabled !== undefined ? { technicalDocEnabled: data.technicalDocEnabled } : {}),
       ...(data.supportsCalibration !== undefined ? { supportsCalibration: data.supportsCalibration } : {}),
       ...(data.supportsTechnicalDoc !== undefined ? { supportsTechnicalDoc: data.supportsTechnicalDoc } : {}),
+      ...(data.attachmentsEnabled !== undefined ? { attachmentsEnabled: data.attachmentsEnabled } : {}),
       ...(data.syncToRomaneio !== undefined ? { syncToRomaneio: data.syncToRomaneio } : {})
     };
     // Compara com o estado anterior: o front reenvia `name` em toda edição (inclusive ao
@@ -976,6 +980,38 @@ router.put(
     res.json(withCurrentAttachments(fresh));
   })
 );
+
+router.get('/:id/documents', asyncHandler(async (req, res) => {
+  const equipment = await prisma.companyEquipment.findUnique({ where: { id: req.params.id } });
+  if (!equipment?.isActive) return res.status(404).json({ error: 'Equipamento não encontrado.' });
+  const documents = await prisma.equipmentAttachment.findMany({
+    where: { equipmentId: equipment.id, kind: EquipmentAttachmentKinds.DOCUMENT },
+    orderBy: { createdAt: 'desc' }
+  });
+  res.json(documents.map(serializeEquipmentAttachment));
+}));
+
+router.post('/:id/documents', requireEquipamentosManager, asyncHandler(async (req, res) => {
+  const upload = pdfUploadSchema.unwrap().unwrap().parse(req.body);
+  const equipment = await prisma.companyEquipment.findUnique({ where: { id: req.params.id }, include: { category: true } });
+  if (!equipment?.isActive) return res.status(404).json({ error: 'Equipamento não encontrado.' });
+  if (!equipment.category?.isActive || !equipment.category?.attachmentsEnabled) {
+    return res.status(400).json({ error: 'Ative “Anexar documentos” na categoria deste equipamento.' });
+  }
+  const attachment = await createEquipmentAttachment(prisma, { equipmentId: equipment.id, kind: EquipmentAttachmentKinds.DOCUMENT, upload });
+  if (!attachment) return res.status(400).json({ error: 'Informe um arquivo PDF.' });
+  invalidateCaches();
+  res.status(201).json(serializeEquipmentAttachment(attachment));
+}));
+
+router.delete('/:id/documents/:documentId', requireEquipamentosManager, asyncHandler(async (req, res) => {
+  const equipment = await prisma.companyEquipment.findUnique({ where: { id: req.params.id } });
+  if (!equipment?.isActive) return res.status(404).json({ error: 'Equipamento não encontrado.' });
+  const removed = await removeEquipmentDocument(prisma, equipment.id, req.params.documentId);
+  if (!removed) return res.status(404).json({ error: 'Documento não encontrado neste equipamento.' });
+  invalidateCaches();
+  res.status(204).end();
+}));
 
 // Gera (ou regenera) o datasheet em PDF a partir dos Dados Técnicos preenchidos.
 // O PDF novo vira o atual; os anteriores permanecem no histórico.

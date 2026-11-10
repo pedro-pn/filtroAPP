@@ -53,6 +53,19 @@ test('withCurrentAttachments marca o datasheet como desatualizado quando os dado
   assert.equal(upToDate.technicalDocGeneratedOutdated, false);
 });
 
+test('pasta mantém vários documentos e seus nomes sem misturar certificados ou datasheets', () => {
+  const item = withCurrentAttachments({ attachments: [
+    att('doc-old', EquipmentAttachmentKinds.DOCUMENT, '2026-01-01', 'Manual do fabricante.pdf'),
+    att('doc-new', EquipmentAttachmentKinds.DOCUMENT, '2026-02-01', 'Diagrama elétrico.pdf'),
+    att('cert', CALIBRATION_CERTIFICATE, '2026-03-01'),
+    att('datasheet', TECHNICAL_DOC_GENERATED, '2026-03-01')
+  ] });
+  assert.deepEqual(item.documents.map(document => document.id), ['doc-new', 'doc-old']);
+  assert.equal(equipmentAttachmentFileName(item.documents[0]), 'Diagrama elétrico.pdf');
+  assert.equal(item.calibrationCertificate.id, 'cert');
+  assert.equal(item.technicalDocGenerated.id, 'datasheet');
+});
+
 test('equipmentAttachmentFileName preserva o nome com a revisão dos datasheets arquivados', () => {
   assert.equal(
     equipmentAttachmentFileName({

@@ -3350,6 +3350,7 @@ export async function assertUniqueReportDate(tx, { projectId, reportType, report
   throw error;
 }
 const publicSignatureConfirmFields = {
+  comment: z.string().trim().max(4000).optional().nullable(),
   signerName: z.string().trim().min(2).max(160),
   signatureImageDataUrl: z.string().trim().min(1).max(2_100_000)
     .refine(value => !!parseSignatureImageDataUrl(value), 'Assinatura visual invalida.'),
@@ -3367,9 +3368,15 @@ export const publicSignatureConfirmSchema = z.object({
 }).superRefine(validatePublicSignatureConfirmation);
 export const publicSignatureBatchConfirmSchema = z.object({
   ...publicSignatureConfirmFields,
+  comments: z.record(z.string(), z.string().trim().max(4000)).optional(),
   signatureIds: z.array(z.string().trim().min(1)).min(1).max(100)
     .refine(ids => new Set(ids).size === ids.length, 'Selecione cada RDO apenas uma vez.')
-}).superRefine(validatePublicSignatureConfirmation);
+}).superRefine((data, ctx) => {
+  validatePublicSignatureConfirmation(data, ctx);
+  if (Object.keys(data.comments || {}).some(id => !data.signatureIds.includes(id))) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['comments'], message: 'As notas devem pertencer aos RDOs selecionados.' });
+  }
+});
 const publicSignatureRejectSchema = z.object({
   signatureId: z.string().trim().min(1).optional(),
   comment: z.string().trim().min(1).max(4000)
@@ -6056,6 +6063,7 @@ async function confirmPublicReportSignature(token, data, evidence) {
       userId: null,
       evidence,
       signatureImageDataUrl: data.signatureImageDataUrl,
+      clientComment: data.comment,
       privacyNoticeVersion: data.privacyNoticeVersion,
       deferAuditLog: completesRequiredSignatures
     });
@@ -6112,7 +6120,7 @@ router.post('/public-sign/:token/confirm-batch', publicSignatureLimiter, asyncHa
   const results = [];
   for (const signatureId of data.signatureIds) {
     try {
-      const result = await confirmPublicReportSignature(req.params.token, { ...data, signatureId }, evidence);
+      const result = await confirmPublicReportSignature(req.params.token, { ...data, signatureId, comment: data.comments?.[signatureId] ?? data.comment }, evidence);
       results.push({ signatureId, success: true, completed: result.completed });
     } catch (error) {
       console.error('Falha na assinatura de RDO em lote.', { signatureId, error: error?.message });
@@ -7152,6 +7160,7 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
           userId: req.auth.user.id,
           evidence,
           signatureImageDataUrl: data.signatureImageDataUrl,
+          clientComment: data.comment,
           privacyNoticeVersion: data.privacyNoticeVersion,
           deferAuditLog: completesRequiredSignatures
         });

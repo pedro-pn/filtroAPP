@@ -1,0 +1,13 @@
+body { margin: 0; background: var(--bg); }
+.implementation-preview-toolbar { padding: 20px 32px; background: var(--surface); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 16px; align-items: center; }
+.implementation-preview-toolbar p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.implementation-preview-toolbar nav, .implementation-preview-options { display: flex; flex-wrap: wrap; gap: 12px; }
+.implementation-preview-options { max-width: 940px; margin: 20px auto 0; padding: 0 20px; font-size: 13px; }
+.implementation-preview-equipment { max-width: 1200px; margin: auto; padding: 28px; }
+.implementation-preview-equipment-header { display: flex; justify-content: space-between; gap: 16px; align-items: center; }
+.implementation-preview-equipment-header h1 { font-size: 24px; margin: 0; }
+.implementation-preview-equipment > .equip-toggle { margin: 16px 0; }
+@media (max-width: 600px) {
+  .implementation-preview-toolbar, .implementation-preview-equipment-header { align-items: stretch; flex-direction: column; }
+  .implementation-preview-toolbar, .implementation-preview-equipment { padding: 16px; }
+}

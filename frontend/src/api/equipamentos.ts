@@ -87,6 +87,7 @@ export interface EquipmentCategory {
   technicalTemplateId?: string | null;
   supportsCalibration: boolean;
   supportsTechnicalDoc: boolean;
+  attachmentsEnabled?: boolean;
   syncToRomaneio: boolean;
   isSystemManaged: boolean;
   isActive: boolean;
@@ -96,6 +97,7 @@ export interface EquipmentCategory {
 export interface EquipmentAttachment {
   id: string;
   kind:
+    | 'DOCUMENT'
     | 'CALIBRATION_CERTIFICATE'
     | 'TECHNICAL_DOC'
     | 'TECHNICAL_TEMPLATE'
@@ -134,6 +136,7 @@ export interface CompanyEquipment {
   technicalDocGeneratedOutdated?: boolean;
   technicalDocArchive?: EquipmentAttachment[];
   technicalPhotos?: EquipmentAttachment[];
+  documents?: EquipmentAttachment[];
 }
 
 export interface PdfUpload {
@@ -163,6 +166,7 @@ export interface EquipmentCategoryPayload {
   technicalDocEnabled?: boolean;
   supportsCalibration?: boolean;
   supportsTechnicalDoc?: boolean;
+  attachmentsEnabled?: boolean;
   syncToRomaneio?: boolean;
 }
 
@@ -190,6 +194,18 @@ export interface EquipmentPayload {
 }
 
 // === Categorias ===
+
+export async function listEquipmentDocuments(equipmentId: string) {
+  return (await apiClient.get<EquipmentAttachment[]>(equipamentosApiPath(`/${equipmentId}/documents`))).data;
+}
+
+export async function uploadEquipmentDocument(equipmentId: string, upload: PdfUpload) {
+  return (await apiClient.post<EquipmentAttachment>(equipamentosApiPath(`/${equipmentId}/documents`), upload)).data;
+}
+
+export async function removeEquipmentDocument(equipmentId: string, documentId: string) {
+  await apiClient.delete(equipamentosApiPath(`/${equipmentId}/documents/${documentId}`));
+}
 
 export async function listTechnicalStandards() {
   const response = await apiClient.get<EquipmentTechnicalStandard[]>(equipamentosApiPath('/technical-standards'));
