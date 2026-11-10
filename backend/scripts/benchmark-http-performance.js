@@ -8,11 +8,12 @@ import { performance } from 'node:perf_hooks';
 import { seedHttpPerformanceFixture } from './fixtures/http-performance.js';
 import { assertLocalPerformanceDatabase, mapConcurrent, summarizeHttpSamples } from './lib/http-performance-report.js';
 
-async function startServer({ poolLimit, directory, sourceRoot }) {
+async function startServer({ poolLimit, directory, sourceRoot, readCacheEnabled }) {
   const child = fork(fileURLToPath(new URL('./fixtures/http-performance-server.js', import.meta.url)), [sourceRoot], {
     stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
     env: { ...process.env, NODE_ENV: 'test', DATABASE_CONNECTION_LIMIT: String(poolLimit),
       HTTP_PERFORMANCE_ENABLED: 'true', HTTP_PERFORMANCE_WINDOW_MS: '900000', HTTP_PERFORMANCE_SAMPLE_MS: '10',
+      ACOMPANHAMENTO_READ_CACHE_ENABLED: String(readCacheEnabled),
       BACKGROUND_JOBS_IN_API: 'false', ERROR_TRACKING_WEBHOOK_URL: '',
       ASSETS_DIR: path.join(directory, 'assets'), REPORTS_DIR: path.join(directory, 'reports') }
   });
@@ -105,12 +106,13 @@ function verifyResponse(scenario, profile, response, fixture, pontoView) {
 }
 
 export async function runHttpPerformanceBenchmark({
-  requests = 100, concurrency = 4, coldRounds = 3, reportCount = 1200, scopeCount = 297, poolLimit = 8,
+  requests = 100, concurrency = 4, coldRounds = 3, reportCount = 1200, scopeCount = 297, poolLimit = 8, readCacheEnabled = false,
   pontoView = 'full', sourceRoot = fileURLToPath(new URL('..', import.meta.url)), distributeGroupReports = false
 } = {}) {
   assertLocalPerformanceDatabase(process.env.DATABASE_URL);
   assert.ok(['full', 'summary', 'reconciliation'].includes(pontoView));
   assert.equal(typeof distributeGroupReports, 'boolean');
+  assert.equal(typeof readCacheEnabled, 'boolean');
   sourceRoot = path.resolve(sourceRoot);
   await fs.access(path.join(sourceRoot, 'src/app.js'));
   for (const [value, max] of [[requests, 500], [coldRounds, 100], [reportCount, 6000], [scopeCount, 297], [concurrency, 8], [poolLimit, 50]]) {
@@ -151,14 +153,14 @@ export async function runHttpPerformanceBenchmark({
     // Fixture setup and PostgreSQL page caches are shared and explicitly excluded.
     for (const scenario of Object.keys(routes)) for (const profile of ['admin', 'viewer']) {
       for (let round = 0; round < coldRounds; round++) {
-        server = await startServer({ poolLimit, directory, sourceRoot });
+        server = await startServer({ poolLimit, directory, sourceRoot, readCacheEnabled });
         await server.begin();
         await request(scenario, profile, 'first-process', round % 2);
         pool.push({ scenario, profile, phase: 'first-process', round, ...await server.pool() });
         await server.stop(); server = null;
       }
     }
-    server = await startServer({ poolLimit, directory, sourceRoot });
+    server = await startServer({ poolLimit, directory, sourceRoot, readCacheEnabled });
     const before = {};
     for (const scenario of Object.keys(routes)) for (const profile of ['admin', 'viewer']) {
       before[scenario + ':' + profile] = await request(scenario, profile, 'warmup');
@@ -202,7 +204,7 @@ export async function runHttpPerformanceBenchmark({
     };
     return {
       method: 'Synthetic loopback HTTP against the real Express app and migrated PostgreSQL. Authentication validates persisted hashed sessions through requireAuth; password login is not exercised. First-process samples use a fresh API process per request, with warm database pages and process imports excluded. Warm requests mix surfaces, profiles and two sessions per profile under a bounded shared concurrency. Client timing includes response-body receipt; server timing includes authentication and serialization. Active-pool interval samples are observations, not individual query wait times. No Nginx, TLS, browser rendering, external API or production load is measured.',
-      environment: { nodeVersion: process.version, apiPoolLimit: poolLimit, concurrency, poolSampleIntervalMs: 10, pontoView },
+      environment: { nodeVersion: process.version, apiPoolLimit: poolLimit, concurrency, poolSampleIntervalMs: 10, pontoView, readCacheEnabled },
       complete: true, attemptedScenarioRequests,
       fixture: { syntheticProjects: 3, groupMembers: 2, groupReportsDistributed: distributeGroupReports, reports: fixture.reportCount, services: fixture.serviceCount,
         collaborators: fixture.collaborators, scopeLines: scopeCount, divisions: 11, authenticatedSessions: 4,
@@ -239,6 +241,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       scopeCount: Number(arg('scopes') || 297), poolLimit: Number(arg('pool-limit') || 8),
       pontoView: arg('ponto-view') || 'full',
       distributeGroupReports: process.argv.includes('--distribute-group-reports'),
+      readCacheEnabled: process.argv.includes('--read-cache'),
       ...(arg('source-root') ? { sourceRoot: arg('source-root') } : {})
     });
   } catch (error) {

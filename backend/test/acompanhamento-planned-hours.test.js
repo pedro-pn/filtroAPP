@@ -10,6 +10,27 @@ const raw = (normal = 100, overtime = 20) => ({
 const proposal = (codBd = 1, hours = raw()) => ({ codBd, codProp: 1000 + codBd, nRev: 0, rawRow: hours });
 const manual = (normal = 100, extra = 20) => ({ normalHours: [{ hours: normal, collaboratorCount: 5 }], overtime: [{ hours: extra }] });
 
+test('previsão compartilha cargos entre horas normais/extras e observa mudança sem alterar linhas ou ordem', async () => {
+  const normal = [{ id: 'n2', jobRoleId: 'r', roleName: null, hours: 20 }, { id: 'n1', jobRoleId: null, roleName: 'Livre', hours: 10 }];
+  const overtime = [{ id: 'e', jobRoleId: 'r', roleName: 'Cargo histórico', hours: 5 }];
+  let name = 'Operador', reads = 0;
+  const database = {
+    project: { findMany: async () => [{ id: 'p', plannedNormalHours: normal, plannedOvertime: overtime, budgets: [], additionalProposals: [] }] },
+    jobRole: { findMany: async ({ where }) => { reads++; assert.deepEqual(where.id.in, ['r']); return [{ id: 'r', name }]; } }
+  };
+  const legacy = () => resolvePlannedHours({
+    normalHours: normal.map(row => ({ ...row, jobRole: row.jobRoleId ? { name } : null, roleName: row.roleName ?? (row.jobRoleId ? name : null) })),
+    overtime: overtime.map(row => ({ ...row, jobRole: { name }, roleName: row.roleName }))
+  });
+  assert.deepEqual((await loadPlannedHours(['p'], database)).get('p'), legacy());
+  name = 'Operador atualizado';
+  assert.deepEqual((await loadPlannedHours(['p'], database)).get('p'), legacy());
+  assert.equal(reads, 2);
+  assert.equal(normal[0].roleName, null);
+  assert.equal(Object.hasOwn(normal[0], 'jobRole'), false);
+  assert.equal(overtime[0].roleName, 'Cargo histórico');
+});
+
 test('adicionais com horas desconsideradas saem da previsão e não invalidam a base comercial por dados ausentes', async () => {
   let includeHours = false;
   const database = {

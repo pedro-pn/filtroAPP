@@ -1,4 +1,5 @@
 import { projectChannelWhere } from '../../lib/projects/distribution.js';
+import { canViewProjectFinancials } from '../../../../shared/modules/acompanhamento-permissions.js';
 import { assignReportContribution } from '../../lib/acompanhamento/proposal-scopes.js';
 import { getProposalScopeTracking } from '../../lib/acompanhamento/proposal-scope-tracking.js';
 /*
@@ -33,6 +34,7 @@ import { getMissionGroupRomaneios, getProjectRomaneios } from '../../lib/acompan
 import { groupProjectCards } from '../../lib/acompanhamento/project-card-groups.js';
 import { groupDashboardRows } from '../../lib/acompanhamento/dashboard-groups.js';
 import { getProjectDetail } from '../../lib/acompanhamento/project-detail.js';
+import { readAcompanhamentoResponse } from '../../lib/acompanhamento/read-cache.js';
 import { getProjectInvoices, getMissionGroupInvoices } from '../../lib/acompanhamento/project-invoices.js';
 import { createProjectManagementNote, listProjectManagementNotes, PROJECT_MANAGEMENT_NOTE_MAX_LENGTH } from '../../lib/acompanhamento/project-notes.js';
 import { deleteWeeklyProgressTarget, listWeeklyProgressTargets, saveWeeklyProgressTarget, weeklyTargetWorkdays, weeklyTargetsNeedAttendance } from '../../lib/acompanhamento/weekly-progress-targets.js';
@@ -626,13 +628,15 @@ router.get(
     try {
       const includeCollaboratorCosts = canViewAcompanhamentoLaborCosts(req.auth?.user);
       const includeAdminOnlyCategories = req.auth?.user?.accountType === 'ADMIN';
-      const detail = await getMissionGroupDetail(req.params.groupId, {
-        progressMode: query.data.progress,
-        projection: query.data.fields === 'progress' ? 'progress' : 'detail',
-        includeCollaboratorCosts,
-        includeAdminOnlyCategories
-      });
-      res.json(projectFinancialsForUser(detail, req.auth.user));
+      const detail = await readAcompanhamentoResponse(req, ['mission-detail', req.params.groupId, query.data,
+        includeCollaboratorCosts, includeAdminOnlyCategories, canViewProjectFinancials(req.auth.user)],
+        async () => projectFinancialsForUser(await getMissionGroupDetail(req.params.groupId, {
+          progressMode: query.data.progress,
+          projection: query.data.fields === 'progress' ? 'progress' : 'detail',
+          includeCollaboratorCosts,
+          includeAdminOnlyCategories
+        }), req.auth.user));
+      res.json(detail);
     } catch (error) {
       return missionGroupErrorResponse(error, res);
     }
@@ -1043,16 +1047,18 @@ router.get(
       if (divisionKey && !division) return res.status(404).json({ error: 'Divisão não encontrada.' });
       const includeCollaboratorCosts = canViewAcompanhamentoLaborCosts(req.auth?.user);
       const includeAdminOnlyCategories = req.auth?.user?.accountType === 'ADMIN';
-      const detail = await getProjectDetail(req.params.projectId, {
-        progressMode: query.data.progress,
-        projection: query.data.fields === 'progress' ? 'progress' : 'detail',
-        includeCollaboratorCosts,
-        includeAdminOnlyCategories,
-        division
-      });
-      res.json(projectFinancialsForUser(detail, req.auth.user));
+      const detail = await readAcompanhamentoResponse(req, ['project-detail', req.params.projectId, query.data,
+        includeCollaboratorCosts, includeAdminOnlyCategories, canViewProjectFinancials(req.auth.user)],
+        async () => projectFinancialsForUser(await getProjectDetail(req.params.projectId, {
+          progressMode: query.data.progress,
+          projection: query.data.fields === 'progress' ? 'progress' : 'detail',
+          includeCollaboratorCosts,
+          includeAdminOnlyCategories,
+          division
+        }), req.auth.user));
+      res.json(detail);
     } catch (error) {
-      res.status(404).json({ error: error.message });
+      res.status(error.status || 404).json({ error: error.message });
     }
   })
 );

@@ -4,6 +4,7 @@
  */
 
 import prisma from '../prisma.js';
+import { loadRequestSource } from '../operations/request-sources.js';
 
 export const EPI_ANNUAL_COST_KEY = 'epiAnnualCost';
 export const EPI_ANNUAL_COST_DEFAULT = 5000; // R$/ano por colaborador (média fixa atual)
@@ -74,7 +75,11 @@ export async function setEpiAnnualCost(value, updatedByUserId = null) {
   );
 }
 
-export async function getAnnualCollaboratorCosts(database = prisma) {
+export function getAnnualCollaboratorCosts(database = prisma) {
+  return loadRequestSource(database, 'labor.annual-costs', () => loadAnnualCollaboratorCosts(database));
+}
+
+async function loadAnnualCollaboratorCosts(database) {
   const rows = await database.acompanhamentoSetting.findMany({
     where: { key: { in: [EPI_ANNUAL_COST_KEY, EXAMS_TRAINING_ANNUAL_COST_KEY, OFFSHORE_EXAMS_TRAINING_ANNUAL_COST_KEY] } },
     select: { key: true, numberValue: true }

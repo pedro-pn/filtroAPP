@@ -18,6 +18,10 @@ Mapeamento não concede acesso. Um escopo só aparece habilitado no painel quand
 
 Quando um modelo mistura campos, a coluna descreve a classificação por subconjunto. Toda futura projeção deve listar os campos, nunca retornar o modelo integral.
 
+**Infraestrutura adicionada em 2026-11-10:** `PerformanceReadRevision` contém apenas
+marcadores transacionais de invalidação de cache. Está excluída dos modelos de
+negócio e não habilita campo, escopo ou endpoint externo.
+
 ## Matriz completa por domínio
 
 **Atualização 2026-10-26:** `ReportPdfAttachment` foi incluído no domínio RDO como RESERVADO; a gestão dos PDFs anexados permanece restrita aos revisores internos.

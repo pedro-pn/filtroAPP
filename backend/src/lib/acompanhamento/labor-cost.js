@@ -26,6 +26,7 @@
  */
 
 import prisma from '../prisma.js';
+import { loadRequestSource } from '../operations/request-sources.js';
 import { laborReportQuery, loadLaborReportSources } from './labor-report-sources.js';
 import { withPontoImportDates } from './ponto-period-sources.js';
 import { withCollaboratorRoleNames } from './collaborator-role-sources.js';
@@ -552,7 +553,11 @@ export function buildCollaboratorRoleCostSegments({ collaborator, roleParams, st
   ));
 }
 
-export async function loadRoleCostCatalog(database = prisma) {
+export function loadRoleCostCatalog(database = prisma) {
+  return loadRequestSource(database, 'labor.role-cost-catalog', () => loadRoleCostCatalogUncached(database));
+}
+
+async function loadRoleCostCatalogUncached(database) {
   // Profiles for roles and base models share the same parameter table. Fetch
   // that catalog once, then attach role profiles without a second relation walk.
   const [roles, profiles] = await Promise.all([
@@ -1516,13 +1521,17 @@ const AXIS_DEPENDENT_ALLOCATION_REASONS = new Set([
 
 export function classifyProjectHoursForCostAxes(
   dayRows, rdo, resolveTag, projectMetaById, manualProjectByDate,
-  missionGroupProjectsByProjectId, scheduleWindowContext
+  missionGroupProjectsByProjectId, scheduleWindowContext, seed = null
 ) {
-  const accounting = classifyProjectHours(dayRows, rdo, resolveTag, projectMetaById,
+  const context = [rdo, resolveTag, projectMetaById, manualProjectByDate, missionGroupProjectsByProjectId, scheduleWindowContext];
+  const sameSnapshot = seed?.accounting && seed?.context?.length === context.length && seed.context.every((value, index) => value === context[index])
+    && seed.rows?.length === dayRows.length && seed.rows.every((row, index) => row === dayRows[index]);
+  const accounting = sameSnapshot ? seed.accounting : classifyProjectHours(dayRows, rdo, resolveTag, projectMetaById,
     manualProjectByDate, missionGroupProjectsByProjectId, 'ACCOUNTING', scheduleWindowContext);
   // Consumers only read these classification snapshots. Reuse all aggregates
   // and trails when the analytical decisions would be identical; do not reuse
-  // the audit classification from another month/role/parameter segment.
+  // an audit snapshot unless every day object/order and the entire context
+  // are identical. Other month/role/parameter recuts keep their own pass.
   const analytical = accounting.dayTrail.some(day => AXIS_DEPENDENT_ALLOCATION_REASONS.has(day.reason))
     ? classifyProjectHours(dayRows, rdo, resolveTag, projectMetaById,
       manualProjectByDate, missionGroupProjectsByProjectId, 'ANALYTICAL', scheduleWindowContext)
@@ -2141,24 +2150,30 @@ export async function computeCollaboratorRates(importId = null, { includeIgnored
       period, projectAllocationContext.effectiveAllocationIndex, fileStart, fileEnd,
       reviewedProjectDates.get(period.collaboratorId) || []
     );
-    const trailDays = months.flatMap(mrec => splitOvertimeDays(
-      mrec.days || [],
-      Number(roleParams.paramsFor(
+    const splitDaysByMonth = new Map(months.map(mrec => {
+      const cap = Number(roleParams.paramsFor(
         collaboratorRoleAtDate(period.collaborator, `${mrec.monthKey}-01`)?.roleName || role,
         `${mrec.monthKey}-01`
-      )?.he70LimiteHoras) || 30
-    ));
+      )?.he70LimiteHoras) || 30;
+      return [mrec.monthKey, { cap, days: splitOvertimeDays(mrec.days || [], cap) }];
+    }));
+    const trailDays = [...splitDaysByMonth.values()].flatMap(month => month.days);
     trailDays.sort((left, right) => left.date.localeCompare(right.date));
+    const manualProjectByDate = manualProjects.get(period.collaboratorId) || new Map();
     const trail = classifyProjectHours(
       trailDays,
       rdo,
       projectAllocationContext.resolveTag,
       projectMetaById,
-      manualProjects.get(period.collaboratorId) || new Map(),
+      manualProjectByDate,
       projectAllocationContext.missionGroupProjectsByProjectId,
       'ACCOUNTING',
       scheduleWindowContext
     );
+    // Read-only snapshots owned by this calculation. Reuse only an identical
+    // day sequence/context; partial months, changed caps and recuts stay separate.
+    const classificationSeed = { rows: trailDays, accounting: trail, context: [rdo, projectAllocationContext.resolveTag,
+      projectMetaById, manualProjectByDate, projectAllocationContext.missionGroupProjectsByProjectId, scheduleWindowContext] };
     entry.allocationTrail = trail.dayTrail;
     entry.unresolvedDays = trail.unresolvedDays;
     const hasAllocatedCostDay = trail.dayTrail.some(day => day.allocations.length > 0 && day.costNormalHours > 0);
@@ -2178,7 +2193,8 @@ export async function computeCollaboratorRates(importId = null, { includeIgnored
         const monthRole = collaboratorRoleAtDate(period.collaborator, monthCov.startKey)?.roleName || role;
         const capParams = roleParams.paramsFor(monthRole, monthCov.startKey) || roleParams.paramsFor(monthRole, `${mk}-01`);
         const cap = Number(capParams?.he70LimiteHoras) || 30; // teto de HE70 por mês (excesso vira 100%)
-        const daysWithOvertime = splitOvertimeDays(mrec.days || [], cap);
+        const priorDays = splitDaysByMonth.get(mk);
+        const daysWithOvertime = priorDays.cap === cap ? priorDays.days : splitOvertimeDays(mrec.days || [], cap);
         const segments = buildCollaboratorRoleCostSegments({
           collaborator: period.collaborator,
           roleParams,
@@ -2204,9 +2220,10 @@ export async function computeCollaboratorRates(importId = null, { includeIgnored
             rdo,
             projectAllocationContext.resolveTag,
             projectMetaById,
-            manualProjects.get(period.collaboratorId) || new Map(),
+            manualProjectByDate,
             projectAllocationContext.missionGroupProjectsByProjectId,
-            scheduleWindowContext
+            scheduleWindowContext,
+            classificationSeed
           );
           const normalHoursS = classified.costNormalHours;
           const costWorkedSet = new Set(workedSet);

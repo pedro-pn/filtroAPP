@@ -56,3 +56,37 @@ test('empty, unresolved and idle reviewed days preserve classification without c
     assert.deepEqual(paired.analytical, classifyProjectHours(days, null, resolve, meta, manual, new Map(), 'ANALYTICAL'));
   }
 });
+
+test('audit accounting is reused only for the identical day objects, order and full context', () => {
+  let calls = 0;
+  const resolveTag = tag => { calls++; return resolve(tag); };
+  const context = [rdo, resolveTag, meta, new Map(), groups('VISUAL_ONLY'), null];
+  const audit = classifyProjectHours(rows, ...context.slice(0, 5), 'ACCOUNTING', context[5]);
+  const seed = { rows: [...rows], context, accounting: audit };
+  calls = 0;
+  const same = classifyProjectHoursForCostAxes([...rows], ...context, seed);
+  assert.equal(same.accounting, audit);
+  assert.equal(same.analytical, audit);
+  assert.equal(calls, 0, 'No repeated decisions for the exact audit input');
+  for (const changedRows of [rows.slice(1), [...rows].reverse(), rows.map(row => ({ ...row }))]) {
+    calls = 0;
+    const actual = classifyProjectHoursForCostAxes(changedRows, ...context, seed);
+    assert.notEqual(actual.accounting, audit);
+    assert.ok(calls > 0);
+    assert.deepEqual(actual, classifyProjectHoursForCostAxes(changedRows, ...context));
+  }
+  for (const changedIndex of [2, 3, 4, 5]) {
+    const changedContext = context.map((value, index) => index === changedIndex ? new Map() : value);
+    assert.notEqual(classifyProjectHoursForCostAxes(rows, ...changedContext, seed).accounting, audit);
+  }
+});
+
+test('an identical accounting seed still calculates analytical shared weights separately', () => {
+  const context = [rdo, resolve, meta, new Map(), groups('SHARED_EXECUTION'), null];
+  const accounting = classifyProjectHours(rows, ...context.slice(0, 5), 'ACCOUNTING', context[5]);
+  const actual = classifyProjectHoursForCostAxes(rows, ...context, { rows, context, accounting });
+  assert.equal(actual.accounting, accounting);
+  assert.notEqual(actual.analytical, accounting);
+  assert.deepEqual(actual, classifyProjectHoursForCostAxes(rows, ...context));
+  assert.equal(actual.analytical.dayTrail[0].allocations.reduce((sum, item) => sum + item.weight, 0), 2);
+});

@@ -1,5 +1,6 @@
 import { getSalaryCategoryCodes } from './salary.js';
 import prisma from '../prisma.js';
+import { loadRequestSource } from '../operations/request-sources.js';
 
 export async function getManualCostExcludedCategoryCodes() {
   const categories = await prisma.omieCategory.findMany({
@@ -36,12 +37,9 @@ function chemicalProductDescriptionWhere(field) {
   return { OR: ['químico', 'quimico'].map(term => ({ [field]: { contains: term, mode: 'insensitive' } })) };
 }
 
-async function getChemicalProductCategories() {
+async function getChemicalProductCategories(categoryRows) {
   const [categories, purchases] = await Promise.all([
-    prisma.omieCategory.findMany({
-      where: chemicalProductDescriptionWhere('descricao'),
-      select: { codigo: true, descricao: true }
-    }),
+    categoryRows,
     prisma.omiePurchase.groupBy({
       by: ['categoriaCodigo', 'categoriaDescricao'],
       where: chemicalProductDescriptionWhere('categoriaDescricao')
@@ -61,15 +59,36 @@ async function getChemicalProductCategories() {
   };
 }
 
-export async function buildOmieCostCategoryWhere({
+export function buildOmieCostCategoryWhere({
   categoryCode = null,
   includeAdminOnly = true,
   excludeChemicalProducts = false
 } = {}) {
-  const [excludedCodes, chemicals] = await Promise.all([
-    getExcludedAcompanhamentoCostCategoryCodes({ includeAdminOnly }),
-    excludeChemicalProducts ? getChemicalProductCategories() : { codes: [], descriptions: [] }
+  return loadRequestSource(prisma, ['omie.cost-category-filter', categoryCode || null, includeAdminOnly, excludeChemicalProducts],
+    () => loadOmieCostCategoryWhere({ categoryCode, includeAdminOnly, excludeChemicalProducts }));
+}
+
+async function loadOmieCostCategoryWhere({ categoryCode, includeAdminOnly, excludeChemicalProducts }) {
+  // One request-owned catalog for manual, administrative and chemical rules.
+  // Keep purchase-derived salary codes on their existing cache/source path.
+  const categoriesPromise = Promise.resolve(prisma.omieCategory.findMany({
+    where: { OR: [
+      { includeInAcompanhamentoCosts: false },
+      ...(!includeAdminOnly ? [{ adminOnly: true }] : []),
+      ...(excludeChemicalProducts ? [chemicalProductDescriptionWhere('descricao')] : [])
+    ] },
+    select: { codigo: true, descricao: true, includeInAcompanhamentoCosts: true, adminOnly: true }
+  }));
+  const [salaryCodes, categories, chemicals] = await Promise.all([
+    getSalaryCategoryCodes(),
+    categoriesPromise,
+    excludeChemicalProducts ? getChemicalProductCategories(categoriesPromise) : { codes: [], descriptions: [] }
   ]);
+  const excludedCodes = [...new Set([
+    ...salaryCodes,
+    ...categories.filter(category => category.includeInAcompanhamentoCosts === false).map(category => category.codigo),
+    ...(!includeAdminOnly ? categories.filter(category => category.adminOnly).map(category => category.codigo) : [])
+  ].filter(Boolean))];
   const filters = [];
   if (categoryCode) filters.push({ categoriaCodigo: categoryCode });
   const omitted = omitCategoryCodesWhere(excludedCodes);

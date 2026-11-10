@@ -5,11 +5,39 @@ import { test } from 'node:test';
 import app from '../src/app.js';
 import {
   normalizeManualProjectCostInput,
-  summarizeManualProjectCostRows
+  summarizeManualProjectCostRows,
+  getManualProjectCostsByProject
 } from '../src/lib/acompanhamento/manual-costs.js';
 import prisma from '../src/lib/prisma.js';
 
 const bearerToken = 'manual-cost-test-token';
+
+test('custos manuais vazios não consultam metadados de projeto ou usuário', async t => {
+  const original = prisma.projectManualCost.findMany;
+  const projectRead = prisma.project.findMany, userRead = prisma.user.findMany;
+  t.after(() => { prisma.projectManualCost.findMany = original; prisma.project.findMany = projectRead; prisma.user.findMany = userRead; });
+  prisma.projectManualCost.findMany = async () => [];
+  prisma.project.findMany = () => { throw new Error('unexpected project read'); };
+  prisma.user.findMany = () => { throw new Error('unexpected user read'); };
+  assert.deepEqual(await getManualProjectCostsByProject(['p'], { includeEntries: true }), new Map());
+});
+
+test('custos manuais mantêm decimais, autoria, códigos e atualização em uma nova leitura', async t => {
+  const originals = [prisma.projectManualCost.findMany, prisma.project.findMany, prisma.user.findMany];
+  t.after(() => { [prisma.projectManualCost.findMany, prisma.project.findMany, prisma.user.findMany] = originals; });
+  const rows = [{ id: 'm', projectId: 'p', description: 'Frete', amount: '0.10', createdByUserId: 'u' },
+    { id: 'n', projectId: 'p', description: 'Material', amount: '0.20', createdByUserId: null }];
+  let name = 'Pessoa', code = '1001';
+  prisma.projectManualCost.findMany = async () => rows;
+  prisma.project.findMany = async ({ where }) => { assert.deepEqual(where.id.in, ['p']); return [{ id: 'p', code }]; };
+  prisma.user.findMany = async ({ where }) => { assert.deepEqual(where.id.in, ['u']); return [{ id: 'u', name }]; };
+  const expected = () => summarizeManualProjectCostRows(rows.map(row => ({ ...row, project: { code }, createdBy: row.createdByUserId ? { id: 'u', name } : null })));
+  assert.deepEqual(await getManualProjectCostsByProject(['p'], { includeEntries: true }), expected());
+  name = 'Pessoa atualizada'; code = '1002';
+  assert.deepEqual(await getManualProjectCostsByProject(['p'], { includeEntries: true }), expected());
+  prisma.user.findMany = () => { throw new Error('summary must not resolve authors'); };
+  assert.equal((await getManualProjectCostsByProject(['p'])).get('p').total, .3);
+});
 
 function managerSession() {
   return {

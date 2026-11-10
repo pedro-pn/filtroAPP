@@ -33,17 +33,23 @@ async function findSessionWithRetry(tokenHash, options = {}) {
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
-      return await prisma.userSession.findUnique({
+      const session = await prisma.userSession.findUnique({
         where: { tokenHash },
         include: {
           user: {
             include: {
-              collaborator: { include: { jobRole: true } },
               moduleRoles: true
             }
           }
         }
       });
+      if (!session?.user || Object.hasOwn(session.user, 'collaborator')) return session;
+      // The nullable FK is already in User. An empty nested relation otherwise
+      // sends both Collaborator and JobRole SELECTs on every authenticated page.
+      const collaborator = session.user.collaboratorId ? await prisma.collaborator.findUnique({
+        where: { id: session.user.collaboratorId }, include: { jobRole: true }
+      }) : null;
+      return { ...session, user: { ...session.user, collaborator } };
     } catch (error) {
       lastError = error;
       if (attempt < attempts - 1) {

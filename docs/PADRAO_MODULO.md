@@ -295,6 +295,28 @@ imutável devem representar todas as fontes utilizadas, inclusive escritas do wo
 precisam ser reconstruídos em cada polling. Dados atuais devem refletir gravações
 em outro navegador dentro do prazo do módulo, sem polling na página oculta.
 
+O middleware `requestSourceContext` compartilha promessas de fontes somente durante
+o mesmo GET/HEAD, por cliente Prisma e escopo de projetos. Escritas saem desse
+contexto. Usar `loadRequestSource` para catálogos repetidos, conservando opções na
+chave; isso não autoriza cache global de dados financeiros.
+
+As respostas de detalhe individual/grupo e colaboradores do ponto podem usar
+`readAcompanhamentoResponse`, depois da autenticação, autorização e validação.
+A chave inclui usuário, escopo, permissões financeiras e variante normalizada.
+A versão transacional prefixa também os caches intermediários. O recurso exige a
+migration `20261110230000_performance_read_revision` e fica desativado por padrão;
+falha ao verificar a revisão retorna 503 sem servir uma resposta antiga.
+Novas tabelas Prisma que possam alimentar essas respostas precisam do trigger
+`performance_read_revision` na própria migration. O gate PostgreSQL compara a
+cobertura com o schema inteiro; exclusões operacionais exigem justificar que os
+dados não alimentam essas respostas. Não reutilizar esse cache para sessões, jobs
+ou outras fontes excluídas. Ver [operação e aceite](PERFORMANCE_OPERACAO.md).
+
+O relatório HTTP agrega `activePool`, amostrado uma única vez por intervalo global
+com requisições ativas. Somar os máximos de cada requisição duplicaria observações
+concorrentes e não mede a fração de intervalos sem fila. Logs antigos, sem essas
+amostras, não permitem aceitar a meta de 95%.
+
 Mudanças nesses contratos incluem testes comportamentais de requisições por aba,
 revisão, gravação e visibilidade. Rodar `npm --prefix frontend run test:performance`,
 além dos testes de domínio relevantes. O CI executa esses cenários com fontes

@@ -8,6 +8,7 @@ test('HTTP + PostgreSQL: detail projections preserve values, permissions and sou
   const databaseUrl = new URL(process.env.ACOMPANHAMENTO_TEST_DATABASE_URL);
   assert.match(databaseUrl.pathname, /_test$/);
   process.env.DATABASE_URL = databaseUrl.toString();
+  process.env.ACOMPANHAMENTO_READ_CACHE_ENABLED = 'true';
   const { default: prisma } = await import('../src/lib/prisma.js');
   const { default: app } = await import('../src/app.js');
   const { clearProjectDerivedCaches } = await import('../src/lib/resource-list-cache.js');

@@ -119,8 +119,8 @@ export async function loadPlannedHours(projectIds, client = prisma) {
     where: { id: { in: projectIds }, deletedAt: null },
     select: {
       id: true, plannedHoursResolution: true, proposalPercentage: true,
-      plannedNormalHours: { orderBy: [{ order: 'asc' }, { createdAt: 'asc' }], include: { jobRole: { select: { name: true } } } },
-      plannedOvertime: { orderBy: [{ order: 'asc' }, { createdAt: 'asc' }], include: { jobRole: { select: { name: true } } } },
+      plannedNormalHours: { orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] },
+      plannedOvertime: { orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] },
       budgets: { where: { version: 1 }, select: { source: true, sourceProposalCodBd: true, commercialAppProposalId: true } },
       additionalProposals: { where: { active: true }, select: { source: true, sourceProposalCodBd: true, commercialAppProposalId: true, metricInclusion: true } }
     }
@@ -132,16 +132,27 @@ export async function loadPlannedHours(projectIds, client = prisma) {
   const codBds = [...new Set(projects.flatMap(accessSelections))];
   const appIds = [...new Set(projects.flatMap(selectedSources)
     .filter(row => row.source === 'COMERCIAL_APP').map(row => row.commercialAppProposalId).filter(Boolean))];
-  const proposals = codBds.length ? await client.commercialProposal.findMany({
-    where: { codBd: { in: codBds } }, select: { codBd: true, codProp: true, nRev: true, rawRow: true }
-  }) : [];
-  const appProposals = appIds.length ? await client.commercialAppProposal.findMany({
-    where: { externalId: { in: appIds } },
-    select: { externalId: true, proposalCode: true, revisionNumber: true, snapshot: true }
-  }) : [];
+  // Both manual hour tables use the same role catalog. Do not issue empty
+  // nested role reads, or load a shared role twice for normal/overtime rows.
+  const roleIds = [...new Set(projects.flatMap(project => [...project.plannedNormalHours, ...project.plannedOvertime])
+    .map(row => row.jobRoleId).filter(Boolean))];
+  const [proposals, appProposals, roles] = await Promise.all([
+    codBds.length ? client.commercialProposal.findMany({
+      where: { codBd: { in: codBds } }, select: { codBd: true, codProp: true, nRev: true, rawRow: true }
+    }) : [],
+    appIds.length ? client.commercialAppProposal.findMany({
+      where: { externalId: { in: appIds } },
+      select: { externalId: true, proposalCode: true, revisionNumber: true, snapshot: true }
+    }) : [],
+    roleIds.length ? client.jobRole.findMany({ where: { id: { in: roleIds } }, select: { id: true, name: true } }) : []
+  ]);
   const byCodBd = new Map(proposals.map(row => [row.codBd, row]));
   const byAppId = new Map(appProposals.map(row => [row.externalId, row]));
-  const hoursRow = row => ({ ...row, roleName: row.roleName ?? row.jobRole?.name ?? null });
+  const rolesById = new Map(roles.map(({ id, name }) => [id, { name }]));
+  const hoursRow = row => {
+    const jobRole = rolesById.get(row.jobRoleId) ?? null;
+    return { ...row, jobRole, roleName: row.roleName ?? jobRole?.name ?? null };
+  };
   return new Map(projects.map(project => [project.id, resolvePlannedHours({
     normalHours: project.plannedNormalHours.map(hoursRow), overtime: project.plannedOvertime.map(hoursRow),
     sources: selectedSources(project).map(row => {

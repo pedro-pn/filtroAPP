@@ -60,6 +60,14 @@ async function jobRunRetentionWhere(prismaClient, cutoffs) {
   };
 }
 
+export async function previewJobRunRetention({ prismaClient = prisma, now = new Date(), jobRunRetentionDays = null } = {}) {
+  const cutoffs = retentionCutoffs(now, 365, jobRunRetentionDays);
+  if (!cutoffs.jobRunDeleteBefore) throw new TypeError('Informe um prazo explícito para a retenção de JobRun.');
+  const where = await jobRunRetentionWhere(prismaClient, cutoffs);
+  return { scope: 'JOB_RUNS', now: now.toISOString(), jobRunRetentionDays,
+    jobRunDeleteBefore: cutoffs.jobRunDeleteBefore.toISOString(), jobRunsToDelete: await prismaClient.jobRun.count({ where }) };
+}
+
 function normalizeIdList(value) {
   const values = Array.isArray(value) ? value : [];
   return Array.from(new Set(values.map(item => String(item || '').trim()).filter(Boolean)));
@@ -375,13 +383,18 @@ export async function runDataRetention({
   batchSize = DEFAULT_RETENTION_BATCH_SIZE,
   maxBatchesPerTarget = DEFAULT_RETENTION_MAX_BATCHES_PER_TARGET,
   apiTokenLogRetentionDays = 365,
-  jobRunRetentionDays = null
+  jobRunRetentionDays = null,
+  scope = 'ALL'
 } = {}) {
   if (typeof prismaClient.$transaction !== 'function') {
     throw new Error('Retenção de dados requer transação para evitar mutação parcial.');
   }
 
   const cutoffs = retentionCutoffs(now, apiTokenLogRetentionDays, jobRunRetentionDays);
+  if (!['ALL', 'JOB_RUNS'].includes(scope)) throw new TypeError('Escopo de retenção inválido.');
+  if (scope === 'JOB_RUNS' && (!cutoffs.jobRunDeleteBefore || deleteAbandonedDrafts || abandonedDraftIds.length)) {
+    throw new TypeError('Retenção exclusiva de JobRun requer prazo explícito e não aceita outros alvos.');
+  }
   const targets = retentionTargets(cutoffs);
   const run = await prismaClient.dataRetentionRun.create({
     data: {
@@ -389,6 +402,7 @@ export async function runDataRetention({
       status: 'RUNNING',
       deleteAbandonedDrafts,
       summary: {
+        ...(scope === 'JOB_RUNS' ? { scope } : {}),
         ...(jobRunRetentionDays === null ? {} : { jobRunRetentionDays }),
         requestedAbandonedDraftIds: normalizeIdList(abandonedDraftIds),
         batchSize,
@@ -401,7 +415,13 @@ export async function runDataRetention({
 
   try {
     const jobRunsWhere = await jobRunRetentionWhere(prismaClient, cutoffs);
-    const summary = await executeRetentionMutations(prismaClient, targets, {
+    const jobRuns = scope === 'JOB_RUNS' ? await processRetentionBatches({
+      prismaClient, modelName: 'jobRun', where: jobRunsWhere,
+      orderBy: [{ finishedAt: 'asc' }, { id: 'asc' }], action: 'delete', batchSize, maxBatchesPerTarget
+    }) : null;
+    const summary = jobRuns ? { scope, jobRunRetentionDays, jobRunsDeleted: jobRuns.count,
+      batches: { jobRuns: jobRuns.batches }, batchSize, maxBatchesPerTarget }
+      : await executeRetentionMutations(prismaClient, targets, {
       jobRunsWhere,
       deleteAbandonedDrafts,
       abandonedDraftIds,

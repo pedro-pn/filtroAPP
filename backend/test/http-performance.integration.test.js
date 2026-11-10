@@ -12,7 +12,8 @@ test('HTTP + PostgreSQL: concurrent independent sessions preserve permissions, m
   skip: !process.env.HTTP_PERFORMANCE_TEST_DATABASE_URL, timeout: 90000
 }, async () => {
   process.env.DATABASE_URL = process.env.HTTP_PERFORMANCE_TEST_DATABASE_URL;
-  const result = await runHttpPerformanceBenchmark({ requests: 2, coldRounds: 1, reportCount: 40, scopeCount: 6, concurrency: 4, distributeGroupReports: true });
+  const result = await runHttpPerformanceBenchmark({ requests: 2, coldRounds: 1, reportCount: 40, scopeCount: 6, concurrency: 4, distributeGroupReports: true, readCacheEnabled: true });
+  assert.equal(result.environment.readCacheEnabled, true);
   assert.equal(result.summary.filter(row => row.phase === 'first-process').length, 8);
   assert.equal(result.summary.filter(row => row.phase === 'warm').length, 8);
   assert.equal(result.samples.length, 48);

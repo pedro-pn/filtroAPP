@@ -19,6 +19,7 @@ import { apiRequestContext, integrationApiBoundary, integrationApiErrorHandler }
 import { coarseApiTokenIpLimit, createApiSimulationPreferenceResolver } from './middleware/api-token-auth.js';
 import { isApiWriteMethod } from './lib/api-credentials/write-mode.js';
 import { requestMetrics } from './middleware/request-metrics.js';
+import { requestSourceContext } from './lib/operations/request-sources.js';
 import apiRouter from './routes/index.js';
 import {
   authorizeStoredFile,
@@ -136,6 +137,7 @@ app.use('/api/integracoes/v1', integrationApiErrorHandler);
 morgan.token('safe-url', req => req.originalUrl?.split('?')[0] || req.url?.split('?')[0] || '/');
 app.use(morgan(':method :safe-url :status :response-time ms - :res[content-length]'));
 app.use(requestMetrics);
+app.use(requestSourceContext);
 
 async function serveAuthorizedStoredFile(req, res) {
   const normalizedPath = normalizeRelativeUploadPath(req.params[0]);

@@ -9,7 +9,7 @@ test('PostgreSQL: sondagens e retenção preservam trabalho, falhas, execuções
   process.env.DATABASE_URL = url.toString();
   const { default: db } = await import('../src/lib/prisma.js');
   const { runTrackedJob } = await import('../src/lib/jobs/runner.js');
-  const { previewDataRetention, runDataRetention } = await import('../src/lib/data-retention.js');
+  const { previewDataRetention, previewJobRunRetention, runDataRetention } = await import('../src/lib/data-retention.js');
   const { hasPendingFinalizations } = await import('../src/lib/assinaturas/jobs.js');
   const { hasSignatureFilePurgeWork } = await import('../src/lib/assinaturas/file-quarantine.js');
   const prefix = 'job-performance-' + randomUUID();
@@ -61,7 +61,13 @@ test('PostgreSQL: sondagens e retenção preservam trabalho, falhas, execuções
   await assert.rejects(runDataRetention({ prismaClient: retentionClient, jobRunRetentionDays: -1 }), /explicit integer/);
   const defaults = await runDataRetention({ prismaClient: retentionClient, now, logger: { info() {}, error() {} } });
   assert.equal(defaults.jobRunsDeleted, undefined);
-  const applied = await runDataRetention({ prismaClient: retentionClient, now, jobRunRetentionDays: 30, batchSize: 1, maxBatchesPerTarget: 3, logger: { info() {}, error() {} } });
+  // The dedicated scope deliberately exposes no session/audit/draft models.
+  const jobOnlyClient = { jobRun: retentionClient.jobRun, dataRetentionRun: retentionClient.dataRetentionRun,
+    $transaction: retentionClient.$transaction };
+  const jobPreview = await previewJobRunRetention({ prismaClient: jobOnlyClient, now, jobRunRetentionDays: 30 });
+  assert.equal(jobPreview.jobRunsToDelete, 2);
+  const applied = await runDataRetention({ prismaClient: jobOnlyClient, scope: 'JOB_RUNS', now, jobRunRetentionDays: 30, batchSize: 1, maxBatchesPerTarget: 3, logger: { info() {}, error() {} } });
+  assert.equal(applied.scope, 'JOB_RUNS');
   assert.equal(applied.jobRunsDeleted, 2);
   assert.equal(applied.batches.jobRuns, 2);
   assert.deepEqual((await db.jobRun.findMany({ where: { id: { in: rows.map(row => row.id) } }, select: { id: true } })).map(row => row.id).sort(), rows.filter(row => !['COMPLETED', 'SKIPPED'].includes(row.status) || row.id.endsWith('-new') || row.name.endsWith(':inactive')).map(row => row.id).sort());

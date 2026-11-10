@@ -46,6 +46,47 @@ test('nenhum caminho não reconhecido ou parâmetro de montagem é publicado', (
   assert.equal(normalizedRequestRoute({ baseUrl: '/api/projects/a-secret-token', route: { path: '/reports/:id' } }), '/api/projects/:scope/reports/:id');
 });
 
+test('amostras ativas do pool são contadas uma vez durante requisições sobrepostas', async t => {
+  const records = [];
+  let reads = 0, waiting = 2, arrived = 0, release;
+  const gate = new Promise(resolve => { release = resolve; });
+  const app = express();
+  app.use(createRequestMetrics({ enabled: true, windowMs: 5000, sampleIntervalMs: 10,
+    getPool: () => { reads++; return { total: 8, waiting, idle: 0, max: 8 }; },
+    write: record => records.push(record), slowLog() {} }));
+  app.get('/work', async (_req, res) => { arrived++; await gate; res.json({ ok: true }); });
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise(resolve => server.once('listening', resolve));
+  t.after(() => new Promise(resolve => { release(); server.close(resolve); server.closeAllConnections(); }));
+  const requests = [1, 2].map(() => fetch('http://127.0.0.1:' + server.address().port + '/work').then(response => response.json()));
+  while (arrived < 2) await new Promise(resolve => setTimeout(resolve, 5));
+  await new Promise(resolve => setTimeout(resolve, 35));
+  waiting = 0;
+  await new Promise(resolve => setTimeout(resolve, 35));
+  release(); await Promise.all(requests);
+  const intervals = records.reduce((sum, record) => sum + record.activePool.samples, 0);
+  assert.equal(intervals, reads - 4, 'Start/end reads are excluded and interval observations cannot be duplicated');
+  const report = createPerformanceReport(); records.forEach(record => report.add(record));
+  const pool = report.result().pool;
+  assert.equal(pool.samples, intervals);
+  assert.ok(pool.waitingZeroSamples > 0 && pool.waitingZeroSamples < pool.samples);
+  assert.equal(pool.waitingMax, 2);
+  assert.deepEqual(pool.sampleIntervalsMs, [10]);
+});
+
+test('relatório agrega os intervalos do pool e mantém resultado desconhecido sem amostras', () => {
+  const report = createPerformanceReport();
+  assert.equal(report.result().pool.waitingZeroTargetMet, null);
+  const row = { method: 'GET', path: '/api/projects', durationMs: 1, statusCode: 200 };
+  report.add({ ...row, activePool: { samples: 100, waitingZeroSamples: 96, waitingMax: 3, observedWaitingRunMaxMs: 5001, sampleIntervalMs: 100 } });
+  report.add({ ...row, activePool: { samples: 100, waitingZeroSamples: 100, waitingMax: 0, observedWaitingRunMaxMs: 0, sampleIntervalMs: 100 } });
+  assert.equal(report.result().pool.waitingZeroFraction, .98);
+  assert.equal(report.result().pool.waitingZeroTargetMet, true);
+  assert.equal(report.result().pool.observedWaitingOverFiveSeconds, true);
+  report.add({ ...row, activePool: { samples: 1, waitingZeroSamples: 2 } });
+  assert.equal(report.result().pool.samples, 200, 'Malformed interval counts do not create a false acceptance');
+});
+
 test('coleta desativada ou expirada conserva logs lentos sem emitir amostra completa', async () => {
   for (const options of [{ enabled: false, windowMs: 1000 }, { enabled: true, windowMs: -1 }]) {
     const handlers = {};

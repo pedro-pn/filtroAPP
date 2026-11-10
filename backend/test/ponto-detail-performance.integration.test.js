@@ -6,6 +6,7 @@ test('PostgreSQL + HTTP: point projections and batched group sources preserve co
   skip: !process.env.HTTP_PERFORMANCE_TEST_DATABASE_URL, timeout: 90000
 }, async t => {
   process.env.DATABASE_URL = process.env.HTTP_PERFORMANCE_TEST_DATABASE_URL;
+  process.env.ACOMPANHAMENTO_READ_CACHE_ENABLED = 'true';
   const { default: database } = await import('../src/lib/prisma.js');
   const { default: app } = await import('../src/app.js');
   const { getProjectDetail } = await import('../src/lib/acompanhamento/project-detail.js');
@@ -16,6 +17,7 @@ test('PostgreSQL + HTTP: point projections and batched group sources preserve co
   const { listCommercialDashboard } = await import('../src/lib/acompanhamento/access-import.js');
   const { loadPlannedHours } = await import('../src/lib/acompanhamento/planned-hours.js');
   const { loadGroupDetailSources } = await import('../src/lib/acompanhamento/project-detail-sources.js');
+  const { clearProjectDerivedCaches } = await import('../src/lib/resource-list-cache.js');
   const { withProjectAccess, withProjectChannel } = await import('../src/lib/projects/access-scope.js');
   let fixture, server;
   const extras = [];
@@ -148,6 +150,45 @@ test('PostgreSQL + HTTP: point projections and batched group sources preserve co
   assert.equal(refreshedPerson.custoEstimadoRdo, null, 'Cost exclusions are re-read in the next group request');
 
   server = await new Promise(resolve => { const instance = app.listen(0, '127.0.0.1', () => resolve(instance)); });
+  await t.test('a cold authenticated detail shares financial catalogs and a new request observes settings', async sub => {
+    const originalProfiles = database.costProfile.findMany, originalSettings = database.acompanhamentoSetting.findMany;
+    let profileReads = 0, settingReads = 0;
+    database.costProfile.findMany = (...args) => { profileReads++; return originalProfiles.apply(database.costProfile, args); };
+    database.acompanhamentoSetting.findMany = (...args) => { settingReads++; return originalSettings.apply(database.acompanhamentoSetting, args); };
+    sub.after(() => { database.costProfile.findMany = originalProfiles; database.acompanhamentoSetting.findMany = originalSettings; });
+    clearProjectDerivedCaches();
+    const detailRequest = async () => {
+      const response = await fetch('http://127.0.0.1:' + server.address().port + '/api/acompanhamento/comercial/projetos/' + ids[0] + '/detalhe?progress=current',
+        { headers: { authorization: 'Bearer ' + fixture.sessions.admin[0] } });
+      assert.equal(response.status, 200);
+      return response.json();
+    };
+    const first = await detailRequest();
+    assert.equal(profileReads, 1, 'Point and fallback RDO costs use one role/profile catalog');
+    assert.equal(settingReads, 1, 'Point and fallback RDO costs use one annual-cost source');
+    assert.deepEqual(await detailRequest(), first);
+    assert.equal(profileReads, 1, 'An unchanged database reuses the projected response');
+    const originalRaw = database.$queryRaw;
+    database.$queryRaw = async () => { throw new Error('revision unavailable'); };
+    try {
+      const failure = await fetch('http://127.0.0.1:' + server.address().port + '/api/acompanhamento/comercial/projetos/' + ids[0] + '/detalhe?progress=current',
+        { headers: { authorization: 'Bearer ' + fixture.sessions.admin[0] } });
+      assert.equal(failure.status, 503, 'A cached response must not hide a failed freshness check');
+    } finally { database.$queryRaw = originalRaw; }
+    const previous = await database.acompanhamentoSetting.findUnique({ where: { key: 'epiAnnualCost' } });
+    const changedValue = (previous?.numberValue ?? 5000) + 10000;
+    await database.acompanhamentoSetting.upsert({ where: { key: 'epiAnnualCost' }, create: { key: 'epiAnnualCost', numberValue: changedValue }, update: { numberValue: changedValue } });
+    try {
+      const second = await detailRequest();
+      assert.equal(profileReads, 2);
+      assert.equal(settingReads, 2);
+      assert.notDeepEqual(second.maoDeObra, first.maoDeObra, 'The next request must read changed costs');
+    } finally {
+      if (previous) await database.acompanhamentoSetting.update({ where: { key: 'epiAnnualCost' }, data: { numberValue: previous.numberValue } });
+      else await database.acompanhamentoSetting.delete({ where: { key: 'epiAnnualCost' } });
+      clearProjectDerivedCaches();
+    }
+  });
   const endpoint = 'http://127.0.0.1:' + server.address().port + '/api/acompanhamento/ponto/colaboradores';
   const request = async (suffix, token = fixture.sessions.admin[0]) => {
     const response = await fetch(endpoint + suffix, { headers: token ? { authorization: 'Bearer ' + token } : {} });

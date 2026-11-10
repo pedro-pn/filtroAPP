@@ -1,10 +1,11 @@
-import { previewDataRetention, runDataRetention } from '../src/lib/data-retention.js';
+import { previewDataRetention, previewJobRunRetention, runDataRetention } from '../src/lib/data-retention.js';
 import prisma from '../src/lib/prisma.js';
 import env from '../src/config/env.js';
 
 const jobRunRetentionArg = process.argv.find(arg => arg.startsWith('--job-run-retention-days='));
 const jobRunRetentionDays = jobRunRetentionArg ? Number(jobRunRetentionArg.split('=')[1]) : null;
 const apply = process.argv.includes('--apply');
+const onlyJobRuns = process.argv.includes('--only-job-runs');
 const deleteAbandonedDrafts = process.argv.includes('--delete-abandoned-drafts');
 const abandonedDraftIds = process.argv
   .filter(arg => arg.startsWith('--delete-abandoned-draft-id='))
@@ -17,8 +18,12 @@ const batchSize = batchSizeArg ? Number(batchSizeArg.slice('--batch-size='.lengt
 const maxBatchesPerTarget = maxBatchesArg ? Number(maxBatchesArg.slice('--max-batches-per-target='.length)) : undefined;
 
 try {
+  if (onlyJobRuns && (deleteAbandonedDrafts || abandonedDraftIds.length)) {
+    throw new TypeError('--only-job-runs não pode ser combinado com exclusão de rascunhos.');
+  }
   if (!apply) {
-    const preview = await previewDataRetention({ apiTokenLogRetentionDays: env.apiTokenLogRetentionDays, jobRunRetentionDays });
+    const preview = onlyJobRuns ? await previewJobRunRetention({ jobRunRetentionDays })
+      : await previewDataRetention({ apiTokenLogRetentionDays: env.apiTokenLogRetentionDays, jobRunRetentionDays });
     console.log(JSON.stringify({
       mode: 'dry-run',
       message: 'Nenhum dado foi alterado. Execute com --apply para aplicar a rotina de retenção.',
@@ -26,6 +31,7 @@ try {
     }, null, 2));
   } else {
     const summary = await runDataRetention({
+      ...(onlyJobRuns ? { scope: 'JOB_RUNS' } : {}),
       deleteAbandonedDrafts,
       abandonedDraftIds,
       apiTokenLogRetentionDays: env.apiTokenLogRetentionDays, jobRunRetentionDays,

@@ -4,11 +4,54 @@ import test from 'node:test';
 import {
   abandonedDraftExplicitDeleteWhere,
   previewDataRetention,
+  previewJobRunRetention,
   retentionCutoffs,
   runDataRetention,
   shouldStartDataRetentionJob,
   startDataRetentionJob
 } from '../src/lib/data-retention.js';
+
+test('exclusive JobRun retention requires a policy before reading or auditing any data', async () => {
+  const prismaClient = { $transaction() { throw new Error('unexpected transaction'); } };
+  await assert.rejects(previewJobRunRetention({ prismaClient }), /prazo explícito/);
+  for (const options of [{}, { jobRunRetentionDays: 30, deleteAbandonedDrafts: true },
+    { jobRunRetentionDays: 30, abandonedDraftIds: ['draft'] }]) {
+    await assert.rejects(runDataRetention({ prismaClient, scope: 'JOB_RUNS', ...options }), /prazo explícito/);
+  }
+  await assert.rejects(runDataRetention({ prismaClient, scope: 'invalid' }), /Escopo/);
+});
+
+test('exclusive JobRun retention previews and applies bounded batches using only jobs and its audit', async () => {
+  const calls = [], audits = [];
+  let deleted = false;
+  const prismaClient = {
+    jobRun: {
+      groupBy: async () => [{ name: 'job', _max: { finishedAt: new Date('2026-11-10') } }],
+      count: async () => 1,
+      findMany: async () => deleted ? [] : [{ id: 'old-job' }],
+      deleteMany: async args => { calls.push(args); deleted = true; return { count: 1 }; }
+    },
+    dataRetentionRun: {
+      create: async args => { audits.push(args); return { id: 'audit' }; },
+      update: async args => { audits.push(args); }
+    },
+    $transaction: callback => callback(prismaClient)
+  };
+  const options = { prismaClient, now: new Date('2026-11-10T12:00:00Z'), jobRunRetentionDays: 90 };
+  const preview = await previewJobRunRetention(options);
+  assert.equal(preview.scope, 'JOB_RUNS');
+  assert.equal(preview.jobRunsToDelete, 1);
+  assert.equal(audits.length, 0);
+  assert.equal(calls.length, 0);
+  const summary = await runDataRetention({ ...options, scope: 'JOB_RUNS', batchSize: 1,
+    maxBatchesPerTarget: 2, logger: { info() {}, error() {} } });
+  assert.deepEqual(summary, { scope: 'JOB_RUNS', jobRunRetentionDays: 90, jobRunsDeleted: 1,
+    batches: { jobRuns: 1 }, batchSize: 1, maxBatchesPerTarget: 2 });
+  assert.equal(audits[0].data.summary.scope, 'JOB_RUNS');
+  assert.equal(audits.at(-1).data.status, 'COMPLETED');
+  assert.deepEqual(calls[0].where.AND[1], { id: { in: ['old-job'] } });
+  assert.deepEqual(calls[0].where.AND[0].status.in, ['COMPLETED', 'SKIPPED']);
+});
 
 function modelMock(calls, model) {
   return {

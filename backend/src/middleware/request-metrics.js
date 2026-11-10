@@ -28,11 +28,17 @@ export function createRequestMetrics({
   const active = new Set();
   let timer;
   let lastSample = 0;
+  let poolSamples = 0, poolZeroSamples = 0, poolWaitingMax = 0, poolWaitingSince = null, poolWaitingRunMaxMs = 0;
   const sample = () => {
     const now = performance.now();
     const delayMs = Math.max(0, now - lastSample - sampleIntervalMs);
     lastSample = now;
     const pool = getPool();
+    poolSamples++;
+    poolWaitingMax = Math.max(poolWaitingMax, pool.waiting);
+    if (!pool.waiting) { poolZeroSamples++; poolWaitingSince = null; }
+    else if (poolWaitingSince === null) poolWaitingSince = now;
+    if (poolWaitingSince !== null) poolWaitingRunMaxMs = Math.max(poolWaitingRunMaxMs, now - poolWaitingSince);
     for (const trace of active) {
       trace.poolWaitingMax = Math.max(trace.poolWaitingMax, pool.waiting);
       trace.eventLoopDelayMaxMs = Math.max(trace.eventLoopDelayMaxMs, delayMs);
@@ -64,14 +70,19 @@ export function createRequestMetrics({
       slowLog('http_request', durationMs, { method: req.method, path, statusCode: res.statusCode, dbPool });
       if (!trace) return;
       active.delete(trace);
-      if (!active.size) { clearInterval(timer); timer = undefined; }
+      if (!active.size) { clearInterval(timer); timer = undefined; poolWaitingSince = null; }
       trace.poolWaitingMax = Math.max(trace.poolWaitingMax, dbPool.waiting);
       trace.eventLoopDelayMaxMs = Math.max(trace.eventLoopDelayMaxMs, performance.now() - lastSample - sampleIntervalMs, 0);
+      // Drain global interval counts once. Concurrent requests must not each
+      // report the same pool observation; start/end snapshots are excluded.
+      const activePool = { samples: poolSamples, waitingZeroSamples: poolZeroSamples,
+        waitingMax: poolWaitingMax, observedWaitingRunMaxMs: poolWaitingRunMaxMs, sampleIntervalMs };
+      poolSamples = 0; poolZeroSamples = 0; poolWaitingMax = 0; poolWaitingRunMaxMs = 0;
       write({
         timestamp: new Date().toISOString(), requestId: trace.requestId,
         method: req.method, path, statusCode: res.statusCode, aborted,
         durationMs, responseBytes: Number(res.getHeader('content-length')) || 0,
-        dbPool, poolWaitingMax: trace.poolWaitingMax,
+        dbPool, activePool, poolWaitingMax: trace.poolWaitingMax,
         eventLoopDelayMaxMs: Math.round(trace.eventLoopDelayMaxMs * 100) / 100,
         stages: Object.fromEntries(Object.entries(trace.stages).map(([name, ms]) => [name, Math.round(ms * 100) / 100]))
       });

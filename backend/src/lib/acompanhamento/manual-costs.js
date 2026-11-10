@@ -99,11 +99,10 @@ export async function getManualProjectCostsByProject(projectIds, { includeEntrie
     amount: true,
     costDate: true,
     note: true,
-    createdAt: true,
-    project: { select: { code: true } }
+    createdAt: true
   };
   if (includeEntries) {
-    select.createdBy = { select: { id: true, name: true } };
+    select.createdByUserId = true;
   }
 
   const rows = await prisma.projectManualCost.findMany({
@@ -115,7 +114,20 @@ export async function getManualProjectCostsByProject(projectIds, { includeEntrie
     select,
     orderBy: [{ costDate: 'desc' }, { createdAt: 'desc' }]
   });
-  return summarizeManualProjectCostRows(rows);
+  if (!rows.length) return new Map();
+  // Resolve display metadata only for returned costs. Prisma's nested reads
+  // otherwise query Project/User even when there are no manual entries.
+  const userIds = [...new Set(rows.map(row => row.createdByUserId).filter(Boolean))];
+  const [projects, users] = await Promise.all([
+    prisma.project.findMany({ where: { id: { in: [...new Set(rows.map(row => row.projectId))] } }, select: { id: true, code: true } }),
+    includeEntries && userIds.length ? prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true } }) : []
+  ]);
+  const projectsById = new Map(projects.map(({ id, code }) => [id, { code }]));
+  const usersById = new Map(users.map(user => [user.id, user]));
+  return summarizeManualProjectCostRows(rows.map(row => ({ ...row,
+    project: projectsById.get(row.projectId) ?? null,
+    createdBy: usersById.get(row.createdByUserId) ?? null
+  })));
 }
 
 async function assertActiveProject(client, projectId) {
