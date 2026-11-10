@@ -32,6 +32,10 @@ export function summarizeHttpSamples(samples) {
       maxBytes: Math.max(...rows.map(row => row.bytes)),
       databaseCallsMedian: percentile(row => row.server.databaseCalls || 0, .5),
       databaseCallsMax: Math.max(...rows.map(row => row.server.databaseCalls || 0)),
+      ...(rows.some(row => row.server.databaseQueriesPeak != null) ? {
+        databaseQueriesPeakMedian: percentile(row => row.server.databaseQueriesPeak || 0, .5),
+        databaseQueriesPeakMax: Math.max(...rows.map(row => row.server.databaseQueriesPeak || 0))
+      } : {}),
       maxPoolWaiting: Math.max(...rows.map(row => row.server.poolWaitingMax)),
       maxEventLoopDelayMs: Math.max(...rows.map(row => row.server.eventLoopDelayMaxMs)) };
   });

@@ -12,7 +12,7 @@ test('HTTP + PostgreSQL: concurrent independent sessions preserve permissions, m
   skip: !process.env.HTTP_PERFORMANCE_TEST_DATABASE_URL, timeout: 90000
 }, async () => {
   process.env.DATABASE_URL = process.env.HTTP_PERFORMANCE_TEST_DATABASE_URL;
-  const result = await runHttpPerformanceBenchmark({ requests: 2, coldRounds: 1, reportCount: 12, scopeCount: 6, concurrency: 4 });
+  const result = await runHttpPerformanceBenchmark({ requests: 2, coldRounds: 1, reportCount: 40, scopeCount: 6, concurrency: 4, distributeGroupReports: true });
   assert.equal(result.summary.filter(row => row.phase === 'first-process').length, 8);
   assert.equal(result.summary.filter(row => row.phase === 'warm').length, 8);
   assert.equal(result.samples.length, 48);
@@ -24,9 +24,12 @@ test('HTTP + PostgreSQL: concurrent independent sessions preserve permissions, m
   assert.equal(result.complete, true);
   assert.equal(result.attemptedScenarioRequests, result.samples.length);
   assert.equal(result.fixture.analyzedBeforeRequests, true);
+  assert.equal(result.fixture.groupReportsDistributed, true);
   for (const row of result.summary) { assert.equal(row.status, 200); assert.equal(row.serverP95Ms, null); }
   for (const row of result.samples) {
     assert.ok(row.server.databaseCalls > 0, 'Trace must include real session/database reads');
+    assert.ok(row.server.databaseQueriesPeak >= 1 && row.server.databaseQueriesPeak <= row.server.databaseCalls,
+      'Peak measures submitted unfinished queries, including work queued in pg');
     assert.equal(row.server.dbPool.max, 8);
     assert.equal(row.server.aborted, false);
     assert.doesNotMatch(JSON.stringify(row), /labor-benchmark-|Bearer |tokenHash|synthetic-unused-login/);

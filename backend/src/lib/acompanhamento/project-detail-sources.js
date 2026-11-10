@@ -6,6 +6,7 @@ import { getManualProjectCostsByProject } from './manual-costs.js';
 import { getRoleParamsResolver } from './labor-cost.js';
 import { getAnnualCollaboratorCosts } from './settings.js';
 import { projectAccessCacheKey } from '../projects/access-scope.js';
+import { createReportCostCollaboratorLoader } from './project-detail-collaborators.js';
 
 function partition(rows, projectIds) {
   const byProject = new Map(projectIds.map(id => [id, []]));
@@ -28,11 +29,18 @@ export async function loadGroupDetailSources(projectIds, { includeAdminOnlyCateg
     getStockConsumptionCostByProject(ids),
     getManualProjectCostsByProject(ids, { includeEntries: true })
   ]);
-  let reportCostCatalog;
+  let reportCostCatalog, reportCollaborators;
   return {
     projectIds: new Set(ids), categoryWhere, includeAdminOnlyCategories, accessScope: projectAccessCacheKey(),
     costGroupsByProject: partition(costGroups, ids), costStatusGroupsByProject: partition(costStatusGroups, ids),
     equipmentByProject, stockCosts, manualCostsByProject,
+    // A catalog for this group's visible, non-deleted rosters only. Loading is
+    // lazy so empty groups and progress projections do not read collaborators.
+    loadReportCollaborators: () => reportCollaborators ??= prisma.collaborator.findMany({
+      where: { reportLinks: { some: { report: { projectId: { in: ids }, deletedAt: null } } } },
+      select: { id: true, name: true, jobRole: { select: { name: true } } }
+    }).then(rows => new Map(rows.map(row => [row.id, row]))),
+    loadReportCostCollaborators: createReportCostCollaboratorLoader(prisma),
     loadReportCostCatalog: () => reportCostCatalog ??= Promise.all([getRoleParamsResolver(), getAnnualCollaboratorCosts()])
   };
 }

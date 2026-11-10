@@ -24,6 +24,12 @@ test('HTTP percentiles separate phase, profile, status and aborts and suppress p
   assert.equal(groups[0].maxPoolWaiting, 0);
   for (const group of groups.slice(1)) { assert.equal(group.enoughSamples, false); assert.equal(group.serverP95Ms, null); }
   assert.equal(groups.at(-1).maxPoolWaiting, 7);
+  assert.equal(Object.hasOwn(groups[0], 'databaseQueriesPeakMax'), false, 'Old traces remain readable');
+  const [withPeaks] = summarizeHttpSamples(samples.slice(0, 100).map((sample, index) => ({
+    ...sample, server: { ...sample.server, databaseQueriesPeak: index % 2 ? 7 : 3 }
+  })));
+  assert.equal(withPeaks.databaseQueriesPeakMedian, 3);
+  assert.equal(withPeaks.databaseQueriesPeakMax, 7);
 });
 
 test('pool target uses active interval samples and detects sustained observed queueing', () => {

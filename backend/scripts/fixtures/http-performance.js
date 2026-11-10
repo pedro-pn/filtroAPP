@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { seedLaborPerformanceFixture } from './labor-performance.js';
 
-export async function seedHttpPerformanceFixture(database, { reportCount = 1200, scopeCount = 297 } = {}) {
+export async function seedHttpPerformanceFixture(database, { reportCount = 1200, scopeCount = 297, distributeGroupReports = false } = {}) {
   const labor = await seedLaborPerformanceFixture(database, { reportCount, servicesPerRdo: 4 });
   const { prefix, projectId } = labor;
   const projectIds = [projectId, prefix + '-secondary', prefix + '-hidden'];
@@ -10,6 +10,7 @@ export async function seedHttpPerformanceFixture(database, { reportCount = 1200,
   const groupId = prefix + '-group';
   const cleanup = async () => {
     await database.acompanhamentoMissionGroup.deleteMany({ where: { id: groupId } });
+    await database.report.deleteMany({ where: { projectId: { in: projectIds.slice(1) } } });
     await database.project.deleteMany({ where: { id: { in: projectIds.slice(1) } } });
     await labor.cleanup();
     await database.commercialProposal.deleteMany({ where: { id: { in: proposalIds } } });
@@ -31,6 +32,14 @@ export async function seedHttpPerformanceFixture(database, { reportCount = 1200,
         name: 'Projeto sintético', clientName: 'Cliente sintético', clientCnpj: '', location: 'Local', ...metadata } });
       await database.projectBudget.create({ data: { projectId: projectIds[index], sourceProposalCodBd: code + index,
         salePrice: 100000, plannedTotalCost: 60000, taxes: 10000, isComplete: true } });
+    }
+    if (distributeGroupReports) {
+      // Keep the same volume and roster while exercising both group members.
+      // Blocks of twenty retain shared people across missions; RDO zero stays
+      // on the first member so the existing worker refresh remains meaningful.
+      const movedIds = Array.from({ length: reportCount }, (_, index) => index)
+        .filter(index => Math.floor(index / 20) % 2 === 1).map(index => prefix + '-rdo-' + index);
+      await database.report.updateMany({ where: { id: { in: movedIds } }, data: { projectId: projectIds[1] } });
     }
     for (let index = 0; index < scopeCount; index++) {
       await database.projectPlannedService.create({ data: { projectId, serviceType: 'TESTE_PRESSAO',

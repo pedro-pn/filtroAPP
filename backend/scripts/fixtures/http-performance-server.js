@@ -12,15 +12,31 @@ const databaseCalls = new Map();
 const originalQuery = pg.Pool.prototype.query;
 pg.Pool.prototype.query = function (...args) {
   const id = requestContext.getStore();
-  if (Number.isInteger(id)) databaseCalls.set(id, (databaseCalls.get(id) || 0) + 1);
-  return originalQuery.apply(this, args);
+  if (!Number.isInteger(id)) return originalQuery.apply(this, args);
+  const counter = databaseCalls.get(id) || { calls: 0, active: 0, peak: 0 };
+  databaseCalls.set(id, counter);
+  counter.calls++; counter.active++;
+  counter.peak = Math.max(counter.peak, counter.active);
+  let completed = false;
+  const complete = () => { if (!completed) { completed = true; counter.active--; } };
+  // Count pending pool work, including queued queries, without controlling it.
+  // Preserve both pg interfaces so instrumentation cannot change completion.
+  const callback = typeof args.at(-1) === 'function' ? args.at(-1) : null;
+  if (callback) args[args.length - 1] = function (...values) { complete(); return callback.apply(this, values); };
+  try {
+    const result = originalQuery.apply(this, args);
+    if (callback) return result;
+    if (!result?.then) { complete(); return result; }
+    return result.then(value => { complete(); return value; }, error => { complete(); throw error; });
+  } catch (error) { complete(); throw error; }
 };
 const originalInfo = console.info;
 console.info = (...args) => {
   if (args[0] === '[HTTP PERFORMANCE]') {
     const id = requestContext.getStore();
+    const counter = databaseCalls.get(id);
     process.send({ type: 'metric', id,
-      record: { ...JSON.parse(args[1]), databaseCalls: databaseCalls.get(id) || 0 } });
+      record: { ...JSON.parse(args[1]), databaseCalls: counter?.calls || 0, databaseQueriesPeak: counter?.peak || 0 } });
     databaseCalls.delete(id);
   }
 };

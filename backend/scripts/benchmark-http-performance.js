@@ -106,10 +106,11 @@ function verifyResponse(scenario, profile, response, fixture, pontoView) {
 
 export async function runHttpPerformanceBenchmark({
   requests = 100, concurrency = 4, coldRounds = 3, reportCount = 1200, scopeCount = 297, poolLimit = 8,
-  pontoView = 'full', sourceRoot = fileURLToPath(new URL('..', import.meta.url))
+  pontoView = 'full', sourceRoot = fileURLToPath(new URL('..', import.meta.url)), distributeGroupReports = false
 } = {}) {
   assertLocalPerformanceDatabase(process.env.DATABASE_URL);
   assert.ok(['full', 'summary', 'reconciliation'].includes(pontoView));
+  assert.equal(typeof distributeGroupReports, 'boolean');
   sourceRoot = path.resolve(sourceRoot);
   await fs.access(path.join(sourceRoot, 'src/app.js'));
   for (const [value, max] of [[requests, 500], [coldRounds, 100], [reportCount, 6000], [scopeCount, 297], [concurrency, 8], [poolLimit, 50]]) {
@@ -127,7 +128,7 @@ export async function runHttpPerformanceBenchmark({
       database.commercialProposal.count(), database.crmOpportunity.count(), database.acompanhamentoMissionGroup.count()
     ]);
     assert.ok(counts.every(count => count === 0), 'Use a dedicated empty test database; the benchmark reads global cards and point data.');
-    fixture = await seedHttpPerformanceFixture(database, { reportCount, scopeCount });
+    fixture = await seedHttpPerformanceFixture(database, { reportCount, scopeCount, distributeGroupReports });
     // Bulk synthetic loading can leave small-table estimates behind. Establish
     // statistics before measuring fresh API processes, rather than timing that
     // unrelated planner transition or waiting for background autovacuum.
@@ -203,7 +204,7 @@ export async function runHttpPerformanceBenchmark({
       method: 'Synthetic loopback HTTP against the real Express app and migrated PostgreSQL. Authentication validates persisted hashed sessions through requireAuth; password login is not exercised. First-process samples use a fresh API process per request, with warm database pages and process imports excluded. Warm requests mix surfaces, profiles and two sessions per profile under a bounded shared concurrency. Client timing includes response-body receipt; server timing includes authentication and serialization. Active-pool interval samples are observations, not individual query wait times. No Nginx, TLS, browser rendering, external API or production load is measured.',
       environment: { nodeVersion: process.version, apiPoolLimit: poolLimit, concurrency, poolSampleIntervalMs: 10, pontoView },
       complete: true, attemptedScenarioRequests,
-      fixture: { syntheticProjects: 3, groupMembers: 2, reports: fixture.reportCount, services: fixture.serviceCount,
+      fixture: { syntheticProjects: 3, groupMembers: 2, groupReportsDistributed: distributeGroupReports, reports: fixture.reportCount, services: fixture.serviceCount,
         collaborators: fixture.collaborators, scopeLines: scopeCount, divisions: 11, authenticatedSessions: 4,
         analyzedBeforeRequests: true },
       summary, pool, permissionChecks, refresh, worker, samples,
@@ -237,6 +238,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       coldRounds: Number(arg('cold-rounds') || 3), reportCount: Number(arg('reports') || 1200),
       scopeCount: Number(arg('scopes') || 297), poolLimit: Number(arg('pool-limit') || 8),
       pontoView: arg('ponto-view') || 'full',
+      distributeGroupReports: process.argv.includes('--distribute-group-reports'),
       ...(arg('source-root') ? { sourceRoot: arg('source-root') } : {})
     });
   } catch (error) {

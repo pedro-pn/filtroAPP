@@ -308,8 +308,8 @@ não depender de reverter ou apagar dados para reverter o código.
 | T03 | Healthchecks locais do Nginx e de progresso do worker, incluindo filas de aprovação/e-mail/Data Book | Publicação manual e série de 24 h/sete dias |
 | T04 | Bootstrap projetado por seção, cache separado por seção e usuário, consultas condicionais, tratamento de carga/falha no upload manual e compatibilidade do contrato anterior | Aceite HTTP em ambiente publicado |
 | T05 | Associação das medições e preparo do escopo reutilizados dentro de cada cálculo; curvas não montam grupos de exibição descartados; resultado completo comparado com o anterior | Aceite HTTP em ambiente publicado |
-| T06 | Avanço atual a cada 15 s; histórico/recortes por revisão; projeção exclusiva de avanço; fontes comercial e de custos em lote para grupos; leituras de ponto por finalidade; ensaio HTTP local de permissões e escrita entre processos | Reduzir fila de pool observada no ensaio e validar concorrência/p95 no ambiente publicado |
-| T07 | Fontes mensais/globais compartilhadas; catálogos em lote; horários por período; ausências/calendário antecipados; conciliação sem calcular custos; catálogo de cargos reutilizado no ponto e horas dos RDOs reutilizadas no detalhe | Reduzir as 38 chamadas da tabela de custos e a fila do pool; atingir a meta fria geral; planos SQL locais verificados sem justificar novo índice |
+| T06 | Avanço atual a cada 15 s; histórico/recortes por revisão; projeção exclusiva de avanço; fontes comercial, de custos e de identidade da equipe compartilhadas nos grupos; leituras de ponto por finalidade; ensaio autenticado com medição de rajadas SQL | Reduzir fila de pool observada no ensaio e validar concorrência/p95 no ambiente publicado |
+| T07 | Fontes mensais/globais compartilhadas; catálogos em lote; horários por período; ausências/calendário antecipados; conciliação sem calcular custos; cargos e horas de RDO reutilizados; dados de custo da mesma pessoa lidos uma vez por requisição de grupo | Reduzir as 38 chamadas da tabela de custos e as rajadas no detalhe/ponto; atingir a meta fria geral; planos SQL locais verificados sem justificar novo índice |
 | T08 | Seções do Efetivo/Acompanhamento, cinco modais de workflow e painéis do Gestor sob demanda; visão geral estatística separada dos overlays | Aceite das superfícies autenticadas no ambiente publicado |
 | T09 | Variantes lossless, favicon/hash/prioridade do login e CSS da administração de credenciais separado do shell, preservando a camada legacy | Aceite LCP publicado; outros estilos globais podem ser divididos conforme medição |
 | T10 | Uma linha por janela de 15 min para sondagens vazias de finalização/quarentena; trabalho e falhas individuais; preview/retenção em lotes sem prazo padrão | Aprovar prazo/política antes de aplicação manual; medir linhas/dia publicado |
@@ -323,16 +323,18 @@ ou execução em servidores nesta implementação local.
 
 1. **Pool e volume por requisição — T06/T07:** reduzir a pressão confirmada no
    ensaio HTTP já implementado. Com quatro requisições simultâneas e pool de oito,
-   a rodada mais recente com a tabela de custos observou 25,1% das amostras
-   ativas sem fila, contra 26,3% na referência da mesma rodada; não houve
-   melhora dessa proporção. A meta continua em 95%. Na rodada anterior, o
-   consumidor de conciliação observou 29,7%, em cenário diferente da tabela.
-   O grupo agora usa 47–48 chamadas medianas, o detalhe individual 45–46 e
-   a tabela de custos 38. A conciliação usa oito e a tabela transfere 21.167 B.
-   Priorizar metadados de colaboradores compartilhados entre membros e medir
-   as rajadas de consultas das fontes, preservando regras financeiras, acesso
-   e atualização. Eventual coordenação de concorrência deve medir também a
-   espera na aplicação e o HTTP total, sem apenas deslocar a fila do PostgreSQL.
+   a rodada mais recente, com RDOs distribuídos entre os dois membros e tabela
+   de custos resumida, observou 27,4% das amostras ativas sem fila, contra 24,9%
+   na referência da mesma rodada. A meta continua em 95%; o pico da fila aumentou
+   de 36 para 42. Nesse cenário ampliado, o grupo passou de 59–60 para 53–54
+   chamadas medianas; detalhe individual e ponto mantiveram 53–54 e 38.
+   Os resultados não se comparam diretamente à fixture anterior, concentrada
+   em uma missão. Identidade e custo por pessoa dos grupos já são compartilhados.
+   Priorizar agora as rajadas no detalhe individual e no ponto: foram observadas
+   até 18 e 17 consultas submetidas ainda não concluídas por requisição,
+   respectivamente, incluindo a espera no pool. Eventual coordenação deve medir
+   também a espera na aplicação e o HTTP total, preservando regras, acesso e
+   atualização, sem apenas deslocar a fila do PostgreSQL.
 2. **Carga fria — T07:** atingir a redução de pelo menos 50% em todos os
    cenários-alvo. A comparação direta com o início do plano deu 40,6% no cenário
    com poucos serviços e 50,1% no denso; isso ainda não fecha o aceite geral.
@@ -1058,6 +1060,127 @@ equipe dos grupos e a redução da pressão concorrente das fontes, com mediçã
 de espera total e paridade das regras. Permanecem os aceites publicados, a
 meta fria geral, as séries de 24 h/sete dias e a política de retenção. Backups
 seguem adiados; não houve execução em servidores.
+
+### Continuação local: equipe compartilhada nos grupos e medição das rajadas SQL
+
+A etapa de cargos e horas dos RDOs foi consolidada no commit local `81f183a3`
+(`perf: reutilizar cargos do ponto e horas dos RDOs`), sem push nesta rodada.
+Esta continuação atua apenas no código, testes e medições locais.
+
+Os grupos agora carregam nomes e cargos atuais em um catálogo por requisição,
+restrito às pessoas dos relatórios não excluídos de seus membros. A carga começa assim
+que a primeira equipe chega, em paralelo às outras fontes; grupos sem equipe e
+projeções exclusivas de avanço não fazem essa leitura. As consultas de vínculos
+continuam individuais por membro, com filtros, snapshots e ordem preservados.
+O compartilhamento permanece condicionado a projeto, escopo de acesso e opção
+de categorias administrativas iguais; divisões usam suas leituras próprias.
+
+O fallback de custo para pessoa sem apropriação do ponto também passa por uma
+leitura compartilhada dentro da requisição. Pedidos no mesmo turno do event loop
+são reunidos; IDs repetidos reutilizam o resultado ou a leitura em andamento,
+mesmo quando os membros terminam em momentos diferentes. Campos de histórico de
+cargo e exclusão manual de simulação são preservados. Erros rejeitam todos os
+consumidores afetados e removem as entradas com falha para permitir outra leitura;
+pessoas ausentes são lembradas somente durante aquela requisição. Não existe
+cache novo entre requisições, aumento do pool ou limitação artificial de consultas.
+
+A regressão com PostgreSQL confirmou um catálogo de identidade e uma busca de
+custo para a mesma pessoa nos dois membros, inclusive em leituras sequenciais.
+Ela verifica exclusão de pessoas presentes apenas em outro projeto, rejeição de
+fontes de outro escopo, divisão, categorias administrativas e atualização do nome
+e da exclusão de simulação na requisição seguinte. Os testes do carregador cobrem
+pedidos simultâneos, repetidos/em andamento, ausência de pessoa, requisições
+separadas e falha com nova tentativa.
+
+Uma comparação direta com o backend arquivado de `81f183a3`, usando exatamente
+o mesmo banco em processos separados, manteve iguais os cinco resultados
+completos: ponto, detalhe individual, grupo, divisão e grupo sem custos
+individuais/categorias administrativas. A comparação foi repetida após mudar
+cargo, salário e horas. No cenário adicional com pessoas sem ponto nos dois
+membros, o grupo passou de **71 para 65 consultas**, e a variante sem custos
+individuais de **61 para 59**. Esses contadores são distintos do ensaio HTTP.
+
+Para exercitar ambos os membros, o benchmark ganhou `--distribute-group-reports`.
+A opção, desligada por padrão, redistribui os mesmos RDOs em blocos de vinte,
+mantendo pessoas em comum, três projetos, 1.203 relatórios, 4.802 serviços,
+21 colaboradores, 297 linhas de escopo e 11 divisões. O RDO usado na alteração
+do worker permanece no primeiro membro. A limpeza inclui agora os relatórios
+próprios deslocados, antes de remover os projetos secundários. Referência e
+candidato usam a mesma distribuição; **essa fixture não é comparável diretamente
+às rodadas anteriores com carga concentrada em uma missão**.
+
+O processo de medição agora registra `databaseQueriesPeak`: maior número de
+chamadas a `pg.Pool.query` submetidas e ainda não concluídas dentro da requisição.
+O valor inclui consultas na fila do pool; não representa conexões ou SQLs
+efetivamente executando ao mesmo tempo. A instrumentação fica somente no servidor
+do benchmark, mantém as interfaces por Promise/callback e não limita o trabalho.
+Relatórios antigos sem essa informação continuam legíveis.
+
+Foram executadas duas coortes sequenciais, com PostgreSQL 16 limitado a uma CPU
+e 768 MiB, pool oito, concorrência quatro e `view=summary` para o ponto.
+Cada coorte contém 800 respostas aquecidas (cem por rota/perfil), oito primeiras
+respostas em processos novos, oito aquecimentos e 16 leituras após escrita.
+As **832 respostas medidas por coorte foram 200**, além das oito negativas
+esperadas; não houve interrupções ou erros inesperados.
+
+| Rota aquecida | Consultas medianas antes → depois | p95 cliente administrador antes → depois | p95 cliente visualizador antes → depois |
+| --- | ---: | ---: | ---: |
+| Cards | 11 → 11 | 144,9 → 124,7 ms | 71,4 → 72,1 ms |
+| Detalhe individual | 53–54 → 53–54 | 246,6 → 243,6 ms | 267,2 → 274,1 ms |
+| Grupo | 59–60 → 53–54 | 339,5 → 325,1 ms | 394,8 → 388,9 ms |
+| Tabela de custos do ponto | 38 → 38 | 245,1 → 225,0 ms | 218,0 → 205,4 ms |
+
+Os grupos reduzem aproximadamente **10% das consultas**, mantendo os corpos
+completos: 442.319 B para administrador e 440.912 B para visualizador. As demais
+superfícies conservaram seus tamanhos: máximo de 7.021 B nos cards, 302.068 B no
+detalhe e 20.447 B no ponto. As latências são observações de duas coortes
+sequenciais, sem pares aleatorizados ou repetição estatística. Não houve ganho
+uniforme: o detalhe do visualizador ficou cerca de 2,6% mais lento nesta coleta.
+Não se atribui melhoria direta ao ponto, cujo caminho de cálculo não foi alterado.
+
+| Pool durante atividade aquecida | Referência | Candidato |
+| --- | ---: | ---: |
+| Amostras sem fila / total | 516 / 2.075 | 545 / 1.990 |
+| Proporção sem fila | 24,9% | 27,4% |
+| Pico de consultas esperando | 36 | 42 |
+| Maior sequência observada com fila | 311,1 ms | 316,9 ms |
+
+**A meta de 95% sem fila permanece pendente.** A proporção observada aumentou,
+mas o pico e a maior sequência de fila também aumentaram; não houve sequência
+observada acima de cinco segundos. A medição de rajadas encontrou, nas duas
+versões, máximos por requisição de três consultas pendentes nos cards, 18 no
+detalhe, 14 no grupo e 17 no ponto. Os grupos reduziram o volume total sem reduzir
+esse máximo. A próxima investigação local deve priorizar a sobreposição das
+fontes no detalhe/ponto, medir a duração HTTP completa e contabilizar qualquer
+espera introduzida na aplicação, antes de definir coordenação de concorrência.
+
+As leituras após escrita terminaram em até 733,8 ms no candidato, contados após
+confirmar as gravações e preparar a coleta. Os cards mantêm sua política de
+expiração; não se afirma atualização imediata. A coleta não inclui Nginx, TLS,
+navegação ou renderização; uma amostra fria por rota/perfil não permite p95
+nem fecha a meta fria geral de 50%.
+
+Os hashes do código, as amostras e a comparação completa estão nas
+[evidências de equipe/rajadas](evidence/performance-group-collaborators-20261110.json).
+Os jobs PostgreSQL existentes executam as regressões atualizadas; o ensaio curto
+de CI também usa RDOs distribuídos e verifica a métrica de rajadas, permissões,
+privacidade e atualização por outro processo.
+
+Validação final: **2.768 testes de backend aprovados e 42 ignorados**, sem
+falhas. Também passaram a regressão PostgreSQL de ponto/grupos, os quatro
+testes de projeções com PostgreSQL e os seis contratos do ensaio HTTP, além
+dos três testes do carregador, sintaxe, arquitetura e consistência/privacidade
+das evidências. Os cinco resultados completos foram comparados com a referência
+nas duas fases de dados. Não houve alteração de frontend; sua última validação
+de testes, build, lint e orçamentos foi a etapa de `d194dad8`. O banco descartável
+foi removido ao concluir a validação.
+
+Para repetir a comparação local, usar os comandos da seção anterior acrescentando
+`--distribute-group-reports` em ambas as versões e arquivando o backend de
+`81f183a3` como referência. Permanecem pendentes as rajadas/fila do pool, a meta
+fria geral, os aceites publicados de HTTP/conteúdo útil/LCP, as séries de
+24 h/sete dias e a política de retenção. Backups continuam adiados; não houve
+execução em servidores.
 
 ### Uso local das ferramentas de medição
 

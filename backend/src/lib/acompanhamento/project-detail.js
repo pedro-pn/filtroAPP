@@ -209,10 +209,10 @@ export function buildProjectReportHours(reports, collaboratorIdsByReport, projec
   return byCollaborator;
 }
 
-async function getReportLaborCostEstimates(project, hoursByCollaborator, loadCatalog = null) {
+async function getReportLaborCostEstimates(project, hoursByCollaborator, sources = null) {
   if (!hoursByCollaborator.size) return new Map();
   const [collaborators, [roleParams, annualCosts]] = await Promise.all([
-    prisma.collaborator.findMany({
+    sources?.loadReportCostCollaborators ? sources.loadReportCostCollaborators([...hoursByCollaborator.keys()]) : prisma.collaborator.findMany({
       where: { id: { in: [...hoursByCollaborator.keys()] } },
       select: {
         id: true,
@@ -223,7 +223,7 @@ async function getReportLaborCostEstimates(project, hoursByCollaborator, loadCat
         }
       }
     }),
-    loadCatalog ? loadCatalog() : Promise.all([getRoleParamsResolver(), getAnnualCollaboratorCosts()])
+    sources?.loadReportCostCatalog ? sources.loadReportCostCatalog() : Promise.all([getRoleParamsResolver(), getAnnualCollaboratorCosts()])
   ]);
   return new Map(collaborators.map(collaborator => [collaborator.id, estimateReportLaborCostByDate({
     collaborator, roleParams, project, annualCosts,
@@ -471,8 +471,14 @@ export async function getProjectDetail(projectId, {
         reportId: true,
         collaboratorId: true,
         roleNameSnapshot: true,
-        collaborator: { select: { name: true, jobRole: { select: { name: true } } } }
+        ...(sources?.loadReportCollaborators ? {} : { collaborator: { select: { name: true, jobRole: { select: { name: true } } } } })
       }
+    }).then(async rows => {
+      if (!rows.length || !sources?.loadReportCollaborators) return rows;
+      // Start identities as soon as a roster arrives, overlapping the other
+      // member sources instead of adding a stage after Promise.all completes.
+      const catalog = await sources.loadReportCollaborators();
+      return rows.map(item => ({ ...item, collaborator: catalog.get(item.collaboratorId) ?? null }));
     }),
     sources?.costGroupsByProject.get(projectId) ?? prisma.omiePurchase.groupBy({
       by: ['categoriaCodigo', 'categoriaDescricao'],
@@ -594,7 +600,7 @@ export async function getProjectDetail(projectId, {
   const reportCostEstimates = includeCollaboratorCosts
     ? await getReportLaborCostEstimates(project, new Map(
         [...reportHoursByCollaborator].filter(([id]) => !hasAllocatedHours(id))
-      ), sources?.loadReportCostCatalog)
+      ), sources)
     : new Map();
   const confirmedReportParticipantIds = new Set();
   for (const item of collaborators) {
