@@ -13,8 +13,22 @@ test('PostgreSQL: fontes enxutas preservam folha, rateio, trilhas e atualizaçã
   const { computeCollaboratorRates, rdoDataByCollaboratorFromReports, getRoleParamsResolver, buildRoleParamsResolver } = await import('../src/lib/acompanhamento/labor-cost.js');
   const { laborReportQuery, loadLaborReportSources } = await import('../src/lib/acompanhamento/labor-report-sources.js');
   let fixture;
-  t.after(async () => { if (fixture) await fixture.cleanup(); await database.$disconnect(); });
+  t.after(async () => {
+    if (fixture) {
+      await fixture.cleanup();
+      await database.jobRole.deleteMany({ where: { id: fixture.prefix + '-unconfigured' } });
+    }
+    await database.$disconnect();
+  });
   fixture = await seedLaborPerformanceFixture(database, { reportCount: 120, servicesPerRdo: 4 });
+  const roleId = fixture.prefix + '-role', unconfiguredRoleId = fixture.prefix + '-unconfigured';
+  await database.jobRole.create({ data: { id: unconfiguredRoleId, name: 'Sem perfil ' + fixture.prefix, normalizedKey: unconfiguredRoleId } });
+  await database.collaboratorJobRoleHistory.createMany({ data: [
+    { collaboratorId: fixture.prefix + '-person-0', jobRoleId: roleId, effectiveDate: new Date('2026-09-01') },
+    { collaboratorId: fixture.prefix + '-person-0', jobRoleId: roleId, effectiveDate: new Date('2026-09-15') },
+    { collaboratorId: fixture.prefix + '-person-1', jobRoleId: unconfiguredRoleId, effectiveDate: new Date('2026-09-01') }
+  ] });
+  await database.collaborator.update({ where: { id: fixture.prefix + '-person-2' }, data: { jobRoleId: unconfiguredRoleId } });
   // Salary and base-model changes must retain their exact effective dates.
   await database.costParameterSet.createMany({ data: [
     { costProfileId: fixture.prefix + '-role-profile', version: 2, effectiveDate: new Date('2026-09-15'), params: { salarioBase: 4500, baseModel: fixture.prefix + '-model' } },
@@ -62,9 +76,19 @@ test('PostgreSQL: fontes enxutas preservam folha, rateio, trilhas e atualizaçã
   const serviceQueries = sqlQueries.filter(query => query.sqlSnippet.includes('"ReportService"'));
   assert.equal(serviceQueries.length, 1);
   assert.ok(serviceQueries[0].parameterCount < 10, 'Service interval SQL must not bind every historical report ID');
+  const roleQueries = sqlQueries.filter(query => query.sqlSnippet.includes('"JobRole"'));
+  assert.equal(roleQueries.length, 1, 'Current/history role names must reuse the same catalog as the cost resolver');
   assert.deepEqual(after, before);
   assert.equal(after.rates.length, 21);
-  assert.ok(after.rates.every(row => row.hasCostProfile && row.totalMensal > 0));
+  assert.ok(after.rates.filter(row => ![fixture.prefix + '-person-1', fixture.prefix + '-person-2'].includes(row.collaboratorId))
+    .every(row => row.hasCostProfile && row.totalMensal > 0));
+  assert.equal(after.byCollaboratorId.get(fixture.prefix + '-person-1').role, 'Sem perfil ' + fixture.prefix);
+  assert.equal(after.byCollaboratorId.get(fixture.prefix + '-person-1').hasCostProfile, false);
+  assert.equal(after.byCollaboratorId.get(fixture.prefix + '-person-2').role, 'Sem perfil ' + fixture.prefix);
+  assert.equal(after.byCollaboratorId.get(fixture.prefix + '-person-2').hasCostProfile, false);
+  await database.jobRole.update({ where: { id: unconfiguredRoleId }, data: { name: 'Cargo atualizado ' + fixture.prefix } });
+  assert.equal((await computeCollaboratorRates(fixture.importId)).byCollaboratorId.get(fixture.prefix + '-person-1').role,
+    'Cargo atualizado ' + fixture.prefix, 'A subsequent calculation must re-read role names');
   const serviceId = fixture.prefix + '-service';
   await database.reportService.updateMany({ where: { reportId: serviceId }, data: { endTime: '10:30' } });
   const updatedSources = await loadLaborReportSources({ database, projects: [project], periodStart: new Date('2026-09-01'), periodEnd: new Date('2026-09-30') });

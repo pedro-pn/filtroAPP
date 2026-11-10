@@ -35,10 +35,13 @@ test('PostgreSQL + HTTP: point projections and batched group sources preserve co
   for (const [index, projectId] of ids.entries()) {
     const report = await database.report.create({ data: { projectId, reportType: 'RDO', status: 'APPROVED', sequenceNumber: 200 + index,
       reportDate: new Date('2026-09-10'), arrivalTime: '08:00', departureTime: '17:00', lunchBreak: '01:00',
-      daytimeCount: 1, daytimeWorkedMinutes: 480,
+      daytimeCount: 1, daytimeWorkedMinutes: 480, nighttimeWorkedMinutes: 120,
+      specialConditions: { noturnoDetails: { collaboratorIds: [fixture.prefix + '-outside'],
+        colaboradores: [{ id: fixture.prefix + '-outside', name: 'Pessoa sem ponto', role: fixture.prefix }] } },
       collaborators: { create: { collaboratorId: fixture.prefix + '-outside' } } } });
     extras.push(report.id);
     await database.projectManualCost.create({ data: { projectId, description: 'Custo sintético ' + index, amount: index ? '0.20' : '123.45', costDate: new Date('2026-09-10') } });
+    await database.projectPlannedNormalHours.create({ data: { projectId, jobRoleId: fixture.prefix + '-role', hours: 220 } });
   }
   await database.omiePurchase.createMany({ data: [
     { omieId: fixture.prefix + '-paid', projectId: ids[0], categoriaCodigo: 'TEST', categoriaDescricao: 'Insumo', statusTitulo: 'PAGO', valor: '0.10', rawPayload: {} },
@@ -62,11 +65,20 @@ test('PostgreSQL + HTTP: point projections and batched group sources preserve co
       plannedScope: buildPlannedScope(options.progressDetails.plannedServices, hours.get(member.projectId)),
       progress: options.progressDetails.progress, options });
   }
-  let purchaseReads = 0, annualReads = 0;
+  let purchaseReads = 0, annualReads = 0, rosterReads = 0;
   const originalGroup = database.omiePurchase.groupBy, originalAnnual = database.acompanhamentoSetting.findMany;
+  const originalRoster = database.reportCollaborator.findMany;
   database.omiePurchase.groupBy = (...args) => { if (args[0]._sum?.valor) purchaseReads++; return originalGroup.apply(database.omiePurchase, args); };
   database.acompanhamentoSetting.findMany = (...args) => { annualReads++; return originalAnnual.apply(database.acompanhamentoSetting, args); };
-  t.after(() => { database.omiePurchase.groupBy = originalGroup; database.acompanhamentoSetting.findMany = originalAnnual; });
+  database.reportCollaborator.findMany = (...args) => {
+    rosterReads++;
+    assert.equal(Object.hasOwn(args[0].select, 'report'), false, 'Detail must reuse its parent reports for both turns');
+    return originalRoster.apply(database.reportCollaborator, args);
+  };
+  t.after(() => {
+    database.omiePurchase.groupBy = originalGroup; database.acompanhamentoSetting.findMany = originalAnnual;
+    database.reportCollaborator.findMany = originalRoster;
+  });
   const shared = await loadGroupDetailSources(ids);
   assert.equal(purchaseReads, 2, 'Cost groups are read in two batches for the whole group');
   for (const entry of entries) {
@@ -75,7 +87,11 @@ test('PostgreSQL + HTTP: point projections and batched group sources preserve co
   }
   assert.equal(purchaseReads, 2, 'Even a member without Omie costs must reuse its empty batch');
   assert.equal(annualReads, 1, 'Fallback report costing shares one request-owned catalog');
+  assert.equal(rosterReads, 2, 'Keep the original per-member roster query and its source order');
+  assert.ok(entries.every(entry => entry.detail.workedHours.roleCounts.some(role => role.usedHours > 0)));
+  assert.equal(entries[1].detail.workedHours.roleCounts[0].usedHours, 10, 'Day and night hours still feed role totals');
   database.omiePurchase.groupBy = originalGroup; database.acompanhamentoSetting.findMany = originalAnnual;
+  database.reportCollaborator.findMany = originalRoster;
   const restrictedOptions = { ...entries[0].options, includeAdminOnlyCategories: false };
   const restricted = await getProjectDetail(ids[0], restrictedOptions);
   assert.deepEqual(await getProjectDetail(ids[0], { ...restrictedOptions, sharedSources: shared }), restricted);

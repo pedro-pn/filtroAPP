@@ -309,7 +309,7 @@ não depender de reverter ou apagar dados para reverter o código.
 | T04 | Bootstrap projetado por seção, cache separado por seção e usuário, consultas condicionais, tratamento de carga/falha no upload manual e compatibilidade do contrato anterior | Aceite HTTP em ambiente publicado |
 | T05 | Associação das medições e preparo do escopo reutilizados dentro de cada cálculo; curvas não montam grupos de exibição descartados; resultado completo comparado com o anterior | Aceite HTTP em ambiente publicado |
 | T06 | Avanço atual a cada 15 s; histórico/recortes por revisão; projeção exclusiva de avanço; fontes comercial e de custos em lote para grupos; leituras de ponto por finalidade; ensaio HTTP local de permissões e escrita entre processos | Reduzir fila de pool observada no ensaio e validar concorrência/p95 no ambiente publicado |
-| T07 | Fontes mensais/globais compartilhadas; custos anuais e catálogo de cargos em lote; horários por período; ausências/calendário antecipados; conciliação sem calcular custos e catálogo de fallback compartilhado entre membros | Reduzir as 40 chamadas da tabela de custos e atingir a meta fria geral; planos SQL locais verificados sem justificar novo índice |
+| T07 | Fontes mensais/globais compartilhadas; catálogos em lote; horários por período; ausências/calendário antecipados; conciliação sem calcular custos; catálogo de cargos reutilizado no ponto e horas dos RDOs reutilizadas no detalhe | Reduzir as 38 chamadas da tabela de custos e a fila do pool; atingir a meta fria geral; planos SQL locais verificados sem justificar novo índice |
 | T08 | Seções do Efetivo/Acompanhamento, cinco modais de workflow e painéis do Gestor sob demanda; visão geral estatística separada dos overlays | Aceite das superfícies autenticadas no ambiente publicado |
 | T09 | Variantes lossless, favicon/hash/prioridade do login e CSS da administração de credenciais separado do shell, preservando a camada legacy | Aceite LCP publicado; outros estilos globais podem ser divididos conforme medição |
 | T10 | Uma linha por janela de 15 min para sondagens vazias de finalização/quarentena; trabalho e falhas individuais; preview/retenção em lotes sem prazo padrão | Aprovar prazo/política antes de aplicação manual; medir linhas/dia publicado |
@@ -323,13 +323,16 @@ ou execução em servidores nesta implementação local.
 
 1. **Pool e volume por requisição — T06/T07:** reduzir a pressão confirmada no
    ensaio HTTP já implementado. Com quatro requisições simultâneas e pool de oito,
-   a comparação desta continuação passou de 22,4% para 24,9% das amostras
-   ativas sem fila com a tabela de custos e 29,7% com a conciliação, ainda abaixo
-   da meta de 95%. O grupo passou de 62–64 para 49–50 chamadas medianas;
-   a conciliação do ponto passou de 40 para oito e a tabela de custos caiu de
-   738.561 B para 21.167 B, mantendo suas 40 chamadas. Priorizar leituras de
-   RDOs/colaboradores dos grupos e o cálculo da tabela de custos, preservando
-   as regras financeiras, os filtros de acesso e a atualização após gravação.
+   a rodada mais recente com a tabela de custos observou 25,1% das amostras
+   ativas sem fila, contra 26,3% na referência da mesma rodada; não houve
+   melhora dessa proporção. A meta continua em 95%. Na rodada anterior, o
+   consumidor de conciliação observou 29,7%, em cenário diferente da tabela.
+   O grupo agora usa 47–48 chamadas medianas, o detalhe individual 45–46 e
+   a tabela de custos 38. A conciliação usa oito e a tabela transfere 21.167 B.
+   Priorizar metadados de colaboradores compartilhados entre membros e medir
+   as rajadas de consultas das fontes, preservando regras financeiras, acesso
+   e atualização. Eventual coordenação de concorrência deve medir também a
+   espera na aplicação e o HTTP total, sem apenas deslocar a fila do PostgreSQL.
 2. **Carga fria — T07:** atingir a redução de pelo menos 50% em todos os
    cenários-alvo. A comparação direta com o início do plano deu 40,6% no cenário
    com poucos serviços e 50,1% no denso; isso ainda não fecha o aceite geral.
@@ -952,6 +955,109 @@ tabela de custos sem alterar regras de apropriação ou atualização. Permanece
 também a meta fria geral de T07, os aceites publicados de conteúdo útil/LCP/HTTP,
 as séries de 24 h/sete dias e a política de retenção. Backups seguem adiados;
 não houve execução em servidores ou migration nova.
+
+### Continuação local: catálogo de cargos e horas dos RDOs reutilizados
+
+A etapa anterior foi consolidada no commit local `d194dad8`
+(`perf: reduzir leituras do ponto e custos dos grupos`). Não houve push nesta
+rodada. Esta continuação altera somente backend, testes e evidências locais.
+
+O motor de custos agora usa os cargos que já carregou para resolver também
+o cargo atual e o histórico dos colaboradores do ponto. O catálogo inclui
+cargos sem perfil de custo e é reconstruído a cada cálculo, preservando a
+vigência das mudanças e a atualização de nomes. A interface pública de
+`getRoleParamsResolver` continua a mesma. Na regressão PostgreSQL com histórico,
+as consultas à tabela `JobRole` passaram de três para uma.
+
+O detalhe individual, de grupo e de divisão reaproveita as horas diurnas e
+noturnas da leitura principal de relatórios ao calcular o consumo por cargo.
+Isso remove a leitura aninhada de `Report` na consulta da equipe, que vinculava
+novamente os IDs dos relatórios históricos. As consultas principais de relatórios
+e de equipe mantêm filtros e ordem anteriores; não foi reunida a leitura dos
+RDOs dos membros nem alterada a seleção de fontes, nomes ou snapshots de cargo.
+Não há novo cache entre requisições, migration ou aumento de pool.
+
+Foi arquivado o backend de `d194dad8` e comparado com o candidato em processos
+separados, com as mesmas dependências e exatamente os mesmos dados PostgreSQL.
+Os cinco resultados completos — ponto, detalhe individual, grupo, divisão e
+grupo sem custos individuais/categorias administrativas — foram iguais antes
+e depois de gravações de cargo, salário e horas. A fixture inclui histórico de
+cargos, cargo sem perfil, pessoa sem ponto, equipe em ambos os membros, plano
+de horas por cargo e turnos diurno/noturno. Os hashes e contadores dessa
+comparação estão nas evidências; são distintos dos cenários HTTP abaixo.
+
+Dois ensaios HTTP sequenciais mediram referência e candidato, ambos usando
+`--ponto-view=summary`, PostgreSQL 16 com uma CPU/768 MiB, pool oito, concorrência
+quatro e o mesmo volume: 1.203 relatórios, 4.802 serviços, 21 colaboradores,
+297 linhas de escopo e grupo com dois membros. Cada coorte teve cem respostas
+aquecidas por rota/perfil (800), oito primeiras respostas em processos novos,
+oito aquecimentos e 16 leituras após gravação. As **832 respostas medidas por
+coorte foram 200**, além de oito negativas esperadas; não houve interrupções.
+
+| Rota aquecida | Chamadas medianas antes → depois | p95 cliente administrador antes → depois | p95 cliente visualizador antes → depois |
+| --- | ---: | ---: | ---: |
+| Cards | 11 → 11 | 155,1 → 150,8 ms | 73,4 → 73,7 ms |
+| Detalhe individual | 46–47 → 45–46 | 238,0 → 236,8 ms | 267,2 → 247,0 ms |
+| Grupo | 49–50 → 47–48 | 352,2 → 324,3 ms | 432,3 → 416,2 ms |
+| Tabela de custos do ponto | 40 → 38 | 304,8 → 284,1 ms | 243,9 → 233,1 ms |
+
+Os maiores corpos permaneceram iguais: 7.026 B nos cards, 467.018 B no detalhe,
+453.475 B no grupo e 21.167 B na tabela de custos. A conciliação não foi medida
+novamente nesta rodada, pois seu caminho não executa os cálculos alterados.
+
+| Pool durante atividade aquecida | Referência | Candidato |
+| --- | ---: | ---: |
+| Amostras sem fila / total | 526 / 2.000 | 480 / 1.916 |
+| Proporção sem fila | 26,3% | 25,1% |
+| Pico de consultas esperando | 44 | 39 |
+| Maior sequência observada com fila | 365,5 ms | 402,1 ms |
+
+**Não se observou melhora na proporção sem fila**, e a meta de 95% continua
+aberta. O pico caiu, mas a maior sequência observada aumentou; não houve
+sequência acima de cinco segundos. São amostras intervalares dependentes do
+event loop. Os p95 são observações de duas coortes sequenciais, sem pares
+aleatorizados ou repetição estatística; não permitem atribuir ganho universal
+nem regressão causal de fila. A única amostra fria de cada rota/perfil não
+fecha p95 ou a meta fria geral de 50%. Não foram medidos Nginx, TLS, navegação
+ou renderização. No candidato, as leituras após escrita terminaram em até
+771,9 ms após confirmação e preparo da coleta; os cards conservam sua política
+de expiração, sem afirmação de atualização imediata.
+
+As [evidências desta continuação](evidence/performance-reused-sources-20261110.json)
+guardam as amostras numéricas, hashes do código e resultados da comparação.
+As regressões permanentes verificam uma única consulta de cargos com histórico,
+perfis ausentes, nome atualizado no cálculo seguinte, ausência da releitura
+aninhada de relatórios e totais por cargo com os dois turnos. Os jobs PostgreSQL
+existentes do CI já executam esses testes, sem mudança no workflow.
+
+Validação final: **2.765 testes de backend aprovados e 42 ignorados**, sem
+falhas; **seis testes com PostgreSQL real aprovados**, nas três execuções
+específicas de motor, ponto/grupos e projeções HTTP. Os 71 testes unitários
+focados também passaram, assim como sintaxe, arquitetura, consistência das
+amostras e hashes do código. Não houve alteração de frontend nesta rodada;
+build, lint, orçamentos e seus 896 testes já haviam passado na etapa de
+`d194dad8`. O banco descartável foi removido ao concluir a validação.
+
+Para reproduzir o ensaio após arquivar a referência e disponibilizar suas
+dependências, em banco local exclusivo e migrado com URL em `DATABASE_URL`:
+
+```bash
+NODE_ENV=test npm --prefix backend run performance:http -- \
+  --source-root=/caminho/do/backend-arquivado \
+  --ponto-view=summary --requests=100 --cold-rounds=1 \
+  --reports=1200 --scopes=297 --concurrency=4 --pool-limit=8 \
+  --output=/tmp/filtro-http-referencia.json
+NODE_ENV=test npm --prefix backend run performance:http -- \
+  --ponto-view=summary --requests=100 --cold-rounds=1 \
+  --reports=1200 --scopes=297 --concurrency=4 --pool-limit=8 \
+  --output=/tmp/filtro-http-candidato.json
+```
+
+Os próximos incrementos continuam sendo o compartilhamento de metadados da
+equipe dos grupos e a redução da pressão concorrente das fontes, com medição
+de espera total e paridade das regras. Permanecem os aceites publicados, a
+meta fria geral, as séries de 24 h/sete dias e a política de retenção. Backups
+seguem adiados; não houve execução em servidores.
 
 ### Uso local das ferramentas de medição
 

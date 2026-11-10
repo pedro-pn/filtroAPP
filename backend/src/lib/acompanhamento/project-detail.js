@@ -471,8 +471,7 @@ export async function getProjectDetail(projectId, {
         reportId: true,
         collaboratorId: true,
         roleNameSnapshot: true,
-        collaborator: { select: { name: true, jobRole: { select: { name: true } } } },
-        report: { select: { daytimeWorkedMinutes: true, nighttimeWorkedMinutes: true } }
+        collaborator: { select: { name: true, jobRole: { select: { name: true } } } }
       }
     }),
     sources?.costGroupsByProject.get(projectId) ?? prisma.omiePurchase.groupBy({
@@ -498,7 +497,13 @@ export async function getProjectDetail(projectId, {
     project,
     progress: projectProgress
   } = loadedProgressDetails;
-  const { reports, collaborators } = selectRealizedSourceReportData(queriedReports, queriedCollaborators);
+  // The parent reports above already contain both turns. Preserve the roster
+  // query/order and attach those hours instead of issuing a nested Report read
+  // with one parameter for every historical report in the roster.
+  const queriedReportById = new Map(queriedReports.map(report => [report.id, report]));
+  const { reports, collaborators } = selectRealizedSourceReportData(queriedReports, queriedCollaborators.map(item => ({
+    ...item, report: queriedReportById.get(item.reportId)
+  })));
 
   // Mão de obra (HH) do ponto — mantido SEPARADO do gasto Omie (em validação, não somado).
   const divisionLabor = divisionLaborAllocation(labor, projectId, division);

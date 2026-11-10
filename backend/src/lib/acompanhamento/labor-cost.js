@@ -549,7 +549,7 @@ export function buildCollaboratorRoleCostSegments({ collaborator, roleParams, st
   ));
 }
 
-export async function getRoleParamsResolver(database = prisma) {
+async function loadRoleCostCatalog(database = prisma) {
   // Profiles for roles and base models share the same parameter table. Fetch
   // that catalog once, then attach role profiles without a second relation walk.
   const [roles, profiles] = await Promise.all([
@@ -562,10 +562,15 @@ export async function getRoleParamsResolver(database = prisma) {
     })
   ]);
   const profilesByRoleId = new Map(profiles.filter(profile => profile.jobRoleId != null).map(profile => [profile.jobRoleId, profile]));
-  return buildRoleParamsResolver({
+  const resolver = buildRoleParamsResolver({
     roles: roles.map(role => ({ ...role, costProfile: profilesByRoleId.get(role.id) })),
     models: profiles.filter(profile => profile.jobRoleId == null)
   });
+  return { resolver, rolesById: new Map(roles.map(role => [role.id, role])) };
+}
+
+export async function getRoleParamsResolver(database = prisma) {
+  return (await loadRoleCostCatalog(database)).resolver;
 }
 
 function reportWorkedMinutes(report) {
@@ -1999,9 +2004,8 @@ export async function computeCollaboratorRates(importId = null) {
             id: true,
             name: true,
             jobRoleId: true,
-            jobRole: { select: { id: true, name: true } },
             jobRoleHistory: {
-              select: { jobRoleId: true, effectiveDate: true, jobRole: { select: { id: true, name: true } } },
+              select: { jobRoleId: true, effectiveDate: true },
               orderBy: { effectiveDate: 'asc' }
             }
           }
@@ -2024,7 +2028,7 @@ export async function computeCollaboratorRates(importId = null) {
   const projectAllocationContextPromise = getProjectAllocationContext();
   const [
     periodState,
-    roleParams,
+    roleCatalog,
     reportSources,
     annualCosts,
     projectAllocationContext,
@@ -2032,7 +2036,7 @@ export async function computeCollaboratorRates(importId = null) {
     confirmedReviewDays
   ] = await Promise.all([
     periodStatePromise,
-    getRoleParamsResolver(),
+    loadRoleCostCatalog(),
     loadLaborReportSources({
       database: prisma, periodStart: pontoScope.periodStart, periodEnd: pontoScope.periodEnd,
       projects: projectAllocationContextPromise.then(context => context.projects)
@@ -2048,6 +2052,20 @@ export async function computeCollaboratorRates(importId = null) {
   const rdoData = rdoDataByCollaboratorFromReports(reportSources.reports);
   const offshoreYearsByCollaborator = offshoreYearsByCollaboratorFromReports(reportSources.offshoreReports);
   const { periods, actualAvailability } = periodState;
+  const { resolver: roleParams, rolesById } = roleCatalog;
+  // The resolver already read every role, including roles without a cost
+  // profile. Resolve current/history names from that request-owned catalog
+  // without walking the same JobRole relations again for the point roster.
+  for (const period of periods) {
+    if (!period.collaborator) continue;
+    period.collaborator = {
+      ...period.collaborator,
+      jobRole: rolesById.get(period.collaborator.jobRoleId) ?? null,
+      jobRoleHistory: (period.collaborator.jobRoleHistory || []).map(entry => ({
+        ...entry, jobRole: rolesById.get(entry.jobRoleId) ?? null
+      }))
+    };
+  }
   const manualProjects = manualProjectsByCollaborator(manualDayOverrides, confirmedReviewDays);
   const reviewedProjectDates = reviewedProjectDatesByCollaborator(confirmedReviewDays);
   const scheduleWindowEligibility = buildScheduleWindowEligibility(
