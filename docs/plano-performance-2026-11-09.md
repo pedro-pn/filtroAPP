@@ -309,7 +309,7 @@ não depender de reverter ou apagar dados para reverter o código.
 | T04 | Bootstrap projetado por seção, cache separado por seção e usuário, consultas condicionais, tratamento de carga/falha no upload manual e compatibilidade do contrato anterior | Aceite HTTP em ambiente publicado |
 | T05 | Associação das medições e preparo do escopo reutilizados dentro de cada cálculo; curvas não montam grupos de exibição descartados; resultado completo comparado com o anterior | Aceite HTTP em ambiente publicado |
 | T06 | Avanço atual a cada 15 s; histórico/recortes por revisão; projeção exclusiva de avanço; fontes comercial, de custos e de identidade da equipe compartilhadas nos grupos; nomes de cargos reutilizados no custo de RDO; leituras de ponto por finalidade; ensaio autenticado com medição de rajadas SQL | Reduzir fila de pool observada no ensaio e validar concorrência/p95 no ambiente publicado |
-| T07 | Fontes mensais/globais compartilhadas; catálogos em lote; horários por período; ausências/calendário antecipados; conciliação sem custos; cargos, horas de RDO, datas de importação e exclusões reutilizados; missões oficiais e classificações equivalentes dos eixos compartilhadas; ciclos sob demanda; custo por pessoa compartilhado nos grupos | Reduzir o trabalho restante da tabela de custos e a pressão simultânea sem piorar HTTP; atingir a meta fria geral; planos SQL locais verificados sem justificar novo índice |
+| T07 | Fontes mensais/globais compartilhadas; catálogos em lote; horários por período; disponibilidade antecipada; conciliação sem custos; metadados, missões oficiais e classificações equivalentes reutilizados; vínculos nominais do período/ano em uma consulta parametrizada; ciclos sob demanda; custo por pessoa compartilhado nos grupos | Reduzir o trabalho restante da tabela de custos e a pressão simultânea sem piorar HTTP; atingir a meta fria geral; planos SQL locais verificados sem justificar novo índice |
 | T08 | Seções do Efetivo/Acompanhamento, cinco modais de workflow e painéis do Gestor sob demanda; visão geral estatística separada dos overlays | Aceite das superfícies autenticadas no ambiente publicado |
 | T09 | Variantes lossless, favicon/hash/prioridade do login e CSS da administração de credenciais separado do shell, preservando a camada legacy | Aceite LCP publicado; outros estilos globais podem ser divididos conforme medição |
 | T10 | Uma linha por janela de 15 min para sondagens vazias de finalização/quarentena; trabalho e falhas individuais; preview/retenção em lotes sem prazo padrão | Aprovar prazo/política antes de aplicação manual; medir linhas/dia publicado |
@@ -324,10 +324,12 @@ ou execução em servidores nesta implementação local.
 1. **Pool e volume por requisição — T06/T07:** reduzir a pressão confirmada no
    ensaio HTTP já implementado. Com quatro requisições simultâneas e pool de oito,
    a repetição mais recente, com RDOs nos dois membros e tabela de custos
-   resumida, observou 30,3% das amostras ativas sem fila, contra 30,8% na
-   referência. A meta continua em 95%; os picos foram 36 e 41, respectivamente.
-   A tabela de custos mantém 32 chamadas medianas no cenário sem alocações
-   oficiais, após a redução anterior de 36 para 32. Detalhe e grupo aquecidos
+   resumida, observou 31,0% das amostras ativas sem fila, contra 31,6% na
+   referência. A meta continua em 95%; os picos foram 34 e 46, respectivamente.
+   A tabela de custos passou de 32 para 31 chamadas medianas no cenário sem
+   alocações oficiais, após a redução anterior de 36 para 32. Os vínculos
+   nominais do período/ano usam uma leitura com um parâmetro array, contra duas
+   leituras e até 1.203 parâmetros no cenário denso. Detalhe e grupo aquecidos
    mantiveram 51–52. A classificação dos eixos é reutilizada quando equivalente,
    mantendo passagens separadas para compartilhamentos. Datas das
    importações, exclusões, cargos e fontes oficiais do Efetivo já são
@@ -1552,8 +1554,8 @@ alteração em produção.
 A etapa das fontes oficiais foi registrada em **`ae2caee9`**
 (`perf: carregar fontes oficiais do Efetivo sob demanda`). A implementação
 continua exclusivamente em `/home/relat/apps/filtroAPP-performance`, na branch
-`fix/page-loading-performance`. Não houve push nesta rodada; a continuação desta
-seção permanece local e sem novo commit.
+`fix/page-loading-performance`. A etapa desta seção foi posteriormente registrada
+em **`3d4971eb`**, também local e sem push.
 
 O cálculo executava novamente a classificação das mesmas horas para os eixos
 contábil e analítico dentro de cada segmento de mês/cargo/parâmetros. A nova
@@ -1672,6 +1674,135 @@ geral, o envio/CI dos commits locais e os aceites publicados de HTTP/conteúdo
 útil/LCP e séries de 24 h/sete dias. O último CI remoto verificado ainda é o
 de `be1fad15`. Retenção depende de política aprovada; **backups seguem adiados**.
 Não houve publicação ou alteração em produção.
+
+### Vínculos nominais dos relatórios — continuação local de 10/11
+
+A etapa dos eixos de custo foi registrada em **`3d4971eb`**
+(`perf: reutilizar classificações equivalentes dos eixos de custo`). A continuação
+desta seção está local e ainda sem commit, na worktree `filtroAPP-performance`,
+branch `fix/page-loading-performance`. Os três commits locais mais recentes
+ainda precisam de envio e CI.
+
+As fontes do custo liam os colaboradores vinculados aos relatórios duas vezes:
+na seleção do período/RDOs históricos e na seleção anual offshore. A nova leitura
+reúne os IDs retornados por essas duas consultas e busca os vínculos uma vez,
+com `reportId = ANY(array parametrizado::text[])`. O SQL tem **um parâmetro**,
+em lugar de até 1.203 no cenário denso; o tamanho dos dados enviados no array
+continua proporcional ao histórico selecionado. Os IDs são valores vinculados,
+sem concatenação em SQL, e vêm das consultas de pais protegidas pelas regras
+de acesso a projetos. Fontes vazias dispensam a consulta dos vínculos.
+
+As duas consultas de pais mantêm os predicados e a ordem anteriores; o SQL da
+consulta principal de custos tem o mesmo hash da referência em todas as fases
+de paridade. Promessas nativas compartilham cada execução Prisma uma vez. A
+leitura dos vínculos começa quando ambos os conjuntos de pais estão disponíveis,
+em paralelo às demais fontes. Os vínculos são recolocados nas listas originais,
+sem mudar a precedência de RDOs empatados ou os critérios de elegibilidade anual.
+Não foi criado cache entre requisições nem imposto limite de concorrência.
+Pool, índices, migrações e fórmulas financeiras permanecem os anteriores.
+
+Os testes incluem RDOs históricos/futuros, relatórios offshore somente anuais,
+relatórios onshore no período, limites exclusivos do mês/ano, exclusões e
+fallback por intervalos. Mudanças nos vínculos de RDO e do relatório anual são
+observadas na leitura seguinte; falha na fonte interrompe o cálculo. Uma
+regressão com PostgreSQL real confirma que IDs de projeto restrito ficam fora
+do parâmetro SQL e dos dois conjuntos retornados. O transporte do teste Omni
+também passou a encaminhar consultas parametrizadas ao mesmo banco descartável
+usado por seus modelos; suas asserções de valores e privacidade foram mantidas.
+
+Foram comparados oito resultados completos normalizados com o backend arquivado
+de `3d4971eb`, em processos separados lendo as mesmas linhas: ponto explícito e
+consolidado, horas alocadas, diagnóstico, detalhe, grupo, divisão e grupo sem
+custos individuais/categorias administrativas. As dez fases cobrem alterações
+de cargo/salário/horas, alocações oficiais/ciclos/cancelamento, plano desativado,
+compartilhamentos, consolidação e mudanças nos vínculos. Os **80 pares de
+resultados permaneceram idênticos**. Horas alocadas e diagnóstico conservam o
+caminho de fontes anterior; o cálculo direto de custos elimina uma chamada.
+
+Um protótipo com filtro relacional unificando período/ano também foi medido e
+**descartado**. Embora reduzisse chamadas e parâmetros, seu plano repetia a
+leitura de 4.802 serviços: execução próxima de 3 ms, contra cerca de 0,4 ms nas
+duas leituras anteriores. A versão aceita consulta somente `ReportCollaborator`,
+usando os IDs já selecionados; os replays `EXPLAIN ANALYZE` deram 0,408/0,334 ms
+nos dois modos, sem nova leitura de relatórios/serviços. Esses replays são
+diagnósticos separados, e não a duração SQL das requisições originais. O
+[patch do protótipo descartado](evidence/report-rosters-filter-rejected-20261110.patch)
+permite reproduzir seu código sobre um checkout limpo de `3d4971eb`; não deve
+ser aplicado à versão aceita. Seus ensaios permanecem nas evidências.
+
+O benchmark de serviço fez três pares por modo no cenário denso, alternando a
+ordem dos backends nos mesmos dados: 1.203 relatórios, 4.802 serviços e 21
+colaboradores. Os **nove pares completos foram iguais**.
+
+| Serviço: referência `3d4971eb` → continuação | Parede mediana | CPU mediana do processo |
+| --- | ---: | ---: |
+| Aquecido | 85,0 → 60,7 ms | 125,4 → 88,4 ms |
+| Processo novo | 319,8 → 286,8 ms | 746,7 → 706,2 ms |
+| Após SELECT de sessão | 196,0 → 189,0 ms | 429,5 → 415,6 ms |
+
+São amostras pequenas e sequenciais de serviço, com imports/boot fora da janela
+e páginas do banco aquecidas. CPU é a do processo Node/Prisma inteiro, incluindo
+threads e trabalho em segundo plano, sem CPU do PostgreSQL. Esses resultados
+não estabelecem ganho causal ou aceite geral de latência. A meta fria geral
+continua pendente; a última comparação cumulativa contra o início do plano
+permanece em 41,0%/46,4%, sem nova medição cumulativa nesta etapa.
+
+O HTTP autenticado foi medido em quatro coortes sequenciais, referência →
+candidato e candidato → referência, com PostgreSQL 16 descartável de uma
+CPU/768 MiB, pool oito, concorrência quatro, relatórios nos dois membros do
+grupo e tabela de custos resumida. Cada coorte teve 832 respostas 200, incluindo
+800 aquecidas, oito primeiras respostas em processos novos, oito aquecimentos
+e 16 leituras após escrita. Houve oito negativas 401/403 esperadas por coorte,
+separadas das **3.328 respostas medidas**, sem interrupções. Não houve testes
+ou outro benchmark desta tarefa durante as medições; o host da API não foi isolado.
+
+No fixture sem alocações oficiais, o ponto passou de **32 para 31 chamadas**
+medianas, com o mesmo JSON de 20.447 B aquecido. Cards mantiveram 11 chamadas e
+máximo aquecido de 7.021 B; detalhe/grupo, 51–52 chamadas e 302.068/442.319 B.
+Os picos por requisição seguiram em 18 no detalhe, 14 no grupo e 15 no ponto,
+incluindo consultas esperando no pool.
+
+| p95 cliente aquecido, administrador / visualizador | Referência inicial | Candidato inicial | Candidato na ordem inversa | Referência na ordem inversa |
+| --- | ---: | ---: | ---: | ---: |
+| Cards | 148,4 / 81,1 ms | 152,1 / 72,2 ms | 183,6 / 78,0 ms | 163,7 / 90,1 ms |
+| Detalhe individual | 240,6 / 304,5 ms | 244,8 / 277,1 ms | 267,3 / 275,2 ms | 272,9 / 312,0 ms |
+| Grupo | 355,8 / 396,8 ms | 333,2 / 429,0 ms | 371,4 / 542,1 ms | 375,0 / 440,4 ms |
+| Ponto | 279,7 / 233,4 ms | 282,5 / 241,9 ms | 298,9 / 280,9 ms | 292,4 / 268,9 ms |
+
+Há variações nos dois sentidos, inclusive maior p95 do grupo visualizador no
+candidato na ordem inversa. A redução de chamadas está confirmada; **não há
+aceite geral de p95**.
+
+| Pool aquecido | Referência inicial | Candidato inicial | Candidato na ordem inversa | Referência na ordem inversa |
+| --- | ---: | ---: | ---: | ---: |
+| Amostras sem fila / total | 620 / 2.057 | 618 / 2.034 | 633 / 2.041 | 668 / 2.117 |
+| Proporção sem fila | 30,1% | 30,4% | 31,0% | 31,6% |
+| Pico de consultas esperando | 38 | 42 | 34 | 46 |
+| Maior sequência observada com fila | 318,2 ms | 362,9 ms | 397,8 ms | 316,3 ms |
+
+A meta de **95% sem fila permanece pendente**. A amostragem não observou
+sequência com fila acima de cinco segundos e não mede espera individual por
+consulta. As leituras alteradas após escrita terminaram em até 794,7 ms no
+candidato, a partir da confirmação/preparo da coleta; cards mantêm sua expiração
+normal. Proxy, TLS, renderização e produção não foram medidos; uma primeira
+resposta por rota/perfil não permite p95 frio.
+
+As [evidências dos vínculos nominais](evidence/performance-report-rosters-20261110.json)
+guardam as quatro coortes aceitas e as quatro do protótipo descartado, todas as
+**6.656 amostras numéricas**, perfis SQL/planos, CPU, paridade e hashes dos cinco
+arquivos de implementação/testes. Validação final: **2.778 testes de backend
+aprovados e 42 ignorados**, sem falhas/cancelamentos; também passaram os 12
+contratos/regressões HTTP/PostgreSQL, 23 testes focados e nove testes Omni.
+Sintaxe, arquitetura, diff e integridade/privacidade das evidências foram
+verificados. As tabelas de dados sintéticos ficaram vazias antes da remoção do
+banco descartável e seus volumes; permaneceram somente cadastros do bootstrap.
+
+Os próximos passos são reduzir trabalho/caminho crítico restantes do custo e do
+detalhe e a pressão do pool, atingir a meta fria geral e executar novo CI quando
+os commits locais forem enviados. O último CI remoto verificado segue sendo o
+de `be1fad15`. Aceites publicados de HTTP/conteúdo útil/LCP, cobertura em dois
+navegadores, séries de 24 h/sete dias e política/aplicação de retenção continuam
+pendentes. **Backups seguem adiados**. Não houve publicação ou alteração em produção.
 
 ### Uso local das ferramentas de medição
 

@@ -54,6 +54,13 @@ function mockCalculation(t, {
   stub('report', 'findMany', async args => reportRead
     ? (await reportRead(args)).map((report, index) => ({ id: 'report-' + index, ...report }))
     : args.where.project?.offshore ? [] : reportRows);
+  const originalRaw = prisma.$queryRaw;
+  prisma.$queryRaw = async (_query, reportIds) => {
+    const rows = reportRead ? await reportRead({ where: { OR: [] } }) : reportRows;
+    return rows.flatMap((report,index) => reportIds.includes(report.id || 'report-' + index)
+      ? (report.collaborators || []).map(({ collaboratorId }) => ({ reportId: report.id || 'report-' + index, collaboratorId })) : []);
+  };
+  t.after(() => { prisma.$queryRaw = originalRaw; });
   mock('reportService', 'findMany', reportRows.filter(report => report.reportType !== 'RDO')
     .flatMap(report => (report.services || []).map(service => ({ reportId: report.id, ...service }))));
   mock('acompanhamentoSetting', 'findUnique', { numberValue: 0 });

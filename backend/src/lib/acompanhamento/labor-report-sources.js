@@ -41,15 +41,32 @@ export async function loadLaborReportSources({ database, periodStart, periodEnd,
   // of its intervals are used. Read the period's service intervals directly;
   // keep the parent query/order and nominal RDO evidence unchanged.
   delete query.select.services;
-  const [reports, offshoreOtherReports, serviceIntervals, projectRows] = await Promise.all([
-    database.report.findMany(query),
-    database.report.findMany({
-      where: {
-        deletedAt: null, reportType: { not: 'RDO' },
-        reportDate: { gte: from, lt: to }, project: { offshore: true }
-      },
-      select: { projectId: true, reportDate: true, collaborators: { select: { collaboratorId: true } } }
-    }),
+  delete query.select.collaborators;
+  const annualWhere = {
+    deletedAt: null, reportType: { not: 'RDO' },
+    reportDate: { gte: from, lt: to }, project: { offshore: true }
+  };
+  const reportsPromise = Promise.resolve(database.report.findMany(query));
+  const annualReportsPromise = Promise.resolve(database.report.findMany({
+    where: annualWhere, select: { id: true, projectId: true, reportDate: true }
+  }));
+  // Use the exact parents already selected, including their original order.
+  // A single bound text[] avoids both historical placeholder expansion and
+  // repeating the report/service predicates. Never interpolate IDs into SQL.
+  const collaboratorsPromise = Promise.all([reportsPromise, annualReportsPromise]).then(sources => {
+    const ids = new Set();
+    for (const rows of sources) for (const row of rows) ids.add(row.id);
+    const reportIds = [...ids];
+    return reportIds.length ? database.$queryRaw`
+      SELECT "reportId", "collaboratorId"
+      FROM "public"."ReportCollaborator"
+      WHERE "reportId" = ANY(${reportIds}::text[])
+    ` : [];
+  });
+  const [reports, offshoreOtherReports, collaborators, serviceIntervals, projectRows] = await Promise.all([
+    reportsPromise,
+    annualReportsPromise,
+    collaboratorsPromise,
     database.reportService.findMany({
       where: {
         startTime: { not: null }, endTime: { not: null },
@@ -60,13 +77,21 @@ export async function loadLaborReportSources({ database, periodStart, periodEnd,
     projects
   ]);
   const projectsById = new Map(projectRows.map(project => [project.id, project]));
+  const collaboratorsByReportId = new Map();
+  for (const { reportId, collaboratorId } of collaborators) {
+    if (!collaboratorsByReportId.has(reportId)) collaboratorsByReportId.set(reportId, []);
+    collaboratorsByReportId.get(reportId).push({ collaboratorId });
+  }
   const servicesByReportId = new Map();
   for (const { reportId, startTime, endTime } of serviceIntervals) {
     if (!servicesByReportId.has(reportId)) servicesByReportId.set(reportId, []);
     servicesByReportId.get(reportId).push({ startTime, endTime });
   }
-  const withProject = report => ({ ...report, project: report.project ?? projectsById.get(report.projectId) });
-  const rdoReports = reports.map(({ id, ...report }) => withProject({ ...report, services: servicesByReportId.get(id) || [] }));
+  const withProject = ({ id, ...report }) => ({ ...report,
+    collaborators: collaboratorsByReportId.get(id) || [],
+    project: report.project ?? projectsById.get(report.projectId)
+  });
+  const rdoReports = reports.map(report => withProject({ ...report, services: servicesByReportId.get(report.id) || [] }));
   return {
     reports: rdoReports,
     // Os RDOs de qualquer data continuam na primeira leitura, pois são evidência

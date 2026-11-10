@@ -86,6 +86,9 @@ test('PostgreSQL: fontes enxutas preservam folha, rateio, trilhas e atualizaçã
   const serviceQueries = sqlQueries.filter(query => query.sqlSnippet.includes('"ReportService"'));
   assert.equal(serviceQueries.length, 1);
   assert.ok(serviceQueries[0].parameterCount < 10, 'Service interval SQL must not bind every historical report ID');
+  const rosterQueries = sqlQueries.filter(query => query.sqlSnippet.includes('"ReportCollaborator"'));
+  assert.equal(rosterQueries.length, 1, 'Period and annual report sources share one nominal roster read');
+  assert.equal(rosterQueries[0].parameterCount, 1, 'Nominal roster SQL binds one typed array for the exact selected parents');
   const roleQueries = sqlQueries.filter(query => query.sqlSnippet.includes('"JobRole"'));
   assert.equal(roleQueries.length, 1, 'Current/history role names must reuse the same catalog as the cost resolver');
   assert.equal(sqlQueries.filter(query => query.sqlSnippet.includes('"PontoImport"')).length, 1,
@@ -214,4 +217,26 @@ test('PostgreSQL: fontes enxutas preservam folha, rateio, trilhas e atualizaçã
       projects: { create: axesProjects.map(projectId => ({ projectId })) }
     } } } } } });
   await assertSeparateAxes('REVIEW_SHARED_CONFIRMED');
+
+  await database.reportCollaborator.updateMany({ where: { reportId: fixture.prefix + '-annual' }, data: { collaboratorId: fixture.prefix + '-person-19' } });
+  const rosterRefresh = await loadLaborReportSources({ database, projects: await database.project.findMany(),
+    periodStart: new Date('2026-09-01'), periodEnd: new Date('2026-09-30') });
+  assert.deepEqual(rosterRefresh.offshoreReports.find(report => report.reportDate.toISOString().startsWith('2026-01-10')).collaborators,
+    [{ collaboratorId: fixture.prefix + '-person-19' }], 'Annual-only roster edits are observed in the next source read');
+
+  const { withProjectAccess } = await import('../src/lib/projects/access-scope.js');
+  await database.project.update({ where: { id: axesProjects[1] }, data: { managerOnly: true } });
+  const originalRaw = database.$queryRaw;
+  database.$queryRaw = (...args) => {
+    assert.ok(!args[1].includes(axesReportId), 'Raw roster IDs must come only from the protected parent reads');
+    return originalRaw.apply(database, args);
+  };
+  try {
+    const restricted = await withProjectAccess({ accountType: 'INTERNAL' }, async () => loadLaborReportSources({
+      database, projects: await database.project.findMany(), periodStart: new Date('2026-09-01'), periodEnd: new Date('2026-09-30')
+    }));
+    assert.ok(restricted.reports.some(report => report.projectId === fixture.projectId));
+    assert.equal(restricted.reports.some(report => report.projectId === axesProjects[1]), false);
+    assert.equal(restricted.offshoreReports.some(report => report.projectId === axesProjects[1]), false);
+  } finally { database.$queryRaw = originalRaw; }
 });
