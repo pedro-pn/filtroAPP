@@ -308,12 +308,12 @@ não depender de reverter ou apagar dados para reverter o código.
 | T03 | Healthchecks locais do Nginx e de progresso do worker, incluindo filas de aprovação/e-mail/Data Book | Publicação manual e série de 24 h/sete dias |
 | T04 | Bootstrap projetado por seção, cache separado por seção e usuário, consultas condicionais, tratamento de carga/falha no upload manual e compatibilidade do contrato anterior | Aceite HTTP em ambiente publicado |
 | T05 | Associação das medições e preparo do escopo reutilizados dentro de cada cálculo; curvas não montam grupos de exibição descartados; resultado completo comparado com o anterior | Aceite HTTP em ambiente publicado |
-| T06 | Avanço atual a cada 15 s; histórico/recortes por revisão; projeção exclusiva de avanço; fontes comercial, de custos e de identidade da equipe compartilhadas nos grupos; leituras de ponto por finalidade; ensaio autenticado com medição de rajadas SQL | Reduzir fila de pool observada no ensaio e validar concorrência/p95 no ambiente publicado |
+| T06 | Avanço atual a cada 15 s; histórico/recortes por revisão; projeção exclusiva de avanço; fontes comercial, de custos e de identidade da equipe compartilhadas nos grupos; nomes de cargos reutilizados no custo de RDO; leituras de ponto por finalidade; ensaio autenticado com medição de rajadas SQL | Reduzir fila de pool observada no ensaio e validar concorrência/p95 no ambiente publicado |
 | T07 | Fontes mensais/globais compartilhadas; catálogos em lote; horários por período; ausências/calendário antecipados; conciliação sem custos; cargos, horas de RDO, datas de importação e exclusões reutilizados; custo por pessoa compartilhado nos grupos | Reduzir as 36 chamadas da tabela de custos e o trabalho simultâneo sem piorar HTTP; atingir a meta fria geral; planos SQL locais verificados sem justificar novo índice |
 | T08 | Seções do Efetivo/Acompanhamento, cinco modais de workflow e painéis do Gestor sob demanda; visão geral estatística separada dos overlays | Aceite das superfícies autenticadas no ambiente publicado |
 | T09 | Variantes lossless, favicon/hash/prioridade do login e CSS da administração de credenciais separado do shell, preservando a camada legacy | Aceite LCP publicado; outros estilos globais podem ser divididos conforme medição |
 | T10 | Uma linha por janela de 15 min para sondagens vazias de finalização/quarentena; trabalho e falhas individuais; preview/retenção em lotes sem prazo padrão | Aprovar prazo/política antes de aplicação manual; medir linhas/dia publicado |
-| T11 | Orçamentos, paridade, projeções HTTP/PostgreSQL e navegador no CI; padrões em PADRAO_MODULO.md; 11 jobs aprovados no commit enviado `e5a1fa52` | Reexecutar gates quando a continuação local for enviada; validação publicada permanece em T12 |
+| T11 | Orçamentos, paridade, projeções HTTP/PostgreSQL e navegador no CI; padrões em PADRAO_MODULO.md; 11 jobs aprovados no commit enviado `be1fad15` | Reexecutar gates quando a continuação local for enviada; validação publicada permanece em T12 |
 
 Os aceites publicados, a política/aplicação de retenção e o restante da meta fria de T07 permanecem pendentes. As regras de apropriação
 de custos foram preservadas. Não houve exclusão de histórico, alteração de backup
@@ -324,12 +324,13 @@ ou execução em servidores nesta implementação local.
 1. **Pool e volume por requisição — T06/T07:** reduzir a pressão confirmada no
    ensaio HTTP já implementado. Com quatro requisições simultâneas e pool de oito,
    a repetição mais recente, com RDOs nos dois membros e tabela de custos
-   resumida, observou 29,1% das amostras ativas sem fila, contra 26,6% na
-   referência. A meta continua em 95%; o pico da fila passou de 41 para 43.
-   A tabela de custos passou de 38 para 36 chamadas medianas; detalhe e grupo
-   mantiveram 53–54. Datas das importações e exclusões já são reutilizadas.
-   As latências variaram entre coortes, incluindo uma referência bastante mais
-   lenta; não há aceite geral de p95 ou afirmação de ganho causal de latência.
+   resumida, observou 28,3% das amostras ativas sem fila, contra 28,5% na
+   referência. A meta continua em 95%; os picos foram 36 e 41, respectivamente.
+   A tabela de custos permanece em 36 chamadas medianas; detalhe e grupo
+   passaram de 53–54 para 51–52. Datas das importações, exclusões e nomes de
+   cargos já são reutilizados. As latências variaram entre coortes; a ordem
+   inversa também foi medida, sem aceite geral de p95 ou afirmação de ganho
+   causal de latência.
    Os três testes de limitação de fontes foram descartados por não trazerem
    ganho HTTP consistente, apesar de reduzirem picos. O paralelismo anterior
    permanece. Priorizar a retirada de trabalho/leituras redundantes e o caminho
@@ -1306,6 +1307,123 @@ Os próximos passos permanecem a redução do trabalho/caminho crítico sem pior
 o HTTP, a meta fria geral, o aceite publicado e as séries de 24 h/sete dias.
 A política de retenção está pendente e backups seguem adiados. Não houve
 execução em produção ou mudança na estratégia de backup.
+
+### Catálogo de cargos e worktree de performance — continuação local de 10/11
+
+O trabalho anterior foi registrado em **`be1fad15`**
+(`perf: reutilizar metadados de importações e exclusões do ponto`) e enviado para
+`origin/fix/page-loading-performance`. O CI desse commit foi disparado manualmente
+e seus **11 jobs passaram**, incluindo navegador, orçamentos, PostgreSQL e Docker:
+[execução do CI](https://github.com/pedro-pn/filtroAPP/actions/runs/42877088168).
+
+A branch passou para `/home/relat/apps/filtroAPP-performance`; a pasta original
+`/home/relat/apps/filtroAPP-main` voltou para `main`, em `3db7e76f`.
+Os arquivos locais preexistentes e as alterações de outra frente que surgiram na
+`main` durante a continuação foram preservados. As dependências de backend e o
+cliente Prisma foram instalados/gerados dentro da nova worktree, com diretório
+`node_modules` independente. Toda a implementação descrita nesta seção está
+**local na worktree de performance, ainda sem novo commit/push**; o CI acima
+valida somente `be1fad15`.
+
+A próxima retirada de trabalho redundante reutiliza o catálogo de cargos que o
+resolvedor de parâmetros de custo já carrega:
+
+- O custo estimado de RDO, tanto individual quanto compartilhado nos grupos,
+  busca os IDs do cargo atual e do histórico e resolve seus nomes pelo mesmo
+  catálogo. Duas leituras relacionais repetidas de `JobRole` são eliminadas.
+- A carga de horas alocadas usada no Efetivo e o diagnóstico mensal fazem o
+  mesmo reaproveitamento. Cada um passa de três para uma consulta de `JobRole`.
+- Um helper puro compartilhado preserva datas de vigência, ordem do histórico,
+  nomes de cargos sem perfil de custo e a exclusão manual da simulação. Relações
+  fornecidas por adaptadores antigos continuam aceitas quando não há ID; uma
+  linha sem identificador no catálogo não substitui o cargo desse adaptador.
+  Os objetos de entrada não são alterados.
+- O cálculo principal do ponto, que já fazia esse reaproveitamento, usa o mesmo
+  helper. A listagem mantém suas 36 consultas. O catálogo dos grupos continua
+  sob demanda e pertence a uma única requisição, com as mesmas verificações
+  de projeto, acesso, categorias e divisão.
+
+Não houve mudança de fórmula financeira, ordem de seleção dos relatórios/equipe,
+cache entre requisições, limite de concorrência, pool, índice ou migration.
+
+Foram comparados oito resultados completos normalizados com o backend arquivado
+de `be1fad15`, em processos separados lendo exatamente as mesmas linhas no
+PostgreSQL: ponto por importação, ponto consolidado, horas alocadas, diagnóstico
+mensal, detalhe individual, grupo, divisão e grupo sem custos individuais ou
+categorias administrativas. A igualdade foi mantida antes e depois de alterar
+nome de cargo, salário e horas de RDO. O cenário inclui histórico sem perfil,
+importações sobrepostas, pessoa fora do ponto, horas planejadas e turnos diurno
+e noturno. Nas leituras diretas, horas alocadas passaram de 27 para 25 consultas;
+diagnóstico, de 31 para 29; detalhe/grupo/divisão também retiraram duas consultas.
+Os outros três fluxos mantiveram a contagem anterior.
+
+O ensaio HTTP foi repetido nas ordens referência → candidato e candidato →
+referência, sem testes ou outro benchmark desta tarefa em paralelo à medição.
+O host da API não foi isolado. O PostgreSQL 16 descartável teve uma CPU/768 MiB;
+a API usou pool oito e concorrência quatro. O cenário distribui 1.203 relatórios
+e 4.802 serviços entre os projetos, com 21 colaboradores, 297 linhas de escopo
+e quatro sessões autenticadas.
+
+Cada coorte teve **832 respostas 200**, sem interrupções: 800 aquecidas, oito
+primeiras respostas em processos novos, oito aquecimentos e 16 leituras após
+escrita. Houve oito negativas de autenticação/módulo esperadas por coorte,
+separadas dessas respostas. As quatro coortes totalizam **3.328 respostas
+medidas**, preservadas nas evidências.
+
+| Superfície aquecida | Referência → continuação local: consultas medianas | Maior JSON nas duas versões |
+| --- | ---: | ---: |
+| Cards | 11 → 11 | 7.021 B |
+| Detalhe individual | 53–54 → 51–52 | 302.068 B |
+| Grupo | 53–54 → 51–52 | 442.319 B |
+| Tabela de custos do ponto | 36 → 36 | 20.447 B |
+
+A redução de **duas consultas por resposta de detalhe/grupo (3,7–3,8%)** foi
+confirmada nas duas coortes do candidato. Os tamanhos máximos das respostas
+permaneceram iguais. As latências observadas foram:
+
+| p95 cliente aquecido, administrador / visualizador | Referência inicial | Candidato inicial | Candidato na ordem inversa | Referência na ordem inversa |
+| --- | ---: | ---: | ---: | ---: |
+| Detalhe individual | 286,6 / 352,4 ms | 336,5 / 379,4 ms | 350,9 / 357,6 ms | 439,4 / 479,8 ms |
+| Grupo | 386,0 / 451,4 ms | 459,8 / 539,1 ms | 472,2 / 602,7 ms | 596,8 / 640,2 ms |
+| Ponto | 298,3 / 229,0 ms | 367,8 / 284,7 ms | 371,6 / 315,4 ms | 350,2 / 301,6 ms |
+
+O primeiro par apresentou latências maiores no candidato, inclusive nas rotas sem
+alteração de consultas; no segundo, detalhe e grupo ficaram mais rápidos que a
+referência posterior. Isso não demonstra ganho causal nem uma regressão isolada
+da alteração. **Não há novo aceite de p95**: o ganho comprovado é a retirada de
+leituras redundantes com paridade completa dos resultados.
+
+| Pool aquecido | Referência inicial | Candidato inicial | Candidato na ordem inversa | Referência na ordem inversa |
+| --- | ---: | ---: | ---: | ---: |
+| Amostras sem fila / total | 654 / 2.257 | 662 / 2.369 | 682 / 2.408 | 725 / 2.542 |
+| Proporção sem fila | 29,0% | 27,9% | 28,3% | 28,5% |
+| Pico de consultas esperando | 42 | 44 | 36 | 41 |
+| Maior sequência observada com fila | 311,5 ms | 318,2 ms | 395,8 ms | 540,6 ms |
+
+A meta de **95% sem fila permanece pendente**. Nenhuma coorte observou sequência
+com fila acima de cinco segundos. Os picos por requisição permaneceram em 18 no
+detalhe, 14 no grupo e 16 no ponto, contando consultas submetidas e ainda não
+concluídas, inclusive espera no pool. No candidato, as leituras após escrita
+terminaram em até 1.025,4 ms, a partir da confirmação/preparo da coleta; os cards
+mantêm a expiração normal. Uma amostra por rota/perfil em processo novo não
+permite p95 frio nem fecha a redução fria geral. Não foram medidos proxy, TLS,
+renderização ou produção nesta continuação.
+
+As [evidências do catálogo de cargos](evidence/performance-role-catalog-20261110.json)
+guardam as quatro coortes com todas as amostras numéricas, resultados da paridade,
+configuração e hashes dos arquivos. A validação final teve **2.770 testes de
+backend aprovados e 42 ignorados**, sem falhas ou cancelamentos. Também passaram
+os seis contratos HTTP, a regressão de ponto/grupos, a regressão de motor com
+importações sobrepostas e os quatro testes de projeção com PostgreSQL real.
+Os testes focados iniciais aprovaram 25 casos; o caso final do adaptador sem ID
+também passou na suíte completa. Sintaxe, arquitetura, diff e integridade das
+evidências foram verificados. O banco descartável foi removido após a validação.
+
+Continuam pendentes a pressão do pool/caminho crítico, a meta fria geral, os
+aceites publicados e as séries de 24 h/sete dias. Retenção depende de política
+aprovada; **backups seguem adiados**. A próxima rodada local deve priorizar o
+trabalho redundante restante nas 36 consultas do ponto e nas 51–52 do detalhe,
+medindo o HTTP completo sem adotar os limites de fontes já rejeitados.
 
 ### Uso local das ferramentas de medição
 

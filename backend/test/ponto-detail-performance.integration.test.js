@@ -83,7 +83,12 @@ test('PostgreSQL + HTTP: point projections and batched group sources preserve co
       metadataReads++;
       assert.deepEqual(args[0].where.reportLinks.some.report, { projectId: { in: ids }, deletedAt: null });
     }
-    if (args[0].select.rdoCostSimulationExcluded) costCollaboratorReads++;
+    if (args[0].select.rdoCostSimulationExcluded) {
+      costCollaboratorReads++;
+      assert.equal(args[0].select.jobRoleId, true);
+      assert.equal(Object.hasOwn(args[0].select, 'jobRole'), false, 'Fallback costs reuse names from their cost catalog');
+      assert.equal(Object.hasOwn(args[0].select.jobRoleHistory.select, 'jobRole'), false);
+    }
     return originalCollaborators.apply(database.collaborator, args);
   };
   database.omiePurchase.groupBy = (...args) => { if (args[0]._sum?.valor) purchaseReads++; return originalGroup.apply(database.omiePurchase, args); };

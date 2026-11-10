@@ -11,9 +11,9 @@ export function createReportCostCollaboratorLoader(database) {
         where: { id: { in: [...batch.keys()] } },
         select: {
           id: true, rdoCostSimulationExcluded: true,
-          jobRole: { select: { id: true, name: true } },
+          jobRoleId: true,
           jobRoleHistory: {
-            select: { jobRoleId: true, effectiveDate: true, jobRole: { select: { id: true, name: true } } }
+            select: { jobRoleId: true, effectiveDate: true }
           }
         }
       });

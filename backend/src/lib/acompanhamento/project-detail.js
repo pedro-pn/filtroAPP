@@ -17,7 +17,8 @@ import { computeAlerts } from './alerts.js';
 import { loadPlannedHours, plannedHoursAlerts } from './planned-hours.js';
 import { buildOmieCostCategoryWhere } from './cost-categories.js';
 import { getEquipmentUsageByProject } from './equipment-usage.js';
-import { getRoleParamsResolver, laborCostByProject } from './labor-cost.js';
+import { loadRoleCostCatalog, laborCostByProject } from './labor-cost.js';
+import { withCollaboratorRoleNames } from './collaborator-role-sources.js';
 import { estimateReportLaborCostByDate, summarizeReportLaborCost } from './report-labor-cost.js';
 import { getManualProjectCostsByProject } from './manual-costs.js';
 import { buildWorkedHoursProgress } from './project-cards.js';
@@ -211,22 +212,23 @@ export function buildProjectReportHours(reports, collaboratorIdsByReport, projec
 
 async function getReportLaborCostEstimates(project, hoursByCollaborator, sources = null) {
   if (!hoursByCollaborator.size) return new Map();
-  const [collaborators, [roleParams, annualCosts]] = await Promise.all([
+  const [collaborators, [roleCatalog, annualCosts]] = await Promise.all([
     sources?.loadReportCostCollaborators ? sources.loadReportCostCollaborators([...hoursByCollaborator.keys()]) : prisma.collaborator.findMany({
       where: { id: { in: [...hoursByCollaborator.keys()] } },
       select: {
         id: true,
         rdoCostSimulationExcluded: true,
-        jobRole: { select: { id: true, name: true } },
+        jobRoleId: true,
         jobRoleHistory: {
-          select: { jobRoleId: true, effectiveDate: true, jobRole: { select: { id: true, name: true } } }
+          select: { jobRoleId: true, effectiveDate: true }
         }
       }
     }),
-    sources?.loadReportCostCatalog ? sources.loadReportCostCatalog() : Promise.all([getRoleParamsResolver(), getAnnualCollaboratorCosts()])
+    sources?.loadReportCostCatalog ? sources.loadReportCostCatalog() : Promise.all([loadRoleCostCatalog(), getAnnualCollaboratorCosts()])
   ]);
   return new Map(collaborators.map(collaborator => [collaborator.id, estimateReportLaborCostByDate({
-    collaborator, roleParams, project, annualCosts,
+    collaborator: withCollaboratorRoleNames(collaborator, roleCatalog.rolesById),
+    roleParams: roleCatalog.resolver, project, annualCosts,
     workedMinutesByDate: hoursByCollaborator.get(collaborator.id).workedMinutesByDate
   })]));
 }

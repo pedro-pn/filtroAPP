@@ -28,6 +28,7 @@
 import prisma from '../prisma.js';
 import { laborReportQuery, loadLaborReportSources } from './labor-report-sources.js';
 import { withPontoImportDates } from './ponto-period-sources.js';
+import { withCollaboratorRoleNames } from './collaborator-role-sources.js';
 import { laborCostCache } from '../resource-list-cache.js';
 import { computeMonthlyCost } from './cost-engine.js';
 import { getAnnualCollaboratorCosts } from './settings.js';
@@ -550,7 +551,7 @@ export function buildCollaboratorRoleCostSegments({ collaborator, roleParams, st
   ));
 }
 
-async function loadRoleCostCatalog(database = prisma) {
+export async function loadRoleCostCatalog(database = prisma) {
   // Profiles for roles and base models share the same parameter table. Fetch
   // that catalog once, then attach role profiles without a second relation walk.
   const [roles, profiles] = await Promise.all([
@@ -1591,23 +1592,25 @@ export async function loadAllocatedAttendanceDays({ database = prisma } = {}) {
   const scope = await getPontoImportScope(null, database);
   if (!scope) return [];
   const end = endExclusive(scope.periodEnd);
-  const [periodRows, ignored, roleParams, rdoData, context, overrides, reviewDays] = await Promise.all([
+  const [periodRows, ignored, roleCatalog, rdoData, context, overrides, reviewDays] = await Promise.all([
     database.pontoPeriodSummary.findMany({
       where: { importId: { in: scope.pontoImports.map(row => row.id) }, collaboratorId: { not: null } },
       include: { collaborator: { select: {
-        jobRole: { select: { name: true } }, jobRoleHistory: { select: {
-          effectiveDate: true, jobRoleId: true, jobRole: { select: { id: true, name: true } }
+        jobRoleId: true, jobRoleHistory: { select: {
+          effectiveDate: true, jobRoleId: true
         }, orderBy: { effectiveDate: 'asc' } }
       } } }
     }),
     database.pontoExternalEmployee.findMany({ where: { ignoredAt: { not: null } }, select: { externalEmployeeId: true } }),
-    getRoleParamsResolver(database), getRdoDataByCollaborator(scope.periodStart, end, database),
+    loadRoleCostCatalog(database), getRdoDataByCollaborator(scope.periodStart, end, database),
     getProjectAllocationContext(database),
     database.pontoDayProjectOverride.findMany({ where: { workDate: { gte: scope.periodStart, lt: end } },
       select: { collaboratorId: true, workDate: true, projectId: true } }),
     loadConfirmedReviewDays({ from: scope.periodStart, to: end }, database)
   ]);
   const periods = mergePontoPeriods(filterIgnoredPontoPeriods(withPontoImportDates(periodRows, scope.pontoImports), ignored.map(row => row.externalEmployeeId)));
+  const { resolver: roleParams, rolesById } = roleCatalog;
+  for (const period of periods) period.collaborator = withCollaboratorRoleNames(period.collaborator, rolesById);
   const manual = manualProjectsByCollaborator(overrides, reviewDays);
   const eligible = buildScheduleWindowEligibility(context.scheduleWindows, rdoData);
   const output = [];
@@ -2057,14 +2060,7 @@ export async function computeCollaboratorRates(importId = null, { includeIgnored
   // profile. Resolve current/history names from that request-owned catalog
   // without walking the same JobRole relations again for the point roster.
   for (const period of periods) {
-    if (!period.collaborator) continue;
-    period.collaborator = {
-      ...period.collaborator,
-      jobRole: rolesById.get(period.collaborator.jobRoleId) ?? null,
-      jobRoleHistory: (period.collaborator.jobRoleHistory || []).map(entry => ({
-        ...entry, jobRole: rolesById.get(entry.jobRoleId) ?? null
-      }))
-    };
+    period.collaborator = withCollaboratorRoleNames(period.collaborator, rolesById);
   }
   const manualProjects = manualProjectsByCollaborator(manualDayOverrides, confirmedReviewDays);
   const reviewedProjectDates = reviewedProjectDatesByCollaborator(confirmedReviewDays);
@@ -2356,7 +2352,7 @@ export async function debugCollaboratorMonth(nameQuery, monthKey, importId = nul
   const [
     periodRows,
     ignoredEmployees,
-    roleParams,
+    roleCatalog,
     rdoData,
     offshoreYearsByCollaborator,
     annualCosts,
@@ -2372,9 +2368,8 @@ export async function debugCollaboratorMonth(nameQuery, monthKey, importId = nul
             id: true,
             name: true,
             jobRoleId: true,
-            jobRole: { select: { id: true, name: true } },
             jobRoleHistory: {
-              select: { jobRoleId: true, effectiveDate: true, jobRole: { select: { id: true, name: true } } },
+              select: { jobRoleId: true, effectiveDate: true },
               orderBy: { effectiveDate: 'asc' }
             }
           }
@@ -2385,7 +2380,7 @@ export async function debugCollaboratorMonth(nameQuery, monthKey, importId = nul
       where: { ignoredAt: { not: null } },
       select: { externalEmployeeId: true }
     }),
-    getRoleParamsResolver(),
+    loadRoleCostCatalog(),
     getRdoDataByCollaborator(pontoScope.periodStart, periodEndExclusive),
     getOffshoreYearsByCollaborator(pontoScope.periodStart, pontoScope.periodEnd),
     getAnnualCollaboratorCosts(),
@@ -2404,6 +2399,8 @@ export async function debugCollaboratorMonth(nameQuery, monthKey, importId = nul
     String(item.collaborator?.name || item.rawName || '').toLowerCase().includes(query)
   ));
   if (!period) throw new Error(`Colaborador "${nameQuery}" não encontrado no ponto vigente.`);
+  const { resolver: roleParams, rolesById } = roleCatalog;
+  period.collaborator = withCollaboratorRoleNames(period.collaborator, rolesById);
 
   const cov = monthCoverage(monthKey, pontoScope.periodStart, pontoScope.periodEnd);
   const role = collaboratorRoleAtDate(period.collaborator, cov.startKey)?.roleName

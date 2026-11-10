@@ -129,8 +129,16 @@ test('PostgreSQL: fontes enxutas preservam folha, rateio, trilhas e atualizaçã
     const { ignoredExternalEmployees, ...withMetadata } = await computeCollaboratorRates(null, { includeIgnoredNames: true });
     assert.ok(Array.isArray(ignoredExternalEmployees));
     assert.deepEqual(withMetadata, overlap, 'Optional listing metadata must not change the financial calculation or default contract');
-    await loadAllocatedAttendanceDays({ database });
-    await debugCollaboratorMonth('Pessoa sintética 3', '2026-09');
+    for (const operation of [() => loadAllocatedAttendanceDays({ database }), () => debugCollaboratorMonth('Pessoa sintética 3', '2026-09')]) {
+      const profile = captureLaborQueries();
+      try {
+        const started = performance.now();
+        await operation();
+        const queries = await profile.finish(started);
+        assert.equal(queries.filter(query => query.sqlSnippet.includes('"JobRole"')).length, 1,
+          'Attendance and monthly diagnosis reuse current/history role names from one catalog');
+      } finally { profile.restore(); }
+    }
     assert.equal(periodReads, 4);
   } finally { database.pontoPeriodSummary.findMany = originalPeriods; }
   assert.deepEqual((await computeCollaboratorRates(fixture.importId)).byCollaboratorId.get(person3), beforeOverlap.byCollaboratorId.get(person3));
