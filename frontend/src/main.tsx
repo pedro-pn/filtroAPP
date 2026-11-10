@@ -1,3 +1,4 @@
+import { installPagePerformanceDiagnostics } from './observability/pagePerformance';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -25,6 +26,7 @@ const disposeDataUpdates = installQueryDataUpdates(queryClient);
 if (import.meta.hot) import.meta.hot.dispose(disposeDataUpdates);
 const isMaintenanceMode = import.meta.env.VITE_MAINTENANCE_MODE === 'true';
 initializeTheme();
+installPagePerformanceDiagnostics();
 installClientErrorTracking();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

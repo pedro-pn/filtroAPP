@@ -8,5 +8,5 @@
     "noUnusedParameters": true,
     "types": ["node"]
   },
-  "include": ["playwright.rdo.config.ts", "playwright.rdo.visual.config.ts", "playwright.efetivo.config.ts", "e2e/**/*.ts"]
+  "include": ["playwright.rdo.config.ts", "playwright.rdo.visual.config.ts", "playwright.efetivo.config.ts", "playwright.performance.config.ts", "e2e/**/*.ts"]
 }

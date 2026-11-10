@@ -83,3 +83,15 @@ test('versão divergente impede atualização concorrente', async () => {
     error => error.code === 'VERSION_CONFLICT' && error.statusCode === 409
   );
 });
+
+test('realizado preserva alertas de ausência/feriado sem ler alocações usadas apenas no planejamento', async () => {
+  const database = {
+    collaboratorAbsence: { findMany: async () => [{ id: 'a1', collaboratorId: 'c1', startDate: '2026-08-10', endDate: '2026-08-12' }] },
+    efetivoMissionAllocation: { findMany: async () => { throw new Error('ACTUAL_REPORT must not load planning allocations'); } },
+    workforceHoliday: { findMany: async () => [{ id: 'h1', date: new Date('2026-08-12'), name: 'Feriado sintético' }] },
+    workforceCalendarState: { findUnique: async () => ({ revision: 4 }) }
+  };
+  const result = await checkWorkforceAvailability(database, { collaboratorIds: ['c1'], startDate: '2026-08-12', endDate: '2026-08-12', context: 'ACTUAL_REPORT' });
+  assert.equal(result.calendarRevision, 4);
+  assert.deepEqual(result.conflicts.map(row => [row.code, row.policy]), [['WORK_DURING_ABSENCE', 'REQUIRE_JUSTIFICATION'], ['WORK_ON_HOLIDAY', 'WARN']]);
+});

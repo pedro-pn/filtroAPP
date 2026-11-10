@@ -241,6 +241,7 @@ jobs:
       NODE_ENV: test
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/omni_phase2_test
       TEST_OMNI_PHASE2_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/omni_phase2_test
+      JOB_PERFORMANCE_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/omni_phase2_test
       ACOMPANHAMENTO_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/omni_phase2_test
       TRUST_PROXY: "false"
     steps:
@@ -261,6 +262,7 @@ jobs:
           test/integration-omni-status-batch.test.js
           test/acompanhamento-current-progress.test.js
           test/acompanhamento-detail-performance.integration.test.js
+          test/jobs-performance.integration.test.js
           test/api-simulation-db.test.js
 
   conecta-allocation:
@@ -434,8 +436,19 @@ jobs:
           rdo-notifications-equipment.behavior.spec.ts rdo-project-context.behavior.spec.ts
           rdo-service-only-permission.behavior.spec.ts
 
+      - name: Verify page loading, useful content and cross-context updates
+        run: npm run test:performance
+
       - name: Verify Efetivo project closeout and satisfaction surveys in the browser
         run: npx playwright test --config=playwright.efetivo.config.ts
+
+      - name: Upload page performance browser regression report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: page-performance-browser-report
+          path: output/playwright/performance
+          if-no-files-found: warn
 
       - name: Upload Efetivo browser regression report
         if: failure()
@@ -467,6 +480,9 @@ jobs:
 
       - name: Verify staging HTTPS proxy and IP restrictions
         run: python3 deploy/test-staging-https.py
+
+      - name: Verify Nginx health in an isolated local container
+        run: python3 deploy/test-nginx-health.py
 
       - name: Build staging images
         run: docker compose -f docker-compose.staging.yml build backend nginx

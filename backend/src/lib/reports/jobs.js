@@ -1,3 +1,4 @@
+import { beginWorkerTask } from '../operations/worker-health.js';
 import prisma from '../prisma.js';
 
 export const REPORT_APPROVAL_JOB_STATUS = {
@@ -123,6 +124,7 @@ export async function runReportApprovalPostProcessingQueue({ maxJobs = 5 } = {})
   }
 
   reportApprovalJobRunning = true;
+  const finishHealth = beginWorkerTask('reports:approval', REPORT_APPROVAL_JOB_STALE_MS);
   let processed = 0;
   try {
     while (processed < maxJobs) {
@@ -132,6 +134,7 @@ export async function runReportApprovalPostProcessingQueue({ maxJobs = 5 } = {})
       processed += 1;
     }
   } finally {
+    finishHealth();
     reportApprovalJobRunning = false;
   }
   return processed;

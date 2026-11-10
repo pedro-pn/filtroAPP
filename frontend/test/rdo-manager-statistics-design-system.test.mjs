@@ -151,7 +151,7 @@ test('the DS overview composes responsive listings and explicit loading, error a
   const designSystemOverview = sectionBetween(
     stats,
     'function DesignSystemStatsOverview(',
-    'function formatAllocationDate'
+    'export function StatsOverview'
   );
   const publicOverview = stats.slice(
     stats.indexOf('export function StatsOverview')
@@ -222,7 +222,7 @@ test('statistics overlays are DS in Gestor and Coordinator migrated surfaces', (
   );
   const managerDetailedOverlay = sectionBetween(
     manager,
-    '{statisticsTab && statsDashboardOpen ? <StatsDashboardOverlay',
+    '{statisticsTab && statsDashboardOpen ? <Suspense',
     '\n      {statisticsTab && allocationDashboardOpen'
   );
 
@@ -259,7 +259,7 @@ test('statistics overlays are DS in Gestor and Coordinator migrated surfaces', (
   );
   assert.match(
     manager,
-    /statisticsTab && allocationDashboardOpen \? <MonthlyAllocationDashboardOverlay/
+    /statisticsTab && allocationDashboardOpen \? <Suspense[\s\S]*?<MonthlyAllocationDashboardOverlay/
   );
   assert.match(
     manager,

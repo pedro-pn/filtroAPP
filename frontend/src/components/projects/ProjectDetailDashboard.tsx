@@ -1,3 +1,4 @@
+import { useUsefulContent } from '../../observability/useUsefulContent';
 import { todayDateOnly } from '../../utils/dateOnly';
 import { ProjectScopeDialog } from './ProjectScopeDialog';
 import { SortableTable } from '../ui/SortableTable';
@@ -145,11 +146,12 @@ export function ProjectDetailDashboard({
   });
   const activeDivisionKey = trackingDivisions?.divisions.some(item => item.key === trackingDivisionKey) ? trackingDivisionKey : '';
   const detailKey = isGroup ? ['mission-group-detail', groupId] : ['project-detail', projectId, ...(activeDivisionKey ? [activeDivisionKey] : [])];
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, isLoading, isError, isFetching, isFetchedAfterMount, dataUpdatedAt, refetch } = useQuery({
     queryKey: detailKey,
     queryFn: () => isGroup ? getMissionGroupDetail(groupId!, 'current') : getProjectDetail(projectId!, activeDivisionKey, 'current'),
     ...acompanhamentoRefreshQueryOptions
   });
+  useUsefulContent('acompanhamento:detail', `${detailOwnerKey}:${activeDivisionKey}`, { ready: Boolean(data) && !isError, fetching: isFetching, cached: !isFetchedAfterMount, dataUpdatedAt });
   const progressMode = scopeDetailsOpen || detailTab === 'daily' || progressScopeKey || progressEquipmentKey ? 'full' : 'history';
   const progressDetails = useQuery({
     queryKey: [...detailKey, 'progress', progressMode, data?.progressRevision],

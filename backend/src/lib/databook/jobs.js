@@ -1,3 +1,4 @@
+import { beginWorkerTask } from '../operations/worker-health.js';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -86,6 +87,7 @@ export async function processarRevisao(revisao, { client = prisma, gerar = gerar
 export async function processarFilaDatabook({ client = prisma, maximo = 2, gerar } = {}) {
   if (rodando) return 0;
   rodando = true;
+  const finishHealth = beginWorkerTask('databook:queue', 30 * 60_000);
   let feitos = 0;
   try {
     while (feitos < maximo) {
@@ -95,6 +97,7 @@ export async function processarFilaDatabook({ client = prisma, maximo = 2, gerar
       feitos += 1;
     }
   } finally {
+    finishHealth();
     rodando = false;
   }
   return feitos;

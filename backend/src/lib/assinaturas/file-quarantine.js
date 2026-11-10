@@ -274,14 +274,22 @@ export async function purgeUserSignatureFileOperation(client, operationKey, {
   }
 }
 
+function preparingPurgeWhere(now) { return { status: 'PREPARANDO', createdAt: { lte: new Date(now.getTime() - PREPARING_TTL_MS) } }; }
+function stalePurgeWhere(now) { return { status: 'EM_PROCESSAMENTO', claimedAt: { lte: new Date(now.getTime() - PROCESSING_TTL_MS) } }; }
+function pendingPurgeWhere(now) { return { status: { in: ['PENDENTE', 'FALHOU'] }, OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: now } }] }; }
+export async function hasSignatureFilePurgeWork(client, now = new Date()) {
+  return Boolean(await client.signatureDocumentFilePurge.findFirst({
+    where: { OR: [preparingPurgeWhere(now), stalePurgeWhere(now), pendingPurgeWhere(now)] }, select: { operationKey: true }
+  }));
+}
+
 export async function reconcileSignatureFilePurges(client, {
   now = new Date(),
   rootDir = env.uploadDir,
   fileSystem = fs
 } = {}) {
-  const preparingCutoff = new Date(now.getTime() - PREPARING_TTL_MS);
   const abandoned = await client.signatureDocumentFilePurge.findMany({
-    where: { status: 'PREPARANDO', createdAt: { lte: preparingCutoff } },
+    where: preparingPurgeWhere(now),
     orderBy: { createdAt: 'asc' },
     take: 25
   });
@@ -290,9 +298,8 @@ export async function reconcileSignatureFilePurges(client, {
     await rollbackUserSignatureFiles(client, operation, { rootDir, fileSystem });
     restored += 1;
   }
-  const processingCutoff = new Date(now.getTime() - PROCESSING_TTL_MS);
   const stale = await client.signatureDocumentFilePurge.updateMany({
-    where: { status: 'EM_PROCESSAMENTO', claimedAt: { lte: processingCutoff } },
+    where: stalePurgeWhere(now),
     data: {
       status: 'FALHOU',
       claimedAt: null,
@@ -311,10 +318,7 @@ export async function processSignatureFilePurges(client, {
 } = {}) {
   const reconciliation = await reconcileSignatureFilePurges(client, { now, rootDir, fileSystem });
   const operations = await client.signatureDocumentFilePurge.findMany({
-    where: {
-      status: { in: ['PENDENTE', 'FALHOU'] },
-      OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: now } }]
-    },
+    where: pendingPurgeWhere(now),
     orderBy: { createdAt: 'asc' },
     take: limit,
     select: { operationKey: true }

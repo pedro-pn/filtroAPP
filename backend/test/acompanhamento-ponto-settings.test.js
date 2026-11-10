@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   PONTO_PENDENCY_CUTOFF_DEFAULT,
+  getAnnualCollaboratorCosts,
   cutoffDateKeyToNumber,
   cutoffNumberToDateKey
 } from '../src/lib/acompanhamento/settings.js';
@@ -32,4 +33,15 @@ test('gravar data malformada é recusado em vez de virar número sem sentido', (
   for (const invalid of ['25/08/2026', '2026-8-25', '', null, undefined, '2026-08-25T00:00:00Z']) {
     assert.throws(() => cutoffDateKeyToNumber(invalid), /Data de corte inválida/);
   }
+});
+
+test('custos anuais são lidos juntos e preservam zero e defaults para dados inválidos', async () => {
+  let reads = 0;
+  const database = { acompanhamentoSetting: { findMany: async () => {
+    reads++;
+    return [{ key: 'epiAnnualCost', numberValue: 0 }, { key: 'examsTrainingAnnualCost', numberValue: NaN }, { key: 'offshoreExamsTrainingAnnualCost', numberValue: 3600 }];
+  } } };
+  assert.deepEqual(await getAnnualCollaboratorCosts(database), { epiAnnualCost: 0, examsTrainingAnnualCost: 0, offshoreExamsTrainingAnnualCost: 3600 });
+  assert.equal(reads, 1);
+  assert.deepEqual(await getAnnualCollaboratorCosts({ acompanhamentoSetting: { findMany: async () => [] } }), { epiAnnualCost: 5000, examsTrainingAnnualCost: 0, offshoreExamsTrainingAnnualCost: 0 });
 });

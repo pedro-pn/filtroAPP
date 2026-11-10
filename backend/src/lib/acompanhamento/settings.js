@@ -74,13 +74,18 @@ export async function setEpiAnnualCost(value, updatedByUserId = null) {
   );
 }
 
-export async function getAnnualCollaboratorCosts() {
-  const [epiAnnualCost, examsTrainingAnnualCost, offshoreExamsTrainingAnnualCost] = await Promise.all([
-    getNumberSetting(EPI_ANNUAL_COST_KEY, EPI_ANNUAL_COST_DEFAULT),
-    getNumberSetting(EXAMS_TRAINING_ANNUAL_COST_KEY, EXAMS_TRAINING_ANNUAL_COST_DEFAULT),
-    getNumberSetting(OFFSHORE_EXAMS_TRAINING_ANNUAL_COST_KEY, OFFSHORE_EXAMS_TRAINING_ANNUAL_COST_DEFAULT)
-  ]);
-  return { epiAnnualCost, examsTrainingAnnualCost, offshoreExamsTrainingAnnualCost };
+export async function getAnnualCollaboratorCosts(database = prisma) {
+  const rows = await database.acompanhamentoSetting.findMany({
+    where: { key: { in: [EPI_ANNUAL_COST_KEY, EXAMS_TRAINING_ANNUAL_COST_KEY, OFFSHORE_EXAMS_TRAINING_ANNUAL_COST_KEY] } },
+    select: { key: true, numberValue: true }
+  });
+  const values = new Map(rows.map(row => [row.key, row.numberValue]));
+  const number = (key, fallback) => typeof values.get(key) === 'number' && Number.isFinite(values.get(key)) ? values.get(key) : fallback;
+  return {
+    epiAnnualCost: number(EPI_ANNUAL_COST_KEY, EPI_ANNUAL_COST_DEFAULT),
+    examsTrainingAnnualCost: number(EXAMS_TRAINING_ANNUAL_COST_KEY, EXAMS_TRAINING_ANNUAL_COST_DEFAULT),
+    offshoreExamsTrainingAnnualCost: number(OFFSHORE_EXAMS_TRAINING_ANNUAL_COST_KEY, OFFSHORE_EXAMS_TRAINING_ANNUAL_COST_DEFAULT)
+  };
 }
 
 export async function setAnnualCollaboratorCosts({

@@ -1,7 +1,8 @@
-import { useState, type KeyboardEvent, type ReactNode } from 'react';
+import { lazy, Suspense, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Modal } from '../../components/ui/Modal';
 import type { Project } from '../../types/domain';
-import { HistoricalServicesContent } from './HistoricalServicesModal';
+import { BrandLoading } from '../../components/brand/BrandLoading';
+const HistoricalServicesContent = lazy(() => import('./HistoricalServicesModal').then(module => ({ default: module.HistoricalServicesContent })));
 
 const tabs = [{ id: 'pdf', label: 'PDFs antigos' }, { id: 'services', label: 'Serviços históricos' }] as const;
 type UploadTab = typeof tabs[number]['id'];
@@ -17,8 +18,14 @@ export function LegacyReportsUploadModal({ replacing, submitting, projects, proj
   children: ReactNode;
 }) {
   const [activeTab, setActiveTab] = useState<UploadTab>('pdf');
+  const [servicesOpened, setServicesOpened] = useState(false);
   const [historicalBusy, setHistoricalBusy] = useState(false);
   const busy = submitting || historicalBusy;
+
+  function selectTab(tab: UploadTab) {
+    if (tab === 'services') setServicesOpened(true);
+    setActiveTab(tab);
+  }
 
   function navigateTabs(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     if (busy) return;
@@ -27,7 +34,7 @@ export function LegacyReportsUploadModal({ replacing, submitting, projects, proj
         : event.key === 'ArrowLeft' ? (index + tabs.length - 1) % tabs.length : null;
     if (next === null) return;
     event.preventDefault();
-    setActiveTab(tabs[next].id);
+    selectTab(tabs[next].id);
     event.currentTarget.parentElement?.querySelector<HTMLButtonElement>(`#legacy-upload-tab-${tabs[next].id}`)?.focus();
   }
 
@@ -40,7 +47,7 @@ export function LegacyReportsUploadModal({ replacing, submitting, projects, proj
       {tabs.map((tab, index) => <button key={tab.id} type="button" role="tab"
         id={`legacy-upload-tab-${tab.id}`} aria-controls={`legacy-upload-panel-${tab.id}`}
         aria-selected={activeTab === tab.id} tabIndex={activeTab === tab.id ? 0 : -1} disabled={busy}
-        onClick={() => setActiveTab(tab.id)} onKeyDown={event => navigateTabs(event, index)}>{tab.label}</button>)}
+        onClick={() => selectTab(tab.id)} onKeyDown={event => navigateTabs(event, index)}>{tab.label}</button>)}
     </div>}
     <div id="legacy-upload-panel-pdf" role={replacing ? undefined : 'tabpanel'}
       aria-labelledby={replacing ? undefined : 'legacy-upload-tab-pdf'} hidden={!replacing && activeTab !== 'pdf'} inert={!replacing && activeTab !== 'pdf'}>
@@ -49,8 +56,8 @@ export function LegacyReportsUploadModal({ replacing, submitting, projects, proj
     </div>
     {!replacing && <div id="legacy-upload-panel-services" role="tabpanel" aria-labelledby="legacy-upload-tab-services"
       hidden={activeTab !== 'services'} inert={activeTab !== 'services'}>
-      <HistoricalServicesContent key={projectId} projects={projects} projectId={projectId}
-        onProjectChange={onProjectChange} onBusyChange={setHistoricalBusy} />
+      {servicesOpened ? <Suspense fallback={<BrandLoading label="Carregando serviços históricos…" />}><HistoricalServicesContent key={projectId} projects={projects} projectId={projectId}
+        onProjectChange={onProjectChange} onBusyChange={setHistoricalBusy} /></Suspense> : null}
     </div>}
   </Modal>;
 }

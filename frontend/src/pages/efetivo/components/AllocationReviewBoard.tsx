@@ -1,3 +1,4 @@
+import { useUsefulQueryContent } from '../../../observability/useUsefulContent';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
 
@@ -74,6 +75,7 @@ export function AllocationReviewBoard({ weekStart, show, group, search, onWeekCh
   const { confirm, confirmDialog } = useConfirmDialog('design-system');
   const queryKey = useMemo(() => [ALLOCATION_REVIEW_QUERY_KEY, weekStart], [weekStart]);
   const week = useQuery({ queryKey, queryFn: () => getAllocationReviewWeek(weekStart) });
+  useUsefulQueryContent('efetivo:conferencia', 'AllocationReviewBoard', [week]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
   const [panel, setPanel] = useState<{ collaboratorId: string; date: string } | null>(null);

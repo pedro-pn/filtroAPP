@@ -1,9 +1,10 @@
+import { createAppQueryClient } from '../../src/queryClient';
 // Real manager page with simulated API responses; no database or network writes.
 import React from 'react';
 import { AxiosError } from 'axios';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { apiClient } from '../../src/api/client';
 import { AuthContext } from '../../src/auth/AuthContext';
 import { ToastProvider } from '../../src/components/ui/Toast';
@@ -84,6 +85,10 @@ apiClient.defaults.adapter = async config => {
     data = config.params?.active === false ? archivedProjects : activeProjects;
   } else if (url.endsWith('/bootstrap/gestor')) {
     data = { activeProjects, archivedProjects, collaborators: [], surveys: [], projectSegments: [], surveyQuestions: [] };
+  } else if (url.includes('/reports/historical-services/')) {
+    data = { items: [] };
+  } else if (url.endsWith('/statistics/overview')) {
+    data = { projectCounts: { active: 2, archived: 3, total: 5 }, byProject: [] };
   } else if (url.endsWith('/reports/counts')) {
     const queries = JSON.parse(config.data).queries;
     data = { totals: queries.map(() => 0) };
@@ -106,7 +111,7 @@ apiClient.defaults.adapter = async config => {
 };
 
 const noop = async () => {};
-const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+const client = createAppQueryClient();
 const root = createRoot(document.getElementById('root')!);
 import.meta.hot?.dispose(() => root.unmount());
 root.render(<React.StrictMode>

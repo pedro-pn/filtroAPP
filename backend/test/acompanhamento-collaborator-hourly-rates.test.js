@@ -100,6 +100,7 @@ test('API exige acesso ao Acompanhamento, valida a data e permite consulta pelo 
   }]);
   stub(prisma.costProfile, 'findMany', async () => [{ key: 'operador', parameterSets: [{ effectiveDate: '2026-01-01', params }] }]);
   stub(prisma.acompanhamentoSetting, 'findUnique', async ({ where }) => ({ numberValue: annualCosts[where.key] }));
+  stub(prisma.acompanhamentoSetting, 'findMany', async () => Object.entries(annualCosts).map(([key, numberValue]) => ({ key, numberValue })));
   const app = express();
   app.use(router);
   app.use((error, _req, res, _next) => res.status(error.name === 'ZodError' ? 400 : 500).json({ error: error.message }));

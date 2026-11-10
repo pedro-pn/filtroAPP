@@ -1,11 +1,11 @@
+import { useUsefulQueryContent } from '../../observability/useUsefulContent';
 import { todayDateOnly } from '../../utils/dateOnly';
-import { ProjectEditDialog } from './ProjectEditDialog';
 import { ProjectServiceCategoryFields } from '../../components/projects/ProjectServiceCategoryFields';
 import { ProjectDistributionFields } from '../../components/projects/ProjectDistributionFields';
 import { ProjectWorkLocationsFields } from '../../components/projects/ProjectWorkLocationsFields';
 import { useProjectEditor } from './useProjectEditor';
 import { BrandLoading } from '../../components/brand/BrandLoading';
-import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type PointerEvent } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type PointerEvent } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { formatCnpj, normalizeCnpjInput } from '../../utils/formatCnpj';
@@ -28,7 +28,6 @@ import { accountPageStateFromPath, navigationStateFromLocation } from '../../aut
 import { rdoPath, rdoReportDetailPath } from '../../auth/rolePath';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
 import { ReportTypeBadge } from '../../components/reports/ReportTypeBadge';
-import { ReportReissueDialog } from '../../components/reports/ReportReissueDialog';
 import { ManagerReportListing } from '../../components/reports/manager/ManagerReportListing';
 import { ManagerReportTypeSortButton } from '../../components/reports/manager/ManagerReportTypeSortButton';
 import { AppIcon } from '../../components/icons/AppIcon';
@@ -47,20 +46,14 @@ import { ReasonDialog } from '../../components/ui/ReasonDialog';
 import { PdfDropzone } from '../../components/ui/PdfDropzone';
 import { useToast } from '../../components/ui/ToastContext';
 import { PrivacyNotice } from '../../components/privacy/PrivacyNotice';
-import { JobRoleManager } from '../../components/projects/JobRoleManager';
 import { CollaboratorListToolbarActions, CollaboratorStatusPill } from '../../components/projects/CollaboratorListControls';
-import { DdsThemeManager } from '../../components/reports/DdsThemeManager';
 import {
   replicateManualReportCollaborators,
   type ManualReportCollaboratorReplicationPrompt
 } from './manualReportCollaboratorReplication';
-import { PhysicalSignatureDialog } from './PhysicalSignatureDialog';
-import { PhysicalSignatureBatchAction } from './PhysicalSignatureBatchAction';
 import { NpsSortControls } from './NpsSortControls';
 import { ManualReportUploadFileCard } from './ManualReportUploadFileCard';
-import { LegacyReportsUploadModal } from './LegacyReportsUploadModal';
 import type { CollaboratorFormState } from './CollaboratorForm';
-import { CollaboratorJobRoleHistoryEditor } from './CollaboratorJobRoleHistoryEditor';
 import { readManualReportUploadFiles, manualReportUploadListLabel, type ManualReportUploadFileState } from './manualReportUploadFile';
 import { getCommercialPendencias } from '../../api/acompanhamentoComercial';
 import { listDdsThemes } from '../../api/ddsThemes';
@@ -76,8 +69,6 @@ import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel
 import { currentPageScrollState, saveCurrentPageScroll } from '../../hooks/usePageScrollRestoration';
 import { useUserMutations, useUsers } from '../../hooks/useUsers';
 import { useSurveyMutations } from '../../hooks/useSurveys';
-import { SurveyDashboardOverlay } from '../../components/surveys/SurveyDashboard';
-import { MonthlyAllocationDashboardOverlay, StatsDashboardOverlay, StatsOverview } from '../../components/stats/StatsDashboard';
 import { useProjectSegmentMutations } from '../../hooks/useProjectStats';
 import { AppShell } from '../../layout/AppShell';
 import { PageHeader } from '../../layout/PageHeader';
@@ -171,6 +162,19 @@ import {
   type UserSortMode,
   type UserStatusFilter
 } from './GestorPage.shared';
+
+const ProjectEditDialog = lazy(() => import('./ProjectEditDialog').then(module => ({ default: module.ProjectEditDialog })));
+const ReportReissueDialog = lazy(() => import('../../components/reports/ReportReissueDialog').then(module => ({ default: module.ReportReissueDialog })));
+const JobRoleManager = lazy(() => import('../../components/projects/JobRoleManager').then(module => ({ default: module.JobRoleManager })));
+const DdsThemeManager = lazy(() => import('../../components/reports/DdsThemeManager').then(module => ({ default: module.DdsThemeManager })));
+const PhysicalSignatureDialog = lazy(() => import('./PhysicalSignatureDialog').then(module => ({ default: module.PhysicalSignatureDialog })));
+const PhysicalSignatureBatchAction = lazy(() => import('./PhysicalSignatureBatchAction').then(module => ({ default: module.PhysicalSignatureBatchAction })));
+const LegacyReportsUploadModal = lazy(() => import('./LegacyReportsUploadModal').then(module => ({ default: module.LegacyReportsUploadModal })));
+const CollaboratorJobRoleHistoryEditor = lazy(() => import('./CollaboratorJobRoleHistoryEditor').then(module => ({ default: module.CollaboratorJobRoleHistoryEditor })));
+const SurveyDashboardOverlay = lazy(() => import('../../components/surveys/SurveyDashboard').then(module => ({ default: module.SurveyDashboardOverlay })));
+const MonthlyAllocationDashboardOverlay = lazy(() => import('../../components/stats/StatsDashboard').then(module => ({ default: module.MonthlyAllocationDashboardOverlay })));
+const StatsDashboardOverlay = lazy(() => import('../../components/stats/StatsDashboard').then(module => ({ default: module.StatsDashboardOverlay })));
+const StatsOverview = lazy(() => import('../../components/stats/StatsOverview').then(module => ({ default: module.StatsOverview })));
 
 interface ManualPasswordSetup {
   username: string;
@@ -391,6 +395,11 @@ export function GestorPage() {
   const surveysQuery = { data: gestorBootstrapQuery.data?.surveys, isLoading: gestorBootstrapQuery.isLoading };
   const projectSegmentsQuery = { data: gestorBootstrapQuery.data?.projectSegments, isLoading: gestorBootstrapQuery.isLoading };
   const surveyQuestionsQuery = { data: gestorBootstrapQuery.data?.surveyQuestions, isLoading: gestorBootstrapQuery.isLoading };
+
+  const contentQueries = reportListingTab ? [reportListQuery, ...(tab === 'pendentes' ? [draftsQuery] : [])]
+    : usersTab ? [internalUsersQuery, clientUsersQuery]
+    : archivedProjectsTab ? [gestorBootstrapQuery, reportListQuery] : [gestorBootstrapQuery];
+  useUsefulQueryContent(`gestor:${tab}`, tab, contentQueries, !statisticsTab);
 
   const projectMutations = useProjectMutations();
   const projectSegmentMutations = useProjectSegmentMutations();
@@ -1961,7 +1970,7 @@ export function GestorPage() {
     const selectedPdfLabel = replacing ? manualReportForm.fileName : manualReportUploadListLabel(manualReportForm.files);
 
     return (
-      <LegacyReportsUploadModal
+      <Suspense fallback={<Modal open appearance="design-system" title="Carregando formulário…" onClose={closeManualReportModal}><BrandLoading label="Carregando formulário…" /></Modal>}><LegacyReportsUploadModal
         replacing={replacing}
         submitting={submitting}
         projects={manualReportProjectOptions}
@@ -2113,7 +2122,7 @@ export function GestorPage() {
             </div>
           ) : null}
         </form>
-      </LegacyReportsUploadModal>
+      </LegacyReportsUploadModal></Suspense>
     );
   }
 
@@ -2530,7 +2539,7 @@ export function GestorPage() {
     return (
       <section id="rdo-manager-project-results" className="rdo-manager-projects rdo-ds-actions" aria-label="Lista de projetos ativos">
         {editingProject || (showProjectForm && !projectEditingId) ? (
-          <ProjectEditDialog project={editingProject ?? null} saving={projectSaving}
+          <Suspense fallback={<Modal open appearance="design-system" title="Carregando formulário…" onClose={closeProjectEditor}><BrandLoading label="Carregando formulário…" /></Modal>}><ProjectEditDialog project={editingProject ?? null} saving={projectSaving}
             onClose={closeProjectEditor} initialFocusRef={editingProject ? projectNameInputRef : projectCodeInputRef}>
             {editingProject ? renderProjectEditForm(editingProject) : (
             <form className="admin-inline-form admin-inline-grid rdo-project-edit-form" id="project-create-form" onSubmit={handleProjectSubmit}>
@@ -2643,7 +2652,7 @@ export function GestorPage() {
               </div>
             </form>
             )}
-          </ProjectEditDialog>
+          </ProjectEditDialog></Suspense>
         ) : null}
 
         <p className="rdo-manager-projects__result-count" role="status" aria-live="polite">
@@ -2873,7 +2882,7 @@ export function GestorPage() {
           </div>
           <div className="rdo-admin-section__content" id="rdo-team-panel" role="tabpanel" aria-labelledby={`rdo-team-tab-${equipeSubTab === 'colaboradores' ? 'collaborators' : equipeSubTab === 'cargos' ? 'roles' : 'dds'}`}>
             {equipeSubTab === 'cargos' ? (
-              <JobRoleManager
+              <Suspense fallback={<BrandLoading label="Carregando painel…" />}><JobRoleManager
                 appearance="design-system"
                 createOpen={jobRoleCreateOpen}
                 onCreateOpenChange={(open) => {
@@ -2882,9 +2891,9 @@ export function GestorPage() {
                 }}
                 searchValue={gestorSearch}
                 showCreateAction={false}
-              />
+              /></Suspense>
             ) : equipeSubTab === 'dds' ? (
-              <DdsThemeManager
+              <Suspense fallback={<BrandLoading label="Carregando painel…" />}><DdsThemeManager
                 appearance="design-system"
                 createOpen={ddsThemeCreateOpen}
                 onCreateOpenChange={(open) => {
@@ -2893,7 +2902,7 @@ export function GestorPage() {
                 }}
                 searchValue={gestorSearch}
                 showCreateAction={false}
-              />
+              /></Suspense>
             ) : (
               renderColaboradoresSubTab()
             )}
@@ -3067,7 +3076,7 @@ export function GestorPage() {
             showCollaboratorForm && collaboratorEditingId === collaborator.id ? (
               <>
                 {renderCollaboratorForm('edit', collaborator)}
-                <CollaboratorJobRoleHistoryEditor
+                <Suspense fallback={<BrandLoading label="Carregando painel…" />}><CollaboratorJobRoleHistoryEditor
                   collaborator={collaborator}
                   jobRoles={jobRolesQuery.data || []}
                   isPending={collaboratorMutations.updateJobRoleHistory.isPending || collaboratorMutations.removeJobRoleHistory.isPending}
@@ -3084,7 +3093,7 @@ export function GestorPage() {
                       historyId
                     })
                   }
-                />
+                /></Suspense>
               </>
             ) : null
           }
@@ -3745,7 +3754,7 @@ export function GestorPage() {
 
     return (
       <section className="fv-ds rdo-nps rdo-ds-actions" aria-label="NPS">
-        {npsDashboardOpen && <SurveyDashboardOverlay appearance="design-system" onClose={() => setNpsDashboardOpen(false)} />}
+        {npsDashboardOpen && <Suspense fallback={<Modal open appearance="design-system" title="Carregando painel…" onClose={() => setNpsDashboardOpen(false)}><BrandLoading label="Carregando painel…" /></Modal>}><SurveyDashboardOverlay appearance="design-system" onClose={() => setNpsDashboardOpen(false)} /></Suspense>}
         <PageHeader
           className="rdo-nps__page-header"
           title="NPS"
@@ -3970,7 +3979,7 @@ export function GestorPage() {
             </>
           }
         />
-        <StatsOverview appearance="design-system" />
+        <Suspense fallback={<BrandLoading label="Carregando painel…" />}><StatsOverview appearance="design-system" /></Suspense>
       </>
     );
   }
@@ -4118,8 +4127,8 @@ export function GestorPage() {
         }
       />
 
-      {statisticsTab && statsDashboardOpen ? <StatsDashboardOverlay appearance="design-system" onClose={() => setStatsDashboardOpen(false)} /> : null}
-      {statisticsTab && allocationDashboardOpen ? <MonthlyAllocationDashboardOverlay appearance="design-system" onClose={() => setAllocationDashboardOpen(false)} /> : null}
+      {statisticsTab && statsDashboardOpen ? <Suspense fallback={<Modal open appearance="design-system" title="Carregando painel…" onClose={() => setStatsDashboardOpen(false)}><BrandLoading label="Carregando painel…" /></Modal>}><StatsDashboardOverlay appearance="design-system" onClose={() => setStatsDashboardOpen(false)} /></Suspense> : null}
+      {statisticsTab && allocationDashboardOpen ? <Suspense fallback={<Modal open appearance="design-system" title="Carregando painel…" onClose={() => setAllocationDashboardOpen(false)}><BrandLoading label="Carregando painel…" /></Modal>}><MonthlyAllocationDashboardOverlay appearance="design-system" onClose={() => setAllocationDashboardOpen(false)} /></Suspense> : null}
 
       <main
         className={
@@ -4197,7 +4206,7 @@ export function GestorPage() {
             description={tab === 'pendentes' ? 'Acompanhe os relatórios que aguardam revisão ou foram devolvidos.' : 'Consulte os relatórios aprovados e assinados.'}
             actions={
               <>
-                {tab === 'aprovados' ? <PhysicalSignatureBatchAction projects={manualReportProjectOptions} upload={payload => reportMutations.uploadPhysicalSignature.mutateAsync(payload)} /> : null}
+                {tab === 'aprovados' ? <Suspense fallback={<BrandLoading label="Carregando painel…" />}><PhysicalSignatureBatchAction projects={manualReportProjectOptions} upload={payload => reportMutations.uploadPhysicalSignature.mutateAsync(payload)} /></Suspense> : null}
                 <Button variant="secondary" aria-label="Abrir upload de relatórios antigos" onClick={() => openManualReportUpload()}>
                   <span className="rdo-action-label rdo-action-label--full">Upload de relatórios antigos</span>
                   <span className="rdo-action-label rdo-action-label--compact">Upload antigo</span>
@@ -4250,12 +4259,12 @@ export function GestorPage() {
       {renderReportSequenceDialog()}
       {renderManualReportModal()}
 
-      {physicalSignatureReport ? <PhysicalSignatureDialog
+      {physicalSignatureReport ? <Suspense fallback={<Modal open appearance="design-system" title="Carregando painel…" onClose={() => setPhysicalSignatureReport(null)}><BrandLoading label="Carregando painel…" /></Modal>}><PhysicalSignatureDialog
         report={physicalSignatureReport}
         onClose={() => setPhysicalSignatureReport(null)}
         upload={payload => reportMutations.uploadPhysicalSignature.mutateAsync(payload)}
         uploadPending={reportMutations.uploadPhysicalSignature.isPending}
-      /> : null}
+      /></Suspense> : null}
 
       <Modal
         open={showSegmentForm}
@@ -4372,13 +4381,13 @@ export function GestorPage() {
         </p>
       </Modal>
 
-      <ReportReissueDialog
+      {reissueTargetIds.length > 0 ? <Suspense fallback={<Modal open appearance="design-system" title="Carregando painel…" onClose={() => setReissueTargetIds([])}><BrandLoading label="Carregando painel…" /></Modal>}><ReportReissueDialog
         count={reissueTargetIds.length}
         submitting={reportMutations.regenerateReports.isPending}
         progress={regenerationProgress}
         onConfirm={() => void handleRegenerateReports(reissueTargetIds)}
         onCancel={() => setReissueTargetIds([])}
-      />
+      /></Suspense> : null}
       <ConfirmDialog
         open={Boolean(removeProjectTarget)}
         appearance="design-system"

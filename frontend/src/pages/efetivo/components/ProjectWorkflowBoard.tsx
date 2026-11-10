@@ -1,3 +1,4 @@
+import { useUsefulQueryContent } from '../../../observability/useUsefulContent';
 import { BrandLoading } from '../../../components/brand/BrandLoading';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -377,6 +378,7 @@ export function ProjectWorkflowBoard({
     queryFn: () => listProjectWorkflows(debouncedSearch, page),
     enabled: search === debouncedSearch
   });
+  useUsefulQueryContent('efetivo:evolucao', 'ProjectWorkflowBoard', [list]);
   useEffect(() => {
     const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' });
     let currentDay = formatter.format(new Date());

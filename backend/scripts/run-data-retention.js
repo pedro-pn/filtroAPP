@@ -2,6 +2,8 @@ import { previewDataRetention, runDataRetention } from '../src/lib/data-retentio
 import prisma from '../src/lib/prisma.js';
 import env from '../src/config/env.js';
 
+const jobRunRetentionArg = process.argv.find(arg => arg.startsWith('--job-run-retention-days='));
+const jobRunRetentionDays = jobRunRetentionArg ? Number(jobRunRetentionArg.split('=')[1]) : null;
 const apply = process.argv.includes('--apply');
 const deleteAbandonedDrafts = process.argv.includes('--delete-abandoned-drafts');
 const abandonedDraftIds = process.argv
@@ -16,7 +18,7 @@ const maxBatchesPerTarget = maxBatchesArg ? Number(maxBatchesArg.slice('--max-ba
 
 try {
   if (!apply) {
-    const preview = await previewDataRetention({ apiTokenLogRetentionDays: env.apiTokenLogRetentionDays });
+    const preview = await previewDataRetention({ apiTokenLogRetentionDays: env.apiTokenLogRetentionDays, jobRunRetentionDays });
     console.log(JSON.stringify({
       mode: 'dry-run',
       message: 'Nenhum dado foi alterado. Execute com --apply para aplicar a rotina de retenção.',
@@ -26,7 +28,7 @@ try {
     const summary = await runDataRetention({
       deleteAbandonedDrafts,
       abandonedDraftIds,
-      apiTokenLogRetentionDays: env.apiTokenLogRetentionDays,
+      apiTokenLogRetentionDays: env.apiTokenLogRetentionDays, jobRunRetentionDays,
       ...(Number.isFinite(batchSize) && batchSize > 0 ? { batchSize } : {}),
       ...(Number.isFinite(maxBatchesPerTarget) && maxBatchesPerTarget > 0 ? { maxBatchesPerTarget } : {})
     });

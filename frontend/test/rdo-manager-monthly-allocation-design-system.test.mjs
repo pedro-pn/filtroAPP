@@ -3,9 +3,10 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
+import { withRdoCompanions } from './rdo-source.mjs';
 
 const frontendRoot = fileURLToPath(new URL('../', import.meta.url));
-const source = (path) => readFileSync(join(frontendRoot, path), 'utf8');
+const source = (path) => withRdoCompanions(path, candidate => readFileSync(join(frontendRoot, candidate), 'utf8'));
 
 const expectedAppearance = (() => {
   const value = process.env.RDO_B6_EXPECT_APPEARANCE ?? 'design-system';

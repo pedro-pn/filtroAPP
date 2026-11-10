@@ -287,33 +287,35 @@ não depender de reverter ou apagar dados para reverter o código.
 
 ## Checklist de execução
 
-- [ ] T01 Baseline completo de HTTP e conteúdo útil.
+- [ ] T01 Coleta HTTP e marcas de conteúdo útil implementadas localmente; janela publicada pendente.
 - [ ] T02 Adiada pelo usuário: estratégia de backup e recuperação.
-- [ ] T03 Série de infraestrutura e healthchecks.
+- [ ] T03 Healthchecks de Nginx/progresso do worker implementados localmente; série publicada pendente.
 - [x] T04 Consultas do Gestor por necessidade da aba, verificadas localmente.
 - [x] T05 Pacote completo de avanço otimizado com paridade, verificado localmente.
 - [ ] T06 Implementação local: projeção de avanço elimina leituras alheias ao histórico; aceite multicliente/HTTP pendente.
 - [ ] T07 Parcial: fontes mensais/globais compartilhadas; meta da primeira carga em processo novo e aceite HTTP pendentes.
-- [ ] T08 Parcial: seções e modais de workflow adiados; painéis do Gestor pendentes.
-- [ ] T09 Shell e imagens iniciais dentro dos orçamentos.
-- [ ] T10 Crescimento de jobs controlado com retenção validada.
-- [ ] T11 Gates de performance e regressões no CI.
+- [ ] T08 Seções/modais e painéis do Gestor adiados localmente; aceite publicado pendente.
+- [ ] T09 Imagens otimizadas e CSS exclusivo da administração extraído; aceite LCP publicado pendente.
+- [ ] T10 Sondagens vazias agregadas e retenção opt-in validada localmente; política e aplicação pendentes.
+- [x] T11 Gates de tamanho, paridade, consultas, navegador e padrões de novos módulos integrados ao CI, verificados localmente.
 - [ ] T12 Comparação em produção, 24 h e sete dias, e aceite registrado.
 
 ## Entregas locais e próximos incrementos
 
 | Tarefa | Entrega nesta rodada | Trabalho restante |
 | --- | --- | --- |
-| T01 | Coleta HTTP temporária opt-in, prefixos de módulo, status/304, bytes, correlação, pico amostrado do pool, atraso do event loop, etapas de avanço/serialização e relatório p50/p95 limitado em memória | Marcas de conteúdo útil nas páginas e uma janela completa após publicação |
+| T01 | Coleta HTTP opt-in e marcas de conteúdo útil no Gestor, cards, resumo do detalhe e oito seções do Efetivo; cache e refresh separados, com buffers/relatórios limitados | Janela completa de HTTP/conteúdo útil após publicação |
+| T03 | Healthchecks locais do Nginx e de progresso do worker, incluindo filas de aprovação/e-mail/Data Book | Publicação manual e série de 24 h/sete dias |
 | T04 | Bootstrap projetado por seção, cache separado por seção e usuário, consultas condicionais, tratamento de carga/falha no upload manual e compatibilidade do contrato anterior | Aceite HTTP em ambiente publicado |
 | T05 | Associação das medições e preparo do escopo reutilizados dentro de cada cálculo; curvas não montam grupos de exibição descartados; resultado completo comparado com o anterior | Aceite HTTP em ambiente publicado |
 | T06 | Avanço atual a cada 15 s; histórico/recortes por revisão; projeção exclusiva de avanço evita repetir custos, ponto, equipe e equipamentos; fonte comercial em lote nos grupos | Concorrência autenticada e p95 no ambiente publicado |
-| T07 | Conferência mensal compartilha fontes; cálculo global reutiliza o catálogo de projetos e os RDOs na elegibilidade anual, sem novo cache entre requisições | Atingir a meta da primeira carga em processo novo, verificar planos SQL conforme medição e validar HTTP |
-| T08 | Seções do Efetivo/Acompanhamento e cinco modais de workflow carregados sob demanda, com estados de carregamento separados | Painéis do Gestor e aceite das superfícies autenticadas no ambiente publicado |
-| T09 | Variantes lossless de logo/símbolo e favicon pequeno, com hash do Vite, geração reproduzível via sharp e prioridade da imagem do login | Redução adicional do CSS do shell |
-| T11 | Orçamentos de JS/CSS, snapshots, teste HTTP/PostgreSQL das projeções no CI e regressões de cache por revisão nas unidades do frontend | Integrar os roteiros de requisições do Gestor e do detalhe aos testes de navegador do CI |
+| T07 | Conferência mensal compartilha fontes; cálculo global reutiliza projetos/RDOs, lê custos anuais em lote e evita consultar alocações de planejamento no contexto realizado, sem novo cache entre requisições | Atingir a meta da primeira carga em processo novo, verificar planos SQL conforme medição e validar HTTP |
+| T08 | Seções do Efetivo/Acompanhamento, cinco modais de workflow e painéis do Gestor sob demanda; visão geral estatística separada dos overlays | Aceite das superfícies autenticadas no ambiente publicado |
+| T09 | Variantes lossless, favicon/hash/prioridade do login e CSS da administração de credenciais separado do shell, preservando a camada legacy | Aceite LCP publicado; outros estilos globais podem ser divididos conforme medição |
+| T10 | Uma linha por janela de 15 min para sondagens vazias de finalização/quarentena; trabalho e falhas individuais; preview/retenção em lotes sem prazo padrão | Aprovar prazo/política antes de aplicação manual; medir linhas/dia publicado |
+| T11 | Orçamentos, paridade, projeções HTTP/PostgreSQL e cenários de navegador no CI; padrões de carga/cache/atualização em PADRAO_MODULO.md | Execução dos gates no PR após envio; validação publicada permanece em T12 |
 
-T03, o restante de T07, T10 e T12 permanecem pendentes. As regras de apropriação
+Os aceites publicados, a política/aplicação de retenção e o restante da meta fria de T07 permanecem pendentes. As regras de apropriação
 de custos foram preservadas. Não houve exclusão de histórico, alteração de backup
 ou execução em servidores nesta implementação local.
 
@@ -485,6 +487,85 @@ navegador ainda não integrados. A estratégia de jobs requer a política de
 histórico/retenção prevista em T10. Backups seguem adiados pelo usuário; não houve
 publicação nem manutenção em produção/staging.
 
+### Continuação local: carregamento do Gestor, observação e crescimento dos jobs
+
+Os painéis de estatísticas, NPS, cargos, DDS, edição de projeto e histórico de cargo,
+upload antigo, assinatura física e reemissão agora têm fronteiras próprias de
+carregamento. A visão geral de estatísticas não importa os overlays detalhados.
+Os serviços históricos só são montados na primeira abertura de sua aba e conservam
+o formulário ao alternar com PDFs; o envio em lote também adia seu diálogo.
+Os fallbacks dos diálogos permitem fechar/Escape enquanto o módulo é baixado.
+Os visualizadores PDF já utilizavam imports dinâmicos nos fluxos revisados.
+
+A carga estática do Gestor passou de **450.845 B para 406.097 B gzip** (9,9% a
+menos), contando shell, JS, CSS e dependências. Estatísticas soma 414.390 B sem
+baixar os overlays. Ambos têm orçamentos e exclusões verificadas no CI. Os
+16.197 B de CSS fonte exclusivos de credenciais saíram do shell e acompanham sua
+rota na camada `legacy`. O shell total mede 205.323 B gzip; a instrumentação também
+entra nessa conta. Outros blocos do CSS global permanecem candidatos a divisão
+conforme as próximas medições; não se atribui todo o ganho do bundle ao CSS.
+
+A coleta de conteúdo útil é opt-in por sessão, tem janela de 15 minutos e buffer
+de 200 amostras. Registra apenas rótulo fixo, fase, origem cache/rede, atualização
+em andamento e duração. Não envia dados automaticamente. Duas oportunidades de
+frame separam commit e registro; conteúdo oculto não é marcado como visível.
+Navegações novas são registradas mesmo quando reutilizam a mesma consulta/cache.
+A atualização observada pelo componente é uma fase diferente do primeiro conteúdo;
+estas durações não substituem o tempo HTTP. O relatório não publica percentis com
+menos de cem amostras por cenário nem quando houve truncamento do buffer.
+
+O Nginx ganhou `/nginx-health`, verificado por HTTP em container local sem rede
+nem portas publicadas. O worker grava um snapshot atômico local a cada 15 s, com
+inícios/fins de jobs e scans das filas de aprovação, e-mail e Data Book. O comando
+`node scripts/check-worker-health.js` verifica o PID, a idade do snapshot (45 s),
+a ausência de progresso (120 s, após o grace inicial) e rotinas além do prazo
+configurado mais 45 s. Uma rotina pode terminar com erro e ainda demonstrar que o
+processo progrediu; falhas de negócio continuam no status operacional. Os
+healthchecks foram adicionados apenas aos arquivos locais do Compose de produção.
+
+Sondagens vazias de finalização/quarentena verificam retries e recuperação usando
+os mesmos predicados dos processadores, sob o lock existente. Elas atualizam um
+registro por janela de 15 min/processo, com contagem e início/fim da janela. O
+`startedAt` da linha representa a verificação mais recente, preservando a consulta
+indexada do status. Trabalho real mantém o registro RUNNING antes da execução;
+falhas e disputas de lock mantêm registros individuais. Nenhuma linha histórica
+foi removida. Com verificações a cada minuto e sem trabalho, isso representa até
+96 linhas/dia por família/processo, em vez de 1.440, fora reinícios e disputas.
+
+A retenção de JobRun não tem prazo padrão e não entra na execução agendada sem
+parâmetro. O preview e a aplicação explícita reutilizam lotes/transações do serviço
+existente; preservam todos os FAILED, RUNNING e o último COMPLETED por nome,
+inclusive empates. O teste PostgreSQL isolado valida o preview, a ausência de
+exclusões por padrão, os lotes e as exceções, além dos predicados de recuperação.
+A escolha do prazo/política e qualquer aplicação em ambiente publicado permanecem
+pendentes. O teste apagou somente suas próprias fixtures no banco descartável.
+
+O cálculo de custos também passou a obter as três configurações anuais em uma
+leitura e não consulta alocações que o contexto ACTUAL_REPORT não utiliza. Ausências,
+feriados, revisão do calendário, regras financeiras e planejamento foram preservados.
+Cinco comparações pareadas, isoladas das suítes, em PostgreSQL local com uma CPU,
+1.201 relatórios e 21 colaboradores deram estas medianas:
+
+| Cálculo sem cache | Antes do plano (3db7e76f) | Commit acd2a2ba | Atual |
+| --- | ---: | ---: | ---: |
+| Após aquecimento | 216,1 ms | 71,8 ms | 64,3 ms |
+| Processo Node/Prisma novo | 493,9 ms | 344,8 ms | 314,3 ms |
+| Processo novo após uma leitura de sessão | 367,6 ms | 248,4 ms | 218,6 ms |
+
+Houve paridade exata dos objetos completos. São cálculos locais com páginas do
+banco aquecidas, não autenticação HTTP nem produção. A redução fria acumulada é
+**36,4%**; o ganho incremental desta rodada é **8,9%**. A meta de 50% continua
+pendente. Não foram criados novos índices, caches derivados nem aumentado o pool.
+As amostras constam nas [evidências locais](evidence/performance-local-20261109.json).
+
+Validação final desta continuação: **2.755 testes de backend aprovados, 38
+ignorados e nenhuma falha**, **895 de frontend aprovados**, oito cenários de
+navegador (sete na execução completa e o upload histórico na direcionada) e 15
+verificações de jobs/health/status/PostgreSQL após a revisão. Build, lint,
+arquitetura e os seis orçamentos passaram. O CI incorpora esses cenários e os
+padrões de novos módulos foram atualizados. A infraestrutura descartável foi
+local; não houve publicação, limpeza de histórico existente ou mudança de backups.
+
 ### Uso local das ferramentas de medição
 
 A coleta detalhada fica desativada por padrão. Para uma sessão local de 15 minutos,
@@ -507,3 +588,29 @@ quando o limite de amostras é excedido e sinaliza quando há menos de 100 amost
 As etapas podem se sobrepor em operações concorrentes; sua soma não é a duração
 HTTP. Rotas sem correspondência e segmentos de montagem desconhecidos são
 anonimizados, sem registrar URL bruta, parâmetros, corpos ou credenciais.
+
+Para observar conteúdo útil, habilitar na sessão do navegador e recarregar:
+
+```js
+sessionStorage.setItem('filtro:page-performance', 'true');
+location.reload();
+// Depois de navegar nos cenários escolhidos:
+filtroPagePerformance.read();
+filtroPagePerformance.report();
+// Encerrar a coleta e limpar as amostras:
+sessionStorage.removeItem('filtro:page-performance');
+filtroPagePerformance.clear();
+```
+
+Para a prévia de JobRun, o operador deve fornecer o prazo aprovado como
+`--job-run-retention-days=<dias>` ao script de retenção existente, que permanece
+em dry-run sem `--apply`. Sem esse parâmetro, JobRun não participa da rotina.
+O preview também mostra os outros alvos já existentes do serviço; a aplicação não
+é uma rotina exclusiva de jobs. Nenhum prazo nem aplicação foi definido nesta rodada.
+
+Na publicação manual, atualizar backend/worker e Nginx a partir da mesma revisão;
+os comandos de healthcheck dependem do script e da localização HTTP novos. Em
+rollback para imagens anteriores, restaurar também a definição anterior do Compose,
+pois a imagem antiga do worker não contém `scripts/check-worker-health.js`.
+Não há migration nova nesta continuação. A comparação publicada ainda deve separar
+primeira carga, cache aquecido, laboratório e HTTP, mantendo T02 (backups) adiada.

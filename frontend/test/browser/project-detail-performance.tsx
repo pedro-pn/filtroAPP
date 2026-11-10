@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 import { apiClient } from '../../src/api/client';
-import { createAppQueryClient } from '../../src/queryClient';
+import { createAppQueryClient, installQueryDataUpdates } from '../../src/queryClient';
 import { ProjectDetailDashboard } from '../../src/components/projects/ProjectDetailDashboard';
 import { ToastProvider } from '../../src/components/ui/Toast';
 import { detail } from '../fixtures/project-detail.mjs';
@@ -15,12 +15,14 @@ import '../../src/styles/legacy.css';
 
 const params = new URLSearchParams(location.search);
 const client = createAppQueryClient();
+const disposeUpdates = installQueryDataUpdates(client);
 const state = {
   revision: 1, failMode: '', changeDuringRead: false,
   reads: [] as Array<{ mode: string; revision: number; fields?: string }>
 };
 Object.assign(window, { projectDetailPerformance: state });
-apiClient.defaults.adapter = async config => {
+Object.assign(window, { writePerformanceReport: () => apiClient.put('/rdo/reports/r1/status', { status: 'APPROVED' }) });
+if (!params.has('network')) apiClient.defaults.adapter = async config => {
   const url = config.url || '';
   let data: unknown = [];
   if (url.endsWith('/detalhe')) {
@@ -62,7 +64,7 @@ apiClient.defaults.adapter = async config => {
 };
 
 const root = createRoot(document.getElementById('root')!);
-import.meta.hot?.dispose(() => { root.unmount(); client.clear(); });
+import.meta.hot?.dispose(() => { root.unmount(); client.clear(); disposeUpdates(); });
 root.render(<React.StrictMode><QueryClientProvider client={client}><ToastProvider>
   <ProjectDetailDashboard projectId={params.has('group') ? undefined : 'p1'} groupId={params.has('group') ? 'g1' : undefined} onBack={() => {}} />
 </ToastProvider></QueryClientProvider></React.StrictMode>);

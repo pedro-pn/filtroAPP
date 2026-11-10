@@ -1687,5 +1687,235 @@
       "Gestor panel splitting, shell CSS, content-ready instrumentation and remaining CI browser integration",
       "Job growth/retention decisions; backups explicitly deferred"
     ]
+  },
+  "nextStages": {
+    "baseCommit": "acd2a2ba",
+    "scope": "Local implementation only; no production/staging operations or backup changes.",
+    "coldCosts": {
+      "method": "Five paired measurements of uncached calculations; same local PostgreSQL 16 with warm DB pages, pool limit 8, DB container limited to 1 CPU. Fresh Node/Prisma processes for cold samples; after-session mode performs one session SELECT first, not HTTP authentication. No production measurements.",
+      "fixture": {
+        "reports": 1201,
+        "collaborators": 21,
+        "projectPreferences": 500
+      },
+      "revisions": [
+        "3db7e76f",
+        "acd2a2ba",
+        "working-tree-after-acd2a2ba"
+      ],
+      "samplesMs": {
+        "warm": [
+          [
+            338.9506470000001,
+            81.615679,
+            76.11269500000003
+          ],
+          [
+            220.7669279999999,
+            86.56392099999994,
+            64.30540599999995
+          ],
+          [
+            216.07597699999997,
+            64.65415499999995,
+            71.384005
+          ],
+          [
+            215.09454399999993,
+            71.76896600000009,
+            55.67724499999997
+          ],
+          [
+            213.90638,
+            65.47465599999998,
+            59.03938700000003
+          ]
+        ],
+        "new-process": [
+          [
+            499.06711100000007,
+            364.780832,
+            314.31440299999997
+          ],
+          [
+            496.242896,
+            344.8422089999999,
+            319.78999
+          ],
+          [
+            483.148033,
+            393.54540699999995,
+            315.111607
+          ],
+          [
+            474.05388800000003,
+            303.88209300000005,
+            310.580727
+          ],
+          [
+            493.85496300000005,
+            321.82099999999997,
+            276.360099
+          ]
+        ],
+        "new-process-after-session": [
+          [
+            367.607907,
+            255.37074799999994,
+            219.19376899999997
+          ],
+          [
+            367.38515700000005,
+            263.595936,
+            226.43796599999996
+          ],
+          [
+            384.960088,
+            248.40418400000004,
+            218.62760000000003
+          ],
+          [
+            375.74445399999996,
+            208.82550999999995,
+            179.93694300000004
+          ],
+          [
+            362.39839900000004,
+            199.49765000000008,
+            195.29238599999996
+          ]
+        ]
+      },
+      "summary": {
+        "warm": [
+          {
+            "revision": "3db7e76f",
+            "medianMs": 216.07597699999997
+          },
+          {
+            "revision": "acd2a2ba",
+            "medianMs": 71.76896600000009
+          },
+          {
+            "revision": "working-tree-after-acd2a2ba",
+            "medianMs": 64.30540599999995
+          }
+        ],
+        "new-process": [
+          {
+            "revision": "3db7e76f",
+            "medianMs": 493.85496300000005
+          },
+          {
+            "revision": "acd2a2ba",
+            "medianMs": 344.8422089999999
+          },
+          {
+            "revision": "working-tree-after-acd2a2ba",
+            "medianMs": 314.31440299999997
+          }
+        ],
+        "new-process-after-session": [
+          {
+            "revision": "3db7e76f",
+            "medianMs": 367.607907
+          },
+          {
+            "revision": "acd2a2ba",
+            "medianMs": 248.40418400000004
+          },
+          {
+            "revision": "working-tree-after-acd2a2ba",
+            "medianMs": 218.62760000000003
+          }
+        ]
+      },
+      "exactParity": true,
+      "coldTargetReached": false
+    },
+    "bundles": {
+      "method": "Gzip size of JS/CSS plus static dependency closure, including shell; excludes API data, fonts and images.",
+      "shell": 205323,
+      "efetivoOverview": 293850,
+      "efetivoWorkflow": 306790,
+      "acompanhamentoDashboard": 284228,
+      "gestorInitial": 406097,
+      "gestorStatistics": 414390,
+      "gestorInitialBefore": 450845,
+      "statsDetailsDeferred": true
+    },
+    "css": {
+      "adminLegacyCssRemovedFromShellBytes": 16197,
+      "cascadeLayer": "legacy"
+    },
+    "usefulContent": {
+      "enabledByDefault": false,
+      "sessionStorageKey": "filtro:page-performance",
+      "maxSamples": 200,
+      "windowMs": 900000,
+      "percentilesMinimumSamples": 100,
+      "truncatedPercentilesSuppressed": true,
+      "surfaces": [
+        "Gestor tabs",
+        "Project cards",
+        "Project detail summary",
+        "Eight Efetivo sections"
+      ],
+      "sources": [
+        "cache",
+        "network"
+      ],
+      "phases": [
+        "content-visible",
+        "refresh-complete"
+      ],
+      "urlsOrEntityIdsRecorded": false
+    },
+    "jobs": {
+      "emptyChecksAggregated": [
+        "assinaturas:finalization",
+        "assinaturas:file-purge"
+      ],
+      "windowMs": 900000,
+      "historyDeleted": false,
+      "retentionEnabledByDefault": false,
+      "preservedByRetention": [
+        "FAILED",
+        "RUNNING",
+        "latest COMPLETED per name, including ties"
+      ],
+      "localPostgresRegressionPassed": true
+    },
+    "health": {
+      "nginxIsolatedHttpPassed": true,
+      "workerTracksCompletedScansAndActiveDeadlines": true,
+      "workerSnapshotMaxAgeMs": 45000,
+      "workerIdleMaxAgeMs": 120000
+    },
+    "validation": {
+      "backendFullSuite": {
+        "passed": 2755,
+        "skipped": 38,
+        "failed": 0
+      },
+      "frontendFullSuite": {
+        "passed": 895,
+        "failed": 0
+      },
+      "browserScenariosPassed": 8,
+      "additionalHistoryBrowserScenario": "passed",
+      "reviewedJobHealthPostgresChecksPassed": 15,
+      "build": true,
+      "lint": true,
+      "architecture": true,
+      "bundleBudgets": true,
+      "browserMethod": "Seven scenarios in the full browser run plus the historical-upload scenario in a targeted run; real React consumers with controlled/mock API sources."
+    },
+    "limitations": [
+      "Synthetic local measurements, not HTTP p95 or production performance.",
+      "First uncached calculation in a fresh process still below 50 percent reduction.",
+      "Retention period requires an approved policy before manual application.",
+      "Published permission/volume, LCP, p50/p95 and 24-hour/seven-day validation remain pending."
+    ]
   }
 }

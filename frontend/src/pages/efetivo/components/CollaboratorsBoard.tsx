@@ -1,3 +1,4 @@
+import { useUsefulQueryContent } from '../../../observability/useUsefulContent';
 import { SortableTable } from '../../../components/ui/SortableTable';
 import { BrandLoading } from '../../../components/brand/BrandLoading';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -40,6 +41,7 @@ export function CollaboratorsBoard({ date, jobRoleId, search, canManage, selecte
   const [formOpen, setFormOpen] = useState(false);
   const [absencePerson, setAbsencePerson] = useState<PlanningCollaborator | null>(null);
   const collaborators = useQuery({ queryKey: ['efetivo-planning-collaborators', date, jobRoleId || 'all', search], queryFn: () => listPlanningCollaborators({ date, jobRoleId, search: search || undefined }) });
+  useUsefulQueryContent('efetivo:colaboradores', 'CollaboratorsBoard', [collaborators]);
   const roles = useQuery({ queryKey: ['efetivo-planning-job-roles'], queryFn: listPlanningJobRoles });
   const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: ['efetivo-planning-collaborators'] }), queryClient.invalidateQueries({ queryKey: ['efetivo-planning-overview'] }), queryClient.invalidateQueries({ queryKey: ['efetivo-planning-calendar'] }), queryClient.invalidateQueries({ queryKey: ['efetivo-planning-availability'] })]);
   const save = useMutation({

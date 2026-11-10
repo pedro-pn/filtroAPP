@@ -1,10 +1,19 @@
 {
   "maxPageGzipBytes": 650000,
   "surfaces": [
-    { "name": "shell", "entries": ["index.html"], "maxGzipBytes": 220000 },
+    {
+      "name": "shell",
+      "entries": [
+        "index.html"
+      ],
+      "maxGzipBytes": 220000
+    },
     {
       "name": "efetivo-visao-geral",
-      "entries": ["src/pages/efetivo/EfetivoPage.tsx", "src/pages/efetivo/components/OverviewBoard.tsx"],
+      "entries": [
+        "src/pages/efetivo/EfetivoPage.tsx",
+        "src/pages/efetivo/components/OverviewBoard.tsx"
+      ],
       "maxGzipBytes": 320000,
       "deferred": [
         "src/pages/efetivo/components/OperationalCalendar.tsx",
@@ -16,7 +25,10 @@
     },
     {
       "name": "efetivo-evolucao",
-      "entries": ["src/pages/efetivo/EfetivoPage.tsx", "src/pages/efetivo/components/ProjectWorkflowBoard.tsx"],
+      "entries": [
+        "src/pages/efetivo/EfetivoPage.tsx",
+        "src/pages/efetivo/components/ProjectWorkflowBoard.tsx"
+      ],
       "maxGzipBytes": 320000,
       "deferred": [
         "src/pages/efetivo/components/MissionFormModal.tsx",
@@ -26,12 +38,57 @@
         "src/pages/efetivo/components/ProjectWorkflowAdminSummaryDialog.tsx"
       ]
     },
-    { "name": "acompanhamento-dashboard", "entries": ["src/pages/acompanhamento/AcompanhamentoPage.tsx", "src/components/projects/AcompanhamentoDashboard.tsx"], "maxGzipBytes": 360000 },
-    { "name": "gestor", "entries": ["src/pages/gestor/GestorPage.tsx"], "maxGzipBytes": 500000 }
+    {
+      "name": "acompanhamento-dashboard",
+      "entries": [
+        "src/pages/acompanhamento/AcompanhamentoPage.tsx",
+        "src/components/projects/AcompanhamentoDashboard.tsx"
+      ],
+      "maxGzipBytes": 360000
+    },
+    {
+      "name": "gestor",
+      "entries": [
+        "src/pages/gestor/GestorPage.tsx"
+      ],
+      "maxGzipBytes": 430000,
+      "deferred": [
+        "src/components/stats/StatsDashboard.tsx",
+        "src/components/surveys/SurveyDashboard.tsx",
+        "src/pages/gestor/LegacyReportsUploadModal.tsx",
+        "src/pages/gestor/HistoricalServicesModal.tsx",
+        "src/pages/gestor/PhysicalSignatureDialog.tsx",
+        "src/pages/gestor/PhysicalSignatureBatchDialog.tsx",
+        "src/components/projects/JobRoleManager.tsx",
+        "src/components/reports/DdsThemeManager.tsx",
+        "StatsOverview"
+      ]
+    },
+    {
+      "name": "gestor-estatisticas",
+      "entries": [
+        "src/pages/gestor/GestorPage.tsx",
+        "StatsOverview"
+      ],
+      "maxGzipBytes": 440000,
+      "deferred": [
+        "src/components/stats/StatsDashboard.tsx",
+        "src/components/surveys/SurveyDashboard.tsx"
+      ]
+    }
   ],
   "images": [
-    { "path": "src/assets/brand/login.webp", "maxBytes": 30000 },
-    { "path": "src/assets/brand/symbol.webp", "maxBytes": 18000 },
-    { "path": "src/assets/brand/favicon.png", "maxBytes": 5000 }
+    {
+      "path": "src/assets/brand/login.webp",
+      "maxBytes": 30000
+    },
+    {
+      "path": "src/assets/brand/symbol.webp",
+      "maxBytes": 18000
+    },
+    {
+      "path": "src/assets/brand/favicon.png",
+      "maxBytes": 5000
+    }
   ]
 }

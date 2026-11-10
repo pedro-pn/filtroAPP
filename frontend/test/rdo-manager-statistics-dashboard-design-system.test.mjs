@@ -49,7 +49,7 @@ test('B.3 is an explicit StatsDashboardOverlay opt-in restricted to Gestor', () 
   );
   const managerDetailedOverlay = sectionBetween(
     manager,
-    '{statisticsTab && statsDashboardOpen ? <StatsDashboardOverlay',
+    '{statisticsTab && statsDashboardOpen ? <Suspense',
     '\n      {statisticsTab && allocationDashboardOpen'
   );
 
@@ -186,7 +186,7 @@ test('B.3 preserves A.1 anchors and adds modal and filter semantics in the DS br
 
   assert.match(
     manager,
-    /statisticsTab && statsDashboardOpen \? <StatsDashboardOverlay/
+    /statisticsTab && statsDashboardOpen \? <Suspense[\s\S]*?<StatsDashboardOverlay/
   );
   assert.match(manager, /onClose=\{\(\) => setStatsDashboardOpen\(false\)\}/);
 });

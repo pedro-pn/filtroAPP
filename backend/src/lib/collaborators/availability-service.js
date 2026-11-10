@@ -203,6 +203,7 @@ export async function checkWorkforceAvailability(database, input) {
   const startDate = corporateDateKey(input.startDate);
   const endDate = corporateDateKey(input.endDate);
   const collaboratorIds = [...new Set(input.collaboratorIds || [])];
+  const actual = input.context === 'ACTUAL_REPORT';
   const [absences, allocations, calendar] = await Promise.all([
     database.collaboratorAbsence.findMany({
       where: {
@@ -212,7 +213,7 @@ export async function checkWorkforceAvailability(database, input) {
         endDate: { gte: utcDate(startDate) }
       }
     }),
-    database.efetivoMissionAllocation.findMany({
+    actual ? [] : database.efetivoMissionAllocation.findMany({
       where: {
         collaboratorId: { in: collaboratorIds },
         deletedAt: null,
@@ -227,7 +228,6 @@ export async function checkWorkforceAvailability(database, input) {
     }),
     loadCorporateCalendar(database, startDate, endDate)
   ]);
-  const actual = input.context === 'ACTUAL_REPORT';
   const conflicts = [
     ...absences.map(absence => ({
       code: actual ? 'WORK_DURING_ABSENCE' : 'ABSENCE',

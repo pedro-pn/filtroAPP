@@ -51,6 +51,7 @@ function mockCalculation(t, {
   mock('costProfile', 'findMany', [{ key: 'operador', parameterSets: [{ effectiveDate: '2026-01-01', params: modelParams }] }]);
   stub('report', 'findMany', async ({ where }) => where.project?.offshore ? [] : reports);
   mock('acompanhamentoSetting', 'findUnique', { numberValue: 0 });
+  mock('acompanhamentoSetting', 'findMany', ['epiAnnualCost', 'examsTrainingAnnualCost', 'offshoreExamsTrainingAnnualCost'].map(key => ({ key, numberValue: 0 })));
   mock('project', 'findMany', [{ id: 'p1', code: '1001', laborSleepModeByCollaborator }]);
   mock('pontoProjectTagAlias', 'findMany', []);
   mock('acompanhamentoMissionGroup', 'findMany', []);

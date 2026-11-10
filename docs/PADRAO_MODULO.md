@@ -266,3 +266,42 @@ Decisões reutilizáveis desse módulo:
 - onboarding permanente via Driver.js é marcado por usuário no `localStorage`.
 
 Na exclusão da conta proprietária (decisão D16 da feature), documentos não concluídos são excluídos e seus bytes passam por quarentena; documentos concluídos são preservados como órfãos, com o nome histórico e a auditoria intactos.
+
+
+## Carregamento, cache e regressões de performance
+
+Rotas novas usam imports dinâmicos. Seções, visualizadores de PDF, editores e
+modais pesados carregam ao serem abertos, com estado de carregamento próprio,
+foco, Escape e URL preservados. Consultas ficam habilitadas apenas para os
+consumidores ativos; não antecipar dados de outra aba para disfarçar o download.
+CSS exclusivo acompanha a rota ou componente; conservar a camada `legacy` ao
+extrair estilos antigos para manter a precedência dos estilos do Design System.
+
+O build gera um manifesto. `npm --prefix frontend run performance:check` soma
+JS/CSS comprimidos e suas dependências estáticas. Toda entrada `*Page.tsx` tem
+um limite padrão. Registrar as superfícies importantes e seus componentes adiados
+em `frontend/performance-budgets.json`; alterações de limites exigem comparação
+antes/depois e justificativa. Não avaliar apenas o chunk que leva o nome da página.
+
+Novos consumidores podem usar `useUsefulQueryContent` junto das consultas que
+alimentam seu primeiro conteúdo útil. Registrar um rótulo fixo em
+`observability/pagePerformance.ts`, sem IDs, URLs, termos pesquisados ou dados
+pessoais. A coleta fica desativada e é habilitada apenas na sessão de diagnóstico.
+Distinguir conteúdo em cache visível de atualização de dados em segundo plano.
+
+Caches precisam respeitar usuário, permissões, divisão e filtros. Dados de revisão
+imutável devem representar todas as fontes utilizadas, inclusive escritas do worker;
+`Project.updatedAt` isolado não representa alterações em medições. Históricos não
+precisam ser reconstruídos em cada polling. Dados atuais devem refletir gravações
+em outro navegador dentro do prazo do módulo, sem polling na página oculta.
+
+Mudanças nesses contratos incluem testes comportamentais de requisições por aba,
+revisão, gravação e visibilidade. Rodar `npm --prefix frontend run test:performance`,
+além dos testes de domínio relevantes. O CI executa esses cenários com fontes
+simuladas e o componente real; o aceite publicado ainda exige permissões, volume
+e medições HTTP representativas, com pelo menos cem chamadas por cenário.
+
+Sondagens de jobs só podem declarar `hasWork=false` com os mesmos critérios de
+seleção do processador, incluindo retries e recuperação. A agregação de sondagens
+vazias não agrega trabalho ou falhas e não exclui histórico. Retenção de `JobRun`
+fica desativada sem prazo explícito; sua política e aplicação são operacionais.

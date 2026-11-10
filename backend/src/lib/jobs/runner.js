@@ -1,3 +1,5 @@
+import { recordEmptyJobProbe } from './probes.js';
+import { beginWorkerTask } from '../operations/worker-health.js';
 import os from 'node:os';
 
 import { Prisma } from '@prisma/client';
@@ -124,10 +126,12 @@ export async function runTrackedJob(name, runFn, {
   lockTtlMs = DEFAULT_LOCK_TTL_MS,
   recordSkipped = true,
   logger = console,
-  nowFn
+  nowFn,
+  hasWork
 } = {}) {
   if (!name) throw new TypeError('Job name is required.');
   if (typeof runFn !== 'function') throw new TypeError('Job runner must be a function.');
+  if (hasWork !== undefined && typeof hasWork !== 'function') throw new TypeError('Job work probe must be a function.');
 
   const startedAt = nowFrom({ nowFn });
   if (runningJobs.has(name)) {
@@ -143,6 +147,7 @@ export async function runTrackedJob(name, runFn, {
   }
 
   runningJobs.add(name);
+  const finishHealth = beginWorkerTask(name, lockTtlMs);
   let lockState = null;
   let run = null;
 
@@ -164,6 +169,11 @@ export async function runTrackedJob(name, runFn, {
         }
         return { status: JOB_RUN_STATUS.SKIPPED, skipped: true, reason: 'lock-held' };
       }
+    }
+
+    if (hasWork && await hasWork() === false) {
+      await recordEmptyJobProbe(name, { prismaClient, now: nowFrom({ nowFn }), metadata: jsonValue(metadata) });
+      return { status: JOB_RUN_STATUS.COMPLETED, result: { noop: true } };
     }
 
     run = await prismaClient.jobRun.create({
@@ -203,6 +213,11 @@ export async function runTrackedJob(name, runFn, {
         logger.error('Falha ao registrar execução de job com erro.', updateError);
       });
     }
+    if (!run && hasWork) {
+      await prismaClient.jobRun.create({ data: { name, status: JOB_RUN_STATUS.FAILED, startedAt, finishedAt,
+        durationMs: durationMs(startedAt, finishedAt), metadata: jsonValue(metadata), error: jobErrorText(error) } })
+        .catch(updateError => logger.error('Falha ao registrar sondagem de job com erro.', updateError));
+    }
     throw error;
   } finally {
     runningJobs.delete(name);
@@ -214,5 +229,6 @@ export async function runTrackedJob(name, runFn, {
         logger.error('Falha ao liberar lock de job.', { name, error });
       });
     }
+    finishHealth();
   }
 }

@@ -1,3 +1,4 @@
+import { useUsefulContent } from '../../observability/useUsefulContent';
 import { useCallback, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router';
@@ -82,11 +83,12 @@ export function ProjectCardsBoard({
   const [dissolveTarget, setDissolveTarget] = useState<MissionGroupCard | null>(null);
   const [trackingTarget, setTrackingTarget] = useState<{ card: ProjectCardItem; action: 'archive' | 'restore' } | null>(null);
   const [seenFinalizations, setSeenFinalizations] = useState<Set<string>>(() => new Set());
-  const { data, isLoading, isError, isFetching, refetch } = useQuery({
+  const { data, isLoading, isError, isFetching, isFetchedAfterMount, dataUpdatedAt, refetch } = useQuery({
     queryKey: ['project-cards'],
     queryFn: () => getProjectCards(),
     ...acompanhamentoRefreshQueryOptions
   });
+  useUsefulContent('acompanhamento:cards', 'cards', { ready: !selected && data !== undefined && !isError, fetching: isFetching, cached: !isFetchedAfterMount, dataUpdatedAt });
   const projectCards = useMemo(() => data?.filter((card): card is ProjectCardItem => card.kind !== 'OPPORTUNITY'), [data]);
   const opportunities = useMemo(() => data?.filter((card): card is Opportunity => card.kind === 'OPPORTUNITY') ?? [], [data]);
   const visibleOpportunities = useMemo(() => {

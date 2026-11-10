@@ -8,6 +8,14 @@ const dist = path.resolve(root, process.env.PERFORMANCE_DIST_DIR || 'dist');
 const manifest = JSON.parse(fs.readFileSync(path.join(dist, '.vite/manifest.json'), 'utf8'));
 const budgets = JSON.parse(fs.readFileSync(path.join(root, 'performance-budgets.json'), 'utf8'));
 const compressed = new Map();
+function resolveEntry(entry) {
+  if (manifest[entry]) return entry;
+  // Shared modules with both static and dynamic consumers can lose their source
+  // key in Vite's manifest. Accept only one exact chunk name, never a hash.
+  const matches = Object.keys(manifest).filter(key => manifest[key].name === entry);
+  if (matches.length !== 1) throw new Error(`Entrada ausente ou ambígua no manifesto: ${entry}`);
+  return matches[0];
+}
 function closure(entries) {
   const keys = new Set(), files = new Set();
   function visit(key) {
@@ -19,7 +27,7 @@ function closure(entries) {
     chunk.css?.forEach(file => files.add(file));
     chunk.imports?.forEach(visit);
   }
-  ['index.html', ...entries].forEach(visit);
+  ['index.html', ...entries].map(resolveEntry).forEach(visit);
   const bytes = [...files].reduce((sum, file) => {
     if (!compressed.has(file)) compressed.set(file, gzipSync(fs.readFileSync(path.join(dist, file))).length);
     return sum + compressed.get(file);
@@ -32,7 +40,9 @@ for (const surface of budgets.surfaces) {
   console.log(`${surface.name}: ${bytes} / ${surface.maxGzipBytes} bytes gzip (JS + CSS + dependências estáticas)`);
   if (bytes > surface.maxGzipBytes) failures++;
   for (const deferred of surface.deferred || []) {
-    if (!manifest[deferred]?.isDynamicEntry || keys.has(deferred)) {
+    const deferredKey = resolveEntry(deferred);
+    const dynamic = manifest[deferredKey].isDynamicEntry || Object.values(manifest).some(chunk => chunk.dynamicImports?.includes(deferredKey));
+    if (!dynamic || keys.has(deferredKey)) {
       console.error(`Seção carregada antecipadamente: ${deferred}`);
       failures++;
     }

@@ -57,6 +57,8 @@ export function operationalStatusTone(status: string): SemanticTone {
 }
 
 const JOB_LABELS: Record<string, string> = {
+  'assinaturas:finalization': 'Finalização de documentos assinados',
+  'assinaturas:file-purge': 'Verificação da quarentena de assinaturas',
   'survey-reminders': 'Lembretes de pesquisas',
   'signature-reminders': 'Lembretes de assinaturas',
   'calibration-reminders': 'Lembretes de calibração',

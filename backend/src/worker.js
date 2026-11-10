@@ -1,3 +1,4 @@
+import { startWorkerHealthReporter } from './lib/operations/worker-health.js';
 import env from './config/env.js';
 import { startBackgroundJobs } from './jobs/background-jobs.js';
 import { captureOperationalError } from './lib/operations/error-tracking.js';
@@ -24,7 +25,9 @@ process.on('uncaughtExceptionMonitor', error => {
   reportProcessError(error, 'worker.uncaughtException');
 });
 
+let stopHealthReporter;
 async function shutdown(signal) {
+  stopHealthReporter?.();
   console.log(`[worker] encerrando por ${signal}`);
   await prisma.$disconnect().catch(error => console.error('[worker] falha ao desconectar do banco', error));
   process.exit(0);
@@ -33,5 +36,6 @@ async function shutdown(signal) {
 process.once('SIGTERM', () => void shutdown('SIGTERM'));
 process.once('SIGINT', () => void shutdown('SIGINT'));
 
+stopHealthReporter = startWorkerHealthReporter();
 startBackgroundJobs({ keepAlive: true });
 console.log(`[worker] jobs iniciados em ${env.nodeEnv}`);

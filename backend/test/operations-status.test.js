@@ -22,7 +22,9 @@ test('getOperationalStatus summarizes job failures, locks and queues', async () 
   const client = {
     jobRun: {
       async findMany() {
+        assert.deepEqual(arguments[0].orderBy, { startedAt: 'desc' });
         return [
+          { id: 'probe', name: 'assinaturas:finalization', status: 'COMPLETED', startedAt: new Date(now.getTime() - 10 * 60_000), finishedAt: now, result: { noop: true, checks: 10 } },
           {
             id: 'run-signature',
             name: 'signature-reminders',

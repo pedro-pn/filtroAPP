@@ -1,4 +1,4 @@
-async page => {
+export default async page => {
   const fixture = new URL('/test/browser/project-detail-performance.html', page.url()).href;
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));

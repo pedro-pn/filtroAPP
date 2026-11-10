@@ -137,3 +137,51 @@ test('runTrackedJob records failures and releases lock', async () => {
   assert.match(client.runs.get('run-1').error, /mail service unavailable/);
   assert.equal(client.locks.size, 0);
 });
+
+test('sondagens explicitamente vazias compartilham registro e preservam o último sucesso', async () => {
+  const client = fakePrismaClient();
+  let now = new Date('2026-11-09T10:00:00Z');
+  let work = 0;
+  for (let i = 0; i < 60; i++) {
+    await runTrackedJob('empty-probe', async () => { work++; }, { prismaClient: client, hasWork: async () => false, nowFn: () => now });
+    now = new Date(now.getTime() + 1000);
+  }
+  assert.equal(work, 0);
+  assert.equal(client.runs.size, 1);
+  assert.equal(client.runs.get('run-1').result.checks, 60);
+  assert.equal(client.runs.get('run-1').startedAt.toISOString(), '2026-11-09T10:00:59.000Z');
+  assert.equal(client.runs.get('run-1').result.windowStartedAt, '2026-11-09T10:00:00.000Z');
+  assert.equal(client.runs.get('run-1').finishedAt.toISOString(), '2026-11-09T10:00:59.000Z');
+  assert.equal(client.locks.size, 0);
+  now = new Date('2026-11-09T10:15:00Z');
+  await runTrackedJob('empty-probe', async () => {}, { prismaClient: client, hasWork: async () => false, nowFn: () => now });
+  assert.equal(client.runs.size, 2);
+});
+
+test('trabalho e erros nunca são agregados como sondagens vazias', async () => {
+  const client = fakePrismaClient();
+  const options = { prismaClient: client, nowFn: () => new Date('2026-11-09T10:00:00Z') };
+  await runTrackedJob('probe-work', async () => {}, { ...options, hasWork: async () => false });
+  await runTrackedJob('probe-work', async () => {
+    assert.equal(client.runs.get('run-2').status, 'RUNNING');
+    return { found: 1 };
+  }, { ...options, hasWork: async () => true });
+  await assert.rejects(runTrackedJob('probe-work', async () => { throw new Error('work failed'); }, { ...options, hasWork: async () => true }), /work failed/);
+  await assert.rejects(runTrackedJob('probe-work', async () => {}, { ...options, hasWork: async () => { throw new Error('probe failed'); } }), /probe failed/);
+  await runTrackedJob('probe-work', async () => {}, { ...options, hasWork: async () => false });
+  assert.equal(client.runs.size, 4);
+  assert.equal(client.runs.get('run-1').result.checks, 2);
+  assert.equal(client.runs.get('run-2').result.found, 1);
+  assert.equal(client.runs.get('run-3').status, 'FAILED');
+  assert.equal(client.runs.get('run-4').status, 'FAILED');
+  assert.equal(client.locks.size, 0);
+});
+
+test('sondagem só suprime execução com false explícito e não interfere nos jobs antigos', async () => {
+  const client = fakePrismaClient();
+  let calls = 0;
+  await runTrackedJob('uncertain-probe', async () => { calls++; }, { prismaClient: client, hasWork: async () => undefined });
+  await runTrackedJob('legacy-probe', async () => { calls++; }, { prismaClient: client });
+  assert.equal(calls, 2);
+  assert.equal(client.runs.size, 2);
+});
