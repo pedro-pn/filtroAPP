@@ -269,6 +269,44 @@ jobs:
       - name: Verify labor source parity and freshness on PostgreSQL
         run: node --test test/acompanhamento-labor-performance.integration.test.js
 
+  http-performance:
+    name: HTTP performance contracts (PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: http_performance_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d http_performance_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/http_performance_test
+      HTTP_PERFORMANCE_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/http_performance_test
+      TRUST_PROXY: "false"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run prisma:generate
+      - run: npm run prisma:deploy
+      - name: Verify concurrency, permissions, trace privacy and worker freshness
+        run: node --test test/http-performance-benchmark.test.js test/http-performance.integration.test.js
+
   conecta-allocation:
     name: Conecta allocation (PostgreSQL)
     runs-on: ubuntu-latest

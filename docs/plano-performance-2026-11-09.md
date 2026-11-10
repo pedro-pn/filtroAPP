@@ -287,7 +287,7 @@ não depender de reverter ou apagar dados para reverter o código.
 
 ## Checklist de execução
 
-- [ ] T01 Coleta HTTP e marcas de conteúdo útil implementadas localmente; janela publicada pendente.
+- [ ] T01 Coleta HTTP, marcas de conteúdo útil e ensaio HTTP autenticado/concorrente implementados localmente; janela publicada pendente.
 - [ ] T02 Adiada pelo usuário: estratégia de backup e recuperação.
 - [ ] T03 Healthchecks de Nginx/progresso do worker implementados localmente; série publicada pendente.
 - [x] T04 Consultas do Gestor por necessidade da aba, verificadas localmente.
@@ -304,11 +304,11 @@ não depender de reverter ou apagar dados para reverter o código.
 
 | Tarefa | Entrega nesta rodada | Trabalho restante |
 | --- | --- | --- |
-| T01 | Coleta HTTP opt-in e marcas de conteúdo útil no Gestor, cards, resumo do detalhe e oito seções do Efetivo; cache e refresh separados, com buffers/relatórios limitados | Janela completa de HTTP/conteúdo útil após publicação |
+| T01 | Coleta HTTP opt-in, marcas de conteúdo útil e benchmark HTTP local com sessões reais, concorrência e amostragem do pool; cache e refresh separados | Janela completa de HTTP/conteúdo útil após publicação |
 | T03 | Healthchecks locais do Nginx e de progresso do worker, incluindo filas de aprovação/e-mail/Data Book | Publicação manual e série de 24 h/sete dias |
 | T04 | Bootstrap projetado por seção, cache separado por seção e usuário, consultas condicionais, tratamento de carga/falha no upload manual e compatibilidade do contrato anterior | Aceite HTTP em ambiente publicado |
 | T05 | Associação das medições e preparo do escopo reutilizados dentro de cada cálculo; curvas não montam grupos de exibição descartados; resultado completo comparado com o anterior | Aceite HTTP em ambiente publicado |
-| T06 | Avanço atual a cada 15 s; histórico/recortes por revisão; projeção exclusiva de avanço evita repetir custos, ponto, equipe e equipamentos; fonte comercial em lote nos grupos | Concorrência autenticada e p95 no ambiente publicado |
+| T06 | Avanço atual a cada 15 s; histórico/recortes por revisão; projeção exclusiva de avanço e fonte comercial em lote; ensaio HTTP local de permissões e escrita entre processos | Reduzir fila de pool observada no ensaio e validar concorrência/p95 no ambiente publicado |
 | T07 | Fontes mensais/globais compartilhadas; custos anuais e catálogo de cargos em lote; horários de serviço lidos por período sem lista de IDs históricos; ausências/calendário antecipados | Atingir a meta fria em todos os cenários e validar HTTP concorrente; planos SQL locais verificados sem justificar novo índice |
 | T08 | Seções do Efetivo/Acompanhamento, cinco modais de workflow e painéis do Gestor sob demanda; visão geral estatística separada dos overlays | Aceite das superfícies autenticadas no ambiente publicado |
 | T09 | Variantes lossless, favicon/hash/prioridade do login e CSS da administração de credenciais separado do shell, preservando a camada legacy | Aceite LCP publicado; outros estilos globais podem ser divididos conforme medição |
@@ -321,10 +321,11 @@ ou execução em servidores nesta implementação local.
 
 ### Pendências priorizadas após a revisão para commit
 
-1. **Ensaio HTTP local — T01/T06/T07:** implementar um cenário autenticado e
-   concorrente para cards, grupos e ponto, com permissões e volumes representativos.
-   Separar primeira resposta, cache aquecido e atualização; medir o pool durante
-   as requisições e coletar amostras suficientes para p50/p95.
+1. **Pool e volume por requisição — T06/T07:** reduzir a pressão confirmada no
+   ensaio HTTP já implementado. Com quatro requisições simultâneas e pool de oito,
+   apenas 22,3% das amostras ativas ficaram sem fila, abaixo da meta de 95%.
+   Priorizar as 40 chamadas ao banco e 738.561 B do ponto e as 62–64 chamadas
+   medianas do grupo, preservando permissões e atualização após gravação.
 2. **Carga fria — T07:** atingir a redução de pelo menos 50% em todos os
    cenários-alvo. A comparação direta com o início do plano deu 40,6% no cenário
    com poucos serviços e 50,1% no denso; isso ainda não fecha o aceite geral.
@@ -740,10 +741,110 @@ falha**, incluindo a regressão PostgreSQL, além de arquitetura, consistência 
 evidências e configuração do CI verificadas. O banco descartável foi removido
 após as medições e os testes.
 
-O próximo incremento é um cenário HTTP local autenticado e concorrente para
-cards, grupos e ponto, medindo a primeira resposta e as atualizações separadamente.
-A aceitação publicada de HTTP/conteúdo útil/LCP e de 24 h/sete dias permanece em
-T12. A política de retenção continua pendente; backups seguem adiados.
+O cenário HTTP local autenticado e concorrente previsto nesta etapa foi
+implementado na continuação abaixo. A aceitação publicada de HTTP/conteúdo
+útil/LCP e de 24 h/sete dias permanece em T12. A política de retenção continua
+pendente; backups seguem adiados.
+
+### Continuação local: HTTP autenticado, concorrência e atualização entre processos
+
+O commit `bd1816dd` foi enviado para `origin/fix/page-loading-performance` antes
+desta continuação. O código da aplicação medido é o desse commit; esta etapa
+acrescenta ferramentas de medição, testes e configuração de CI locais.
+
+`npm --prefix backend run performance:http` prepara dados sintéticos em um banco
+PostgreSQL exclusivo e sobe a aplicação Express real em processos separados,
+escutando somente em loopback. O comando aceita apenas uma URL PostgreSQL local
+com nome terminado em `_test`, sem parâmetros que sobrescrevam a conexão, e
+verifica a ausência de dados operacionais antes da fixture. Os dois centros
+internos criados pelas migrations são preservados. O preparo executa `ANALYZE`
+no banco descartável antes de medir. A API sobe sem iniciar o worker ou enviar
+erros para webhook; os arquivos temporários e a fixture própria são removidos.
+
+Há duas sessões persistidas para administrador e duas para o visualizador do
+Acompanhamento. A autenticação passa pelo `requireAuth`, incluindo leitura e
+validação do hash da sessão. O login por senha não integra o ensaio. As respostas
+verificam a visibilidade de projetos restritos e a remoção de faturamento/impostos
+para o visualizador. Os custos de mão de obra continuam visíveis conforme a
+permissão atual do módulo. Oito leituras adicionais verificam 401 sem sessão e
+403 sem papel do módulo, depois de aquecer os caches.
+
+A fixture final contém três projetos sintéticos, grupo com dois membros, 1.203
+relatórios, 4.802 serviços, 21 colaboradores, 297 linhas de escopo e 11 divisões.
+O PostgreSQL 16 foi limitado a uma CPU e 768 MiB; a API usou pool de oito
+conexões e concorrência global de quatro requisições, misturando rotas e perfis.
+
+Foram coletadas **800 respostas aquecidas**, cem por rota/perfil, além de 24
+primeiras respostas em processos novos, oito aquecimentos e 16 leituras após
+gravação. As **848 respostas medidas foram 200**, sem interrupções. As oito
+negativas esperadas ficam em um conjunto separado. As medianas frias usam três
+amostras por rota/perfil; seu p95 permanece indisponível. O comando permite até
+cem rodadas frias quando essa estatística for necessária.
+
+| Rota | p95 cliente, administrador | p95 cliente, visualizador | Maior corpo JSON | Chamadas medianas ao banco |
+| --- | ---: | ---: | ---: | ---: |
+| Cards | 272,8 ms | 148,9 ms | 7.026 B | 11 |
+| Detalhe individual | 397,5 ms | 487,1 ms | 467.018 B | 46–47 |
+| Grupo | 712,4 ms | 816,6 ms | 453.475 B | 62–64 |
+| Ponto | 586,1 ms | 512,5 ms | 738.561 B | 40 |
+
+O cronômetro cliente inclui o recebimento do corpo. O cronômetro da API inclui
+autenticação e serialização; os maiores p95 do servidor foram **244,4 ms para
+cards** e **480,9 ms para detalhe**. São resultados locais, com páginas do banco
+aquecidas, sem Nginx, TLS, renderização ou navegação de navegador. A fase aquecida
+usa processo persistente e conserva as expirações normais dos caches.
+
+Durante requisições ativas, a amostragem a cada 10 ms observou **673 de 3.024
+amostras sem espera (22,3%)**, pico de 47 consultas na fila e maior sequência
+observada com fila de 759,8 ms. Não houve sequência observada acima de cinco
+segundos. São observações do pool, sujeitas ao atraso do event loop, e não medidas
+individuais de espera das consultas. A meta de 95% sem fila continua pendente.
+
+O processo que prepara a fixture também altera um serviço realizado e um resumo
+do ponto, usando outro Prisma/pool e sem limpar a memória da API. O timestamp do
+projeto permanece igual. As duas sessões de cada perfil observaram o novo avanço
+individual/do grupo e as novas horas do ponto; a rodada de verificação terminou
+em até **1.334,9 ms**, contados após confirmar as gravações e preparar a coleta.
+Os cards são novamente
+validados quanto a permissões, sem afirmar atualização imediata de seu cache.
+Isso verifica endpoints; o polling e o comportamento com aba oculta continuam
+dependendo dos testes de navegador e do aceite publicado.
+
+Uma tentativa exploratória anterior recebeu timeout PostgreSQL em uma leitura
+de `ReportCollaborator` com junções de acesso a projeto. O replay com estimativas
+desatualizadas escolheu Nested Loop e mediu 6,3 ms; após `ANALYZE`, escolheu
+Hash Join e mediu 1,7 ms. O replay **não reproduziu o timeout**, portanto não
+estabelece sua causa. A rodada completa final, com estatísticas preparadas,
+terminou sem erros. Falhas futuras geram artefato marcado como incompleto,
+incluindo respostas recebidas e contagem de tentativas, e o comando termina com
+erro. O incidente permanece registrado nas evidências.
+
+Os dados por rota/perfil/fase, as amostras numéricas e os planos do replay estão
+nas [evidências HTTP locais](evidence/performance-http-local-20261110.json).
+O CI ganhou um job PostgreSQL isolado para os contratos de concorrência,
+permissões, privacidade dos traces e atualização entre processos. Os testes de
+relatório verificam separação por status/fase, supressão de p95 abaixo de cem
+amostras e contagem do pool somente durante atividade.
+
+Validação desta etapa: **seis testes aprovados, sem falhas**, incluindo PostgreSQL,
+execução da CLI que preserva dados operacionais existentes e grava um artefato
+incompleto, além de arquitetura e configuração do CI verificadas. Os contratos
+da aplicação mantêm o código do commit medido; não houve nova alteração em
+`backend/src` ou `frontend/src`.
+
+Com um banco descartável local migrado, sem dados operacionais e com sua URL em
+`DATABASE_URL`, executar:
+
+```bash
+NODE_ENV=test npm --prefix backend run performance:http -- \
+  --requests=100 --cold-rounds=3 --reports=1200 --scopes=297 \
+  --concurrency=4 --pool-limit=8 --output=/tmp/filtro-http-performance.json
+```
+
+O próximo incremento passa a ser reduzir consultas simultâneas e volume das
+respostas de ponto/grupos. Os aceites publicados, a redução fria geral de 50%,
+a política de retenção e as séries operacionais continuam pendentes. Backups
+permanecem adiados.
 
 ### Uso local das ferramentas de medição
 

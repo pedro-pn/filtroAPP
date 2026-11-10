@@ -9,6 +9,7 @@
     "start:worker": "node src/worker.js",
     "assets:brand": "node scripts/generate-web-brand-assets.js",
     "performance:report": "node scripts/report-performance.js",
+    "performance:http": "node scripts/benchmark-http-performance.js",
     "test": "node --test test/*.test.js",
     "generate:quality-models": "node scripts/generate-quality-document-models.js",
     "prisma:generate": "prisma generate",
