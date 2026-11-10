@@ -241,6 +241,7 @@ jobs:
       NODE_ENV: test
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/omni_phase2_test
       TEST_OMNI_PHASE2_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/omni_phase2_test
+      LABOR_PERFORMANCE_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/omni_phase2_test
       JOB_PERFORMANCE_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/omni_phase2_test
       ACOMPANHAMENTO_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/omni_phase2_test
       TRUST_PROXY: "false"
@@ -264,6 +265,9 @@ jobs:
           test/acompanhamento-detail-performance.integration.test.js
           test/jobs-performance.integration.test.js
           test/api-simulation-db.test.js
+
+      - name: Verify labor source parity and freshness on PostgreSQL
+        run: node --test test/acompanhamento-labor-performance.integration.test.js
 
   conecta-allocation:
     name: Conecta allocation (PostgreSQL)

@@ -293,8 +293,8 @@ não depender de reverter ou apagar dados para reverter o código.
 - [x] T04 Consultas do Gestor por necessidade da aba, verificadas localmente.
 - [x] T05 Pacote completo de avanço otimizado com paridade, verificado localmente.
 - [ ] T06 Implementação local: projeção de avanço elimina leituras alheias ao histórico; aceite multicliente/HTTP pendente.
-- [ ] T07 Parcial: fontes mensais/globais compartilhadas; meta da primeira carga em processo novo e aceite HTTP pendentes.
-- [ ] T08 Seções/modais e painéis do Gestor adiados localmente; aceite publicado pendente.
+- [ ] T07 Parcial: fontes compartilhadas, catálogo de cargos em lote, intervalos por período e calendário antecipado; meta fria em todos os cenários e aceite HTTP pendentes.
+- [ ] T08 Seções/modais e painéis do Gestor carregados sob demanda localmente; aceite publicado pendente.
 - [ ] T09 Imagens otimizadas e CSS exclusivo da administração extraído; aceite LCP publicado pendente.
 - [ ] T10 Sondagens vazias agregadas e retenção opt-in validada localmente; política e aplicação pendentes.
 - [x] T11 Gates de tamanho, paridade, consultas, navegador e padrões de novos módulos integrados ao CI, verificados localmente.
@@ -309,7 +309,7 @@ não depender de reverter ou apagar dados para reverter o código.
 | T04 | Bootstrap projetado por seção, cache separado por seção e usuário, consultas condicionais, tratamento de carga/falha no upload manual e compatibilidade do contrato anterior | Aceite HTTP em ambiente publicado |
 | T05 | Associação das medições e preparo do escopo reutilizados dentro de cada cálculo; curvas não montam grupos de exibição descartados; resultado completo comparado com o anterior | Aceite HTTP em ambiente publicado |
 | T06 | Avanço atual a cada 15 s; histórico/recortes por revisão; projeção exclusiva de avanço evita repetir custos, ponto, equipe e equipamentos; fonte comercial em lote nos grupos | Concorrência autenticada e p95 no ambiente publicado |
-| T07 | Conferência mensal compartilha fontes; cálculo global reutiliza projetos/RDOs, lê custos anuais em lote e evita consultar alocações de planejamento no contexto realizado, sem novo cache entre requisições | Atingir a meta da primeira carga em processo novo, verificar planos SQL conforme medição e validar HTTP |
+| T07 | Fontes mensais/globais compartilhadas; custos anuais e catálogo de cargos em lote; horários de serviço lidos por período sem lista de IDs históricos; ausências/calendário antecipados | Atingir a meta fria em todos os cenários e validar HTTP concorrente; planos SQL locais verificados sem justificar novo índice |
 | T08 | Seções do Efetivo/Acompanhamento, cinco modais de workflow e painéis do Gestor sob demanda; visão geral estatística separada dos overlays | Aceite das superfícies autenticadas no ambiente publicado |
 | T09 | Variantes lossless, favicon/hash/prioridade do login e CSS da administração de credenciais separado do shell, preservando a camada legacy | Aceite LCP publicado; outros estilos globais podem ser divididos conforme medição |
 | T10 | Uma linha por janela de 15 min para sondagens vazias de finalização/quarentena; trabalho e falhas individuais; preview/retenção em lotes sem prazo padrão | Aprovar prazo/política antes de aplicação manual; medir linhas/dia publicado |
@@ -318,6 +318,31 @@ não depender de reverter ou apagar dados para reverter o código.
 Os aceites publicados, a política/aplicação de retenção e o restante da meta fria de T07 permanecem pendentes. As regras de apropriação
 de custos foram preservadas. Não houve exclusão de histórico, alteração de backup
 ou execução em servidores nesta implementação local.
+
+### Pendências priorizadas após a revisão para commit
+
+1. **Ensaio HTTP local — T01/T06/T07:** implementar um cenário autenticado e
+   concorrente para cards, grupos e ponto, com permissões e volumes representativos.
+   Separar primeira resposta, cache aquecido e atualização; medir o pool durante
+   as requisições e coletar amostras suficientes para p50/p95.
+2. **Carga fria — T07:** atingir a redução de pelo menos 50% em todos os
+   cenários-alvo. A comparação direta com o início do plano deu 40,6% no cenário
+   com poucos serviços e 50,1% no denso; isso ainda não fecha o aceite geral.
+3. **Aceite publicado — T01/T04/T05/T06/T08/T09:** verificar as metas HTTP e
+   de conteúdo útil/LCP da tabela inicial, a transferência por rota, dois
+   navegadores, perfis com/sem acesso financeiro, gravações do worker e atualização
+   em até 15 s, incluindo a ausência de polling com a página oculta.
+4. **Operação e fechamento — T03/T11/T12:** executar os gates no CI/PR,
+   preparar a publicação manual e comparar séries de 24 h e sete dias de pool,
+   event loop, CPU steal, memória, erros e progresso dos jobs.
+5. **Retenção — T10:** definir/aprovar a política e o prazo antes da aplicação
+   manual; medir a criação de linhas por dia no ambiente publicado. O mecanismo
+   local de preview/retenção já está implementado.
+
+**T02 (backups) permanece adiada pelo usuário.** As entregas locais de T04,
+T05 e T11 estão concluídas; os aceites publicados são acompanhados em T12.
+Uma divisão adicional de CSS ou novos índices depende de novo gargalo medido,
+sem constituir uma implementação obrigatória já comprovada como ausente.
 
 ### Comparação reproduzida localmente
 
@@ -565,6 +590,160 @@ verificações de jobs/health/status/PostgreSQL após a revisão. Build, lint,
 arquitetura e os seis orçamentos passaram. O CI incorpora esses cenários e os
 padrões de novos módulos foram atualizados. A infraestrutura descartável foi
 local; não houve publicação, limpeza de histórico existente ou mudança de backups.
+
+### Continuação local em 10/11: intervalos dos RDOs e calendário na primeira carga
+
+O commit `9721c798`, que reúne a continuação anterior, foi enviado para
+`origin/fix/page-loading-performance`. As mudanças descritas nesta seção foram
+feitas localmente depois desse envio.
+
+A fonte de relatórios deixou de trazer os horários dos serviços filhos de RDOs:
+seus minutos registrados já são a fonte utilizada pelo cálculo, inclusive quando
+zerados. Os intervalos dos outros tipos continuam disponíveis para o fallback de
+horas. O filtro atua somente nos filhos, mantendo o recorte dos relatórios pais,
+a evidência histórica, a elegibilidade offshore anual e a montagem dos rateios.
+As leituras do ponto e dos funcionários ignorados também começam antes das demais
+fontes; assim, a busca de ausências, feriados e revisão do calendário pode ocorrer
+enquanto relatórios, cargos e projetos ainda carregam. Não há cache novo,
+migration, índice, aumento de pool ou mudança de fórmula nesta etapa.
+
+Cinco pares por cenário compararam `9721c798` com o código local, alternando a
+ordem de execução. O PostgreSQL 16 descartável teve uma CPU e 768 MiB; o pool
+manteve oito conexões. São tempos do cálculo do serviço com páginas do banco
+aquecidas. Cada amostra fria usa processo Node/Prisma novo; o tempo não inclui
+o boot/importação do processo. A leitura de sessão é um SELECT prévio, sem
+autenticação ou requisição HTTP.
+
+| Relatórios / serviços sintéticos | Após aquecimento, antes → depois | Processo novo, antes → depois | Processo novo após leitura de sessão, antes → depois |
+| --- | ---: | ---: | ---: |
+| 1.203 / 2 | 61,2 → 58,1 ms (5,1%) | 313,4 → 308,1 ms (1,7%) | 202,2 → 208,3 ms (−3,0%) |
+| 1.203 / 4.802 | 65,4 → 57,3 ms (12,4%) | 294,7 → 267,8 ms (9,1%) | 203,0 → 205,4 ms (−1,2%) |
+| 6.003 / 24.002 | 181,2 → 154,6 ms (14,7%) | 469,9 → 414,8 ms (11,7%) | 415,7 → 288,1 ms (30,7%) |
+
+Os percentuais são reduções das medianas de cinco amostras; valores negativos
+representam aumento. Todos os cenários mantêm 21 colaboradores e 500 preferências
+no projeto. Cada par conferiu igualdade exata do resultado completo, incluindo
+Map e Set. No cenário com 4.802 serviços, a representação JSON da consulta
+principal de relatórios caiu de **583.421 B para 392.582 B (32,7%)**. Os perfis
+separados contaram **18 operações Prisma** antes e depois; essa contagem não é
+uma contagem de comandos SQL, e o tamanho JSON não é tráfego de rede.
+
+O ganho cresce no cenário com mais serviços, mas não é uniforme: após a leitura
+de sessão, os dois cenários menores ficaram ligeiramente mais lentos. A meta de
+50% em T07 continua pendente. Estes números incrementais não devem ser compostos
+com os 36,4% da rodada anterior, pois os cenários e as execuções são diferentes.
+As amostras e os perfis estão nas
+[evidências de 10/11](evidence/performance-local-20261110.json).
+
+A regressão com PostgreSQL real compara as fontes antigas/atuais e o cálculo
+completo, verifica o fallback dos relatórios de serviço e a atualização após
+gravar uma ausência. Os testes unitários verificam a sobreposição das leituras
+e a recuperação na requisição seguinte após falha da disponibilidade. A suíte
+completa de backend passou com **2.758 aprovados, 38 ignorados e nenhuma falha**.
+O novo teste PostgreSQL tem uma etapa própria no CI para evitar que sua importação
+sintética influencie as outras provas de detalhe que usam o ponto vigente.
+
+O benchmark reproduzível está em
+`backend/scripts/benchmark-labor-performance.js`. Ele aceita somente PostgreSQL
+em loopback com nome de banco terminado em `_test`, cria IDs sintéticos próprios
+e remove a fixture ao terminar. Com um banco descartável local já migrado e sua
+URL em `DATABASE_URL`, preparar a referência e executar:
+
+```bash
+PERF_BASELINE_DIR=$(mktemp -d /tmp/filtro-labor-baseline.XXXXXX)
+git archive 9721c798 backend/src backend/package.json backend/prisma/schema.prisma shared | tar -x -C "$PERF_BASELINE_DIR"
+ln -s "$PWD/backend/node_modules" "$PERF_BASELINE_DIR/backend/node_modules"
+NODE_ENV=test DATABASE_CONNECTION_LIMIT=8 node backend/scripts/benchmark-labor-performance.js \
+  --baseline-root="$PERF_BASELINE_DIR/backend" --rounds=5 \
+  --reports=1200 --services-per-rdo=4 --profile \
+  --output=/tmp/filtro-labor-comparison.json
+```
+
+As opções `--reports=6000` e `--services-per-rdo=0` reproduzem os outros volumes.
+Perfis são chamadas extras instrumentadas, fora das amostras cronometradas.
+O próximo incremento deve separar o custo de inicialização do runtime/Prisma
+das leituras efetivamente dominantes e medir os planos SQL antes de decidir
+novos índices ou mudanças no recorte global. Também permanecem o aceite HTTP
+concorrente, LCP/conteúdo útil, volumes/perfis autenticados e as janelas publicadas
+de 24 h/sete dias. A política/aplicação de retenção continua pendente; backups
+permanecem adiados pelo usuário.
+
+### Continuação local em 10/11: catálogo de parâmetros e planos SQL
+
+Os perfis de cargos e os modelos-base agora compartilham uma leitura do catálogo
+de parâmetros versionados. A associação ao cargo ocorre pelo ID, preservando o
+nome, o modelo-base escolhido, o fallback, a vigência e os desempates das versões.
+Os cargos sem perfil continuam sem custo configurado. O consumidor da API de
+custo/hora, as estimativas de relatórios e as trilhas usam o mesmo resolvedor.
+
+A leitura global dos horários passou a consultar diretamente os serviços dentro
+do período, vinculados a relatórios ativos de tipo diferente de RDO. O resultado
+é associado aos mesmos relatórios pais, cuja consulta e ordem foram preservadas.
+Isso conserva o número escolhido quando dois RDOs têm as mesmas horas, a evidência
+histórica, o fallback por intervalos e a elegibilidade offshore anual.
+A consulta de horários passou de **1.204 para quatro parâmetros** com 1.203
+relatórios, e de **6.004 para quatro** com 6.003 relatórios.
+
+O conjunto medido passou de **35 para 33 SELECTs**, embora as chamadas Prisma
+tenham passado de 18 para 19: a nova leitura direta substitui a consulta SQL que
+antes era gerada pela relação aninhada, e o catálogo elimina duas consultas SQL
+duplicadas. Essas contagens são da fixture local; permanecem constantes ao variar
+seu volume. As listas das outras relações continuam candidatas a análise.
+O escopo de acesso por projeto também se aplica ao modelo ReportService.
+
+Cinco pares por modo compararam esta etapa com um snapshot do código local da
+seção anterior, mantendo banco descartável, limites, pool e dados iguais dentro
+de cada comparação. A referência incremental é um snapshot intermediário sem
+commit separado; os hashes dos arquivos estão nas
+[evidências desta continuação](evidence/performance-cold-costs-20261110.json).
+
+| Relatórios / serviços | Aquecido, antes → depois | Processo novo, antes → depois | Após leitura de sessão, antes → depois |
+| --- | ---: | ---: | ---: |
+| 1.203 / 2 | 90,9 → 77,8 ms (14,4%) | 302,3 → 313,8 ms (−3,8%) | 239,5 → 208,2 ms (13,1%) |
+| 1.203 / 4.802 | 68,6 → 64,4 ms (6,1%) | 322,1 → 285,2 ms (11,5%) | 202,7 → 188,8 ms (6,9%) |
+| 6.003 / 24.002 | 159,7 → 144,4 ms (9,6%) | 415,4 → 388,8 ms (6,4%) | 311,0 → 275,3 ms (11,5%) |
+
+Os percentuais são reduções das medianas; o resultado negativo registra aumento.
+O cenário menor com poucos serviços não demonstrou melhora incremental na partida
+fria. As execuções variam com o ambiente local; não há ganho universal confirmado.
+Todas as comparações verificaram igualdade exata do cálculo completo.
+
+Também foi repetida a comparação direta com o código anterior ao planejamento,
+`3db7e76f`, usando os mesmos dados dentro de cada par. A primeira execução em
+processo novo passou de **528,9 para 314,0 ms (40,6%)** no cenário com dois serviços,
+e de **574,5 para 286,9 ms (50,1%)** no cenário com 4.802 serviços. O resultado
+denso fica próximo do limiar; a meta permanece parcial, pois o cenário com poucos
+serviços e o aceite HTTP ainda não a atingiram. Esses ganhos foram medidos
+diretamente; não são a composição dos percentuais das rodadas anteriores.
+
+O benchmark com `--profile` também captura chamadas do pool e repete os SELECTs
+com `EXPLAIN (ANALYZE, BUFFERS)` depois das amostras. Os planos locais não
+justificaram índice novo. A duração observada no pool inclui espera e atrasos do
+event loop, e pode se sobrepor às demais chamadas; sua soma não mede latência HTTP.
+O replay dos planos usa páginas aquecidas e não reproduz sozinho a primeira carga.
+
+Um diagnóstico adicional, em processos separados, divide importação do módulo
+Prisma, `$connect` e dois `SELECT 1`. Na fixture menor, as medianas do candidato
+foram **190,1 ms, 84,0 ms, 24,5 ms e 1,9 ms**, respectivamente. A importação é
+medida após carregar as dependências do diagnóstico e não entra no cronômetro
+do cálculo. Os três processos de diagnóstico não aquecem as amostras medidas;
+essas durações não medem o boot completo nem representam autenticação HTTP.
+
+A regressão PostgreSQL usa 120 RDOs, inclui alterações de salário/modelo no mês
+e verifica paridade das fontes e do cálculo, atualização após gravar horário ou
+ausência e menos de dez parâmetros na consulta de horários. Os testes unitários
+cobrem empate de RDOs, intervalo noturno, limite do período, cargo sem perfil,
+fallback de modelo e recuperação após falha de leitura.
+
+Validação final: **2.761 testes de backend aprovados, 38 ignorados e nenhuma
+falha**, incluindo a regressão PostgreSQL, além de arquitetura, consistência das
+evidências e configuração do CI verificadas. O banco descartável foi removido
+após as medições e os testes.
+
+O próximo incremento é um cenário HTTP local autenticado e concorrente para
+cards, grupos e ponto, medindo a primeira resposta e as atualizações separadamente.
+A aceitação publicada de HTTP/conteúdo útil/LCP e de 24 h/sete dias permanece em
+T12. A política de retenção continua pendente; backups seguem adiados.
 
 ### Uso local das ferramentas de medição
 

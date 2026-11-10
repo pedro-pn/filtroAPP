@@ -550,16 +550,22 @@ export function buildCollaboratorRoleCostSegments({ collaborator, roleParams, st
 }
 
 export async function getRoleParamsResolver(database = prisma) {
-  const [roles, models] = await Promise.all([
-    database.jobRole.findMany({
-      include: { costProfile: { include: { parameterSets: true } } }
-    }),
+  // Profiles for roles and base models share the same parameter table. Fetch
+  // that catalog once, then attach role profiles without a second relation walk.
+  const [roles, profiles] = await Promise.all([
+    database.jobRole.findMany({ select: { id: true, name: true } }),
     database.costProfile.findMany({
-      where: { jobRoleId: null },
-      include: { parameterSets: true }
+      select: {
+        key: true, jobRoleId: true,
+        parameterSets: { select: { version: true, effectiveDate: true, createdAt: true, params: true } }
+      }
     })
   ]);
-  return buildRoleParamsResolver({ roles, models });
+  const profilesByRoleId = new Map(profiles.filter(profile => profile.jobRoleId != null).map(profile => [profile.jobRoleId, profile]));
+  return buildRoleParamsResolver({
+    roles: roles.map(role => ({ ...role, costProfile: profilesByRoleId.get(role.id) })),
+    models: profiles.filter(profile => profile.jobRoleId == null)
+  });
 }
 
 function reportWorkedMinutes(report) {
@@ -1981,17 +1987,10 @@ export async function computeCollaboratorRates(importId = null) {
   const periodEndExclusive = endExclusive(pontoScope.periodEnd);
   const fileStart = pontoScope.periodStart;
   const fileEnd = pontoScope.periodEnd;
-  const projectAllocationContextPromise = getProjectAllocationContext();
-  const [
-    periodRows,
-    ignoredEmployees,
-    roleParams,
-    reportSources,
-    annualCosts,
-    projectAllocationContext,
-    manualDayOverrides,
-    confirmedReviewDays
-  ] = await Promise.all([
+  // These two sources determine availability independently of reports, roles
+  // and project metadata. Start them first, then overlap the remaining reads
+  // with absence/calendar checks instead of adding another sequential stage.
+  const periodStatePromise = Promise.all([
     prisma.pontoPeriodSummary.findMany({
       where: { importId: { in: importIds }, collaboratorId: { not: null } },
       include: {
@@ -2013,7 +2012,26 @@ export async function computeCollaboratorRates(importId = null) {
     prisma.pontoExternalEmployee.findMany({
       where: { ignoredAt: { not: null } },
       select: { externalEmployeeId: true }
-    }),
+    })
+  ]).then(async ([periodRows, ignoredEmployees]) => {
+    const periods = mergePontoPeriods(filterIgnoredPontoPeriods(periodRows, ignoredEmployees.map(item => item.externalEmployeeId)));
+    const actualAvailability = periods.length ? await checkWorkforceAvailability(prisma, {
+      collaboratorIds: periods.map(period => period.collaboratorId).filter(Boolean),
+      startDate: dateKeyUTC(pontoScope.periodStart), endDate: dateKeyUTC(pontoScope.periodEnd), context: 'ACTUAL_REPORT'
+    }) : { calendarRevision: 1, conflicts: [] };
+    return { periods, actualAvailability };
+  });
+  const projectAllocationContextPromise = getProjectAllocationContext();
+  const [
+    periodState,
+    roleParams,
+    reportSources,
+    annualCosts,
+    projectAllocationContext,
+    manualDayOverrides,
+    confirmedReviewDays
+  ] = await Promise.all([
+    periodStatePromise,
     getRoleParamsResolver(),
     loadLaborReportSources({
       database: prisma, periodStart: pontoScope.periodStart, periodEnd: pontoScope.periodEnd,
@@ -2029,18 +2047,7 @@ export async function computeCollaboratorRates(importId = null) {
   ]);
   const rdoData = rdoDataByCollaboratorFromReports(reportSources.reports);
   const offshoreYearsByCollaborator = offshoreYearsByCollaboratorFromReports(reportSources.offshoreReports);
-  const periods = mergePontoPeriods(filterIgnoredPontoPeriods(
-    periodRows,
-    ignoredEmployees.map(item => item.externalEmployeeId)
-  ));
-  const actualAvailability = periods.length
-    ? await checkWorkforceAvailability(prisma, {
-        collaboratorIds: periods.map(period => period.collaboratorId).filter(Boolean),
-        startDate: dateKeyUTC(pontoScope.periodStart),
-        endDate: dateKeyUTC(pontoScope.periodEnd),
-        context: 'ACTUAL_REPORT'
-      })
-    : { calendarRevision: 1, conflicts: [] };
+  const { periods, actualAvailability } = periodState;
   const manualProjects = manualProjectsByCollaborator(manualDayOverrides, confirmedReviewDays);
   const reviewedProjectDates = reviewedProjectDatesByCollaborator(confirmedReviewDays);
   const scheduleWindowEligibility = buildScheduleWindowEligibility(

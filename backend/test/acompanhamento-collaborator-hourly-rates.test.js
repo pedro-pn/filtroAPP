@@ -95,10 +95,11 @@ test('API exige acesso ao Acompanhamento, valida a data e permite consulta pelo 
     calls.push(where.id);
     return where.id === collaborator.id ? collaborator : null;
   });
-  stub(prisma.jobRole, 'findMany', async () => [{
-    name: 'Operador', costProfile: { parameterSets: [{ effectiveDate: '2026-01-01', params: { salarioBase: 1980 } }] }
-  }]);
-  stub(prisma.costProfile, 'findMany', async () => [{ key: 'operador', parameterSets: [{ effectiveDate: '2026-01-01', params }] }]);
+  stub(prisma.jobRole, 'findMany', async () => [{ id: 'role1', name: 'Operador' }]);
+  stub(prisma.costProfile, 'findMany', async () => [
+    { key: 'role-profile', jobRoleId: 'role1', parameterSets: [{ effectiveDate: '2026-01-01', params: { salarioBase: 1980 } }] },
+    { key: 'operador', jobRoleId: null, parameterSets: [{ effectiveDate: '2026-01-01', params }] }
+  ]);
   stub(prisma.acompanhamentoSetting, 'findUnique', async ({ where }) => ({ numberValue: annualCosts[where.key] }));
   stub(prisma.acompanhamentoSetting, 'findMany', async () => Object.entries(annualCosts).map(([key, numberValue]) => ({ key, numberValue })));
   const app = express();
