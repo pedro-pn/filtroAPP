@@ -341,6 +341,7 @@ function buildRlmBaseData(report) {
     starttime: stringify(getField(sd, ['Hora de início', 'Hora de inicio'])),
     endtime: stringify(getField(sd, ['Hora de término/pausa', 'Hora de termino/pausa'])),
     status,
+    tags: stringify(getField(sd, ['Desenhos / TAGs', 'Desenhos / Tags'])),
     steps: stringify(getField(sd, ['Etapas realizadas no dia'])),
     obs: [sd.quantidadeMecanica || sd['Quantidade da limpeza mecânica'] ? `Quantidade executada: ${sd.quantidadeMecanica ?? sd['Quantidade da limpeza mecânica']} ${sd.unidadeMecanica ?? sd['Unidade da limpeza mecânica'] ?? ''}` : '', stringify(getField(sd, ['Observações', 'Observacoes']))].filter(Boolean).join('\n'),
     leadername: safeText(sc.__leaderSnapshot?.name || report.project?.operator?.name),
