@@ -41,7 +41,7 @@ jobs:
 
   backend:
     name: Backend
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16
@@ -380,7 +380,7 @@ jobs:
 
   frontend:
     name: Frontend
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: frontend
