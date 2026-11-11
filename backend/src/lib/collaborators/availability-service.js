@@ -199,13 +199,15 @@ export async function listWorkforceAbsences(database, filters = {}) {
   });
 }
 
-export async function checkWorkforceAvailability(database, input, { calendar: preloadedCalendar } = {}) {
+export async function checkWorkforceAvailability(database, input, { calendar: preloadedCalendar, absences: preloadedAbsences } = {}) {
   const startDate = corporateDateKey(input.startDate);
   const endDate = corporateDateKey(input.endDate);
   const collaboratorIds = [...new Set(input.collaboratorIds || [])];
   const actual = input.context === 'ACTUAL_REPORT';
+  const selectedCollaborators = preloadedAbsences ? new Set(collaboratorIds) : null;
   const [absences, allocations, calendar] = await Promise.all([
-    database.collaboratorAbsence.findMany({
+    preloadedAbsences ? preloadedAbsences.filter(row => selectedCollaborators.has(row.collaboratorId) && !row.deletedAt
+      && corporateDateKey(row.startDate) <= endDate && corporateDateKey(row.endDate) >= startDate) : database.collaboratorAbsence.findMany({
       where: {
         collaboratorId: { in: collaboratorIds },
         deletedAt: null,

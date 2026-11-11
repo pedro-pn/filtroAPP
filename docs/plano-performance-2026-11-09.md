@@ -308,60 +308,45 @@ não depender de reverter ou apagar dados para reverter o código.
 | T03 | Healthchecks locais do Nginx e de progresso do worker, incluindo filas de aprovação/e-mail/Data Book | Publicação manual e série de 24 h/sete dias |
 | T04 | Bootstrap projetado por seção, cache separado por seção e usuário, consultas condicionais, tratamento de carga/falha no upload manual e compatibilidade do contrato anterior | Aceite HTTP em ambiente publicado |
 | T05 | Associação das medições e preparo do escopo reutilizados dentro de cada cálculo; curvas não montam grupos de exibição descartados; resultado completo comparado com o anterior | Aceite HTTP em ambiente publicado |
-| T06 | Avanço a cada 15 s; histórico/recortes por revisão; projeções; fontes dos grupos em lote; cache opt-in por versão/usuário/permissões também nos cards; snapshot mensal por escopo; catálogos e fontes de avanço entre GETs verificados; revisão estável; autenticação sem relações vazias; pool aquecido 100% | Meta de 95% incluindo frio/aquecimento/refresh aberta: 88,9–89,4% na nova série com onze buckets; concorrência/p95 e atualização publicados |
-| T07 | Fontes mensais/globais compartilhadas; catálogos, calendário e ignorados combinados; períodos com identidade/histórico em uma leitura; horários por período; disponibilidade antecipada; conciliação sem custos; auditoria e eixos equivalentes reutilizados; vínculos nominais em uma consulta; ciclos sob demanda; custo por pessoa compartilhado | Meta fria geral de 50% aberta: 47,5–51,9% esparso e 50,4–51,3% denso nas duas coortes padronizadas; reduzir rajadas sem deslocar espera ou alterar regras |
+| T06 | Pipeline com tempos por etapa; fontes de horas previstas em lote; custo mensal antes dos metadados; cache verificado, projeções e atualização preservados. Meta local do pool atingida: **95,72–95,86%** incluindo frio/aquecimento/refresh; aquecido 100% | Concorrência/p95 e atualização no ambiente publicado, em T12 |
+| T07 | Períodos, identidades e ausências selecionadas em lote; ajustes/conferências com IDs de projetos protegidos; referências e relatórios em etapas; datas reutilizadas por cálculo; missões vazias sem consultar alocações. Meta local fria atingida nas duas repetições: **50,81–51,49% esparso e 52,14–54,27% denso** | Validar latência publicada em T12; benchmark usa preparação física idêntica das fixtures |
 | T08 | Seções do Efetivo/Acompanhamento, cinco modais de workflow e painéis do Gestor sob demanda; visão geral estatística separada dos overlays | Aceite das superfícies autenticadas no ambiente publicado |
 | T09 | Variantes lossless, favicon/hash/prioridade do login e CSS da administração de credenciais separado do shell, preservando a camada legacy | Aceite LCP publicado; outros estilos globais podem ser divididos conforme medição |
-| T10 | Sondagens vazias agregadas; trabalho/falhas individuais; preview e aplicação exclusiva de JobRun com lotes/auditoria; política de 90 dias aprovada pelo usuário em 11/11 e validada localmente; relatório somente leitura de linhas/dia e armazenamento | Coletar volume, conferir preview e aplicar manualmente após publicação |
-| T11 | Orçamentos, paridade, projeções HTTP/PostgreSQL e navegador no CI; cobertura dos triggers e catálogos/cards; integração da main/TypeScript 7 com os 11 jobs aprovados em `f9f4c51f`; novos contratos de fontes e JobRun incluídos no gate | CI de `8edae733` iniciado, ainda na fila; validação publicada em T12 |
+| T10 | Política manual de 90 dias validada; volume e prévia coletados em produção, somente leitura: **358.456 linhas, 7.226 elegíveis**, às 22:00 UTC de 11/11; relatório e aplicação exclusiva com lotes/auditoria prontos | Aplicação manual do CLI atualizado após publicação; comparar crescimento posterior |
+| T11 | Orçamentos, paridade, PostgreSQL/HTTP e navegador no CI; main `245ebd00` integrada sem conflito; contratos dos novos lotes no gate; limpeza física das fixtures antes de cada coorte; instalação Hunspell limitada a cinco minutos | Validar CI da rodada final e aceite publicado em T12 |
 
-Os aceites publicados, a aplicação manual da retenção de 90 dias e as metas
-quantitativas de T06/T07 permanecem pendentes. As regras de apropriação
+As metas locais de T06/T07 estão atingidas nas coortes controladas. Os aceites
+publicados e a aplicação manual da retenção de 90 dias permanecem pendentes. As regras de apropriação
 de custos foram preservadas. Não houve exclusão de histórico, alteração de backup
 ou execução em servidores nesta implementação local.
 
-### Pendências priorizadas após a continuação de 11/11
+### Pendências após o fechamento local das metas — 11/11
 
-1. **Pool no frio/refresh — T06/T07:** o cache opt-in fecha o ensaio aquecido
-   (100% sem fila), mas a combinação das
-   fases chega a **88,9–89,4%** nas duas coortes finais, abaixo dos 95%. A referência
-   integrada ficou em 87,4–88,5% com o mesmo método. O aquecimento agora também
-   conserva seu bucket; as frações globais antigas com dez buckets não são
-   diretamente comparáveis à série nova com onze. Restam as rajadas nos misses,
-   inclusive após gravações reais. Não deslocar espera para uma fila invisível
-   nem aumentar o pool para aparentar cumprimento; exigir ganho HTTP e registrar
-   qualquer espera na aplicação. A invalidação conservadora mantém a atualização.
-2. **Carga fria — T07:** nas duas coortes padronizadas contra o início do plano,
-   o cálculo em processo novo melhorou **47,5–51,9% no esparso** e **50,4–51,3% no
-   denso**. A meta geral de 50% segue aberta porque a repetição esparsa ficou
-   abaixo dela. O benchmark aplica `ANALYZE` após a carga sintética para as duas
-   fontes; seus percentuais não devem ser compostos com os ensaios antigos.
-   Os transportes integrados preservam os pais/ordem dos períodos e RDOs.
-   O diagnóstico agora registra hashes da ordem e do conteúdo dos insumos,
-   sem expor seus dados. Os protótipos de importação/contexto sem ganho uniforme
-   ficaram fora da implementação; não houve novo índice nem desempate de RDO.
-   Os snapshots são ignorados no serviço sem contexto verificado. As latências
-   variaram entre coortes; os números não demonstram ganho causal desta etapa
-   nem devem ser compostos com percentuais de rodadas anteriores.
-3. **Aceite publicado — T01/T04/T05/T06/T08/T09:** verificar p95 HTTP, conteúdo
-   útil/LCP, transferência por rota, dois navegadores, permissões/divisões,
-   gravações do worker, atualização até 15 s e página oculta sem polling.
-4. **Operação — T03/T11/T12:** o [CI da integração `f9f4c51f`](https://github.com/pedro-pn/filtroAPP/actions/runs/43069946051)
-   aprovou os 11 jobs, incluindo backend, navegador e HTTP/performance. A main
-   trouxe a preparação de DNS/mirrors e runners Ubuntu 24.04; as instalações de
-   Hunspell/Chromium passaram na primeira tentativa da árvore integrada. Resta a
-   publicação manual com migration antes de habilitar o cache; comparar 24 h e
-   sete dias de pool, event loop, CPU steal, memória/OOM, erros e jobs.
-5. **Retenção — T10:** a política de **90 dias foi aprovada pelo usuário em 11/11**.
-   O dry-run/aplicação passou no PostgreSQL descartável; o relatório de volume
-   foi validado com transação somente leitura. Resta coletar linhas/dia no ambiente
-   publicado, conferir o preview e aplicar manualmente após publicação.
-   O código limita essa execução a JobRun. A compactação dos marcadores também é manual
-   e oferece dry-run, sem novo agendamento.
+1. **Publicação e aceite — T01/T03/T04/T05/T06/T08/T09/T12:** a leitura de produção
+   encontrou a main `245ebd00`, Node 22.23.4, sem a migration de revisão nem os
+   flags de coleta/cache configurados. O código desta branch ainda precisa ser
+   publicado e a migration aplicada antes de habilitar o cache. Validar p95 HTTP,
+   conteúdo útil/LCP, dois navegadores/perfis, divisões, atualização por worker em
+   até 15 s e página oculta sem polling. O roteiro contém ativação e rollback.
+2. **Operação — T03/T11/T12:** concluir o CI final, publicar pelo processo existente
+   e comparar 24 h/sete dias de pool, event loop, CPU steal, memória/OOM, erros e
+   progresso dos jobs. O CI anterior `8edae733` aprovou dez jobs, mas ficou preso
+   na instalação do Hunspell antes dos testes de backend; a etapa agora tem limite
+   de cinco minutos. O resultado final será registrado por SHA/link de execução.
+3. **Retenção — T10:** os **90 dias foram aprovados pelo usuário**. A coleta de
+   11/11 às 22:00 UTC registrou **7.226 candidatos** e cerca de **5.176 linhas/dia**
+   nos seis dias completos anteriores. Aplicar manualmente o CLI exclusivo da
+   versão atualizada, após conferir novamente o preview; preservar falhas, em
+   andamento, últimos sucessos e empates. A coleta foi somente leitura.
 
-**T02 (backups) permanece adiada pelo usuário.** As entregas locais de T04,
-T05, T08, T09 e T11 estão implementadas; os aceites publicados seguem em T12.
-Não existe uma divisão adicional de CSS ou índice obrigatório sem gargalo medido.
+**T02 (backups) permanece adiada pelo usuário.** Não há pendência adicional de
+código para as duas metas locais; os resultados não são aceite de produção.
+A preparação física do benchmark foi corrigida após diagnosticar acúmulo de
+páginas das fixtures excluídas. Todos os ensaios anteriores, inclusive os abaixo
+da meta, estão preservados na [evidência final](evidence/performance-misses-closure-20261111.json).
+As novas coortes usam `VACUUM ANALYZE` antes de semear o banco descartável vazio e
+`ANALYZE` depois da carga, igualmente para ambas as versões. Não houve vacuum em
+produção, mudança de pool, fila de admissão, índice novo ou alteração de regra.
 Ver [operação e aceite](PERFORMANCE_OPERACAO.md).
 
 ### Comparação reproduzida localmente
@@ -2364,6 +2349,77 @@ limitações estão na [evidência desta rodada](evidence/performance-final-sour
 O roteiro de [operação e aceite](PERFORMANCE_OPERACAO.md) descreve a coleta publicada
 e a aplicação manual. **Continuam abertas as duas metas quantitativas acima**,
 além dos aceites publicados e da aplicação manual da retenção. Backups permanecem adiados.
+
+### Fechamento das metas locais de frio e pool — 11/11
+
+O cálculo mensal lê referências e, depois, os relatórios/decisões que as usam.
+Cards e detalhe aguardam esse custo antes dos metadados restantes. Os tempos
+aparecem em `labor.sources.references`, `labor.sources.reports`,
+`cards.sources.labor/metadata` e `detail.sources.labor/metadata`. Não há semáforo,
+fila de admissão ou espera omitida da duração HTTP. Pool oito e concorrência
+quatro foram mantidos.
+
+Horas normais/extras, seleção de orçamento/adicionais e nomes de cargos usam um
+lote limitado aos pais selecionados pelo cliente protegido. Decimais, datas UTC,
+revisões comerciais, percentuais e ordem dos campos de horas foram preservados.
+O ponto mantém os pais/ordem anteriores e lê identidade/histórico e ausências
+sobrepostas dos mesmos IDs em um lote, somente com IDs/datas das ausências.
+As políticas continuam na função de disponibilidade, que remove pessoas
+ignoradas/fora do recorte. Tipos/observações de ausência não são selecionados.
+Sem missões oficiais selecionadas, não é feita a leitura vazia das alocações.
+
+Ajustes manuais e dias conferidos compartilham outra leitura, usando os IDs do
+catálogo de projetos protegido do próprio cálculo. Rascunhos, datas fora do
+período, projetos ocultos e precedência da conferência mantêm as regras anteriores.
+Datas repetidas dos RDOs são formatadas uma vez por cálculo, sem cache global.
+A consulta/ordem dos pais de RDO e ponto e os desempates não foram alterados.
+
+O diagnóstico das repetições encontrou a **mesma consulta SQL** lendo 47/1 blocos
+de Report/ReportService numa coorte e 330/204 na seguinte: as exclusões anteriores
+das fixtures deixaram páginas físicas. A execução SQL do perfil passou de
+0,36 para 28,31 ms. Uma prova controlada manteve 335.872/835.584 bytes após excluir
+as fixtures e os reduziu a zero com vacuum no banco descartável vazio. O harness
+agora faz `VACUUM ANALYZE` **antes da carga**, depois do guard de banco vazio/local,
+e `ANALYZE` após semear. Ambas as versões recebem a mesma preparação. Os ensaios
+anteriores permanecem como observações das condições físicas anteriores.
+
+| Coortes controladas finais | Referência | Candidata | Resultado |
+| --- | --- | --- | --- |
+| Processo novo esparso, primeira / repetição | 438,69 / 445,52 ms | 215,81 / 216,13 ms | **50,81% / 51,49%** de redução |
+| Processo novo denso, primeira / repetição | 460,88 / 459,61 ms | 210,77 / 219,95 ms | **54,27% / 52,14%** de redução |
+| Pool global sem fila, duas coortes por versão (ABBA) | 89,24% / 89,36% | 95,86% / 95,72% | **Meta local de 95% atingida** |
+| SQL nas 16 respostas após gravação | 334 / 334 | 310 / 310 | 24 consultas a menos em ambas as coortes |
+| Última resposta atualizada após commit | 532,24 / 553,31 ms | 551,37 / 549,35 ms | Todas atualizadas, abaixo de 15 s |
+
+Foram **60 pares completos de cálculo** nas quatro coortes finais, cinco por
+modo/formato/coorte; nenhum objeto foi normalizado para fazer a comparação passar.
+Foram também quatro coortes HTTP de 832 respostas positivas, 100 aquecidas por
+rota/perfil e oito negativas de permissão por coorte, com onze buckets incluindo
+o aquecimento. O aquecido ficou 100% sem fila. Os limites de p95 HTTP aquecido
+passaram. As amostras frias não permitem p95, e não há alegação de ganho uniforme
+de latência HTTP em cada rota/fase.
+
+Uma comparação adicional manteve a candidata ativa por cinco estados de dados
+e conferiu **50 respostas HTTP completas** contra `8edae733`: inicial, gravação
+do worker, parâmetros/calendário, ajuste/conferência e ausência superveniente.
+As leituras em dois perfis/sessões observaram os commits, sem limpar o cache da
+candidata. A main `245ebd00` foi incorporada sem conflitos; a correção que permite
+gestor e conferente do Efetivo juntos foi preservada.
+
+Validação final local: **2.896 testes de backend aprovados** (52 ignorados),
+**902 de frontend** e **42 contratos PostgreSQL/HTTP**, sem falhas. Build,
+arquitetura e os seis orçamentos passaram, sem ampliar limites. Os valores gzip
+foram: shell 209.086 B; Efetivo visão geral/evolução 298.798/311.765 B;
+Acompanhamento 289.200 B; Gestor/estatísticas 411.002/419.301 B.
+
+As [evidências finais](evidence/performance-misses-closure-20261111.json) incluem
+amostras, hashes das fontes, perfis SQL, diagnóstico físico e todos os ensaios
+exploratórios, inclusive os abaixo das metas. São aceites **locais sintéticos**:
+boot/imports não entram no cálculo, páginas do PostgreSQL estão aquecidas e o
+host é compartilhado. A leitura de produção foi somente leitura: 358.456 JobRuns,
+233.922.560 bytes de tabela/índices e 7.226 elegíveis à política de 90 dias em
+11/11 às 22:00 UTC. Não houve publicação, exclusão, vacuum em produção ou mudança
+de backup. Os aceites de ambiente publicado e a aplicação manual seguem em T12/T10.
 
 ### Uso local das ferramentas de medição
 

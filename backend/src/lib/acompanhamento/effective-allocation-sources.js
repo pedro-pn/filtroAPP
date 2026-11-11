@@ -18,22 +18,20 @@ function cyclesByParent(rows, parentKey) {
 // Explicit child reads avoid Prisma's empty nested-relation SELECTs. Keep all
 // cycle dates/IDs and actual plan state; allocationPeriods still decides precedence.
 export async function loadOfficialAllocationSources(database) {
-  const [allocations, missions] = await Promise.all([
-    database.efetivoMissionAllocation.findMany({
-      where: { deletedAt: null, mission: officialMissionWhere },
-      select: {
-        id: true, missionId: true, collaboratorId: true, deletedAt: true,
-        mobilizationDate: true, demobilizationDate: true
-      }
-    }),
-    database.efetivoMissionPlan.findMany({
+  const missions = await database.efetivoMissionPlan.findMany({
       where: officialMissionWhere,
       select: {
         id: true, planId: true, projectId: true, scheduleStatus: true, deletedAt: true,
         mobilizationDate: true, executionEndDate: true, returnDate: true
       }
-    })
-  ]);
+  });
+  const allocations = missions.length ? await database.efetivoMissionAllocation.findMany({
+    where: { deletedAt: null, mission: officialMissionWhere },
+    select: {
+      id: true, missionId: true, collaboratorId: true, deletedAt: true,
+      mobilizationDate: true, demobilizationDate: true
+    }
+  }) : [];
   const allocatedMissionIds = new Set(allocations.map(row => row.missionId));
   const allocatedMissions = missions.filter(row => allocatedMissionIds.has(row.id));
   const missionIds = allocatedMissions.map(row => row.id);

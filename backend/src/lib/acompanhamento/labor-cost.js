@@ -27,12 +27,14 @@
 
 import prisma from '../prisma.js';
 import { loadRequestSource } from '../operations/request-sources.js';
+import { measureRequestStage } from '../operations/request-performance.js';
 import { laborReportQuery, loadLaborReportSources } from './labor-report-sources.js';
 import { loadLaborMissionGroups } from './labor-mission-groups.js';
 import { readMonthlyCostSnapshot } from './monthly-cost-snapshot.js';
 import { loadCostReferenceSources } from './cost-reference-sources.js';
 import { loadLaborPeriodReferences } from './labor-period-reference-sources.js';
-import { withPontoImportDates, loadMonthlyPontoPeriods } from './ponto-period-sources.js';
+import { loadLaborDayDecisions } from './labor-day-decisions.js';
+import { withPontoImportDates, loadMonthlyPontoSources } from './ponto-period-sources.js';
 import { withCollaboratorRoleNames } from './collaborator-role-sources.js';
 import { loadOfficialAllocationSources, officialMissionWhere } from './effective-allocation-sources.js';
 import { laborCostCache } from '../resource-list-cache.js';
@@ -81,7 +83,7 @@ function costNormalHoursForDay(
 }
 
 function dateKeyUTC(value) {
-  return new Date(value).toISOString().slice(0, 10);
+  return (value instanceof Date ? value : new Date(value)).toISOString().slice(0, 10);
 }
 
 function yearKeyUTC(value) {
@@ -590,14 +592,22 @@ function reportWorkedMinutes(report) {
 
 export function rdoDataByCollaboratorFromReports(reports) {
   const map = new Map();
+  // Thousands of historical RDOs often repeat the same dates and the same
+  // project object. Format each timestamp once in this calculation only.
+  const dateKeys = new Map();
+  const dayKey = value => {
+    const date = value instanceof Date ? value : new Date(value), time = date.getTime();
+    if (!dateKeys.has(time)) dateKeys.set(time, date.toISOString().slice(0, 10));
+    return dateKeys.get(time);
+  };
   for (const report of reports) {
     const workedMinutes = reportWorkedMinutes(report);
     if (report.reportType !== 'RDO' && workedMinutes <= 0) continue;
-    const dk = dateKeyUTC(report.reportDate);
+    const dk = dayKey(report.reportDate);
     const workedHours = workedMinutes / 60;
     const offshore = Boolean(report.project?.offshore);
     const mobilizationDate = report.project?.mobilizationDate
-      ? dateKeyUTC(report.project.mobilizationDate)
+      ? dayKey(report.project.mobilizationDate)
       : null;
     for (const link of report.collaborators || []) {
       const sleepMode = sleepModeFor(report.project, link.collaboratorId);
@@ -2017,41 +2027,31 @@ async function computeCollaboratorRatesUncached(importId, { includeIgnoredNames 
   // and project metadata. Start them first, then overlap the remaining reads
   // with absence/calendar checks instead of adding another sequential stage.
   const periodStatePromise = Promise.all([
-    loadMonthlyPontoPeriods(prisma, importIds),
+    loadMonthlyPontoSources(prisma, importIds, { startDate: pontoScope.periodStart, endDate: pontoScope.periodEnd }),
     loadLaborPeriodReferences(prisma, { startDate: pontoScope.periodStart, endDate: pontoScope.periodEnd, includeIgnoredNames })
-  ]).then(async ([periodRows, { ignoredEmployees, calendar }]) => {
+  ]).then(async ([{ periods: periodRows, absences }, { ignoredEmployees, calendar }]) => {
     const periods = mergePontoPeriods(filterIgnoredPontoPeriods(withPontoImportDates(periodRows, pontoScope.pontoImports), ignoredEmployees.map(item => item.externalEmployeeId)));
     const actualAvailability = periods.length ? await checkWorkforceAvailability(prisma, {
       collaboratorIds: periods.map(period => period.collaboratorId).filter(Boolean),
       startDate: dateKeyUTC(pontoScope.periodStart), endDate: dateKeyUTC(pontoScope.periodEnd), context: 'ACTUAL_REPORT'
-    }, { calendar }) : { calendarRevision: 1, conflicts: [] };
+    }, { calendar, absences }) : { calendarRevision: 1, conflicts: [] };
     return { periods, actualAvailability, ...(includeIgnoredNames ? { ignoredExternalEmployees: ignoredEmployees } : {}) };
   });
   const referenceSources = loadCostReferenceSources(prisma);
   const projectAllocationContextPromise = getProjectAllocationContext();
-  const [
-    periodState,
-    roleCatalog,
-    reportSources,
-    annualCosts,
-    projectAllocationContext,
-    manualDayOverrides,
-    confirmedReviewDays
-  ] = await Promise.all([
+  const [periodState, roleCatalog, annualCosts, projectAllocationContext] = await measureRequestStage('labor.sources.references', () => Promise.all([
     periodStatePromise,
     loadRoleCostCatalog(prisma, referenceSources),
+    getAnnualCollaboratorCosts(prisma, referenceSources),
+    projectAllocationContextPromise
+  ]));
+  const [reportSources, { manualDayOverrides, confirmedReviewDays }] = await measureRequestStage('labor.sources.reports', () => Promise.all([
     loadLaborReportSources({
       database: prisma, periodStart: pontoScope.periodStart, periodEnd: pontoScope.periodEnd,
-      projects: projectAllocationContextPromise.then(context => context.projects)
+      projects: projectAllocationContext.projects
     }),
-    getAnnualCollaboratorCosts(prisma, referenceSources),
-    projectAllocationContextPromise,
-    prisma.pontoDayProjectOverride.findMany({
-      where: { workDate: { gte: pontoScope.periodStart, lt: periodEndExclusive } },
-      select: { collaboratorId: true, workDate: true, projectId: true }
-    }),
-    loadConfirmedReviewDays({ from: pontoScope.periodStart, to: periodEndExclusive })
-  ]);
+    loadLaborDayDecisions(prisma, { from: pontoScope.periodStart, to: periodEndExclusive, projects: projectAllocationContext.projects })
+  ]));
   const rdoData = rdoDataByCollaboratorFromReports(reportSources.reports);
   const offshoreYearsByCollaborator = offshoreYearsByCollaboratorFromReports(reportSources.offshoreReports);
   const { periods, actualAvailability } = periodState;

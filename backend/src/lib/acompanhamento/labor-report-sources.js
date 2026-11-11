@@ -92,12 +92,17 @@ export async function loadLaborReportSources({ database, periodStart, periodEnd,
     project: report.project ?? projectsById.get(report.projectId)
   });
   const rdoReports = reports.map(report => withProject({ ...report, services: servicesByReportId.get(report.id) || [] }));
+  const annualStart = from.getTime(), annualEnd = to.getTime();
   return {
     reports: rdoReports,
     // Os RDOs de qualquer data continuam na primeira leitura, pois são evidência
     // para as janelas legadas. A consulta anual adicional só precisa dos outros tipos.
     offshoreReports: [
-      ...rdoReports.filter(report => report.reportType === 'RDO' && new Date(report.reportDate) >= from && new Date(report.reportDate) < to),
+      ...rdoReports.filter(report => {
+        if (report.reportType !== 'RDO' || !report.project?.offshore) return false;
+        const time = report.reportDate instanceof Date ? report.reportDate.getTime() : new Date(report.reportDate).getTime();
+        return time >= annualStart && time < annualEnd;
+      }),
       ...offshoreOtherReports.map(withProject)
     ].filter(report => report.project?.offshore)
   };

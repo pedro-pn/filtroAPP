@@ -37,6 +37,7 @@ import {
 import { isSalaryCategory } from './salary.js';
 import { getStockConsumptionCostByProject } from './stock-cost.js';
 import prisma from '../prisma.js';
+import { measureRequestStage } from '../operations/request-performance.js';
 import { dateInDivision, divisionDateWhere, divisionLaborPeriod } from './tracking-divisions.js';
 import { getProjectInvoices } from './project-invoices.js';
 import { progressReadOptions } from './progress-projection.js';
@@ -439,18 +440,18 @@ export async function getProjectDetail(projectId, {
     excludeChemicalProducts: true
   });
 
+  const labor = await measureRequestStage('detail.sources.labor', () => laborCostByProject());
   const [
     queriedReports,
     queriedCollaborators,
     costGroups,
     costStatusGroups,
-    labor,
     equipmentByProject,
     stockCosts,
     manualCostsByProject,
     hoursByProject,
     loadedProgressDetails
-  ] = await Promise.all([
+  ] = await measureRequestStage('detail.sources.metadata', () => Promise.all([
     prisma.report.findMany({
       where: { projectId, deletedAt: null, ...divisionDateWhere('reportDate', division) },
       select: {
@@ -491,7 +492,6 @@ export async function getProjectDetail(projectId, {
       where: { projectId, ...categoryWhere, ...purchaseDivisionWhere(division) },
       _sum: { valor: true }
     }),
-    laborCostByProject(), // custo de mão de obra (HH) do ponto vigente
     sources?.equipmentByProject ?? getEquipmentUsageByProject([projectId]),
     sources?.stockCosts ?? getStockConsumptionCostByProject([projectId], prisma, division),
     sources?.manualCostsByProject ?? getManualProjectCostsByProject([projectId], { includeEntries: true, division }),
@@ -499,7 +499,7 @@ export async function getProjectDetail(projectId, {
     division
       ? computeDivisionProgressDetails(projectId, division, progressReadOptions(progressMode))
       : preloadedProgressDetails ?? computeProjectProgressDetails(projectId, progressReadOptions(progressMode))
-  ]);
+  ]));
   const {
     project,
     progress: projectProgress

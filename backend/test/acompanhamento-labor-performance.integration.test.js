@@ -16,7 +16,7 @@ test('PostgreSQL: fontes enxutas preservam folha, rateio, trilhas e atualizaçã
     buildEffectiveAllocationIndex, buildScheduleWindows } = await import('../src/lib/acompanhamento/labor-cost.js');
   const { loadOfficialAllocationSources } = await import('../src/lib/acompanhamento/effective-allocation-sources.js');
   const { loadCostReferenceSources } = await import('../src/lib/acompanhamento/cost-reference-sources.js');
-  const { loadMonthlyPontoPeriods } = await import('../src/lib/acompanhamento/ponto-period-sources.js');
+  const { loadMonthlyPontoSources } = await import('../src/lib/acompanhamento/ponto-period-sources.js');
   const { loadLaborPeriodReferences } = await import('../src/lib/acompanhamento/labor-period-reference-sources.js');
   const { loadCorporateCalendar } = await import('../src/lib/calendar/corporate-calendar.js');
   const { laborReportQuery, loadLaborReportSources } = await import('../src/lib/acompanhamento/labor-report-sources.js');
@@ -68,8 +68,10 @@ test('PostgreSQL: fontes enxutas preservam folha, rateio, trilhas e atualizaçã
       jobRoleHistory: { select: { jobRoleId: true, effectiveDate: true }, orderBy: { effectiveDate: 'asc' } }
     } } }
   });
-  assert.deepEqual(await loadMonthlyPontoPeriods(database, [fixture.importId]), nativePeriods,
+  const monthlySources = await loadMonthlyPontoSources(database, [fixture.importId], { startDate: '2026-09-01', endDate: '2026-09-30' });
+  assert.deepEqual(monthlySources.periods, nativePeriods,
     'The period order, all scalar/JSON values and complete role history equal the original nested Prisma selection');
+  assert.deepEqual(monthlySources.absences, []);
   // Salary and base-model changes must retain their exact effective dates.
   await database.costParameterSet.createMany({ data: [
     { costProfileId: fixture.prefix + '-role-profile', version: 2, effectiveDate: new Date('2026-09-15'), params: { salarioBase: 4500, baseModel: fixture.prefix + '-model' } },

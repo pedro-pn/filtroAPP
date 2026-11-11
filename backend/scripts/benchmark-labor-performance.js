@@ -84,6 +84,10 @@ if (mode) {
       database.pontoImport.count(), database.report.count(), database.user.count()
     ]);
     assert.ok(existing.every(count => count === 0), 'Use a dedicated empty test database for the global cost benchmark.');
+    // Prior cohorts delete their fixtures, leaving heap/TOAST pages behind.
+    // Clean the empty dedicated database before loading either paired source,
+    // so reversing sparse/dense order cannot change the physical fixture.
+    await database.$executeRaw`VACUUM (ANALYZE)`;
     fixture = await seedLaborPerformanceFixture(database, { reportCount, servicesPerRdo });
     // Stabilize planner estimates for both sources before paired processes.
     // Diagnostics/timing must not include the initial bulk-load transition.
@@ -141,7 +145,7 @@ if (mode) {
       cpuMethod: 'process.cpuUsage delta around the calculation only, before EXPLAIN replay; includes Node/Prisma CPU, excludes PostgreSQL, module imports and process boot. CPU and wall time are separate observations.',
       environment: { nodeVersion: process.version, databaseConnectionLimit: getDatabasePoolMetrics().max },
       fixture: { reports: fixture.reportCount, services: fixture.serviceCount, collaborators: fixture.collaborators, projectPreferenceEntries: 500,
-        analyzedBeforeCalculations: true },
+        vacuumedBeforeSeeding: true, analyzedBeforeCalculations: true },
       samples, summary, complete: true, diagnosticOnly: captureSourceOrder, exactParity: true, profiles, initializationProfiles };
     if (arg('output')) await fs.writeFile(arg('output'), JSON.stringify(evidence, null, 2) + '\n');
     console.log(JSON.stringify({ summary, fixture: evidence.fixture, exactParity: true, profiles }, null, 2));

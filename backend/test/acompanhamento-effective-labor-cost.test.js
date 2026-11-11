@@ -57,13 +57,14 @@ function mockCalculation(t, {
     : args.where.project?.offshore ? [] : reportRows);
   const originalRaw = prisma.$queryRaw;
   prisma.$queryRaw = async (_query, reportIds) => {
+    if (_query.join('').includes('labor.day-decisions')) return [{ overrides: await prisma.pontoDayProjectOverride.findMany(), reviews: [] }];
     if (_query.join('').includes('labor.period-reference-rows')) return [{ ignored: [], holidays: [], revision: 1 }];
-    if (_query.join('').includes('labor.period-collaborators')) return [{
+    if (_query.join('').includes('labor.period-collaborators')) return [{ collaborators: [{
       id: person.id, name: person.name, jobRoleId: person.jobRoleId,
       jobRoleHistory: (person.jobRoleHistory || []).map(history => ({ ...history,
         effectiveDate: new Date(history.effectiveDate).toISOString().slice(0,10)
       }))
-    }];
+    }], absences: await prisma.collaboratorAbsence.findMany() }];
     if (_query.join('').includes('labor.cost-reference-rows')) return costReferenceRows({
       roles: await prisma.jobRole.findMany(), profiles: await prisma.costProfile.findMany(),
       settings: await prisma.acompanhamentoSetting.findMany()

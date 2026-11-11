@@ -129,6 +129,7 @@ jobs:
           printf 'Acquire::Retries "1";\nAcquire::http::Timeout "20";\nAcquire::https::Timeout "20";\n' | sudo tee /etc/apt/apt.conf.d/zz-ci-retries > /dev/null
 
       - name: Install Hunspell pt-BR (revisão ortográfica do Data Book)
+        timeout-minutes: 5
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends hunspell hunspell-pt-br
 
       - name: Run Data Book generator tests
@@ -329,6 +330,7 @@ jobs:
           node --test --test-concurrency=1 test/ponto-detail-performance.integration.test.js
           test/verified-cost-sources.integration.test.js test/project-presentation-copy.integration.test.js
           test/acompanhamento-operational-sources.integration.test.js
+          test/acompanhamento-source-batches.integration.test.js
           test/verified-progress-sources.integration.test.js
           test/job-run-volume.integration.test.js
           test/crm-opportunities.integration.test.js

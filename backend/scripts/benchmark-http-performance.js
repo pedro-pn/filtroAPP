@@ -131,6 +131,9 @@ export async function runHttpPerformanceBenchmark({
       database.commercialProposal.count(), database.crmOpportunity.count(), database.acompanhamentoMissionGroup.count()
     ]);
     assert.ok(counts.every(count => count === 0), 'Use a dedicated empty test database; the benchmark reads global cards and point data.');
+    // Fixture deletion alone does not reset heap/TOAST pages for later cohorts.
+    // This guarded, empty loopback test database owns the synthetic workload.
+    await database.$executeRaw`VACUUM (ANALYZE)`;
     fixture = await seedHttpPerformanceFixture(database, { reportCount, scopeCount, distributeGroupReports });
     // Bulk synthetic loading can leave small-table estimates behind. Establish
     // statistics before measuring fresh API processes, rather than timing that
@@ -215,7 +218,7 @@ export async function runHttpPerformanceBenchmark({
       complete: true, attemptedScenarioRequests,
       fixture: { syntheticProjects: 3, groupMembers: 2, groupReportsDistributed: distributeGroupReports, reports: fixture.reportCount, services: fixture.serviceCount,
         collaborators: fixture.collaborators, scopeLines: scopeCount, divisions: 11, authenticatedSessions: 4,
-        analyzedBeforeRequests: true },
+        vacuumedBeforeSeeding: true, analyzedBeforeRequests: true },
       summary, pool, permissionChecks, refresh, worker, samples,
       acceptance: { productionAcceptance: false, coldP95Available: coldRounds >= 100,
         warmP95Available: requests >= 100,

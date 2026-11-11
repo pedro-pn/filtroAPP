@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import prisma from '../prisma.js';
+import { loadPlannedHourProjects } from './planned-hour-sources.js';
 import { commercialTransaction } from './commercial-contributions.js';
 import { scaleProposalValue, validateProposalPercentage } from './proposal-percentage.js';
 import { normalizeAdditionalMetricInclusion } from '../../../../shared/modules/additional-proposal-metrics.js';
@@ -115,16 +116,7 @@ export function resolvePlannedHours({ normalHours = [], overtime = [], sources =
 // cards and detail without copying over manual rows.
 export async function loadPlannedHours(projectIds, client = prisma) {
   if (!projectIds.length) return new Map();
-  const projects = await client.project.findMany({
-    where: { id: { in: projectIds }, deletedAt: null },
-    select: {
-      id: true, plannedHoursResolution: true, proposalPercentage: true,
-      plannedNormalHours: { orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] },
-      plannedOvertime: { orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] },
-      budgets: { where: { version: 1 }, select: { source: true, sourceProposalCodBd: true, commercialAppProposalId: true } },
-      additionalProposals: { where: { active: true }, select: { source: true, sourceProposalCodBd: true, commercialAppProposalId: true, metricInclusion: true } }
-    }
-  });
+  const projects = await loadPlannedHourProjects(client, projectIds);
   const selectedSources = project => [project.budgets[0], ...project.additionalProposals.filter(row =>
     normalizeAdditionalMetricInclusion(row.metricInclusion).hours)].filter(Boolean);
   const accessSelections = project => [...new Set(selectedSources(project)
@@ -132,25 +124,21 @@ export async function loadPlannedHours(projectIds, client = prisma) {
   const codBds = [...new Set(projects.flatMap(accessSelections))];
   const appIds = [...new Set(projects.flatMap(selectedSources)
     .filter(row => row.source === 'COMERCIAL_APP').map(row => row.commercialAppProposalId).filter(Boolean))];
-  // Both manual hour tables use the same role catalog. Do not issue empty
-  // nested role reads, or load a shared role twice for normal/overtime rows.
-  const roleIds = [...new Set(projects.flatMap(project => [...project.plannedNormalHours, ...project.plannedOvertime])
-    .map(row => row.jobRoleId).filter(Boolean))];
-  const [proposals, appProposals, roles] = await Promise.all([
+  // Both manual tables already include the selected role name from the shared
+  // child statement; no additional role relation walk is needed.
+  const [proposals, appProposals] = await Promise.all([
     codBds.length ? client.commercialProposal.findMany({
       where: { codBd: { in: codBds } }, select: { codBd: true, codProp: true, nRev: true, rawRow: true }
     }) : [],
     appIds.length ? client.commercialAppProposal.findMany({
       where: { externalId: { in: appIds } },
       select: { externalId: true, proposalCode: true, revisionNumber: true, snapshot: true }
-    }) : [],
-    roleIds.length ? client.jobRole.findMany({ where: { id: { in: roleIds } }, select: { id: true, name: true } }) : []
+    }) : []
   ]);
   const byCodBd = new Map(proposals.map(row => [row.codBd, row]));
   const byAppId = new Map(appProposals.map(row => [row.externalId, row]));
-  const rolesById = new Map(roles.map(({ id, name }) => [id, { name }]));
   const hoursRow = row => {
-    const jobRole = rolesById.get(row.jobRoleId) ?? null;
+    const jobRole = row.jobRole ?? null;
     return { ...row, jobRole, roleName: row.roleName ?? jobRole?.name ?? null };
   };
   return new Map(projects.map(project => [project.id, resolvePlannedHours({

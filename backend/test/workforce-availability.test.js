@@ -108,3 +108,18 @@ test('trusted preloaded calendars retain actual conflicts without reading the sa
   assert.equal(result.calendarRevision, 7);
   assert.deepEqual(result.conflicts.map(row => [row.code, row.policy]), [['WORK_DURING_ABSENCE', 'REQUIRE_JUSTIFICATION'], ['WORK_ON_HOLIDAY', 'WARN']]);
 });
+
+test('preloaded absences retain inclusive bounds, selected people and the same policies', async () => {
+  const absences = [
+    { id: 'included', collaboratorId: 'c', startDate: '2026-09-01', endDate: '2026-09-08' },
+    { id: 'ignored-person', collaboratorId: 'ignored', startDate: '2026-09-08', endDate: '2026-09-08' },
+    { id: 'outside', collaboratorId: 'c', startDate: '2026-09-09', endDate: '2026-09-10' },
+    { id: 'deleted', collaboratorId: 'c', startDate: '2026-09-08', endDate: '2026-09-08', deletedAt: new Date() }
+  ];
+  const calendar = { revision: 1, holidays: [] };
+  const input = { collaboratorIds: ['c'], startDate: '2026-09-08', endDate: '2026-09-08', context: 'ACTUAL_REPORT' };
+  const expected = await checkWorkforceAvailability({ collaboratorAbsence: { findMany: async () => [absences[0]] } }, input, { calendar });
+  const actual = await checkWorkforceAvailability({ collaboratorAbsence: { findMany: () => { throw new Error('already loaded'); } } }, input, { calendar, absences });
+  assert.deepEqual(actual, expected);
+  assert.equal(actual.conflicts[0].policy, 'REQUIRE_JUSTIFICATION');
+});

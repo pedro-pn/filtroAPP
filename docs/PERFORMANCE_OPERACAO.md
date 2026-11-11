@@ -40,6 +40,13 @@ somente na memória do processo; os contratos HTTP continuam em JSON. Jobs,
 escritas e cálculos fora do GET/HEAD verificado não usam esse compartilhamento.
 Esta continuação não exige outra migration além da revisão transacional anterior.
 
+O pipeline separa referências e relatórios/decisões do mês, e carrega o custo antes
+dos metadados de cards/detalhe. Seus tempos aparecem nas etapas `labor.sources.*`,
+`cards.sources.*` e `detail.sources.*`; continuam dentro da duração HTTP. Não há
+fila de admissão. As novas leituras em lote usam pais/IDs selecionados pelo cliente
+protegido. Ausências levam apenas IDs/datas, sem tipos ou observações; seus dados
+intermediários não recebem um novo cache entre requisições.
+
 Catálogos de cargos/parâmetros, custos anuais e filtros de categorias também podem
 compartilhar leituras entre requisições com revisão verificada. O mesmo flag
 controla esse armazenamento adicional: 16 entradas/4 MiB, até 1 MiB por entrada
@@ -143,6 +150,14 @@ consulta e janela de 1–90 dias. Emite contagens por dia/status e bytes; nomes 
 jobs, payloads e erros individuais não entram no artefato. `estimatedRows` é uma
 estimativa do catálogo; a contagem diária é consultada. Falha termina com erro,
 sem produzir uma contagem vazia como sucesso.
+
+Na coleta somente leitura de **11/11/2026 às 22:00 UTC**, produção tinha 358.456
+JobRuns: 81.035.264 bytes de tabela e 152.887.296 de índices, com cerca de 5.176
+linhas/dia nos seis dias completos anteriores. A prévia equivalente ao escopo de
+90 dias apontou **7.226 candidatos**, preservando os últimos sucessos/empates.
+Esse número é uma observação datada: repetir o preview do CLI atualizado antes de
+aplicar. A versão publicada ainda não tinha a migration de revisão nem os flags
+da nova coleta/cache. Ver [evidência](evidence/performance-misses-closure-20261111.json).
 
 Com o prazo aprovado de **90 dias**, **rode no servidor** para apenas simular:
 

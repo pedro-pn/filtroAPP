@@ -5,11 +5,13 @@ import { buildEffectiveAllocationIndex, buildScheduleWindows } from '../src/lib/
 
 test('empty allocations avoid child reads while confirmed missions still disable legacy windows', async () => {
   for (const missions of [[], [{ id: 'm1', projectId: 'p1', planId: 'plan' }]]) {
+    let allocationReads = 0;
     const database = {
-      efetivoMissionAllocation: { findMany: async query => { assert.deepEqual(query.where, { deletedAt: null, mission: officialMissionWhere }); return []; } },
+      efetivoMissionAllocation: { findMany: async query => { allocationReads++; assert.deepEqual(query.where, { deletedAt: null, mission: officialMissionWhere }); return []; } },
       efetivoMissionPlan: { findMany: async query => { assert.deepEqual(query.where, officialMissionWhere); return missions; } }
     };
     const sources = await loadOfficialAllocationSources(database);
+    assert.equal(allocationReads, missions.length ? 1 : 0);
     assert.deepEqual(sources.allocations, []);
     const windows = buildScheduleWindows([{ id: 'p1', mobilizationDate: '2026-09-01', demobilizationDate: '2026-09-30' }], sources.missionProjectIds);
     assert.equal(windows.length, missions.length ? 0 : 1);
@@ -50,7 +52,8 @@ test('failed cycle reads reject the complete context and a later request retries
   let failed = true;
   const database = {
     efetivoMissionAllocation: { findMany: async () => [{ id: 'a1', collaboratorId: 'c1', missionId: 'm1' }] },
-    efetivoMissionPlan: { findMany: async () => [] },
+    efetivoMissionPlan: { findMany: async () => failed ? [{ id: 'm1', projectId: 'p1', planId: 'plan' }] : [] },
+    efetivoMissionCycle: { findMany: async () => [] }, efetivoPlan: { findMany: async () => [] },
     efetivoAllocationCycle: { findMany: async () => { if (failed) throw new Error('cycle read failed'); return []; } }
   };
   await assert.rejects(loadOfficialAllocationSources(database), /cycle read failed/);

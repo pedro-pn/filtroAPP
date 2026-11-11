@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readCommercialHours, readCommercialAppHours, resolvePlannedHours, loadPlannedHours, plannedHoursAlerts } from '../src/lib/acompanhamento/planned-hours.js';
+import { Prisma } from '@prisma/client';
+import { plannedHourRows } from './helpers/planned-hour-rows.js';
 
 const raw = (normal = 100, overtime = 20) => ({
   hh_total: normal + overtime, hh_util_diurno: normal, hh_util_noturno: 0,
@@ -13,10 +15,16 @@ const manual = (normal = 100, extra = 20) => ({ normalHours: [{ hours: normal, c
 test('previsão compartilha cargos entre horas normais/extras e observa mudança sem alterar linhas ou ordem', async () => {
   const normal = [{ id: 'n2', jobRoleId: 'r', roleName: null, hours: 20 }, { id: 'n1', jobRoleId: null, roleName: 'Livre', hours: 10 }];
   const overtime = [{ id: 'e', jobRoleId: 'r', roleName: 'Cargo histórico', hours: 5 }];
+  for (const row of [...normal, ...overtime]) Object.assign(row, {
+    projectId: 'p', hours: new Prisma.Decimal(row.hours), createdAt: new Date('2026-09-01'), updatedAt: new Date('2026-09-02')
+  });
   let name = 'Operador', reads = 0;
   const database = {
     project: { findMany: async () => [{ id: 'p', plannedNormalHours: normal, plannedOvertime: overtime, budgets: [], additionalProposals: [] }] },
-    jobRole: { findMany: async ({ where }) => { reads++; assert.deepEqual(where.id.in, ['r']); return [{ id: 'r', name }]; } }
+    $queryRaw: async (_sql, ids) => {
+      reads++; assert.deepEqual(ids, ['p']);
+      return plannedHourRows(await database.project.findMany(), new Map([['r', name]]));
+    }
   };
   const legacy = () => resolvePlannedHours({
     normalHours: normal.map(row => ({ ...row, jobRole: row.jobRoleId ? { name } : null, roleName: row.roleName ?? (row.jobRoleId ? name : null) })),
@@ -44,6 +52,7 @@ test('adicionais com horas desconsideradas saem da previsão e não invalidam a 
       return [proposal(1), ...(includeHours ? [proposal(2, raw(50, 10))] : [])];
     } }
   };
+  database.$queryRaw = async () => plannedHourRows(await database.project.findMany());
   const excluded = (await loadPlannedHours(['p'], database)).get('p');
   assert.equal(excluded.hoursPlan.commercial.total, 120);
   assert.equal(excluded.hoursPlan.issues.length, 0);
@@ -178,6 +187,7 @@ test('planned hours compose selected ComercialAPP revision with Access additions
         snapshot: { estimateSummary: { hours: { normal: 130, overtime: 15, total: 145 } } } }];
     } }
   };
+  database.$queryRaw = async () => plannedHourRows(await database.project.findMany());
   const result = (await loadPlannedHours(['project-1'], database)).get('project-1');
   assert.deepEqual(result.hoursPlan.commercial, { normal: 150, overtime: 20, total: 170 });
   assert.equal(result.hoursPlan.proposals.find(row => row.source === 'COMERCIAL_APP').nRev, 2);

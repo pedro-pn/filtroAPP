@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { withPontoImportDates, loadMonthlyPontoPeriods } from '../src/lib/acompanhamento/ponto-period-sources.js';
+import { withPontoImportDates, loadMonthlyPontoSources } from '../src/lib/acompanhamento/ponto-period-sources.js';
+const range = { startDate: '2026-09-01', endDate: '2026-09-30' };
 
 test('scoped import dates preserve overlap precedence and input order without mutating periods', () => {
   const imports = [{ id: 'new', createdAt: new Date('2026-10-02') }, { id: 'old', createdAt: new Date('2026-10-01') }];
@@ -29,12 +30,13 @@ test('monthly identities bind only selected people and retain parent order and U
     $queryRaw: async (sql, ids) => {
       assert.deepEqual(ids, ["c'1", 'c2']);
       assert.ok(!sql.join('').includes("c'1"));
-      return [{ id: "c'1", name: 'Ana', jobRoleId: 'r2', jobRoleHistory: [
+      return [{ collaborators: [{ id: "c'1", name: 'Ana', jobRoleId: 'r2', jobRoleHistory: [
         { jobRoleId: 'r1', effectiveDate: '2026-09-01' }, { jobRoleId: 'r2', effectiveDate: '2026-09-15' }
-      ] }];
+      ] }], absences: [{ id: 'a', collaboratorId: "c'1", startDate: '2026-09-01', endDate: '2026-09-10' }] }];
     }
   };
-  const result = await loadMonthlyPontoPeriods(database, ['i2','i1']);
+  const { periods: result, absences } = await loadMonthlyPontoSources(database, ['i2','i1'], range);
+  assert.equal(absences[0].endDate.toISOString(), '2026-09-10T00:00:00.000Z');
   assert.deepEqual(result.map(row => row.id), ['new','old','repeat']);
   assert.deepEqual(periods, original);
   assert.equal(result[1].collaborator, null, 'An identity removed between reads stays missing');
@@ -44,7 +46,7 @@ test('monthly identities bind only selected people and retain parent order and U
 
 test('empty periods skip identity SQL and identity failures reject the read', async () => {
   const database = { pontoPeriodSummary: { findMany: async () => [] }, $queryRaw: () => { throw new Error('identity unavailable'); } };
-  assert.deepEqual(await loadMonthlyPontoPeriods(database, []), []);
+  assert.deepEqual(await loadMonthlyPontoSources(database, [], range), { periods: [], absences: [] });
   database.pontoPeriodSummary.findMany = async () => [{ collaboratorId: 'c1' }];
-  await assert.rejects(loadMonthlyPontoPeriods(database, ['i1']), /identity unavailable/);
+  await assert.rejects(loadMonthlyPontoSources(database, ['i1'], range), /identity unavailable/);
 });
