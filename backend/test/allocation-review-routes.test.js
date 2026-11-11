@@ -3,9 +3,12 @@ import test from 'node:test';
 
 import { createAllocationReviewRouter } from '../src/routes/resources/allocation-review.js';
 import { AllocationReviewError } from '../src/lib/efetivo/allocation-review/service.js';
+import { isEfetivoManager } from '../src/lib/efetivo/access.js';
 
 const USERS = {
   reviewer: { id: 'u-rev', accountType: 'INTERNAL', moduleRoles: ['efetivo:allocation-review'] },
+  manager: { id: 'u-manager', role: 'COORDINATOR', accountType: 'INTERNAL', moduleRoles: ['rdo:coordinator', 'efetivo:manager'] },
+  managerReviewer: { id: 'u-manager-rev', role: 'COORDINATOR', accountType: 'INTERNAL', moduleRoles: ['rdo:coordinator', 'efetivo:manager', 'efetivo:allocation-review'] },
   viewer: { id: 'u-view', accountType: 'INTERNAL', moduleRoles: ['efetivo:viewer'] },
   admin: { id: 'u-admin', accountType: 'ADMIN', moduleRoles: [] }
 };
@@ -89,6 +92,18 @@ test('semana precisa começar numa segunda-feira', async () => {
   const response = await dispatch(router, '/semanas/2026-10-27', { headers: { 'x-test-user': 'reviewer' } });
   assert.equal(response.status, 400);
   assert.equal(response.body.code, 'INVALID_WEEK_START');
+});
+
+test('coordenador pode gerir o efetivo e conferir alocações com os dois papéis explícitos', async () => {
+  const { router, calls } = fixture();
+  assert.equal(isEfetivoManager(USERS.managerReviewer), true);
+  assert.equal((await dispatch(router, '/semanas/2026-10-26', { headers: { 'x-test-user': 'manager' } })).status, 403);
+  assert.equal((await dispatch(router, '/semanas/2026-10-26', { headers: { 'x-test-user': 'managerReviewer' } })).status, 200);
+  assert.equal((await dispatch(router, '/semanas/2026-10-26/linhas/conferir', {
+    method: 'POST', ...write('managerReviewer', { allReady: true })
+  })).status, 200);
+  assert.equal(calls.at(-1)[0], 'confirm');
+  assert.equal(calls.at(-1)[1].user.id, USERS.managerReviewer.id);
 });
 
 test('escritas exigem If-Match-Version e corpo válido', async () => {
