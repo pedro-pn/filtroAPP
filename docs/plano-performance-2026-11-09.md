@@ -313,7 +313,7 @@ não depender de reverter ou apagar dados para reverter o código.
 | T08 | Seções do Efetivo/Acompanhamento, cinco modais de workflow e painéis do Gestor sob demanda; visão geral estatística separada dos overlays | Aceite das superfícies autenticadas no ambiente publicado |
 | T09 | Variantes lossless, favicon/hash/prioridade do login e CSS da administração de credenciais separado do shell, preservando a camada legacy | Aceite LCP publicado; outros estilos globais podem ser divididos conforme medição |
 | T10 | Política manual de 90 dias validada; volume e prévia coletados em produção, somente leitura: **358.456 linhas, 7.226 elegíveis**, às 22:00 UTC de 11/11; relatório e aplicação exclusiva com lotes/auditoria prontos | Aplicação manual do CLI atualizado após publicação; comparar crescimento posterior |
-| T11 | Orçamentos, paridade, PostgreSQL/HTTP e navegador no CI; main `245ebd00` integrada sem conflito; contratos dos novos lotes no gate; limpeza física das fixtures antes de cada coorte; instalação Hunspell limitada a cinco minutos | Validar CI da rodada final e aceite publicado em T12 |
+| T11 | Orçamentos, paridade, PostgreSQL/HTTP e navegador no CI; main `245ebd00` integrada sem conflito; contratos dos novos lotes no gate; limpeza física das fixtures antes de cada coorte; **11 jobs aprovados em `e5d8f37b`** | Aceite publicado em T12 |
 
 As metas locais de T06/T07 estão atingidas nas coortes controladas. Os aceites
 publicados e a aplicação manual da retenção de 90 dias permanecem pendentes. As regras de apropriação
@@ -328,11 +328,13 @@ ou execução em servidores nesta implementação local.
    publicado e a migration aplicada antes de habilitar o cache. Validar p95 HTTP,
    conteúdo útil/LCP, dois navegadores/perfis, divisões, atualização por worker em
    até 15 s e página oculta sem polling. O roteiro contém ativação e rollback.
-2. **Operação — T03/T11/T12:** concluir o CI final, publicar pelo processo existente
+2. **Operação — T03/T11/T12:** o [CI final de `e5d8f37b`](https://github.com/pedro-pn/filtroAPP/actions/runs/43111440702)
+   aprovou os 11 jobs. Publicar pelo processo existente
    e comparar 24 h/sete dias de pool, event loop, CPU steal, memória/OOM, erros e
    progresso dos jobs. O CI anterior `8edae733` aprovou dez jobs, mas ficou preso
-   na instalação do Hunspell antes dos testes de backend; a etapa agora tem limite
-   de cinco minutos. O resultado final será registrado por SHA/link de execução.
+   na instalação do Hunspell antes dos testes de backend; foi substituído pela
+   nova execução. Com limite de cinco minutos, a instalação passou e o novo CI
+   terminou integralmente, sem retirar nenhum teste ou ampliar orçamento.
 3. **Retenção — T10:** os **90 dias foram aprovados pelo usuário**. A coleta de
    11/11 às 22:00 UTC registrou **7.226 candidatos** e cerca de **5.176 linhas/dia**
    nos seis dias completos anteriores. Aplicar manualmente o CLI exclusivo da
@@ -2411,6 +2413,15 @@ Validação final local: **2.896 testes de backend aprovados** (52 ignorados),
 arquitetura e os seis orçamentos passaram, sem ampliar limites. Os valores gzip
 foram: shell 209.086 B; Efetivo visão geral/evolução 298.798/311.765 B;
 Acompanhamento 289.200 B; Gestor/estatísticas 411.002/419.301 B.
+
+O [CI final](https://github.com/pedro-pn/filtroAPP/actions/runs/43111440702) validou
+o commit **`e5d8f37ba648ec35d802d2324688e839142c92f5`**, com **11/11 jobs aprovados**.
+Foram 2.910 testes de backend (42 ignorados), 23 do gerador de Data Book, 902 de
+frontend e 41 de navegador (28 RDO/notificações/equipamentos, oito de performance
+e cinco do Efetivo). O gate HTTP/PostgreSQL aprovou seus dois grupos de 11 e
+24 testes; os demais contratos de integração e o build Docker também passaram.
+Os seis tamanhos gzip foram idênticos aos locais. O banco/volume descartável
+foi removido após conferir todas as fixtures zeradas.
 
 As [evidências finais](evidence/performance-misses-closure-20261111.json) incluem
 amostras, hashes das fontes, perfis SQL, diagnóstico físico e todos os ensaios

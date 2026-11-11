@@ -34385,7 +34385,34 @@
       "gestor": 411002,
       "gestor-estatisticas": 419301
     },
-    "ci": null,
+    "ci": {
+      "runId": 43111440702,
+      "url": "https://github.com/pedro-pn/filtroAPP/actions/runs/43111440702",
+      "headSha": "e5d8f37ba648ec35d802d2324688e839142c92f5",
+      "status": "completed",
+      "conclusion": "success",
+      "jobsPassed": 11,
+      "jobsTotal": 11,
+      "backend": {
+        "tests": 2952,
+        "pass": 2910,
+        "skipped": 42,
+        "fail": 0
+      },
+      "dataBookPython": 23,
+      "frontend": 902,
+      "browser": {
+        "rdoNotificationsEquipment": 28,
+        "performance": 8,
+        "efetivo": 5
+      },
+      "httpPostgresGateGroups": [
+        11,
+        24
+      ],
+      "dockerBuild": "success",
+      "bundleBudgets": "same six sizes as local"
+    },
     "initialFullBackendAttempt": {
       "tests": 2944,
       "pass": 2892,
@@ -34394,7 +34421,32 @@
       "reason": "Old raw-query stub in pressure-hose scope test returned a lock row for the new hour-source packet. Updated stub; focused scope suite passed."
     },
     "architecture": "passed",
-    "workflowYaml": "passed"
+    "workflowYaml": "passed",
+    "previousCi": {
+      "runId": 43098879792,
+      "headSha": "8edae73382f3d59b1fd3e26d0b75caac75d183af",
+      "conclusion": "cancelled",
+      "passedJobs": 10,
+      "backend": "Stalled during Hunspell install before backend tests; superseded by the successful final workflow."
+    },
+    "fixtureCleanupCounts": {
+      "pontoImport": 0,
+      "report": 0,
+      "user": 0,
+      "collaboratorAbsence": 0,
+      "allocationReviewWeek": 0,
+      "pontoDayProjectOverride": 0,
+      "stockMovement": 0,
+      "stockItem": 0,
+      "romaneio": 0,
+      "romaneioCatalogItem": 0,
+      "workforceHoliday": 0,
+      "jobRun": 0,
+      "dataRetentionRun": 0,
+      "crmOpportunity": 0,
+      "project": 0
+    },
+    "ownedContainerAndVolumeRemoved": true
   },
   "remaining": {
     "publishedAcceptance": "Current production lacks the revision migration and opt-in telemetry. Publication/activation and 24h/7-day authenticated/browser/infrastructure acceptance are not performed.",
