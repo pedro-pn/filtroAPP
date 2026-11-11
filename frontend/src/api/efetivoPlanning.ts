@@ -25,7 +25,7 @@ export interface ProjectOption {
   location: string | null;
   mobilizationDate: string | null;
   demobilizationDate: string | null;
-  workflow?: { actualMobilizationDate: DateOnly | null } | null;
+  workflow?: { stage?: string; actualMobilizationDate: DateOnly | null } | null;
 }
 
 export interface PendingMissionProject extends ProjectOption {
@@ -109,6 +109,7 @@ export interface EligibleMissionCollaborator {
 export interface PlanningMission {
   id: string;
   planId: string;
+  plan?: { kind: 'OFFICIAL' | 'SCENARIO' };
   projectId: string;
   project: ProjectOption;
   scheduleStatus: MissionScheduleStatus;
