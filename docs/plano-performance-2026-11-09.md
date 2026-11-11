@@ -313,7 +313,7 @@ não depender de reverter ou apagar dados para reverter o código.
 | T08 | Seções do Efetivo/Acompanhamento, cinco modais de workflow e painéis do Gestor sob demanda; visão geral estatística separada dos overlays | Aceite das superfícies autenticadas no ambiente publicado |
 | T09 | Variantes lossless, favicon/hash/prioridade do login e CSS da administração de credenciais separado do shell, preservando a camada legacy | Aceite LCP publicado; outros estilos globais podem ser divididos conforme medição |
 | T10 | Sondagens vazias agregadas; trabalho/falhas individuais; preview e aplicação exclusiva de JobRun, com lotes/auditoria e sem prazo padrão | Definir prazo/política antes da aplicação manual; medir linhas/dia publicado |
-| T11 | Orçamentos, paridade, projeções HTTP/PostgreSQL e navegador no CI; gate de cobertura dos triggers; novo gate de catálogos/cards aprovado em `ccfe0ddd`; baseline com 11 jobs aprovados em `3be5b9fb` | Concluir CI geral de `ccfe0ddd` após recuperação do DNS dos runners; validação publicada em T12 |
+| T11 | Orçamentos, paridade, projeções HTTP/PostgreSQL e navegador no CI; cobertura dos triggers e catálogos/cards; integração da main/TypeScript 7 com os 11 jobs aprovados em `f9f4c51f` | Validação publicada em T12 |
 
 Os aceites publicados, a política/aplicação de retenção e o restante da meta fria de T07 permanecem pendentes. As regras de apropriação
 de custos foram preservadas. Não houve exclusão de histórico, alteração de backup
@@ -341,10 +341,10 @@ ou execução em servidores nesta implementação local.
 3. **Aceite publicado — T01/T04/T05/T06/T08/T09:** verificar p95 HTTP, conteúdo
    útil/LCP, transferência por rota, dois navegadores, permissões/divisões,
    gravações do worker, atualização até 15 s e página oculta sem polling.
-4. **Operação — T03/T11/T12:** o CI de `ccfe0ddd` teve nove jobs aprovados,
-   incluindo HTTP/performance. Duas tentativas tiveram falhas de DNS nos mirrors
-   Ubuntu durante instalação de Hunspell/Chromium. Reexecutar os jobs de backend
-   e navegador após normalizar a rede; o CI geral ainda não está aprovado. Depois, realizar a
+4. **Operação — T03/T11/T12:** o [CI da integração `f9f4c51f`](https://github.com/pedro-pn/filtroAPP/actions/runs/43069946051)
+   aprovou os 11 jobs, incluindo backend, navegador e HTTP/performance. A main
+   trouxe a preparação de DNS/mirrors e runners Ubuntu 24.04; as instalações de
+   Hunspell/Chromium passaram na primeira tentativa da árvore integrada. Resta a
    publicação manual com migration antes de habilitar o cache; comparar 24 h e
    sete dias de pool, event loop, CPU steal, memória/OOM, erros e jobs.
 5. **Retenção — T10:** definir o prazo/política e medir linhas/dia. O código local
@@ -2247,7 +2247,17 @@ ignorados), **30 contratos PostgreSQL/HTTP** e **oito regressões de navegador d
 performance**, sem falhas. A primeira invocação de navegador concluiu os oito
 testes e recebeu SIGTERM no encerramento; a repetição direta terminou com saída
 zero. As bases nova/atualizada ficaram sem fixtures e o container/volume
-descartável foi removido. O CI da árvore integrada é consultado após envio.
+descartável foi removido.
+
+O [CI da árvore integrada `f9f4c51f`](https://github.com/pedro-pn/filtroAPP/actions/runs/43069946051)
+aprovou os **11 jobs na primeira tentativa**. Foram **898 testes de frontend**,
+**2.889 testes de backend** (35 ignorados), **23 testes do gerador de Data Book**
+e **41 regressões de navegador** (28 RDO/notificações/equipamentos, oito de
+performance e cinco do Efetivo). Os contratos PostgreSQL e o build Docker também
+passaram. Os seis tamanhos gzip no CI foram idênticos aos da tabela local.
+O resultado resolve a pendência de CI por DNS da rodada anterior; não substitui
+as metas quantitativas nem o aceite publicado do plano.
+
 Backups, publicação e os aceites quantitativos pendentes continuam fora desta
 integração local.
 

@@ -288,7 +288,97 @@
     "backend/src/lib/acompanhamento/labor-cost.js": "a45c47803b28479033c6361a51c0211fb51ce091c623d66f8057909aca20da53",
     "backend/src/lib/acompanhamento/effective-allocation-sources.js": "81f152c71ed6faa47d2ae8f733a399cccbe4722136a34e45abc2c33a67eb1f07"
   },
-  "ci": "Merged-source CI is started after commit/push and recorded separately from the historical ccfe0ddd run.",
+  "ci": {
+    "sourceCommit": "f9f4c51fcad719ecda81653d877b984ea07ca9ca",
+    "runId": 43069946051,
+    "url": "https://github.com/pedro-pn/filtroAPP/actions/runs/43069946051",
+    "event": "workflow_dispatch",
+    "attempt": 1,
+    "status": "completed",
+    "conclusion": "success",
+    "updatedAt": "2026-11-11T17:42:34Z",
+    "jobs": [
+      {
+        "id": 130694804157,
+        "name": "Architecture",
+        "conclusion": "success"
+      },
+      {
+        "id": 130694804609,
+        "name": "RDO equipment (PostgreSQL)",
+        "conclusion": "success"
+      },
+      {
+        "id": 130694804678,
+        "name": "HTTP performance contracts (PostgreSQL)",
+        "conclusion": "success"
+      },
+      {
+        "id": 130694804721,
+        "name": "Notifications (PostgreSQL)",
+        "conclusion": "success"
+      },
+      {
+        "id": 130694804723,
+        "name": "Frontend",
+        "conclusion": "success"
+      },
+      {
+        "id": 130694804752,
+        "name": "PrismaCRM planning (PostgreSQL)",
+        "conclusion": "success"
+      },
+      {
+        "id": 130694804795,
+        "name": "Docker",
+        "conclusion": "success"
+      },
+      {
+        "id": 130694804811,
+        "name": "Conecta allocation (PostgreSQL)",
+        "conclusion": "success"
+      },
+      {
+        "id": 130694804901,
+        "name": "Commercial contributions (PostgreSQL)",
+        "conclusion": "success"
+      },
+      {
+        "id": 130694805039,
+        "name": "Backend",
+        "conclusion": "success"
+      },
+      {
+        "id": 130694805727,
+        "name": "Omni phase 2 (PostgreSQL)",
+        "conclusion": "success"
+      }
+    ],
+    "frontend": {
+      "tests": 898,
+      "pass": 898,
+      "fail": 0
+    },
+    "backend": {
+      "tests": 2924,
+      "pass": 2889,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 35
+    },
+    "dataBook": {
+      "tests": 23,
+      "passed": true
+    },
+    "browser": {
+      "rdoNotificationsEquipmentPassed": 28,
+      "performancePassed": 8,
+      "efetivoPassed": 5,
+      "totalPassed": 41
+    },
+    "pageBudgets": "All six budgets passed with byte counts identical to the local build.",
+    "note": "The previous ccfe0ddd DNS failure remains historical. This integrated source passed on the first CI attempt."
+  },
   "limits": [
     "No new HTTP/cold-service benchmark or production acceptance was claimed from this merge. Previous timing evidence belongs to its recorded source commits.",
     "Experimental design-preview retains the same 66 diagnostic signatures under TypeScript 7 in remote main, pre-merge performance and the merged tree. The archived pre-merge config had deprecated baseUrl removed solely for that comparison; production strictness/budgets were not relaxed.",
