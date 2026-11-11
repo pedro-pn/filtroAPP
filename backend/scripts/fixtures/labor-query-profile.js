@@ -5,6 +5,17 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+// Digests only: diagnostics can distinguish changed parent data from a changed
+// return order without retaining report IDs, names, hours or database payloads.
+export function summarizeLaborReportOrder(rows) {
+  const records = rows.map(row => JSON.stringify([
+    row.projectId, row.reportType, row.sequenceNumber, row.reportDate,
+    row.daytimeWorkedMinutes, row.nighttimeWorkedMinutes
+  ]));
+  const digest = values => createHash('sha256').update(JSON.stringify(values)).digest('hex');
+  return { rows: rows.length, orderHash: digest(records), contentHash: digest([...records].sort()) };
+}
+
 // Used only by the loopback-only synthetic benchmark, outside timed samples.
 export function captureLaborQueries() {
   const queries = [];

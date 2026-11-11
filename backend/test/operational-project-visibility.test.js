@@ -103,10 +103,14 @@ test('dashboard e pendências do Acompanhamento ocultam Somente gestor sem exclu
     ['omieReceivable', 'findMany'], ['omieCategory', 'findMany']
   ]) stub(model, method);
   stub('report', 'groupBy', async ({ where }) => { reportQueries.push(where); return []; });
-  stub('omiePurchase', 'groupBy', async ({ where }) => { omiePurchaseQueries.push(where); return []; });
+  stub('omiePurchase', 'groupBy', async args => { omiePurchaseQueries.push(args); return []; });
 
   assert.deepEqual(await listCommercialDashboard(), []);
+  const dashboardPurchaseQueries = () => omiePurchaseQueries.filter(args =>
+    JSON.stringify(args.by) === JSON.stringify(['projectId', 'statusTitulo']));
+  assert.equal(dashboardPurchaseQueries().length, 1, 'Uma agregação de valores por projeto/status, além das consultas de categorias');
   assert.deepEqual(await listCommercialPendencias(), []);
+  const purchasesBeforeScopedDashboard = dashboardPurchaseQueries().length;
   assert.deepEqual(await listCommercialDashboard({ projectIds: ['project-1'] }), []);
   assert.equal(projectQueries.length, 3);
   projectQueries.forEach(where => {
@@ -116,8 +120,6 @@ test('dashboard e pendências do Acompanhamento ocultam Somente gestor sem exclu
   });
   assert.deepEqual(projectQueries[2].id, { in: ['project-1'] });
   assert.deepEqual(reportQueries[1].projectId, { in: ['project-1'] });
-  assert.deepEqual(omiePurchaseQueries.slice(-2).map(where => where.projectId), [
-    { in: ['project-1'] },
-    { in: ['project-1'] }
-  ]);
+  assert.equal(dashboardPurchaseQueries().length, purchasesBeforeScopedDashboard + 1);
+  assert.deepEqual(dashboardPurchaseQueries().at(-1).where.projectId, { in: ['project-1'] });
 });

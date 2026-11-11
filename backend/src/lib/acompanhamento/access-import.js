@@ -24,6 +24,7 @@ import { progressContributionWeight } from './progress-groups.js';
 import { readCommercialHours } from './planned-hours.js';
 import { commercialTransaction, lockCommercialProject, selectContribution, removeContribution } from './commercial-contributions.js';
 import { getStockConsumptionCostByProject } from './stock-cost.js';
+import { purchaseStatusTotals } from './purchase-status-totals.js';
 
 const PROPOSAL_TABLE = 'proposta';
 
@@ -911,7 +912,7 @@ async function listCommercialDashboardUncached({
       }
     ]
   };
-  const [proposals, projects, budgets, selectedAdditionals, rdoGroups, omieTotals, omiePaid, omieReceivables, commercialAppProposals] = await Promise.all([
+  const [proposals, projects, budgets, selectedAdditionals, rdoGroups, omieByStatus, omieReceivables, commercialAppProposals] = await Promise.all([
     prisma.commercialProposal.findMany({
       select: {
         codBd: true, codProp: true, parentCodProp: true, nRev: true, salePrice: true, plannedCost: true,
@@ -961,8 +962,7 @@ async function listCommercialDashboardUncached({
       where: { reportType: 'RDO', deletedAt: null, ...(projectIds ? { projectId: { in: projectIds } } : {}) },
       _count: { _all: true }
     }),
-    prisma.omiePurchase.groupBy({ by: ['projectId'], where: realizedWhere, _sum: { valor: true } }),
-    prisma.omiePurchase.groupBy({ by: ['projectId'], where: { ...realizedWhere, statusTitulo: 'PAGO' }, _sum: { valor: true } }),
+    prisma.omiePurchase.groupBy({ by: ['projectId', 'statusTitulo'], where: realizedWhere, _sum: { valor: true } }),
     prisma.omieReceivable.findMany({
       where: invoicedWhere,
       select: {
@@ -999,8 +999,7 @@ async function listCommercialDashboardUncached({
     selectedAdditionalsByProject.get(selection.projectId).push(selection);
   }
   const rdoByProject = new Map(rdoGroups.map(g => [g.projectId, g._count._all]));
-  const realizedByProject = new Map(omieTotals.map(g => [g.projectId, g._sum.valor]));
-  const realizedPaidByProject = new Map(omiePaid.map(g => [g.projectId, g._sum.valor]));
+  const { totalByProject: realizedByProject, paidByProject: realizedPaidByProject } = purchaseStatusTotals(omieByStatus);
   const invoicedByProject = summarizeOmieRevenue(omieReceivables);
 
   const rows = [];

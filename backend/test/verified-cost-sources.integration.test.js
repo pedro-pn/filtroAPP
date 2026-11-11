@@ -19,15 +19,14 @@ test('PostgreSQL + HTTP: independent cost requests share verified catalogs and o
   const { default: database } = await import('../src/lib/prisma.js');
   const { default: app } = await import('../src/app.js');
   const { clearProjectDerivedCaches } = await import('../src/lib/resource-list-cache.js');
-  const originals = { profiles: database.costProfile.findMany, annual: database.acompanhamentoSetting.findMany,
+  const originals = { reference: database.$queryRaw,
     categories: database.omieCategory.findMany };
   const writer = new pg.Pool({ connectionString: url, max: 1 });
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'filtro-verified-costs-'));
   let fixture, server, previousEpi, settingsLoaded = false;
-  const counts = { profiles: 0, annual: 0, categories: 0 };
+  const counts = { references: 0, categories: 0 };
   t.after(async () => {
-    database.costProfile.findMany = originals.profiles;
-    database.acompanhamentoSetting.findMany = originals.annual;
+    database.$queryRaw = originals.reference;
     database.omieCategory.findMany = originals.categories;
     if (server) await new Promise(resolve => { server.close(resolve); server.closeAllConnections(); });
     if (fixture) {
@@ -73,8 +72,10 @@ test('PostgreSQL + HTTP: independent cost requests share verified catalogs and o
     assert.equal(response.status, 200);
     return response.json();
   };
-  database.costProfile.findMany = (...args) => { counts.profiles++; return originals.profiles.apply(database.costProfile, args); };
-  database.acompanhamentoSetting.findMany = (...args) => { counts.annual++; return originals.annual.apply(database.acompanhamentoSetting, args); };
+  database.$queryRaw = (...args) => {
+    if (args[0][0].includes('labor.cost-reference-rows')) counts.references++;
+    return originals.reference.apply(database, args);
+  };
   database.omieCategory.findMany = (...args) => { counts.categories++; return originals.categories.apply(database.omieCategory, args); };
   clearProjectDerivedCaches();
   let before;
@@ -114,7 +115,7 @@ test('PostgreSQL + HTTP: independent cost requests share verified catalogs and o
       actual[profile] = await Promise.all(routes.map((route, index) => get(route, profile, index % 2)));
     }
     assert.deepEqual(actual, expected, phase + ': every response field, allocation trail and permission projection must match');
-    assert.deepEqual(counts, { profiles: 2, annual: 2, categories: 2 }, 'One catalog load per protected scope/variant across different routes/sessions');
+    assert.deepEqual(counts, { references: 2, categories: 2 }, 'One combined reference load per protected scope across different routes/sessions');
     assert.equal(actual.admin[0].canViewProjectFinancials, true);
     assert.equal(actual.viewer[0].canViewProjectFinancials, false);
     assert.ok(actual.admin[0].colaboradores.some(person => person.collaboratorId === fixture.prefix + '-fallback-person' && person.custoEstimadoRdo > 0));
@@ -132,13 +133,16 @@ test('PostgreSQL + HTTP: independent cost requests share verified catalogs and o
     assert.equal(failure.status, 503, 'Even cached cards must verify the source revision before serving a response');
     assert.deepEqual(await failure.json(), { error: 'Não foi possível verificar a atualização dos dados. Tente novamente.' });
   } finally { database.$queryRaw = originalRaw; }
-  const originalRoleRead = database.jobRole.findMany;
+  const originalReferenceRead = database.$queryRaw;
   await writer.query('UPDATE "JobRole" SET name=$1 WHERE id=$2', ['Cargo atualizado ' + fixture.prefix, fixture.prefix + '-role']);
-  database.jobRole.findMany = () => { throw new Error('catalog unavailable'); };
+  database.$queryRaw = (...args) => {
+    if (args[0][0].includes('labor.cost-reference-rows')) throw new Error('catalog unavailable');
+    return originalReferenceRead.apply(database, args);
+  };
   try {
     const failure = await fetch(endpoint + routes[0], { headers: { authorization: 'Bearer ' + fixture.sessions.admin[0] } });
     assert.equal(failure.status, 404, 'The detail route preserves its existing error contract instead of serving a preceding revision');
     assert.deepEqual(await failure.json(), { error: 'catalog unavailable' });
-  } finally { database.jobRole.findMany = originalRoleRead; }
+  } finally { database.$queryRaw = originalReferenceRead; }
   assert.equal((await get(routes[0], 'admin')).canViewProjectFinancials, true, 'A subsequent request retries the failed catalog');
 });

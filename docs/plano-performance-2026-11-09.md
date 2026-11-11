@@ -296,7 +296,7 @@ não depender de reverter ou apagar dados para reverter o código.
 - [ ] T07 Parcial: fontes compartilhadas, catálogos em lote, intervalos por período, calendário antecipado e conciliação sem motor de custos; meta fria geral e aceite HTTP pendentes.
 - [ ] T08 Seções/modais e painéis do Gestor carregados sob demanda localmente; aceite publicado pendente.
 - [ ] T09 Imagens otimizadas e CSS exclusivo da administração extraído; aceite LCP publicado pendente.
-- [ ] T10 Sondagens vazias agregadas e retenção exclusiva de JobRun com preview/lotes validadas localmente; política e aplicação pendentes.
+- [ ] T10 Sondagens vazias agregadas e retenção exclusiva de JobRun com preview/lotes validadas localmente; política de 90 dias aprovada em 11/11; aplicação manual e medição publicadas pendentes.
 - [x] T11 Gates de tamanho, paridade, consultas, navegador e padrões de novos módulos integrados ao CI, verificados localmente.
 - [ ] T12 Comparação em produção, 24 h e sete dias, e aceite registrado.
 
@@ -308,33 +308,37 @@ não depender de reverter ou apagar dados para reverter o código.
 | T03 | Healthchecks locais do Nginx e de progresso do worker, incluindo filas de aprovação/e-mail/Data Book | Publicação manual e série de 24 h/sete dias |
 | T04 | Bootstrap projetado por seção, cache separado por seção e usuário, consultas condicionais, tratamento de carga/falha no upload manual e compatibilidade do contrato anterior | Aceite HTTP em ambiente publicado |
 | T05 | Associação das medições e preparo do escopo reutilizados dentro de cada cálculo; curvas não montam grupos de exibição descartados; resultado completo comparado com o anterior | Aceite HTTP em ambiente publicado |
-| T06 | Avanço a cada 15 s; histórico/recortes por revisão; projeções; fontes dos grupos em lote; cache opt-in por versão/usuário/permissões também nos cards; snapshot mensal por escopo; catálogos entre GETs verificados; revisão estável; autenticação sem relações vazias; pool aquecido 100% nas coortes finais | Meta de 95% incluindo frio/refresh aberta: 89,7–90,6% na rodada com cards atualizados; concorrência/p95 e atualização publicados |
-| T07 | Fontes mensais/globais compartilhadas; catálogos em lote/por requisição; horários por período; disponibilidade antecipada; conciliação sem custos; auditoria e eixos equivalentes reutilizados; vínculos nominais em uma consulta; ciclos sob demanda; custo por pessoa compartilhado | Meta fria geral de 50% aberta: 48,7% no cenário esparso e 49,4% no denso na repetição cumulativa; reduzir rajadas sem deslocar espera ou alterar regras |
+| T06 | Avanço a cada 15 s; histórico/recortes por revisão; projeções; fontes dos grupos em lote; cache opt-in por versão/usuário/permissões também nos cards; snapshot mensal por escopo; catálogos e fontes de avanço entre GETs verificados; revisão estável; autenticação sem relações vazias; pool aquecido 100% | Meta de 95% incluindo frio/aquecimento/refresh aberta: 88,9–89,4% na nova série com onze buckets; concorrência/p95 e atualização publicados |
+| T07 | Fontes mensais/globais compartilhadas; catálogos, calendário e ignorados combinados; períodos com identidade/histórico em uma leitura; horários por período; disponibilidade antecipada; conciliação sem custos; auditoria e eixos equivalentes reutilizados; vínculos nominais em uma consulta; ciclos sob demanda; custo por pessoa compartilhado | Meta fria geral de 50% aberta: 47,5–51,9% esparso e 50,4–51,3% denso nas duas coortes padronizadas; reduzir rajadas sem deslocar espera ou alterar regras |
 | T08 | Seções do Efetivo/Acompanhamento, cinco modais de workflow e painéis do Gestor sob demanda; visão geral estatística separada dos overlays | Aceite das superfícies autenticadas no ambiente publicado |
 | T09 | Variantes lossless, favicon/hash/prioridade do login e CSS da administração de credenciais separado do shell, preservando a camada legacy | Aceite LCP publicado; outros estilos globais podem ser divididos conforme medição |
-| T10 | Sondagens vazias agregadas; trabalho/falhas individuais; preview e aplicação exclusiva de JobRun, com lotes/auditoria e sem prazo padrão | Definir prazo/política antes da aplicação manual; medir linhas/dia publicado |
+| T10 | Sondagens vazias agregadas; trabalho/falhas individuais; preview e aplicação exclusiva de JobRun com lotes/auditoria; política de 90 dias aprovada pelo usuário em 11/11 e validada localmente; relatório somente leitura de linhas/dia e armazenamento | Coletar volume, conferir preview e aplicar manualmente após publicação |
 | T11 | Orçamentos, paridade, projeções HTTP/PostgreSQL e navegador no CI; cobertura dos triggers e catálogos/cards; integração da main/TypeScript 7 com os 11 jobs aprovados em `f9f4c51f` | Validação publicada em T12 |
 
-Os aceites publicados, a política/aplicação de retenção e o restante da meta fria de T07 permanecem pendentes. As regras de apropriação
+Os aceites publicados, a aplicação manual da retenção de 90 dias e o restante da meta fria de T07 permanecem pendentes. As regras de apropriação
 de custos foram preservadas. Não houve exclusão de histórico, alteração de backup
 ou execução em servidores nesta implementação local.
 
 ### Pendências priorizadas após a continuação de 11/11
 
 1. **Pool no frio/refresh — T06/T07:** o cache opt-in fecha o ensaio aquecido
-   (100% sem fila, inclusive com JobRun sendo atualizado), mas a combinação das
-   fases medidas chega a 89,7–90,6% na rodada com cards atualizados, abaixo dos 95%. Restam as rajadas nos misses,
+   (100% sem fila), mas a combinação das
+   fases chega a **88,9–89,4%** nas duas coortes finais, abaixo dos 95%. A referência
+   integrada ficou em 87,4–88,5% com o mesmo método. O aquecimento agora também
+   conserva seu bucket; as frações globais antigas com dez buckets não são
+   diretamente comparáveis à série nova com onze. Restam as rajadas nos misses,
    inclusive após gravações reais. Não deslocar espera para uma fila invisível
    nem aumentar o pool para aparentar cumprimento; exigir ganho HTTP e registrar
    qualquer espera na aplicação. A invalidação conservadora mantém a atualização.
-2. **Carga fria — T07:** o cálculo em processo novo melhorou 48,7% no cenário
-   esparso e 49,4% no denso na repetição cumulativa contra o início do plano. A meta geral de 50% segue
-   aberta. Perfis e os protótipos adicionais não justificaram novo transporte
-   SQL/índice; resultados e limitações estão nas evidências das últimas seções.
-   O protótipo mais recente também falhou na paridade da trilha de RDO no cenário
-   esparso; não foi integrado. Antes de outro transporte, instrumentar a ordem
-   dos insumos e preservar a evidência completa nos dias com RDOs empatados,
-   sem escolher outro desempate para fazer a comparação passar.
+2. **Carga fria — T07:** nas duas coortes padronizadas contra o início do plano,
+   o cálculo em processo novo melhorou **47,5–51,9% no esparso** e **50,4–51,3% no
+   denso**. A meta geral de 50% segue aberta porque a repetição esparsa ficou
+   abaixo dela. O benchmark aplica `ANALYZE` após a carga sintética para as duas
+   fontes; seus percentuais não devem ser compostos com os ensaios antigos.
+   Os transportes integrados preservam os pais/ordem dos períodos e RDOs.
+   O diagnóstico agora registra hashes da ordem e do conteúdo dos insumos,
+   sem expor seus dados. Os protótipos de importação/contexto sem ganho uniforme
+   ficaram fora da implementação; não houve novo índice nem desempate de RDO.
    Os snapshots são ignorados no serviço sem contexto verificado. As latências
    variaram entre coortes; os números não demonstram ganho causal desta etapa
    nem devem ser compostos com percentuais de rodadas anteriores.
@@ -347,9 +351,11 @@ ou execução em servidores nesta implementação local.
    Hunspell/Chromium passaram na primeira tentativa da árvore integrada. Resta a
    publicação manual com migration antes de habilitar o cache; comparar 24 h e
    sete dias de pool, event loop, CPU steal, memória/OOM, erros e jobs.
-5. **Retenção — T10:** definir o prazo/política e medir linhas/dia. O código local
-   permite simulação e aplicação limitada exclusivamente a JobRun; não há prazo
-   escolhido nem execução publicada. A compactação dos marcadores também é manual
+5. **Retenção — T10:** a política de **90 dias foi aprovada pelo usuário em 11/11**.
+   O dry-run/aplicação passou no PostgreSQL descartável; o relatório de volume
+   foi validado com transação somente leitura. Resta coletar linhas/dia no ambiente
+   publicado, conferir o preview e aplicar manualmente após publicação.
+   O código limita essa execução a JobRun. A compactação dos marcadores também é manual
    e oferece dry-run, sem novo agendamento.
 
 **T02 (backups) permanece adiada pelo usuário.** As entregas locais de T04,
@@ -2261,6 +2267,100 @@ as metas quantitativas nem o aceite publicado do plano.
 Backups, publicação e os aceites quantitativos pendentes continuam fora desta
 integração local.
 
+### Continuação local: fontes compartilhadas e retenção de 90 dias — 11/11
+
+Os catálogos de cargos, perfis/parâmetros e custos anuais passaram a usar uma
+consulta com as mesmas colunas selecionadas. Os períodos mensais mantêm a
+consulta nativa dos pais e sua ordem; identidade/histórico dos colaboradores são
+resolvidos em uma leitura limitada aos IDs selecionados. Ignorados, feriados do
+intervalo e revisão do calendário também são lidos juntos. As datas retornam
+com os mesmos tipos/UTC do Prisma. Projetos, RDOs, ausências e alocações mantêm
+os caminhos protegidos. Não houve mudança de regra, índice ou migration.
+
+Cards, detalhe e grupos reutilizam as fontes normalizadas de avanço por projeto,
+inclusive em conjuntos parcialmente sobrepostos. O armazenamento exige GET/HEAD,
+revisão verificada, cliente, escopo/canal e modo de correção iguais. Seus limites
+são oito entradas/8 MiB, até 2 MiB por projeto e 15 segundos. Cada consumidor
+recebe sua própria cópia. As fontes da requisição agora também separam versões
+e leituras anteriores à verificação. Escritas e serviços sem contexto verificado
+continuam sem compartilhamento entre requisições.
+
+Estoque e equipamentos evitam consultas de relações vazias; estoque reutiliza
+as leituras na mesma requisição por conjunto de projetos/divisão. O total de
+compras e a parcela paga usam uma agregação por projeto/status, com recomposição
+em centavos inteiros e retorno Decimal. Nulos, negativos e valores grandes
+preservam o resultado anterior. Os testes PostgreSQL cobrem custos não vazios,
+devoluções, TAGs históricos, primeira saída, divisões e visibilidade.
+
+Foram feitas quatro coortes HTTP em ordem **anterior/candidata/candidata/anterior**,
+contra `2300c9c6`, com as mesmas dependências e o mesmo harness. Cada coorte contém
+832 respostas positivas, além de oito negativas de permissão. São 100 respostas
+aquecidas por rota/perfil, um processo novo por rota/perfil e 16 leituras após
+gravação externa. Node 24.15.0, PostgreSQL 16 limitado a 1 CPU/768 MiB, pool 8,
+concorrência 4, 1.203 RDOs, 4.802 serviços e 297 linhas de escopo sintéticas.
+
+| Medida local | Anterior A1 / A2 | Candidata B1 / B2 |
+| --- | --- | --- |
+| Intervalos globais sem fila, incluindo aquecimento | 87,45% / 88,49% | 89,39% / 88,86% |
+| Intervalos sem fila na fase aquecida | 100% / 100% | 100% / 100% |
+| Consultas SQL nas 16 leituras após gravação | 388 / 388 | 334 / 334 |
+| Última leitura atualizada após commit | 684,08 / 670,86 ms | 531,76 / 526,25 ms |
+
+Nas duas candidatas, o p95 de servidor aquecido ficou até **9,82 ms nos cards**
+e **24,33 ms no detalhe**, com todas as respostas válidas e atualizadas. As quatro
+coortes passaram nos limites HTTP aquecidos e de atualização. Não houve sequência
+observada de espera acima de cinco segundos. As amostras frias não permitem p95.
+Os intervalos do aquecimento, omitidos no agregado antigo, agora são conservados:
+**onze buckets positivos**, com negativas de acesso verificadas separadamente.
+Não comparar diretamente essa fração global com os ensaios antigos de dez buckets.
+Os tempos não demonstram melhoria uniforme de toda rota/fase.
+
+O cálculo do serviço foi comparado com `3db7e76f` em duas coortes por formato,
+cinco pares por modo/coorte, sempre em processos separados e ordem alternada.
+O banco recebe `ANALYZE` após a carga sintética antes das duas fontes. A primeira
+coorte usou ordem esparso/denso; a repetição predefinida inverteu essa ordem.
+
+| Processo novo, mediana do cálculo | Primeira coorte antes → depois | Repetição antes → depois |
+| --- | --- | --- |
+| Esparso | 490,90 → 235,92 ms (51,94%) | 444,24 → 233,24 ms (47,50%) |
+| Denso | 507,72 → 247,51 ms (51,25%) | 460,22 → 228,32 ms (50,39%) |
+
+Os **60 pares de resultados completos** foram iguais, mas a repetição esparsa
+mantém aberta a meta geral de 50%. Boot/imports não entram no tempo; o banco tem
+páginas aquecidas. Isso não é latência HTTP fria nem aceite de produção. O harness
+agora registra falhas como artefatos incompletos e oferece diagnóstico separado
+de ordem/conteúdo dos RDOs por hashes, sem mudar desempates. Os protótipos de
+consulta da importação e lote de contexto sem ganho uniforme não foram integrados.
+
+Uma comparação HTTP adicional contra a versão anterior conferiu **30 respostas
+completas**, sem excluir campos ou reordenar trilhas: cinco rotas, dois perfis e
+três estados (inicial, gravação do worker e alteração de parâmetros/custos/calendário).
+A candidata permaneceu ativa, sem limpar sua memória após os commits externos.
+
+A retenção manual de **90 dias**, aprovada pelo usuário, foi simulada e aplicada
+somente no PostgreSQL descartável. O preview apontou duas exclusões e a aplicação
+removeu exatamente essas duas, em lotes de um e com auditoria. Falhas, execuções
+em andamento, sucessos recentes, último sucesso e empates foram preservados;
+uma sessão expirada de controle também permaneceu. Não houve aplicação publicada.
+O novo `report-job-run-volume.js` agrega linhas criadas por dia UTC/status e bytes
+de tabela/índices numa transação somente leitura, com timeout. O teste nativo
+confirmou que uma tentativa de escrita nessa transação é recusada pelo PostgreSQL.
+O relatório não seleciona nomes, metadados, resultados ou erros dos jobs.
+
+Validação local final: **2.893 testes de backend aprovados**, 48 ignorados,
+**37 contratos PostgreSQL/HTTP aprovados**, arquitetura e YAML do CI válidos.
+A primeira suíte completa encontrou uma expectativa antiga de duas agregações
+de compras num teste de visibilidade; o teste passou a conferir a agregação
+combinada e o mesmo filtro de projeto, e a suíte completa foi repetida com sucesso.
+As fixtures ficaram zeradas antes de remover o banco descartável. O CI desta
+rodada será registrado pelo link e SHA da execução, sem substituir o aceite publicado.
+
+Os resultados, amostras numéricas, hashes das fontes, coortes exploratórias e
+limitações estão na [evidência desta rodada](evidence/performance-final-sources-retention-20261111.json).
+O roteiro de [operação e aceite](PERFORMANCE_OPERACAO.md) descreve a coleta publicada
+e a aplicação manual. **Continuam abertas as duas metas quantitativas acima**,
+além dos aceites publicados e da aplicação manual da retenção. Backups permanecem adiados.
+
 ### Uso local das ferramentas de medição
 
 A coleta detalhada fica desativada por padrão. Para uma sessão local de 15 minutos,
@@ -2298,10 +2398,11 @@ filtroPagePerformance.clear();
 ```
 
 Para a prévia exclusiva de JobRun, o operador deve usar `--only-job-runs` e fornecer
-`--job-run-retention-days=<dias aprovados>` ao script de retenção, que permanece
+`--job-run-retention-days=90` ao script de retenção, que permanece
 em dry-run sem `--apply`. Esse escopo não consulta/altera os outros alvos da rotina
 geral. Sem prazo explícito, JobRun não participa do agendamento normal. Nenhuma
-política nem aplicação publicada foi definida. Ver [roteiro operacional](PERFORMANCE_OPERACAO.md).
+aplicação publicada foi realizada. A política de 90 dias foi aprovada pelo usuário
+em 11/11. Ver [roteiro operacional](PERFORMANCE_OPERACAO.md).
 
 Na publicação manual, atualizar backend/worker e Nginx a partir da mesma revisão;
 os comandos de healthcheck dependem do script e da localização HTTP novos. Em

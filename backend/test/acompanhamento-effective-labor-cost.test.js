@@ -12,6 +12,7 @@ import { clearProjectDerivedCaches } from '../src/lib/resource-list-cache.js';
 import { buildProjectDetailCollaborator, divisionLaborAllocation } from '../src/lib/acompanhamento/project-detail.js';
 import { buildAllocationAudit, groupUnallocatedDays } from '../src/lib/acompanhamento/allocation-audit.js';
 import { computeMonthlyCost } from '../src/lib/acompanhamento/cost-engine.js';
+import { costReferenceRows } from './helpers/cost-reference-rows.js';
 
 const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-7, `${actual} ≠ ${expected}`);
 const collaborator = { id: 'c1', name: 'Ana', jobRoleId: 'role1', jobRole: { id: 'role1', name: 'Operador' }, jobRoleHistory: [] };
@@ -56,6 +57,17 @@ function mockCalculation(t, {
     : args.where.project?.offshore ? [] : reportRows);
   const originalRaw = prisma.$queryRaw;
   prisma.$queryRaw = async (_query, reportIds) => {
+    if (_query.join('').includes('labor.period-reference-rows')) return [{ ignored: [], holidays: [], revision: 1 }];
+    if (_query.join('').includes('labor.period-collaborators')) return [{
+      id: person.id, name: person.name, jobRoleId: person.jobRoleId,
+      jobRoleHistory: (person.jobRoleHistory || []).map(history => ({ ...history,
+        effectiveDate: new Date(history.effectiveDate).toISOString().slice(0,10)
+      }))
+    }];
+    if (_query.join('').includes('labor.cost-reference-rows')) return costReferenceRows({
+      roles: await prisma.jobRole.findMany(), profiles: await prisma.costProfile.findMany(),
+      settings: await prisma.acompanhamentoSetting.findMany()
+    });
     const rows = reportRead ? await reportRead({ where: { OR: [] } }) : reportRows;
     return rows.flatMap((report,index) => reportIds.includes(report.id || 'report-' + index)
       ? (report.collaborators || []).map(({ collaboratorId }) => ({ reportId: report.id || 'report-' + index, collaboratorId })) : []);

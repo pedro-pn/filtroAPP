@@ -78,7 +78,7 @@ test('PostgreSQL + HTTP: point projections and batched group sources preserve co
       progress: options.progressDetails.progress, options });
   }
   let purchaseReads = 0, annualReads = 0, rosterReads = 0, metadataReads = 0, costCollaboratorReads = 0;
-  const originalGroup = database.omiePurchase.groupBy, originalAnnual = database.acompanhamentoSetting.findMany;
+  const originalGroup = database.omiePurchase.groupBy, originalAnnual = database.$queryRaw;
   const originalRoster = database.reportCollaborator.findMany;
   const originalCollaborators = database.collaborator.findMany;
   database.collaborator.findMany = (...args) => {
@@ -95,7 +95,10 @@ test('PostgreSQL + HTTP: point projections and batched group sources preserve co
     return originalCollaborators.apply(database.collaborator, args);
   };
   database.omiePurchase.groupBy = (...args) => { if (args[0]._sum?.valor) purchaseReads++; return originalGroup.apply(database.omiePurchase, args); };
-  database.acompanhamentoSetting.findMany = (...args) => { annualReads++; return originalAnnual.apply(database.acompanhamentoSetting, args); };
+  database.$queryRaw = (...args) => {
+    if (args[0][0].includes('labor.cost-reference-rows')) annualReads++;
+    return originalAnnual.apply(database, args);
+  };
   database.reportCollaborator.findMany = (...args) => {
     rosterReads++;
     assert.equal(Object.hasOwn(args[0].select, 'report'), false, 'Detail must reuse its parent reports for both turns');
@@ -103,7 +106,7 @@ test('PostgreSQL + HTTP: point projections and batched group sources preserve co
     return originalRoster.apply(database.reportCollaborator, args);
   };
   t.after(() => {
-    database.omiePurchase.groupBy = originalGroup; database.acompanhamentoSetting.findMany = originalAnnual;
+    database.omiePurchase.groupBy = originalGroup; database.$queryRaw = originalAnnual;
     database.reportCollaborator.findMany = originalRoster;
     database.collaborator.findMany = originalCollaborators;
   });
@@ -123,7 +126,7 @@ test('PostgreSQL + HTTP: point projections and batched group sources preserve co
   assert.equal(costCollaboratorReads, 1, 'The same fallback collaborator must be loaded once even across sequential member reads');
   assert.ok(entries.every(entry => entry.detail.workedHours.roleCounts.some(role => role.usedHours > 0)));
   assert.equal(entries[1].detail.workedHours.roleCounts[0].usedHours, 10, 'Day and night hours still feed role totals');
-  database.omiePurchase.groupBy = originalGroup; database.acompanhamentoSetting.findMany = originalAnnual;
+  database.omiePurchase.groupBy = originalGroup; database.$queryRaw = originalAnnual;
   database.reportCollaborator.findMany = originalRoster;
   database.collaborator.findMany = originalCollaborators;
   const restrictedOptions = { ...entries[0].options, includeAdminOnlyCategories: false };
@@ -152,16 +155,18 @@ test('PostgreSQL + HTTP: point projections and batched group sources preserve co
 
   server = await new Promise(resolve => { const instance = app.listen(0, '127.0.0.1', () => resolve(instance)); });
   await t.test('detail and point share a verified monthly calculation and a new revision observes settings', async sub => {
-    const originalProfiles = database.costProfile.findMany, originalSettings = database.acompanhamentoSetting.findMany;
+    const originalReferenceRead = database.$queryRaw;
     const originalPeriods = database.pontoPeriodSummary.findMany;
-    let profileReads = 0, settingReads = 0, monthlyReads = 0;
-    database.costProfile.findMany = (...args) => { profileReads++; return originalProfiles.apply(database.costProfile, args); };
-    database.acompanhamentoSetting.findMany = (...args) => { settingReads++; return originalSettings.apply(database.acompanhamentoSetting, args); };
+    let referenceReads = 0, monthlyReads = 0;
+    database.$queryRaw = (...args) => {
+      if (args[0][0].includes('labor.cost-reference-rows')) referenceReads++;
+      return originalReferenceRead.apply(database, args);
+    };
     database.pontoPeriodSummary.findMany = (...args) => {
       if (args[0].where.collaboratorId?.not === null) monthlyReads++;
       return originalPeriods.apply(database.pontoPeriodSummary, args);
     };
-    sub.after(() => { database.costProfile.findMany = originalProfiles; database.acompanhamentoSetting.findMany = originalSettings;
+    sub.after(() => { database.$queryRaw = originalReferenceRead;
       database.pontoPeriodSummary.findMany = originalPeriods; });
     clearProjectDerivedCaches();
     const detailRequest = async () => {
@@ -171,15 +176,14 @@ test('PostgreSQL + HTTP: point projections and batched group sources preserve co
       return response.json();
     };
     const first = await detailRequest();
-    assert.equal(profileReads, 1, 'Point and fallback RDO costs use one role/profile catalog');
-    assert.equal(settingReads, 1, 'Point and fallback RDO costs use one annual-cost source');
+    assert.equal(referenceReads, 1, 'Point and fallback RDO costs use one combined role/profile/annual source');
     const point = await fetch('http://127.0.0.1:' + server.address().port + '/api/acompanhamento/ponto/colaboradores?view=summary',
       { headers: { authorization: 'Bearer ' + fixture.sessions.admin[0] } });
     assert.equal(point.status, 200);
     assert.ok((await point.json()).rates.length > 0);
     assert.equal(monthlyReads, 1, 'Different response variants reuse the verified monthly calculation');
     assert.deepEqual(await detailRequest(), first);
-    assert.equal(profileReads, 1, 'An unchanged database reuses the projected response');
+    assert.equal(referenceReads, 1, 'An unchanged database reuses the projected response');
     const originalRaw = database.$queryRaw;
     database.$queryRaw = async () => { throw new Error('revision unavailable'); };
     try {
@@ -192,8 +196,7 @@ test('PostgreSQL + HTTP: point projections and batched group sources preserve co
     await database.acompanhamentoSetting.upsert({ where: { key: 'epiAnnualCost' }, create: { key: 'epiAnnualCost', numberValue: changedValue }, update: { numberValue: changedValue } });
     try {
       const second = await detailRequest();
-      assert.equal(profileReads, 2);
-      assert.equal(settingReads, 2);
+      assert.equal(referenceReads, 2);
       assert.equal(monthlyReads, 2, 'Source writes invalidate the monthly snapshot too');
       assert.notDeepEqual(second.maoDeObra, first.maoDeObra, 'The next request must read changed costs');
     } finally {
@@ -215,10 +218,13 @@ test('PostgreSQL + HTTP: point projections and batched group sources preserve co
   const uncached = await computeCollaboratorRates(null, { includeIgnoredNames: true });
   clearProjectDerivedCaches();
   let ignoredReads = 0, full;
-  const originalIgnoredRead = database.pontoExternalEmployee.findMany;
-  database.pontoExternalEmployee.findMany = (...args) => { ignoredReads++; return originalIgnoredRead.apply(database.pontoExternalEmployee, args); };
+  const originalIgnoredRead = database.$queryRaw;
+  database.$queryRaw = (...args) => {
+    if (args[0][0].includes('labor.period-reference-rows')) ignoredReads++;
+    return originalIgnoredRead.apply(database, args);
+  };
   try { full = await request(''); }
-  finally { database.pontoExternalEmployee.findMany = originalIgnoredRead; }
+  finally { database.$queryRaw = originalIgnoredRead; }
   assert.equal(ignoredReads, 1, 'Full/summary metadata must reuse the engine read of ignored employees');
   assert.deepEqual(full.body.rates, JSON.parse(JSON.stringify(uncached.rates)), 'Cached binary snapshots preserve every public financial field');
   assert.equal(Object.hasOwn(full.body, 'ignoredExternalEmployees'), false, 'Internal employee metadata must not enter the public contract');

@@ -199,7 +199,7 @@ export async function listWorkforceAbsences(database, filters = {}) {
   });
 }
 
-export async function checkWorkforceAvailability(database, input) {
+export async function checkWorkforceAvailability(database, input, { calendar: preloadedCalendar } = {}) {
   const startDate = corporateDateKey(input.startDate);
   const endDate = corporateDateKey(input.endDate);
   const collaboratorIds = [...new Set(input.collaboratorIds || [])];
@@ -226,7 +226,7 @@ export async function checkWorkforceAvailability(database, input) {
       },
       include: { cycles: true, mission: { include: { cycles: true } } }
     }),
-    loadCorporateCalendar(database, startDate, endDate)
+    preloadedCalendar ?? loadCorporateCalendar(database, startDate, endDate)
   ]);
   const conflicts = [
     ...absences.map(absence => ({

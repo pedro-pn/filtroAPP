@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { requestSourceContext, loadRequestSource } from '../src/lib/operations/request-sources.js';
 import { withProjectAccess, withProjectChannel, projectAccessCacheKey } from '../src/lib/projects/access-scope.js';
+import { createDerivedReadCache } from '../src/lib/operations/derived-read-cache.js';
 
 const read = next => requestSourceContext({ method: 'GET' }, null, next);
 
@@ -55,4 +56,19 @@ test('a shared source failure rejects all consumers and a later request retries'
   });
   await assert.rejects(read(load), /source unavailable/);
   assert.equal(calls, 2);
+});
+
+test('pre-verification and different nested revisions never share a request source', async () => {
+  const database = {}, envelope = createDerivedReadCache();
+  let calls = 0, sequence = 0;
+  const load = () => loadRequestSource(database, 'catalog', async () => ++calls);
+  const verified = version => envelope.get(version, ++sequence, load);
+  await read(async () => {
+    assert.equal(await load(), 1);
+    assert.equal(await verified('v1'), 2, 'A verified response cannot reuse data read before verification');
+    assert.equal(await verified('v1'), 2);
+    assert.equal(await verified('v2'), 3, 'A nested new version owns fresh source data');
+    assert.equal(await verified('v1'), 2);
+    assert.equal(await load(), 1);
+  });
 });

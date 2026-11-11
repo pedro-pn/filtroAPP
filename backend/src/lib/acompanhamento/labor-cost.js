@@ -30,8 +30,9 @@ import { loadRequestSource } from '../operations/request-sources.js';
 import { laborReportQuery, loadLaborReportSources } from './labor-report-sources.js';
 import { loadLaborMissionGroups } from './labor-mission-groups.js';
 import { readMonthlyCostSnapshot } from './monthly-cost-snapshot.js';
-import { readVerifiedCostSource } from './verified-cost-sources.js';
-import { withPontoImportDates } from './ponto-period-sources.js';
+import { loadCostReferenceSources } from './cost-reference-sources.js';
+import { loadLaborPeriodReferences } from './labor-period-reference-sources.js';
+import { withPontoImportDates, loadMonthlyPontoPeriods } from './ponto-period-sources.js';
 import { withCollaboratorRoleNames } from './collaborator-role-sources.js';
 import { loadOfficialAllocationSources, officialMissionWhere } from './effective-allocation-sources.js';
 import { laborCostCache } from '../resource-list-cache.js';
@@ -556,28 +557,25 @@ export function buildCollaboratorRoleCostSegments({ collaborator, roleParams, st
   ));
 }
 
-export function loadRoleCostCatalog(database = prisma) {
-  return loadRequestSource(database, 'labor.role-cost-catalog', () => loadRoleCostCatalogUncached(database));
+export function loadRoleCostCatalog(database = prisma, referenceSources = null) {
+  return loadRequestSource(database, 'labor.role-cost-catalog', () => loadRoleCostCatalogUncached(database, referenceSources));
 }
 
-async function loadRoleCostCatalogUncached(database) {
-  // Profiles for roles and base models share the same parameter table. Fetch
-  // that catalog once, then attach role profiles without a second relation walk.
-  const [roles, profiles] = await readVerifiedCostSource(database, 'labor.role-cost-rows', () => Promise.all([
-    database.jobRole.findMany({ select: { id: true, name: true } }),
-    database.costProfile.findMany({
-      select: {
-        key: true, jobRoleId: true,
-        parameterSets: { select: { version: true, effectiveDate: true, createdAt: true, params: true } }
-      }
-    })
-  ]));
+async function loadRoleCostCatalogUncached(database, referenceSources) {
+  const { roles, profiles } = await (referenceSources ?? loadCostReferenceSources(database));
   const profilesByRoleId = new Map(profiles.filter(profile => profile.jobRoleId != null).map(profile => [profile.jobRoleId, profile]));
   const resolver = buildRoleParamsResolver({
     roles: roles.map(role => ({ ...role, costProfile: profilesByRoleId.get(role.id) })),
     models: profiles.filter(profile => profile.jobRoleId == null)
   });
   return { resolver, rolesById: new Map(roles.map(role => [role.id, role])) };
+}
+
+// A direct service call has no HTTP source context. Its two consumers still
+// own one read, without introducing unverified cross-request retention.
+export function loadLaborCostCatalog(database = prisma) {
+  const source = loadCostReferenceSources(database);
+  return Promise.all([loadRoleCostCatalog(database, source), getAnnualCollaboratorCosts(database, source)]);
 }
 
 export async function getRoleParamsResolver(database = prisma) {
@@ -2019,34 +2017,17 @@ async function computeCollaboratorRatesUncached(importId, { includeIgnoredNames 
   // and project metadata. Start them first, then overlap the remaining reads
   // with absence/calendar checks instead of adding another sequential stage.
   const periodStatePromise = Promise.all([
-    prisma.pontoPeriodSummary.findMany({
-      where: { importId: { in: importIds }, collaboratorId: { not: null } },
-      include: {
-        collaborator: {
-          select: {
-            id: true,
-            name: true,
-            jobRoleId: true,
-            jobRoleHistory: {
-              select: { jobRoleId: true, effectiveDate: true },
-              orderBy: { effectiveDate: 'asc' }
-            }
-          }
-        }
-      }
-    }),
-    prisma.pontoExternalEmployee.findMany({
-      where: { ignoredAt: { not: null } },
-      select: { externalEmployeeId: true, ...(includeIgnoredNames ? { externalName: true } : {}) }
-    })
-  ]).then(async ([periodRows, ignoredEmployees]) => {
+    loadMonthlyPontoPeriods(prisma, importIds),
+    loadLaborPeriodReferences(prisma, { startDate: pontoScope.periodStart, endDate: pontoScope.periodEnd, includeIgnoredNames })
+  ]).then(async ([periodRows, { ignoredEmployees, calendar }]) => {
     const periods = mergePontoPeriods(filterIgnoredPontoPeriods(withPontoImportDates(periodRows, pontoScope.pontoImports), ignoredEmployees.map(item => item.externalEmployeeId)));
     const actualAvailability = periods.length ? await checkWorkforceAvailability(prisma, {
       collaboratorIds: periods.map(period => period.collaboratorId).filter(Boolean),
       startDate: dateKeyUTC(pontoScope.periodStart), endDate: dateKeyUTC(pontoScope.periodEnd), context: 'ACTUAL_REPORT'
-    }) : { calendarRevision: 1, conflicts: [] };
+    }, { calendar }) : { calendarRevision: 1, conflicts: [] };
     return { periods, actualAvailability, ...(includeIgnoredNames ? { ignoredExternalEmployees: ignoredEmployees } : {}) };
   });
+  const referenceSources = loadCostReferenceSources(prisma);
   const projectAllocationContextPromise = getProjectAllocationContext();
   const [
     periodState,
@@ -2058,12 +2039,12 @@ async function computeCollaboratorRatesUncached(importId, { includeIgnoredNames 
     confirmedReviewDays
   ] = await Promise.all([
     periodStatePromise,
-    loadRoleCostCatalog(),
+    loadRoleCostCatalog(prisma, referenceSources),
     loadLaborReportSources({
       database: prisma, periodStart: pontoScope.periodStart, periodEnd: pontoScope.periodEnd,
       projects: projectAllocationContextPromise.then(context => context.projects)
     }),
-    getAnnualCollaboratorCosts(),
+    getAnnualCollaboratorCosts(prisma, referenceSources),
     projectAllocationContextPromise,
     prisma.pontoDayProjectOverride.findMany({
       where: { workDate: { gte: pontoScope.periodStart, lt: periodEndExclusive } },
@@ -2365,6 +2346,7 @@ export async function debugCollaboratorMonth(nameQuery, monthKey, importId = nul
   if (!pontoScope) throw new Error('Sem import de ponto.');
   const importIds = pontoScope.pontoImports.map(item => item.id);
   const periodEndExclusive = endExclusive(pontoScope.periodEnd);
+  const referenceSources = loadCostReferenceSources(prisma);
   const [
     periodRows,
     ignoredEmployees,
@@ -2396,10 +2378,10 @@ export async function debugCollaboratorMonth(nameQuery, monthKey, importId = nul
       where: { ignoredAt: { not: null } },
       select: { externalEmployeeId: true }
     }),
-    loadRoleCostCatalog(),
+    loadRoleCostCatalog(prisma, referenceSources),
     getRdoDataByCollaborator(pontoScope.periodStart, periodEndExclusive),
     getOffshoreYearsByCollaborator(pontoScope.periodStart, pontoScope.periodEnd),
-    getAnnualCollaboratorCosts(),
+    getAnnualCollaboratorCosts(prisma, referenceSources),
     getProjectAllocationContext(),
     prisma.pontoDayProjectOverride.findMany({
       where: { workDate: { gte: pontoScope.periodStart, lt: periodEndExclusive } },

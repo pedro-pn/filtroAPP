@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { requestSourceContext } from '../src/lib/operations/request-sources.js';
 
 import {
   aggregateStockConsumptionMovements,
@@ -10,6 +11,7 @@ import {
 function stockMovement(overrides = {}) {
   return {
     projectId: 'project-1',
+    itemId: 'item-1',
     batchId: 'batch-1',
     type: 'SAIDA',
     reason: 'USO_EM_PROJETO',
@@ -97,6 +99,7 @@ test('aggregateStockConsumptionMovements usa estorno para cancelar custo de proj
 test('getStockConsumptionCostByProject busca movimentos de projeto e custo das compras do lote', async () => {
   const calls = [];
   const client = {
+    stockItem: { findMany: async () => [{ id: 'item-1', type: 'PRODUTO_QUIMICO' }] },
     stockMovement: {
       findMany: async args => {
         calls.push(args);
@@ -124,6 +127,7 @@ test('romaneios custeiam somente a quantidade enviada e descontam as sobras na e
     stockMovement({ romaneioId: 'outbound-2', quantity: '2.500' })
   ];
   const client = {
+    stockItem: { findMany: async () => [{ id: 'item-1', type: 'PRODUTO_QUIMICO' }] },
     stockMovement: {
       findMany: async ({ where }) => where.reason?.in
         ? movements
@@ -145,4 +149,21 @@ test('romaneios custeiam somente a quantidade enviada e descontam as sobras na e
   assert.deepEqual((await getStockConsumptionCostByProject(['project-1'], client)).get('project-1'), {
     total: 0, categories: []
   });
+});
+
+test('stock sources skip empty item reads and share only within the current read request', async () => {
+  let reads = 0;
+  const client = { stockMovement: { findMany: async () => { reads++; return []; } },
+    stockItem: { findMany: () => { throw new Error('empty stock has no item lookup'); } } };
+  const read = () => getStockConsumptionCostByProject(['p2','p1'], client);
+  await requestSourceContext({ method: 'GET' }, null, async () => {
+    await Promise.all([read(), getStockConsumptionCostByProject(['p1','p2'], client)]);
+    assert.equal(reads, 1);
+    await getStockConsumptionCostByProject(['p1'], client);
+    assert.equal(reads, 2, 'Different project sets must not share a source');
+  });
+  await requestSourceContext({ method: 'GET' }, null, read);
+  assert.equal(reads, 3, 'The next request reads committed changes');
+  await requestSourceContext({ method: 'POST' }, null, async () => { await read(); await read(); });
+  assert.equal(reads, 5, 'Write operations never retain a preceding read');
 });

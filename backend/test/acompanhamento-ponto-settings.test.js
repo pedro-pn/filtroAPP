@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { costReferenceRows } from './helpers/cost-reference-rows.js';
 
 import {
   PONTO_PENDENCY_CUTOFF_DEFAULT,
@@ -37,11 +38,11 @@ test('gravar data malformada é recusado em vez de virar número sem sentido', (
 
 test('custos anuais são lidos juntos e preservam zero e defaults para dados inválidos', async () => {
   let reads = 0;
-  const database = { acompanhamentoSetting: { findMany: async () => {
+  const database = { $queryRaw: async () => {
     reads++;
-    return [{ key: 'epiAnnualCost', numberValue: 0 }, { key: 'examsTrainingAnnualCost', numberValue: NaN }, { key: 'offshoreExamsTrainingAnnualCost', numberValue: 3600 }];
-  } } };
+    return costReferenceRows({ settings: [{ key: 'epiAnnualCost', numberValue: 0 }, { key: 'examsTrainingAnnualCost', numberValue: NaN }, { key: 'offshoreExamsTrainingAnnualCost', numberValue: 3600 }] });
+  } };
   assert.deepEqual(await getAnnualCollaboratorCosts(database), { epiAnnualCost: 0, examsTrainingAnnualCost: 0, offshoreExamsTrainingAnnualCost: 3600 });
   assert.equal(reads, 1);
-  assert.deepEqual(await getAnnualCollaboratorCosts({ acompanhamentoSetting: { findMany: async () => [] } }), { epiAnnualCost: 5000, examsTrainingAnnualCost: 0, offshoreExamsTrainingAnnualCost: 0 });
+  assert.deepEqual(await getAnnualCollaboratorCosts({ $queryRaw: async () => costReferenceRows() }), { epiAnnualCost: 5000, examsTrainingAnnualCost: 0, offshoreExamsTrainingAnnualCost: 0 });
 });

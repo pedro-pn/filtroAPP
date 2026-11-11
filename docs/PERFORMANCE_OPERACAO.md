@@ -46,8 +46,17 @@ controla esse armazenamento adicional: 16 entradas/4 MiB, até 1 MiB por entrada
 e 15 s. Cliente Prisma, escopo/canal e opções do filtro entram na chave. Os
 resolvers são reconstruídos a partir de cópias independentes dos dados; funções
 e clientes não são armazenados. As consultas e regras anteriores são preservadas.
-Falhas não ficam em cache, e uma revisão nova não participa da leitura pendente
+As referências mensais também incluem os colaboradores ignorados e o calendário
+do intervalo. Falhas não ficam em cache, e uma revisão nova não participa da leitura pendente
 da anterior. Sem GET/HEAD verificado, inclusive em escritas, não há esse reuso.
+
+As fontes normalizadas do avanço são compartilhadas por projeto entre cards,
+detalhe e grupo, preservando os leitores protegidos e sua ordem. Há outro limite
+de oito entradas/8 MiB, até 2 MiB por projeto e 15 s, com cópias independentes.
+Cliente, escopo/canal, modo de correção e revisão entram na chave. IDs ausentes
+continuam ausentes; conjuntos parcialmente sobrepostos consultam apenas os projetos
+que faltam. As fontes da própria requisição também separam leituras anteriores
+à verificação e versões distintas, inclusive em contextos aninhados.
 
 A revisão do avanço passou a ignorar a ordem de retorno dos serviços realizados
 e a ordem das chaves JSON. A primeira leitura após a publicação pode atualizar o
@@ -91,6 +100,12 @@ com essa fração. Desativar a coleta após a janela e repetir a comparação ap
 dias. A série de infraestrutura deve registrar CPU steal (meta abaixo de 5% na
 maior parte do tempo), memória/OOM, event loop, erros e progresso dos jobs.
 
+No benchmark HTTP local, os buckets positivos incluem primeira carga, aquecimento,
+carga aquecida e leitura após gravação. As negativas de acesso são verificadas
+separadamente. A partir desta rodada, o aquecimento também conserva seu bucket
+de intervalos antes do reset; artefatos antigos com dez buckets não incluem esse
+trecho e sua fração global não é diretamente comparável à nova série de onze.
+
 ## Aceite funcional e de carregamento
 
 - Usar dois navegadores/sessões independentes, incluindo perfis com e sem acesso
@@ -109,24 +124,38 @@ maior parte do tempo), memória/OOM, event loop, erros e progresso dos jobs.
 
 ## Retenção exclusiva de JobRun
 
-Não existe prazo padrão nem limpeza de JobRun no agendamento normal. Definir a
-política antes da aplicação. `--only-job-runs` consulta/altera somente jobs e grava
+**Política definida pelo usuário em 11/11/2026: 90 dias.** Não há limpeza de
+JobRun no agendamento normal. `--only-job-runs` consulta/altera somente jobs e grava
 a auditoria da própria execução; não executa a retenção geral de sessões, tokens,
 documentos ou rascunhos. Preserva falhas, execuções em andamento e o último sucesso
 de cada nome, incluindo empates. Cada aplicação tem lotes e total de lotes limitados.
 
-Após definir `JOB_RETENTION_DAYS` com o inteiro aprovado entre 1 e 3650,
-**rode no servidor** para apenas simular:
+Antes/depois da aplicação, medir as linhas criadas por dia UTC e o tamanho da
+tabela/índices, **rode no servidor**:
 
 ```bash
 docker compose --env-file backend/.env.production -f docker-compose.prod.yml exec -T backend \
-  node scripts/run-data-retention.js --only-job-runs --job-run-retention-days="${JOB_RETENTION_DAYS:?Defina o prazo aprovado}"
+  node scripts/report-job-run-volume.js --days=7
+```
+
+O relatório usa transação somente de leitura, timeout de cinco segundos por
+consulta e janela de 1–90 dias. Emite contagens por dia/status e bytes; nomes de
+jobs, payloads e erros individuais não entram no artefato. `estimatedRows` é uma
+estimativa do catálogo; a contagem diária é consultada. Falha termina com erro,
+sem produzir uma contagem vazia como sucesso.
+
+Com o prazo aprovado de **90 dias**, **rode no servidor** para apenas simular:
+
+```bash
+docker compose --env-file backend/.env.production -f docker-compose.prod.yml exec -T backend \
+  node scripts/run-data-retention.js --only-job-runs --job-run-retention-days=90
 ```
 
 Conferir o preview antes de qualquer exclusão. A aplicação manual usa o mesmo
 comando com `--apply --batch-size=500 --max-batches-per-target=20`. Comparar contagem,
 linhas criadas por dia e tamanho de JobRun antes/depois. Não combinar esse escopo
-com exclusão de rascunhos. Este documento não escolhe um prazo nem agenda limpeza.
+com exclusão de rascunhos. O prazo de 90 dias foi aprovado; a aplicação permanece
+manual, após conferência do preview, e não altera a política de backups.
 
 ## Manutenção dos marcadores de revisão
 

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildRoleParamsResolver, getRoleParamsResolver } from '../src/lib/acompanhamento/labor-cost.js';
+import { costReferenceRows } from './helpers/cost-reference-rows.js';
 
 test('catálogo único preserva modelos, vigências, desempates, cargo sem perfil e leitura após alteração', async () => {
   const sets = [
@@ -29,13 +30,11 @@ test('catálogo único preserva modelos, vigências, desempates, cargo sem perfi
     { name: 'Sem perfil', costProfile: null },
     { name: 'Sem parâmetros', costProfile: { parameterSets: [] } }
   ] });
-  let roleReads = 0, catalogReads = 0;
+  let catalogReads = 0;
   const database = {
-    jobRole: { findMany: async () => { roleReads++; return roles; } },
-    costProfile: { findMany: async () => { catalogReads++; return profiles; } }
+    $queryRaw: async () => { catalogReads++; return costReferenceRows({ roles, profiles }); }
   };
   const current = await getRoleParamsResolver(database);
-  assert.equal(roleReads, 1);
   assert.equal(catalogReads, 1);
   for (const role of [...roles.map(role => role.name), 'Desconhecido']) {
     assert.equal(current.hasProfile(role), legacy.hasProfile(role));
@@ -55,8 +54,7 @@ test('catálogo único preserva modelos, vigências, desempates, cargo sem perfi
 test('falha no catálogo rejeita a leitura e a próxima consulta pode recuperar', async () => {
   let fail = true;
   const database = {
-    jobRole: { findMany: async () => [] },
-    costProfile: { findMany: async () => { if (fail) throw new Error('catalog unavailable'); return []; } }
+    $queryRaw: async () => { if (fail) throw new Error('catalog unavailable'); return costReferenceRows(); }
   };
   await assert.rejects(getRoleParamsResolver(database), /catalog unavailable/);
   fail = false;

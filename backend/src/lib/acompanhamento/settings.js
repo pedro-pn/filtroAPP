@@ -5,7 +5,7 @@
 
 import prisma from '../prisma.js';
 import { loadRequestSource } from '../operations/request-sources.js';
-import { readVerifiedCostSource } from './verified-cost-sources.js';
+import { loadCostReferenceSources } from './cost-reference-sources.js';
 
 export const EPI_ANNUAL_COST_KEY = 'epiAnnualCost';
 export const EPI_ANNUAL_COST_DEFAULT = 5000; // R$/ano por colaborador (média fixa atual)
@@ -76,16 +76,13 @@ export async function setEpiAnnualCost(value, updatedByUserId = null) {
   );
 }
 
-export function getAnnualCollaboratorCosts(database = prisma) {
+export function getAnnualCollaboratorCosts(database = prisma, referenceSources = null) {
   return loadRequestSource(database, 'labor.annual-costs',
-    () => readVerifiedCostSource(database, 'labor.annual-costs', () => loadAnnualCollaboratorCosts(database)));
+    () => loadAnnualCollaboratorCosts(database, referenceSources));
 }
 
-async function loadAnnualCollaboratorCosts(database) {
-  const rows = await database.acompanhamentoSetting.findMany({
-    where: { key: { in: [EPI_ANNUAL_COST_KEY, EXAMS_TRAINING_ANNUAL_COST_KEY, OFFSHORE_EXAMS_TRAINING_ANNUAL_COST_KEY] } },
-    select: { key: true, numberValue: true }
-  });
+async function loadAnnualCollaboratorCosts(database, referenceSources) {
+  const { settings: rows } = await (referenceSources ?? loadCostReferenceSources(database));
   const values = new Map(rows.map(row => [row.key, row.numberValue]));
   const number = (key, fallback) => typeof values.get(key) === 'number' && Number.isFinite(values.get(key)) ? values.get(key) : fallback;
   return {

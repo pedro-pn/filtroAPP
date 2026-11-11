@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { projectAccessCacheKey } from '../projects/access-scope.js';
+import { currentDerivedReadVersion } from './derived-read-cache.js';
 
 const sources = new AsyncLocalStorage();
 
@@ -19,7 +20,9 @@ export function loadRequestSource(database, key, loader) {
     entries = new Map();
     context.set(database, entries);
   }
-  const scopedKey = JSON.stringify([projectAccessCacheKey(), key]);
+  // Data loaded before verification, or by another nested source revision,
+  // cannot become a source for a newly verified response in this same GET.
+  const scopedKey = JSON.stringify([projectAccessCacheKey(), currentDerivedReadVersion(), key]);
   if (!entries.has(scopedKey)) entries.set(scopedKey, Promise.resolve().then(loader));
   return entries.get(scopedKey);
 }

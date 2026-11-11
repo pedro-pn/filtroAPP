@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { costReferenceRows } from './helpers/cost-reference-rows.js';
 import { buildCollaboratorHourlyRates } from '../src/lib/acompanhamento/collaborator-hourly-rates.js';
 import { buildRoleParamsResolver } from '../src/lib/acompanhamento/labor-cost.js';
 
@@ -102,6 +103,10 @@ test('API exige acesso ao Acompanhamento, valida a data e permite consulta pelo 
   ]);
   stub(prisma.acompanhamentoSetting, 'findUnique', async ({ where }) => ({ numberValue: annualCosts[where.key] }));
   stub(prisma.acompanhamentoSetting, 'findMany', async () => Object.entries(annualCosts).map(([key, numberValue]) => ({ key, numberValue })));
+  stub(prisma, '$queryRaw', async () => costReferenceRows({
+    roles: await prisma.jobRole.findMany(), profiles: await prisma.costProfile.findMany(),
+    settings: await prisma.acompanhamentoSetting.findMany()
+  }));
   const app = express();
   app.use(router);
   app.use((error, _req, res, _next) => res.status(error.name === 'ZodError' ? 400 : 500).json({ error: error.message }));

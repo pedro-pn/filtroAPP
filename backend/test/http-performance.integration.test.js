@@ -36,6 +36,8 @@ test('HTTP + PostgreSQL: concurrent independent sessions preserve permissions, m
     assert.doesNotMatch(JSON.stringify(row), /labor-benchmark-|Bearer |tokenHash|synthetic-unused-login/);
   }
   assert.ok(result.pool.find(row => row.phase === 'warm').samples > 0);
+  assert.ok(result.pool.find(row => row.phase === 'warmup').samples > 0,
+    'Initial navigation warmups must be observed before resetting the steady-state sampler');
   assert.equal(result.worker.projectTimestampUnchanged, true);
   for (const row of result.refresh.filter(row => row.scenario === 'cards')) assert.equal(row.changed, true);
 });
@@ -67,4 +69,12 @@ test('HTTP benchmark preserves existing operational data and writes a visibly in
   assert.match(partial.failure.message, /dedicated empty test database/);
   assert.equal(await database.project.count(), countBefore);
   assert.ok(await database.project.findUnique({ where: { id } }));
+  const serviceOutput = path.join(directory, 'service-incomplete.json');
+  await fs.writeFile(serviceOutput, JSON.stringify({ complete: true }));
+  const service = spawnSync(process.execPath, [fileURLToPath(new URL('../scripts/benchmark-labor-performance.js', import.meta.url)),
+    '--baseline-root=' + fileURLToPath(new URL('../', import.meta.url)), '--output=' + serviceOutput],
+  { env: { ...process.env, NODE_ENV: 'test' }, encoding: 'utf8', timeout: 15000 });
+  assert.equal(service.status, 1);
+  assert.equal(JSON.parse(await fs.readFile(serviceOutput, 'utf8')).complete, false);
+  assert.equal(await database.project.count(), countBefore);
 });

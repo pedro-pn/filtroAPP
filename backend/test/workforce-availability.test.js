@@ -95,3 +95,16 @@ test('realizado preserva alertas de ausência/feriado sem ler alocações usadas
   assert.equal(result.calendarRevision, 4);
   assert.deepEqual(result.conflicts.map(row => [row.code, row.policy]), [['WORK_DURING_ABSENCE', 'REQUIRE_JUSTIFICATION'], ['WORK_ON_HOLIDAY', 'WARN']]);
 });
+
+test('trusted preloaded calendars retain actual conflicts without reading the same catalog again', async () => {
+  const database = {
+    collaboratorAbsence: { findMany: async () => [{ id: 'a', collaboratorId: 'c', startDate: '2026-09-08', endDate: '2026-09-08' }] },
+    efetivoMissionAllocation: { findMany: () => { throw new Error('actual reports do not read planned allocations'); } },
+    workforceHoliday: { findMany: () => { throw new Error('calendar already loaded'); } },
+    workforceCalendarState: { findUnique: () => { throw new Error('revision already loaded'); } }
+  };
+  const calendar = { revision: 7, holidays: [{ id: 'h', date: '2026-09-08' }] };
+  const result = await checkWorkforceAvailability(database, { collaboratorIds: ['c'], startDate: '2026-09-08', endDate: '2026-09-08', context: 'ACTUAL_REPORT' }, { calendar });
+  assert.equal(result.calendarRevision, 7);
+  assert.deepEqual(result.conflicts.map(row => [row.code, row.policy]), [['WORK_DURING_ABSENCE', 'REQUIRE_JUSTIFICATION'], ['WORK_ON_HOLIDAY', 'WARN']]);
+});

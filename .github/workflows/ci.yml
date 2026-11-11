@@ -328,6 +328,9 @@ jobs:
         run: >-
           node --test --test-concurrency=1 test/ponto-detail-performance.integration.test.js
           test/verified-cost-sources.integration.test.js test/project-presentation-copy.integration.test.js
+          test/acompanhamento-operational-sources.integration.test.js
+          test/verified-progress-sources.integration.test.js
+          test/job-run-volume.integration.test.js
           test/crm-opportunities.integration.test.js
 
   conecta-allocation:

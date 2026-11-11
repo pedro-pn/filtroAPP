@@ -8,6 +8,8 @@ import { loadRoleCostCatalog } from '../src/lib/acompanhamento/labor-cost.js';
 import { getAnnualCollaboratorCosts } from '../src/lib/acompanhamento/settings.js';
 import { buildOmieCostCategoryWhere } from '../src/lib/acompanhamento/cost-categories.js';
 import database from '../src/lib/prisma.js';
+import { costReferenceRows } from './helpers/cost-reference-rows.js';
+import { loadCostReferenceSources } from '../src/lib/acompanhamento/cost-reference-sources.js';
 
 const envelope = createDerivedReadCache();
 let requestNumber = 0;
@@ -114,20 +116,18 @@ test('oversized catalogs are returned without retention and manual invalidation 
 
 test('role rows and annual costs share SQL across requests while rebuilding independent resolvers', async t => {
   clean(t);
-  let roles = 0, profiles = 0, annual = 0;
+  let reads = 0;
   const client = {
-    jobRole: { findMany: async () => { roles++; return [{ id: 'r', name: 'Operador' }]; } },
-    costProfile: { findMany: async () => { profiles++; return [
+    $queryRaw: async () => { reads++; return costReferenceRows({ roles: [{ id: 'r', name: 'Operador' }], profiles: [
       { key: 'operador', jobRoleId: null, parameterSets: [{ version: 1, effectiveDate: new Date('2026-01-01'),
         createdAt: new Date('2026-01-02'), params: { cargaHoraria: 220, base: { value: 1 } } }] },
       { key: 'role', jobRoleId: 'r', parameterSets: [{ version: 1, effectiveDate: new Date('2026-01-01'),
         createdAt: new Date('2026-01-02'), params: { salarioBase: 4200, baseModel: 'operador' } }] }
-    ]; } },
-    acompanhamentoSetting: { findMany: async () => { annual++; return [{ key: 'epiAnnualCost', numberValue: 0 }]; } }
+    ], settings: [{ key: 'epiAnnualCost', numberValue: 0 }] }); }
   };
   const load = () => Promise.all([loadRoleCostCatalog(client), getAnnualCollaboratorCosts(client)]);
   const [first, second] = await Promise.all([read('catalog-v1', load), read('catalog-v1', load)]);
-  assert.deepEqual([roles, profiles, annual], [1, 1, 1]);
+  assert.equal(reads, 1, 'Concurrent role and annual consumers share the same statement');
   assert.deepEqual(first[0].resolver.paramsFor('Operador', '2026-09-01'), second[0].resolver.paramsFor('Operador', '2026-09-01'));
   first[0].resolver.paramsFor('Operador', '2026-09-01').base.value = 99;
   first[0].rolesById.get('r').name = 'Changed'; first[1].epiAnnualCost = 999;
@@ -135,7 +135,20 @@ test('role rows and annual costs share SQL across requests while rebuilding inde
   assert.equal(second[0].rolesById.get('r').name, 'Operador');
   assert.equal(second[1].epiAnnualCost, 0);
   await read('catalog-v2', load);
-  assert.deepEqual([roles, profiles, annual], [2, 2, 2]);
+  assert.equal(reads, 2);
+});
+
+test('cost reference dates preserve UTC day boundaries and timestamp milliseconds outside UTC', async t => {
+  const previous = process.env.TZ;
+  process.env.TZ = 'Pacific/Auckland';
+  t.after(() => { if (previous === undefined) delete process.env.TZ; else process.env.TZ = previous; });
+  const client = { $queryRaw: async () => [{ roles: [], settings: [], profiles: [{ key: 'model', jobRoleId: null,
+    parameterSets: [{ version: 1, effectiveDate: '2026-09-01', createdAt: '2026-08-31T23:59:59.123', params: { base: .1 + .2 } }]
+  }] }] };
+  const set = (await loadCostReferenceSources(client)).profiles[0].parameterSets[0];
+  assert.equal(set.effectiveDate.toISOString(), '2026-09-01T00:00:00.000Z');
+  assert.equal(set.createdAt.toISOString(), '2026-08-31T23:59:59.123Z');
+  assert.equal(set.params.base, .1 + .2);
 });
 
 test('Omie filters retain option/privacy boundaries and refresh category changes with the revision', async t => {

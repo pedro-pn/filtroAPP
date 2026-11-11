@@ -15,6 +15,10 @@ test('PostgreSQL: fontes enxutas preservam folha, rateio, trilhas e atualizaçã
     loadAllocatedAttendanceDays, debugCollaboratorMonth, findOfficialEffectiveAllocations,
     buildEffectiveAllocationIndex, buildScheduleWindows } = await import('../src/lib/acompanhamento/labor-cost.js');
   const { loadOfficialAllocationSources } = await import('../src/lib/acompanhamento/effective-allocation-sources.js');
+  const { loadCostReferenceSources } = await import('../src/lib/acompanhamento/cost-reference-sources.js');
+  const { loadMonthlyPontoPeriods } = await import('../src/lib/acompanhamento/ponto-period-sources.js');
+  const { loadLaborPeriodReferences } = await import('../src/lib/acompanhamento/labor-period-reference-sources.js');
+  const { loadCorporateCalendar } = await import('../src/lib/calendar/corporate-calendar.js');
   const { laborReportQuery, loadLaborReportSources } = await import('../src/lib/acompanhamento/labor-report-sources.js');
   let fixture, effectiveFixture, axesGroupId, axesReportId, axesWeekId;
   t.after(async () => {
@@ -24,6 +28,8 @@ test('PostgreSQL: fontes enxutas preservam folha, rateio, trilhas e atualizaçã
     if (fixture) await database.pontoDayProjectOverride.deleteMany({ where: { collaboratorId: fixture.prefix + '-person-0' } });
     if (effectiveFixture) await effectiveFixture.cleanup();
     if (fixture) {
+      await database.pontoExternalEmployee.deleteMany({ where: { externalEmployeeId: { startsWith: fixture.prefix + '-ignored-' } } });
+      await database.workforceHoliday.deleteMany({ where: { id: { startsWith: fixture.prefix + '-calendar-' } } });
       await database.pontoImport.deleteMany({ where: { id: fixture.prefix + '-newer-import' } });
       await fixture.cleanup();
       await database.jobRole.deleteMany({ where: { id: fixture.prefix + '-unconfigured' } });
@@ -31,6 +37,23 @@ test('PostgreSQL: fontes enxutas preservam folha, rateio, trilhas e atualizaçã
     await database.$disconnect();
   });
   fixture = await seedLaborPerformanceFixture(database, { reportCount: 120, servicesPerRdo: 4 });
+  await database.pontoExternalEmployee.createMany({ data: [
+    { externalEmployeeId: fixture.prefix + '-ignored-a', externalName: 'Ignorado A', ignoredAt: new Date('2026-09-01') },
+    { externalEmployeeId: fixture.prefix + '-ignored-b', externalName: 'Ignorado B', ignoredAt: new Date('2026-09-02') },
+    { externalEmployeeId: fixture.prefix + '-ignored-active', externalName: 'Não ignorado' }
+  ] });
+  await database.workforceHoliday.createMany({ data: [
+    { id: fixture.prefix + '-calendar-holiday', holidayDate: new Date('2026-09-08'), name: 'Feriado sintético' },
+    { id: fixture.prefix + '-calendar-deleted', holidayDate: new Date('2026-09-09'), name: 'Excluído', deletedAt: new Date() }
+  ] });
+  for (const includeIgnoredNames of [false, true]) {
+    const references = await loadLaborPeriodReferences(database, { startDate: '2026-09-01', endDate: '2026-09-30', includeIgnoredNames });
+    assert.deepEqual(references.ignoredEmployees, await database.pontoExternalEmployee.findMany({
+      where: { ignoredAt: { not: null } }, select: { externalEmployeeId: true, ...(includeIgnoredNames ? { externalName: true } : {}) }
+    }));
+    assert.deepEqual(references.calendar, await loadCorporateCalendar(database, '2026-09-01', '2026-09-30'),
+      'Prefetched holidays/revision retain the existing national/calendar rules and deleted/range filters');
+  }
   const roleId = fixture.prefix + '-role', unconfiguredRoleId = fixture.prefix + '-unconfigured';
   await database.jobRole.create({ data: { id: unconfiguredRoleId, name: 'Sem perfil ' + fixture.prefix, normalizedKey: unconfiguredRoleId } });
   await database.collaboratorJobRoleHistory.createMany({ data: [
@@ -39,6 +62,14 @@ test('PostgreSQL: fontes enxutas preservam folha, rateio, trilhas e atualizaçã
     { collaboratorId: fixture.prefix + '-person-1', jobRoleId: unconfiguredRoleId, effectiveDate: new Date('2026-09-01') }
   ] });
   await database.collaborator.update({ where: { id: fixture.prefix + '-person-2' }, data: { jobRoleId: unconfiguredRoleId } });
+  const nativePeriods = await database.pontoPeriodSummary.findMany({
+    where: { importId: { in: [fixture.importId] }, collaboratorId: { not: null } },
+    include: { collaborator: { select: { id: true, name: true, jobRoleId: true,
+      jobRoleHistory: { select: { jobRoleId: true, effectiveDate: true }, orderBy: { effectiveDate: 'asc' } }
+    } } }
+  });
+  assert.deepEqual(await loadMonthlyPontoPeriods(database, [fixture.importId]), nativePeriods,
+    'The period order, all scalar/JSON values and complete role history equal the original nested Prisma selection');
   // Salary and base-model changes must retain their exact effective dates.
   await database.costParameterSet.createMany({ data: [
     { costProfileId: fixture.prefix + '-role-profile', version: 2, effectiveDate: new Date('2026-09-15'), params: { salarioBase: 4500, baseModel: fixture.prefix + '-model' } },
@@ -46,6 +77,22 @@ test('PostgreSQL: fontes enxutas preservam folha, rateio, trilhas e atualizaçã
   ] });
   const roles = await database.jobRole.findMany({ include: { costProfile: { include: { parameterSets: true } } } });
   const models = await database.costProfile.findMany({ where: { jobRoleId: null }, include: { parameterSets: true } });
+  const references = await loadCostReferenceSources(database);
+  const nativeProfiles = await database.costProfile.findMany({ select: { key: true, jobRoleId: true,
+    parameterSets: { select: { version: true, effectiveDate: true, createdAt: true, params: true } } } });
+  const sortProfiles = rows => rows.map(row => ({ ...row,
+    parameterSets: [...row.parameterSets].sort((a, b) => a.version - b.version)
+  })).sort((a, b) => a.key.localeCompare(b.key));
+  assert.deepEqual(sortProfiles(references.profiles), sortProfiles(nativeProfiles),
+    'The batch preserves native Prisma types, parameter JSON, UTC dates and every profile version');
+  assert.deepEqual([...references.roles].sort((a,b) => a.id.localeCompare(b.id)),
+    roles.map(({ id, name }) => ({ id, name })).sort((a,b) => a.id.localeCompare(b.id)));
+  const nativeSettings = await database.acompanhamentoSetting.findMany({
+    where: { key: { in: ['epiAnnualCost', 'examsTrainingAnnualCost', 'offshoreExamsTrainingAnnualCost'] } },
+    select: { key: true, numberValue: true }
+  });
+  assert.deepEqual([...references.settings].sort((a,b) => a.key.localeCompare(b.key)),
+    nativeSettings.sort((a,b) => a.key.localeCompare(b.key)));
   const legacyResolver = buildRoleParamsResolver({ roles, models });
   const resolver = await getRoleParamsResolver(database);
   for (const role of roles) {
@@ -89,8 +136,8 @@ test('PostgreSQL: fontes enxutas preservam folha, rateio, trilhas e atualizaçã
   const rosterQueries = sqlQueries.filter(query => query.sqlSnippet.includes('"ReportCollaborator"'));
   assert.equal(rosterQueries.length, 1, 'Period and annual report sources share one nominal roster read');
   assert.equal(rosterQueries[0].parameterCount, 1, 'Nominal roster SQL binds one typed array for the exact selected parents');
-  const roleQueries = sqlQueries.filter(query => query.sqlSnippet.includes('"JobRole"'));
-  assert.equal(roleQueries.length, 1, 'Current/history role names must reuse the same catalog as the cost resolver');
+  const roleQueries = sqlQueries.filter(query => query.sqlSnippet.includes('labor.cost-reference-rows'));
+  assert.equal(roleQueries.length, 1, 'Role names, parameters and annual settings share one catalog statement');
   assert.equal(sqlQueries.filter(query => query.sqlSnippet.includes('"PontoImport"')).length, 1,
     'Import dates must come from the scope read, without a second nested Import query');
   assert.equal(sqlQueries.filter(query => query.sqlSnippet.includes('"EfetivoMissionPlan"')).length, 1,
@@ -136,7 +183,7 @@ test('PostgreSQL: fontes enxutas preservam folha, rateio, trilhas e atualizaçã
   let periodReads = 0;
   database.pontoPeriodSummary.findMany = (...args) => {
     periodReads++;
-    assert.equal(Object.hasOwn(args[0].include, 'import'), false, 'Reuse scoped import dates in all three consumers');
+    assert.equal(Object.hasOwn(args[0].include ?? {}, 'import'), false, 'Reuse scoped import dates in all three consumers');
     return originalPeriods.apply(database.pontoPeriodSummary, args);
   };
   try {
@@ -152,7 +199,7 @@ test('PostgreSQL: fontes enxutas preservam folha, rateio, trilhas e atualizaçã
         const started = performance.now();
         await operation();
         const queries = await profile.finish(started);
-        assert.equal(queries.filter(query => query.sqlSnippet.includes('"JobRole"')).length, 1,
+        assert.equal(queries.filter(query => query.sqlSnippet.includes('labor.cost-reference-rows')).length, 1,
           'Attendance and monthly diagnosis reuse current/history role names from one catalog');
       } finally { profile.restore(); }
     }

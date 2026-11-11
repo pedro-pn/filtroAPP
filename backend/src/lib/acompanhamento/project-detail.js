@@ -17,7 +17,7 @@ import { computeAlerts } from './alerts.js';
 import { loadPlannedHours, plannedHoursAlerts } from './planned-hours.js';
 import { buildOmieCostCategoryWhere } from './cost-categories.js';
 import { getEquipmentUsageByProject } from './equipment-usage.js';
-import { loadRoleCostCatalog, laborCostByProject } from './labor-cost.js';
+import { loadLaborCostCatalog, laborCostByProject } from './labor-cost.js';
 import { withCollaboratorRoleNames } from './collaborator-role-sources.js';
 import { estimateReportLaborCostByDate, summarizeReportLaborCost } from './report-labor-cost.js';
 import { getManualProjectCostsByProject } from './manual-costs.js';
@@ -34,7 +34,6 @@ import {
   reportPersonTimeMetrics,
   reportWorkedMinutesByCollaborator
 } from './report-time.js';
-import { getAnnualCollaboratorCosts } from './settings.js';
 import { isSalaryCategory } from './salary.js';
 import { getStockConsumptionCostByProject } from './stock-cost.js';
 import prisma from '../prisma.js';
@@ -224,7 +223,7 @@ async function getReportLaborCostEstimates(project, hoursByCollaborator, sources
         }
       }
     }),
-    sources?.loadReportCostCatalog ? sources.loadReportCostCatalog() : Promise.all([loadRoleCostCatalog(), getAnnualCollaboratorCosts()])
+    sources?.loadReportCostCatalog ? sources.loadReportCostCatalog() : loadLaborCostCatalog()
   ]);
   return new Map(collaborators.map(collaborator => [collaborator.id, estimateReportLaborCostByDate({
     collaborator: withCollaboratorRoleNames(collaborator, roleCatalog.rolesById),

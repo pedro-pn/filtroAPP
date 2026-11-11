@@ -166,6 +166,7 @@ export async function runHttpPerformanceBenchmark({
     for (const scenario of Object.keys(routes)) for (const profile of ['admin', 'viewer']) {
       before[scenario + ':' + profile] = await request(scenario, profile, 'warmup');
     }
+    pool.push({ phase: 'warmup', ...await server.pool() });
     await server.begin();
     const jobs = Array.from({ length: requests }, (_, index) => Object.keys(routes).flatMap(scenario => ['admin', 'viewer'].map(profile => ({ scenario, profile, session: index % 2 })))).flat();
     await mapConcurrent(jobs, concurrency, ({ scenario, profile, session }) => request(scenario, profile, 'warm', session));

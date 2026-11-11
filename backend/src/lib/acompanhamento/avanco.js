@@ -33,6 +33,7 @@ import { normalizeRdoServiceType } from './service-types.js';
 import { dateInDivision } from './tracking-divisions.js';
 import { isValidReportDate } from '../../../../shared/modules/report-date.js';
 import { measureRequestStage } from '../operations/request-performance.js';
+import { readVerifiedProgressSources } from './verified-progress-sources.js';
 
 export { normalizeRdoServiceType } from './service-types.js';
 
@@ -609,6 +610,11 @@ export async function computeProgressForProjects(projectIds, { database = prisma
 // tempo do avanço. Compartilhado pelo histórico do projeto e pelo avanço por equipamento.
 export async function loadReportServicesByProject(projectIds, { applyCorrections = true, database = prisma } = {}) {
   if (!projectIds?.length) return new Map();
+  return readVerifiedProgressSources(database, projectIds, applyCorrections,
+    ids => loadReportServicesByProjectUncached(ids, { applyCorrections, database }));
+}
+
+async function loadReportServicesByProjectUncached(projectIds, { applyCorrections, database }) {
   const [reportServices, historicalServices, corrections] = await Promise.all([
     database.reportService.findMany({
       where: {

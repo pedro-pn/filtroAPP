@@ -3,8 +3,7 @@ import { buildOmieCostCategoryWhere } from './cost-categories.js';
 import { getEquipmentUsageByProject } from './equipment-usage.js';
 import { getStockConsumptionCostByProject } from './stock-cost.js';
 import { getManualProjectCostsByProject } from './manual-costs.js';
-import { loadRoleCostCatalog } from './labor-cost.js';
-import { getAnnualCollaboratorCosts } from './settings.js';
+import { loadLaborCostCatalog } from './labor-cost.js';
 import { projectAccessCacheKey } from '../projects/access-scope.js';
 import { createReportCostCollaboratorLoader } from './project-detail-collaborators.js';
 
@@ -41,6 +40,6 @@ export async function loadGroupDetailSources(projectIds, { includeAdminOnlyCateg
       select: { id: true, name: true, jobRole: { select: { name: true } } }
     }).then(rows => new Map(rows.map(row => [row.id, row]))),
     loadReportCostCollaborators: createReportCostCollaboratorLoader(prisma),
-    loadReportCostCatalog: () => reportCostCatalog ??= Promise.all([loadRoleCostCatalog(), getAnnualCollaboratorCosts()])
+    loadReportCostCatalog: () => reportCostCatalog ??= loadLaborCostCatalog()
   };
 }
