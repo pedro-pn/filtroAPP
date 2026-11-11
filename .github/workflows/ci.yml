@@ -116,6 +116,12 @@ jobs:
       - name: Install Data Book generator dependencies
         run: pip install -r databook/requirements.txt jsonschema
 
+      - name: Configure Ubuntu package mirrors
+        run: |
+          { printf 'https://mirrors.edge.kernel.org/ubuntu/\tpriority:0\n'; cat /etc/apt/apt-mirrors.txt; } > "$RUNNER_TEMP/ci-apt-mirrors.txt"
+          sudo cp "$RUNNER_TEMP/ci-apt-mirrors.txt" /etc/apt/apt-mirrors.txt
+          printf 'Acquire::Retries "1";\nAcquire::http::Timeout "20";\nAcquire::https::Timeout "20";\n' | sudo tee /etc/apt/apt.conf.d/zz-ci-retries > /dev/null
+
       - name: Install Hunspell pt-BR (revisão ortográfica do Data Book)
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends hunspell hunspell-pt-br
 
@@ -421,6 +427,12 @@ jobs:
 
       - name: Build frontend
         run: npm run build
+
+      - name: Configure Ubuntu package mirrors
+        run: |
+          { printf 'https://mirrors.edge.kernel.org/ubuntu/\tpriority:0\n'; cat /etc/apt/apt-mirrors.txt; } > "$RUNNER_TEMP/ci-apt-mirrors.txt"
+          sudo cp "$RUNNER_TEMP/ci-apt-mirrors.txt" /etc/apt/apt-mirrors.txt
+          printf 'Acquire::Retries "1";\nAcquire::http::Timeout "20";\nAcquire::https::Timeout "20";\n' | sudo tee /etc/apt/apt.conf.d/zz-ci-retries > /dev/null
 
       - name: Install Chromium for notification and equipment regressions
         run: npx playwright install --with-deps chromium
