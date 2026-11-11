@@ -181,6 +181,43 @@ test('INTERNAL role normalization allows accounts without RDO roles', async () =
   assert.deepEqual(rolesForAccountType('INTERNAL', ['epi:technician']), ['epi:technician']);
 });
 
+test('coordinators can select Efetivo manager and allocation review in either order', async () => {
+  const { rolesForAccountType, toggleAccountModuleRole } = await loadAccountRoleRules();
+  for (const order of [
+    ['efetivo:manager', 'efetivo:allocation-review'],
+    ['efetivo:allocation-review', 'efetivo:manager']
+  ]) {
+    const selected = order.reduce((roles, role) => toggleAccountModuleRole(roles, role), ['rdo:coordinator']);
+    assert.deepEqual(selected, ['rdo:coordinator', ...order]);
+    assert.deepEqual(rolesForAccountType('INTERNAL', selected), selected);
+    assert.deepEqual(rolesForAccountType('CLIENT', selected), ['rdo:client']);
+  }
+});
+
+test('Efetivo manager and allocation review can be deselected independently', async () => {
+  const { toggleAccountModuleRole } = await loadAccountRoleRules();
+  const roles = ['rdo:coordinator', 'efetivo:manager', 'efetivo:allocation-review'];
+
+  assert.deepEqual(toggleAccountModuleRole(roles, 'efetivo:allocation-review'), ['rdo:coordinator', 'efetivo:manager']);
+  assert.deepEqual(toggleAccountModuleRole(roles, 'efetivo:manager'), ['rdo:coordinator', 'efetivo:allocation-review']);
+});
+
+test('changing the main Efetivo role preserves allocation review and other modules', async () => {
+  const { toggleAccountModuleRole } = await loadAccountRoleRules();
+  assert.deepEqual(
+    toggleAccountModuleRole(['rdo:coordinator', 'efetivo:viewer', 'efetivo:allocation-review'], 'efetivo:manager'),
+    ['rdo:coordinator', 'efetivo:allocation-review', 'efetivo:manager']
+  );
+});
+
+test('role selection still replaces conflicting roles in other modules', async () => {
+  const { toggleAccountModuleRole } = await loadAccountRoleRules();
+  assert.deepEqual(
+    toggleAccountModuleRole(['rdo:collaborator', 'efetivo:manager', 'efetivo:allocation-review'], 'rdo:coordinator'),
+    ['efetivo:manager', 'efetivo:allocation-review', 'rdo:coordinator']
+  );
+});
+
 test('EPI-only internal accounts get a visible pending hub module', async () => {
   const { hubModulesForUser } = await loadHubModules();
   const modules = hubModulesForUser({

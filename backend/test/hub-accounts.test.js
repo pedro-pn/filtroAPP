@@ -405,6 +405,23 @@ test('resolveAccountPayload rejects COORDINATOR accounts with collaborator RDO r
   );
 });
 
+test('coordinator accounts retain Efetivo manager and allocation review through account writes and serialization', () => {
+  const moduleRoles = ['rdo:coordinator', 'efetivo:manager', 'efetivo:allocation-review'];
+  const payload = resolveAccountPayload({ accountType: 'INTERNAL', role: 'COORDINATOR', moduleRoles });
+  assert.equal(payload.role, 'COORDINATOR');
+  assert.deepEqual(payload.moduleRoles, moduleRoles);
+
+  const rows = moduleRoleRows('coordinator-1', payload.moduleRoles);
+  assert.deepEqual(rows, [
+    { userId: 'coordinator-1', module: 'RDO', role: 'RDO_COORDINATOR' },
+    { userId: 'coordinator-1', module: 'EFETIVO', role: 'EFETIVO_MANAGER' },
+    { userId: 'coordinator-1', module: 'EFETIVO', role: 'EFETIVO_ALLOCATION_REVIEW' }
+  ]);
+  const existing = { ...payload, moduleRoles: rows };
+  assert.deepEqual(serializeModuleRoles(existing), moduleRoles);
+  assert.deepEqual(resolveAccountPayload({ name: 'Coordenador atualizado' }, existing).moduleRoles, moduleRoles);
+});
+
 test('resolveAccountPayload rejects COLLABORATOR accounts with coordinator RDO role', () => {
   assert.throws(
     () =>
