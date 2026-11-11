@@ -8,8 +8,8 @@ import { Alert, Badge, Button, Card, DataTable, EmptyState, Field, Input, Search
 import { useUserMutations, useUsers } from '../../hooks/useUsers';
 import { useCollaborators } from '../../hooks/useCollaborators';
 import { PageHeader } from '../../layout/PageHeader';
-import { assignableRoleOptionsForAccountType, moduleIdForPublicRole, moduleRegistry, moduleRoleLabel, sameModuleRoles } from '../../modules/registry';
-import { rolesForAccountType } from './accountRoleRules';
+import { assignableRoleOptionsForAccountType, moduleIdForPublicRole, moduleRegistry, moduleRoleLabel } from '../../modules/registry';
+import { rolesForAccountType, toggleAccountModuleRole } from './accountRoleRules';
 import type { UserDeletionImpact, UserPayload } from '../../api/users';
 import type { AccountType, ModuleRole, ReportEmissionPermission, UserRole } from '../../types/auth';
 import type { InternalUserSummary } from '../../types/domain';
@@ -228,8 +228,7 @@ export function AdminAccountsPage() {
 
   function toggleRole(role: ModuleRole) {
     setForm(current => {
-      const hasRole = current.moduleRoles.includes(role);
-      const nextRoles = hasRole ? current.moduleRoles.filter(item => item !== role) : [...current.moduleRoles.filter(item => !sameModuleRoles(role).includes(item)), role];
+      const nextRoles = toggleAccountModuleRole(current.moduleRoles, role);
       return {
         ...current,
         moduleRoles: rolesForAccountType(current.accountType, nextRoles),
