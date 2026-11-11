@@ -41,7 +41,7 @@ jobs:
 
   backend:
     name: Backend
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     services:
       postgres:
         image: postgres:16
@@ -114,6 +114,9 @@ jobs:
 
       - name: Install Data Book generator dependencies
         run: pip install -r databook/requirements.txt jsonschema
+
+      - name: Prepare DNS for Ubuntu packages
+        run: bash ../scripts/ensure-ubuntu-package-dns.sh
 
       - name: Install Hunspell pt-BR (revisão ortográfica do Data Book)
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends hunspell hunspell-pt-br
@@ -380,7 +383,7 @@ jobs:
 
   frontend:
     name: Frontend
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: frontend
@@ -419,6 +422,9 @@ jobs:
 
       - name: Build frontend
         run: npm run build
+
+      - name: Prepare DNS for Ubuntu packages
+        run: bash ../scripts/ensure-ubuntu-package-dns.sh
 
       - name: Install Chromium for notification and equipment regressions
         run: npx playwright install --with-deps chromium
