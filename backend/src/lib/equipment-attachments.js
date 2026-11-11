@@ -28,6 +28,7 @@ const IMAGE_MIME_EXT = {
 };
 
 export const EquipmentAttachmentKinds = {
+  DOCUMENT: 'DOCUMENT',
   CALIBRATION_CERTIFICATE: 'CALIBRATION_CERTIFICATE',
   TECHNICAL_DOC: 'TECHNICAL_DOC',
   // Datasheet gerado automaticamente a partir dos Dados Técnicos (Etapa D).
@@ -37,6 +38,7 @@ export const EquipmentAttachmentKinds = {
 };
 
 const KIND_FOLDER = {
+  DOCUMENT: 'Documentos',
   CALIBRATION_CERTIFICATE: 'Certificados de Calibração',
   TECHNICAL_DOC: 'Documentação Técnica',
   TECHNICAL_DOC_GENERATED: 'Datasheets Gerados',
@@ -98,6 +100,8 @@ export function withCurrentAttachments(item) {
     technicalDocGenerated: serializeEquipmentAttachment(generated),
     technicalDocGeneratedOutdated: generatedOutdated,
     technicalDocArchive: archive,
+    documents: attachments.filter(att => att.kind === EquipmentAttachmentKinds.DOCUMENT)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).map(serializeEquipmentAttachment),
     technicalPhotos: photos
   };
 }
@@ -209,16 +213,30 @@ export async function createEquipmentAttachment(client, { equipmentId, kind, upl
     bytes: parsed.bytes
   });
 
-  return client.equipmentAttachment.create({
-    data: {
-      equipmentId,
-      kind,
-      fileName: parsed.fileName,
-      mimeType: parsed.mimeType,
-      storagePath,
-      publicToken
-    }
-  });
+  try {
+    return await client.equipmentAttachment.create({
+      data: {
+        equipmentId,
+        kind,
+        fileName: parsed.fileName,
+        mimeType: parsed.mimeType,
+        storagePath,
+        publicToken
+      }
+    });
+  } catch (error) {
+    await unlinkManagedDocumentFile(storagePath, { rootDir: env.uploadDir, requiredPrefix: 'Equipamentos/' });
+    throw error;
+  }
+}
+
+export async function removeEquipmentDocument(client, equipmentId, documentId) {
+  const where = { equipmentId, id: documentId, kind: EquipmentAttachmentKinds.DOCUMENT };
+  const attachment = await client.equipmentAttachment.findFirst({ where });
+  if (!attachment) return false;
+  await client.equipmentAttachment.deleteMany({ where });
+  await unlinkManagedDocumentFile(attachment.storagePath, { rootDir: env.uploadDir, requiredPrefix: 'Equipamentos/' });
+  return true;
 }
 
 // Persiste um anexo gerado pelo próprio sistema (bytes já prontos, sem dataUrl) —
@@ -311,6 +329,7 @@ export async function resolvePublicEquipmentAttachment(token) {
 //  - Documentação técnica: "Datasheet - [código] - [nome]"
 //  - Certificado de calibração: "Certificado de calibração - [código] - [serial quando houver] - [nome]"
 export function equipmentAttachmentFileName(attachment) {
+  if (attachment?.kind === EquipmentAttachmentKinds.DOCUMENT) return attachment.fileName;
   // Datasheets arquivados já guardam um nome com a revisão ("… - Rev N.pdf");
   // preserva esse nome (snapshot da revisão) para o download.
   if (

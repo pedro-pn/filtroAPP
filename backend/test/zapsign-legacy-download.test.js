@@ -7,7 +7,8 @@ import test from 'node:test';
 import { ReportStatus, ReportType } from '@prisma/client';
 
 import env from '../src/config/env.js';
-import { resolveSignedPdf } from '../src/routes/resources/reports.js';
+import { resolveSignedPdf, getReportPdfDownload } from '../src/routes/resources/reports.js';
+import prisma from '../src/lib/prisma.js';
 import { downloadSignedZapSignDocument } from '../src/lib/zapsign.js';
 
 const completePdf = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF\n');
@@ -63,4 +64,23 @@ test('resolveSignedPdf uses cached legacy ZapSign PDF before calling ZapSign', a
 
   assert.match(file.fileName, /\.pdf$/);
   assert.deepEqual(file.buffer, completePdf);
+});
+
+test('internal download retains legacy ZapSign fallback when a final reference cannot be resolved', async t => {
+  const originalReportsDir = env.reportsDir;
+  const originalAttachments = prisma.reportPdfAttachment.findMany;
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'zapsign-final-fallback-'));
+  env.reportsDir = dir;
+  prisma.reportPdfAttachment.findMany = async () => [];
+  t.after(async () => {
+    env.reportsDir = originalReportsDir;
+    prisma.reportPdfAttachment.findMany = originalAttachments;
+    await fs.rm(dir, { recursive: true, force: true });
+  });
+  await fs.mkdir(path.join(dir, '_zapsign-assinados'), { recursive: true });
+  await fs.writeFile(path.join(dir, '_zapsign-assinados', 'fallback-report.pdf'), completePdf);
+  const result = await getReportPdfDownload({ id: 'fallback-report', status: 'SIGNED', reportType: 'RDO',
+    versions: [{ finalPdfUrl: '/relatorios/absent-final-for-fallback.pdf' }], zapsignDocToken: 'legacy-token',
+    project: { code: 'P-1', name: 'Projeto' }, reportDate: '2026-05-20' });
+  assert.deepEqual(result.buffer, completePdf);
 });

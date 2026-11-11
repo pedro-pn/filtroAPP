@@ -40,6 +40,33 @@ test('quadro de disponibilidade é somente leitura e não expõe drag ou movimen
   assert.doesNotMatch(source, /Livre para mobilização|Sem compromisso na data/);
 });
 
+test('projeto em preparação permanece aguardando até a confirmação e libera a projeção após o término', async () => {
+  const { buildAvailabilityColumns, buildMissionAvailabilityColumns } = await load('/src/utils/collaboratorAvailability.ts');
+  const person = { ...collaborator('planned-member'), admissionDate: '2025-01-01' };
+  const planned = {
+    ...mission('TEST-001', 'MOBILIZATION', 'planned-member', '2026-11-09'),
+    plan: { kind: 'OFFICIAL' }, executionEndDate: '2026-11-30', returnDate: null,
+    cycles: [{ isDefault: true, mobilizationDate: '2026-11-09', demobilizationDate: null }],
+    project: { code: 'TEST-001', name: 'Projeto de teste', workflow: { stage: 'PREPARATION', actualMobilizationDate: null } }
+  };
+  for (const date of ['2026-11-09', '2026-11-11', '2026-11-30']) {
+    const result = buildAvailabilityColumns([person], [planned], [], date);
+    assert.equal(result.columns.AWAITING_MOBILIZATION[0]?.collaborator.id, person.id);
+    assert.equal(result.columns.MOBILIZED.length, 0);
+  }
+  const period = buildMissionAvailabilityColumns([person], [planned], [], '2026-11-11', '2026-11-30');
+  assert.equal(period.columns.AWAITING_MOBILIZATION[0]?.collaborator.id, person.id);
+  assert.equal(period.columns.MOBILIZED.length, 0);
+  assert.equal(buildAvailabilityColumns([person], [planned], [], '2026-12-01').columns.AVAILABLE.length, 1);
+  assert.equal(buildMissionAvailabilityColumns([person], [planned], [], '2026-12-01', '2026-12-02').columns.AVAILABLE.length, 1);
+
+  planned.project.workflow.stage = 'MOBILIZATION';
+  assert.equal(buildAvailabilityColumns([person], [planned], [], '2026-11-11').columns.AWAITING_MOBILIZATION.length, 1);
+  planned.project.workflow.actualMobilizationDate = '2026-11-09';
+  assert.equal(buildAvailabilityColumns([person], [planned], [], '2026-11-11').columns.MOBILIZED.length, 1);
+  assert.equal(buildMissionAvailabilityColumns([person], [planned], [], '2026-11-11', '2026-11-30').columns.MOBILIZED.length, 1);
+});
+
 test('resumo da disponibilidade mostra pico de alocados e faltas por cargo', async () => {
   const { summarizeAvailabilityPeriod } = await load('/src/utils/availabilitySummary.ts');
   const summary = summarizeAvailabilityPeriod(

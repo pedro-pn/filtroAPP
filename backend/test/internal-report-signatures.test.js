@@ -2657,6 +2657,63 @@ test('public RDO batch registers the same declared signature and evidence separa
   assert.deepEqual(audits.map(item => item.reportId), signatures.map(item => item.reportId));
 });
 
+test('public signatures persist separate notes per report and preserve them on retry', async t => {
+  const { signatures, writes, input } = await mockPublicProjectBatch(t);
+  const comments = Object.fromEntries(signatures.map((signature, index) => [signature.id, `  Nota do RDO ${index + 1}  `]));
+  const response = await dispatchApp('POST', '/api/reports/public-sign/project-token/confirm-batch', { ...input, comments });
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(writes.map(write => write.data.clientComment), ['Nota do RDO 1', 'Nota do RDO 2']);
+  const retry = await dispatchApp('POST', '/api/reports/public-sign/project-token/confirm', { ...input, signatureId: signatures[0].id, comment: 'Outra nota' });
+  assert.equal(retry.statusCode, 409);
+  assert.equal(writes.length, 2);
+  assert.equal(signatures[0].clientComment, 'Nota do RDO 1');
+});
+
+test('single public signature persists a note and batch validation rejects unrelated or oversized notes', async t => {
+  const { signatures, writes, input } = await mockPublicProjectBatch(t);
+  assert.equal(publicSignatureBatchConfirmSchema.safeParse({ ...input, comments: { outside: 'Não autorizado' } }).success, false);
+  assert.equal(publicSignatureConfirmSchema.safeParse({ ...input, comment: 'a'.repeat(4001) }).success, false);
+  assert.equal(publicSignatureBatchConfirmSchema.safeParse({ ...input, comments: { [signatures[0].id]: 'a'.repeat(4001) } }).success, false);
+  const response = await dispatchApp('POST', '/api/reports/public-sign/project-token/confirm', { ...input, signatureId: signatures[0].id, comment: '  Verificado com ressalva.\nAnexo conferido.  ' });
+  assert.equal(response.statusCode, 200);
+  assert.equal(writes[0].data.clientComment, 'Verificado com ressalva.\nAnexo conferido.');
+});
+
+test('final signed PDF includes complete client notes across pages without changing the source PDF', async t => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'signature-notes-'));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const sourcePdfPath = path.join(directory, 'source.pdf');
+  const source = await PDFDocument.create();
+  source.addPage();
+  const sourceBytes = Buffer.from(await source.save());
+  await fs.writeFile(sourcePdfPath, sourceBytes);
+  const comment = `Aprovação com observações: pressão conferida.\n${'Texto técnico com acentuação. '.repeat(100)}\n${'X'.repeat(700)}\nFim da nota ✓`;
+  const result = await writeFinalEvidencePdf({
+    sourcePdfPath, sourcePdfUrl: '/relatorios/source.pdf',
+    report: { reportType: 'RDO', project: { code: '5800', name: 'Teste' } },
+    version: { sourceDocumentHash: sha256Hex(sourceBytes) },
+    signatures: [{ status: 'SIGNED', signerName: 'Cliente Teste', signerEmail: 'cliente@example.com', signatureImageDataUrl: tinyPngDataUrl, clientComment: comment }]
+  });
+  const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const task = getDocument({ data: new Uint8Array(await fs.readFile(result.finalPdfPath)), useSystemFonts: true });
+  const pdf = await task.promise;
+  try {
+    assert.ok(pdf.numPages > 2);
+    const text = [];
+    for (let number = 1; number <= pdf.numPages; number++) {
+      const content = await (await pdf.getPage(number)).getTextContent();
+      text.push(...content.items.filter(item => item.str && !item.str.startsWith('Notas do cliente')).map(item => item.str));
+      for (const item of content.items.filter(item => item.str)) assert.ok(item.transform[5] >= 64, 'Texto dentro da página');
+    }
+    const allText = text.join(' ');
+    assert.match(allText, /Aprovação com observações: pressão conferida/);
+    assert.match(allText, /Fim da nota/);
+    assert.equal((allText.replace(/\s/g, '').match(/Textotécnicocomacentuação\./g) || []).length, 100);
+    assert.equal((allText.match(/X/g) || []).length, 700);
+    assert.deepEqual(await fs.readFile(sourcePdfPath), sourceBytes);
+  } finally { await task.destroy(); }
+});
+
 test('public RDO batch rejects an out-of-scope selection before persisting any signature', async t => {
   const { input, writes } = await mockPublicProjectBatch(t);
   const response = await dispatchApp('POST', '/api/reports/public-sign/project-token/confirm-batch', {

@@ -28,6 +28,7 @@ interface Props {
   toggleLabel?: string;
   variant?: 'default' | 'select';
   portal?: boolean;
+  clearOnFocus?: boolean;
 }
 
 export function SearchCombobox({
@@ -48,12 +49,14 @@ export function SearchCombobox({
   maxLength,
   toggleLabel,
   variant = 'default',
-  portal = false
+  portal = false,
+  clearOnFocus = false
 }: Props) {
   const generatedId = useId();
   const inputId = id || `combobox-${generatedId}`;
   const listId = `${inputId}-listbox`;
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const controlRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
   const clearedByTyping = useRef(false);
@@ -69,6 +72,23 @@ export function SearchCombobox({
     maxHeight: number;
     above: boolean;
   } | null>(null);
+
+  const closeSearch = useCallback(() => {
+    setOpen(false);
+    if (clearOnFocus && !allowCustomValue) setQuery(selected?.label || '');
+  }, [clearOnFocus, allowCustomValue, selected?.label]);
+
+  function startSearch() {
+    setOpen(true);
+    if (clearOnFocus && !allowCustomValue) {
+      setQuery('');
+      setActiveIndex(0);
+    }
+    if (allowCustomValue) {
+      setShowAllOptions(true);
+      setActiveIndex(-1);
+    }
+  }
 
   const updateListPosition = useCallback(() => {
     const control = controlRef.current;
@@ -108,11 +128,11 @@ export function SearchCombobox({
   useEffect(() => {
     const close = (event: PointerEvent) => {
       const target = event.target as Node;
-      if (!wrapperRef.current?.contains(target) && !listRef.current?.contains(target)) setOpen(false);
+      if (!wrapperRef.current?.contains(target) && !listRef.current?.contains(target)) closeSearch();
     };
     document.addEventListener('pointerdown', close);
     return () => document.removeEventListener('pointerdown', close);
-  }, []);
+  }, [closeSearch]);
 
   useLayoutEffect(() => {
     if (!open || !portal) return;
@@ -188,11 +208,12 @@ export function SearchCombobox({
       onBlur={event => {
         const next = event.relatedTarget;
         if (next && (event.currentTarget.contains(next) || listRef.current?.contains(next))) return;
-        if (!portal || next) setOpen(false);
+        if (!portal || next) closeSearch();
       }}>
       {!hideLabel ? <label htmlFor={inputId}>{label}{required ? ' *' : ''}</label> : null}
       <div className="app-combobox-control" ref={controlRef}>
         <input
+          ref={inputRef}
           id={inputId}
           type="text"
           role="combobox"
@@ -210,12 +231,13 @@ export function SearchCombobox({
           aria-controls={listId}
           aria-autocomplete="list"
           aria-activedescendant={open && filtered[activeIndex] ? `${inputId}-option-${activeIndex}` : undefined}
-          onFocus={() => { setOpen(true); if (allowCustomValue) { setShowAllOptions(true); setActiveIndex(-1); } }}
+          onFocus={startSearch}
+          onClick={() => { if (clearOnFocus && !open) startSearch(); }}
           onChange={event => {
             setQuery(event.target.value);
             setShowAllOptions(false);
             if (allowCustomValue) onChange(event.target.value);
-            else if (value) {
+            else if (value && !clearOnFocus) {
               clearedByTyping.current = true;
               onChange('');
             }
@@ -225,8 +247,11 @@ export function SearchCombobox({
           onKeyDown={event => {
             if (event.key === 'ArrowDown') {
               event.preventDefault();
-              setOpen(true);
-              setActiveIndex(index => open ? Math.min(filtered.length - 1, index + 1) : 0);
+              if (!open && clearOnFocus) startSearch();
+              else {
+                setOpen(true);
+                setActiveIndex(index => open ? Math.min(filtered.length - 1, index + 1) : 0);
+              }
             } else if (event.key === 'ArrowUp') {
               event.preventDefault();
               setActiveIndex(index => Math.max(0, index - 1));
@@ -237,13 +262,21 @@ export function SearchCombobox({
               setOpen(false);
               setQuery(selected?.label || (allowCustomValue ? value : ''));
             } else if (event.key === 'Tab') {
-              setOpen(false);
+              closeSearch();
             }
           }}
         />
         <button type="button" tabIndex={-1} disabled={disabled} aria-label={toggleLabel || (open ? 'Fechar opções' : 'Abrir opções')}
           aria-expanded={open} aria-controls={listId} onMouseDown={event => event.preventDefault()}
-          onClick={() => { setActiveIndex(allowCustomValue ? -1 : 0); setShowAllOptions(true); setOpen(current => !current); }} />
+          onClick={() => {
+            if (open) closeSearch();
+            else {
+              if (clearOnFocus) inputRef.current?.focus();
+              startSearch();
+              setActiveIndex(allowCustomValue ? -1 : 0);
+              setShowAllOptions(true);
+            }
+          }} />
       </div>
       {portal && typeof document !== 'undefined' && list && listPosition
         ? createPortal(<div className={variant === 'select' ? 'app-combobox-select' : undefined}>{list}</div>, document.body)

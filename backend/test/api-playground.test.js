@@ -26,7 +26,7 @@ test('every implemented scope and operation is testable with complete typed para
     .parameters.find(parameter => parameter.name === 'reportType');
   assert.deepEqual(reportType.options, ['RDO', 'RDO_MAINTENANCE', 'RDO_PRODUCTION', 'RTP', 'RLQ', 'RCPU', 'RLM', 'RLF', 'RLI']);
   assert.match(reportType.help, /reportType=RCPU/);
-  assert.equal(operations.filter(op => op.responseKind === 'DOWNLOAD_CHECK').length, 4);
+  assert.equal(operations.filter(op => op.responseKind === 'DOWNLOAD_CHECK').length, 5);
 });
 
 test('playground accepts only allowlisted operationId, pathParams and query keys', () => {

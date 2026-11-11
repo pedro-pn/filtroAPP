@@ -53,8 +53,13 @@ export const EXTENDED_OPERATIONAL_RESOURCES = Object.freeze([
 export const OPERATIONAL_DOWNLOADS = Object.freeze([
   { model: 'ReportAttachment', scope: 'rdo.anexos.download', label: 'Baixar anexos dos relatórios', storage: 'REPORT', domainCode: 'rdo' },
   { model: 'StockItemDocument', scope: 'estoque.documentos.download', label: 'Baixar documentos de estoque', storage: 'STOCK', domainCode: 'stock' },
-  { model: 'MaintenanceAttachment', scope: 'manutencao.anexos.download', label: 'Baixar anexos de manutenção', storage: 'MAINTENANCE', domainCode: 'maintenance-production' }
+  { model: 'MaintenanceAttachment', scope: 'manutencao.anexos.download', label: 'Baixar anexos de manutenção', storage: 'MAINTENANCE', domainCode: 'maintenance-production' },
+  { model: 'Report', scope: 'rdo.relatorios.pdf.download', label: 'Baixar PDF pronto do relatório', storage: 'REPORT_PDF', domainCode: 'rdo',
+    description: 'PDF base ou final pronto, até 50 MiB, sem composição de anexos ou assinaturas parciais. Não gera documentos nem consulta ZapSign remotamente. Inclui indicador de versões persistidas na listagem; cache de disco é verificado somente no download.' }
 ].map(item => {
-  const metadata = EXTENDED_OPERATIONAL_RESOURCES.find(r => r.model === item.model);
-  return Object.freeze({ ...item, metadata, path: `${metadata.path}/:id/download`, operationId: `operational.${item.model}.download`, openApiOperationId: `downloadIntegration${item.model}`, dependencies: metadata.requiredScopes, requiredScopes: [...metadata.requiredScopes, item.scope] });
+  const metadata = item.storage === 'REPORT_PDF'
+    ? resource('Report', '/rdo/relatorios', 'rdo.relatorios.read', item.label, 'rdo', {}, {
+      projectPolicy: 'DIRECT', where: publishedReport, projectNotice: 'Mesma visibilidade da listagem; todos.read é necessário para todos os estados.' })
+    : EXTENDED_OPERATIONAL_RESOURCES.find(r => r.model === item.model);
+  return Object.freeze({ ...item, metadata, path: `${metadata.path}/:id/${item.storage === 'REPORT_PDF' ? 'pdf' : 'download'}`, operationId: `operational.${item.model}.download`, openApiOperationId: `downloadIntegration${item.model}`, dependencies: metadata.requiredScopes, requiredScopes: [...metadata.requiredScopes, item.scope] });
 }));

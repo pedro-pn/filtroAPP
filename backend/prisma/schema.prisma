@@ -2214,6 +2214,7 @@ model ReportSignature {
   userId                  String?
   signerName              String
   declaredSignerName      String?
+  clientComment           String?
   signerEmail             String
   signerRole              ReportSignerRole
   signatureType           ReportSignatureType   @default(ELECTRONIC)
@@ -2617,6 +2618,7 @@ model EquipmentCategory {
   technicalTemplateId     String? // DOCX modelo da categoria (Etapa F); null = usa o modelo genérico
   supportsCalibration     Boolean                                @default(false)
   supportsTechnicalDoc    Boolean                                @default(true) // anexo PDF legado (mantido como histórico)
+  attachmentsEnabled      Boolean                                @default(false)
   syncToRomaneio          Boolean                                @default(false)
   isSystemManaged         Boolean                                @default(false) // categorias consumidas pelo RDO (não removíveis)
   isActive                Boolean                                @default(true)
@@ -2662,6 +2664,7 @@ model CompanyEquipment {
 }
 
 enum EquipmentAttachmentKind {
+  DOCUMENT
   CALIBRATION_CERTIFICATE
   TECHNICAL_DOC
   TECHNICAL_TEMPLATE

@@ -2192,6 +2192,65 @@ canceladas, e somente os jobs sem sucesso foram repetidos uma vez. O CI geral
 Permanecem abertos pool global, meta fria, política de JobRun e aceite publicado
 de 24 h/sete dias.
 
+### Integração da main remota e TypeScript 7 — 11/11
+
+A `main` remota **`a00eb6ce`** foi integrada à branch a partir de `a55b5941`,
+preservando os dois históricos. As [evidências da integração](evidence/performance-main-merge-20261111.json)
+separam essa validação das medições anteriores. Não foi repetido o benchmark
+completo de latência; seus números continuam associados aos commits registrados.
+
+Houve **um conflito textual**, em `.github/workflows/ci.yml`: o gate de tamanho
+das páginas disputava a posição após o build com a preparação de DNS/mirrors.
+Foram mantidos ambos, os runners Ubuntu 24.04 da main, a recuperação de DNS e os
+gates de contratos HTTP/catálogos/cards e navegador da branch de performance.
+Os demais sete arquivos alterados nos dois lados foram conciliados automaticamente
+e revisados. Fora dessas sobreposições, **87 fontes de runtime alteradas pelo plano
+permaneceram idênticas byte a byte** ao estado anterior ao merge.
+
+O modelo híbrido da main foi preservado: `@typescript/native` instala o compilador
+**7.0.2**, usado por `tsc`/build/E2E; `typescript` fornece a API **6.0.3**, usada
+por ESLint e testes de análise/transpilação. Não houve ajuste de tipagem na aplicação,
+supressão de erros ou aumento dos orçamentos. Passaram o build, tipos de E2E,
+tipos da `implementation-preview`, lint, arquitetura e os seis limites existentes:
+
+| Superfície | Gzip medido | Limite mantido |
+| --- | ---: | ---: |
+| Shell | 209.082 B | 220.000 B |
+| Efetivo — visão geral | 298.619 B | 320.000 B |
+| Efetivo — evolução | 311.568 B | 320.000 B |
+| Acompanhamento — dashboard | 289.186 B | 360.000 B |
+| Gestor | 411.005 B | 430.000 B |
+| Gestor — estatísticas | 419.304 B | 440.000 B |
+
+Na prévia experimental `design-preview`, a checagem ampliada encontrou **66
+diagnósticos já existentes**. O mesmo compilador/dependências reproduziu as mesmas
+66 assinaturas na main e na performance anterior ao merge, sem diagnóstico novo
+na integração. Somente a cópia arquivada da configuração anterior teve `baseUrl`
+removido para permitir a comparação com TypeScript 7, como já faz a main.
+Essa prévia não integra o build da aplicação; sua correção não foi misturada ao merge.
+
+As novas regras de confirmação de mobilização do Efetivo e a marcação de conteúdo
+útil da disponibilidade foram preservadas. As seleções financeiras continuam usando
+os períodos delimitados de alocação; os testes de paridade passaram. O middleware
+de fontes por requisição e a exclusão de `PerformanceReadRevision` do catálogo
+público foram mantidos junto das mudanças da main em corpo de requisição e API.
+
+A migration de notas/documentos foi validada em PostgreSQL isolado tanto na
+instalação completa (**251 migrations**) quanto na atualização de **250 → 251**,
+com a migration de revisão já aplicada. O registro antigo foi preservado, o novo
+campo de anexos recebeu `false`, a nota é anulável e o enum `DOCUMENT` funciona.
+Alterar o campo novo mudou a revisão financeira. Os **187 triggers** existentes
+cobrem o schema; não foi necessária outra migration de invalidação.
+
+Validação local: **898 testes de frontend**, **2.875 testes de backend** (45
+ignorados), **30 contratos PostgreSQL/HTTP** e **oito regressões de navegador de
+performance**, sem falhas. A primeira invocação de navegador concluiu os oito
+testes e recebeu SIGTERM no encerramento; a repetição direta terminou com saída
+zero. As bases nova/atualizada ficaram sem fixtures e o container/volume
+descartável foi removido. O CI da árvore integrada é consultado após envio.
+Backups, publicação e os aceites quantitativos pendentes continuam fora desta
+integração local.
+
 ### Uso local das ferramentas de medição
 
 A coleta detalhada fica desativada por padrão. Para uma sessão local de 15 minutos,

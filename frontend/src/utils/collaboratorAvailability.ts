@@ -1,5 +1,6 @@
 import type { PlanningAbsence, PlanningCollaborator, PlanningMission } from '../api/efetivoPlanning';
 import { allocationIncludesDate, allocationOverlapsPeriod, missionAllocationPeriods } from './missionAllocationPeriod';
+import { missionAwaitsMobilization } from '../../../shared/modules/mission-mobilization.js';
 
 export const AVAILABILITY_STATUSES = ['AVAILABLE', 'AWAITING_MOBILIZATION', 'MOBILIZED', 'ON_VACATION'] as const;
 export type AvailabilityStatus = typeof AVAILABILITY_STATUSES[number];
@@ -73,7 +74,7 @@ export function buildAvailabilityColumns(
       .some(period => period.startDate > date))?.mission || null;
 
     if (currentMission) {
-      const status: AvailabilityStatus = currentMission.stage === 'STANDBY' ? 'AWAITING_MOBILIZATION' : 'MOBILIZED';
+      const status: AvailabilityStatus = missionAwaitsMobilization(currentMission) ? 'AWAITING_MOBILIZATION' : 'MOBILIZED';
       columns[status].push({ collaborator, status, mission: currentMission, absence: null });
     } else if (nextMission) {
       columns.AWAITING_MOBILIZATION.push({ collaborator, status: 'AWAITING_MOBILIZATION', mission: nextMission, absence: null });
@@ -127,8 +128,8 @@ export function buildMissionAvailabilityColumns(
       && mission.stage !== 'FINISHED'
       && mission.allocations.some(allocation => allocation.collaboratorId === collaborator.id
         && periods.some(period => allocationOverlapsPeriod(allocation, mission, period.startDate, period.endDate))));
-    const mobilizedMission = overlappingMissions.find(mission => mission.stage !== 'STANDBY') || null;
-    const waitingMission = overlappingMissions.find(mission => mission.stage === 'STANDBY') || null;
+    const mobilizedMission = overlappingMissions.find(mission => !missionAwaitsMobilization(mission)) || null;
+    const waitingMission = overlappingMissions.find(mission => missionAwaitsMobilization(mission)) || null;
     if (mobilizedMission) {
       columns.MOBILIZED.push({ collaborator, status: 'MOBILIZED', mission: mobilizedMission, absence: null });
       continue;

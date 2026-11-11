@@ -11,7 +11,7 @@ O script `scripts/architecture-check.mjs` roda no check `Architecture` e reprova
 PRs que violem estas regras:
 
 - arquivos criticos nao podem crescer acima do budget atual:
-  - `backend/src/routes/resources/reports.js`: 7497 linhas;
+  - `backend/src/routes/resources/reports.js`: 7186 linhas;
   - `frontend/src/pages/gestor/GestorPage.tsx`: 4581 linhas;
   - `frontend/src/pages/ReportDetailPage.tsx`: 2082 linhas;
   - `frontend/src/pages/collaborator/NewReportPage.tsx`: 1702 linhas;

@@ -11,7 +11,7 @@ import { executePlaygroundOperation } from '../src/lib/api-credentials/playgroun
 
 const key = 'synthetic-operational-cursor-key-at-least-32-chars';
 const stamp = new Date('2026-09-07T10:00:00.000Z');
-const context = (overrides = {}) => ({ scopes: new Set(API_SCOPES.map(item => item.code).filter(code => code !== 'rdo.relatorios.todos.read')), projectAccessMode: 'SELECTED', projectIds: new Set(['p1']), projectCodes: new Set(['05776']), maxPageSize: 100, cursorKey: key, snapshotAt: new Date('2026-09-08T10:00:00Z'), ...overrides });
+const context = (overrides = {}) => ({ scopes: new Set(API_SCOPES.map(item => item.code).filter(code => !['rdo.relatorios.todos.read', 'rdo.relatorios.pdf.download', 'colaboradores.contato_corporativo.read'].includes(code))), projectAccessMode: 'SELECTED', projectIds: new Set(['p1']), projectCodes: new Set(['05776']), maxPageSize: 100, cursorKey: key, snapshotAt: new Date('2026-09-08T10:00:00Z'), ...overrides });
 const definition = model => OPERATIONAL_RESOURCES.find(item => item.model === model);
 const approved = projectId => ({ projectId, status: 'APPROVED', deletedAt: null, project: { deletedAt: null } });
 const sample = (resource, extra = {}) => ({ ...Object.fromEntries(Object.entries(resource.fields).map(([field, type]) => [field,
@@ -88,7 +88,7 @@ test('stored fields and explicit relation selects match Prisma; derived fields a
 
 test('every operational collection is grantable, routable, selectable in playground and absent from future candidates', () => {
   const router = createOperationalRouter();
-  assert.equal(router.stack.filter(layer => layer.route).length, OPERATIONAL_RESOURCES.length + 14);
+  assert.equal(router.stack.filter(layer => layer.route).length, OPERATIONAL_RESOURCES.length + 15);
   for (const resource of OPERATIONAL_RESOURCES) {
     assert.ok(API_SCOPES.some(scope => scope.code === resource.scope && scope.status === 'AVAILABLE'));
     assert.ok(API_OPERATIONS.some(operation => operation.operationId === resource.operationId && operation.path === resource.path));

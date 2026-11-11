@@ -113,6 +113,7 @@ export function jsonBodyLimitForRequest(method, requestPath) {
     '/api/qualidade/registros'
   ].some(prefix => requestPath === prefix || requestPath.startsWith(`${prefix}/`));
   const isStockDocumentUploadApi = /^\/api\/estoque\/itens\/[^/]+\/documentos$/.test(requestPath);
+  const isEquipmentDocumentUploadApi = /^\/api\/equipamentos\/[^/]+\/documents$/.test(requestPath);
   const isManualReportUploadApi = requestPath === '/api/reports/manual-upload'
     || requestPath === '/api/rdo/reports/manual-upload'
     || requestPath === '/api/reports/manual-extract'
@@ -121,7 +122,7 @@ export function jsonBodyLimitForRequest(method, requestPath) {
   const isSignatureApi = requestPath.includes('/request-signature') || requestPath.includes('/public-sign');
   // Relatórios operacionais (manutenção etc.) levam as fotos em base64 no próprio corpo (até 10 por cartão).
   const isOperationalReportApi = /^\/api(?:\/rdo)?\/operational-reports(?:\/|$)/.test(requestPath);
-  if (isStockDocumentUploadApi) return '30mb';
+  if (isStockDocumentUploadApi || isEquipmentDocumentUploadApi) return '30mb';
   // Um PDF de 50 MiB ocupa cerca de 67 MiB em base64, além dos campos do JSON.
   if (isManualReportUploadApi) return '70mb';
   if (isUploadsApi || isEquipmentUploadApi || isOperationalReportApi) return '25mb';

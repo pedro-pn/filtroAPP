@@ -15,6 +15,7 @@ test('signatureReminderDueWhere selects pending signatures every three days', ()
   const where = signatureReminderDueWhere(now);
 
   assert.equal(where.status, ReportSignatureStatus.PENDING);
+  assert.deepEqual(where.createdAt, { gt: new Date('2026-05-03T12:00:00.000Z') });
   assert.deepEqual(where.OR, [
     {
       lastReminderAt: null,
@@ -80,7 +81,7 @@ test('signature reminders rotate expired links instead of extending their origin
 test('processSignatureReminders sends a reusable public signing link and records cadence', async () => {
   const sent = [];
   const updates = [];
-  const createdAt = new Date('2026-05-25T12:00:00.000Z');
+  const createdAt = new Date(Date.now() - 8 * 86_400_000);
   const signature = {
     id: 'sig-1',
     status: ReportSignatureStatus.PENDING,
@@ -164,7 +165,7 @@ test('processSignatureReminders sends a reusable public signing link and records
 test('processSignatureReminders groups pending RDO reminders by project and signer', async () => {
   const sent = [];
   const updates = [];
-  const createdAt = new Date('2026-05-25T12:00:00.000Z');
+  const createdAt = new Date(Date.now() - 8 * 86_400_000);
   const project = {
     id: 'project-1',
     code: 'P-001',

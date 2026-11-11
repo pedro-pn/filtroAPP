@@ -5,6 +5,8 @@ import { efetivoProjectWhere } from '../project-visibility.js';
 import { loadPlanningProjection } from './read-model.js';
 import { resolvePlanningDatabase } from './plan-context.js';
 import { missionCoversDate } from './allocation-period.js';
+import { missionAwaitsMobilization } from '../../../../../shared/modules/mission-mobilization.js';
+import { todayDateOnly } from '../../../../../shared/modules/date-only.js';
 
 const STATUS = {
   FREE: 'AVAILABLE',
@@ -18,6 +20,7 @@ const STATUS = {
 export function buildAvailabilityPeriod({ startDate, endDate, jobRoleId, projection, plannedWorkflows = [] }) {
   const first = parseDateKey(startDate);
   const last = parseDateKey(endDate);
+  const today = todayDateOnly();
   const days = [];
   const people = new Map();
   const roles = new Map();
@@ -31,8 +34,9 @@ export function buildAvailabilityPeriod({ startDate, endDate, jobRoleId, project
     : null;
 
   for (let date = first; date <= last; date = addCalendarDays(date, 1)) {
-    // Disponibilidade operacional só libera um ciclo em campo após a desmobilização efetiva.
-    const daily = calculateDailyCapacity({ date, ...projection, includeOpenCycles: true });
+    // Até hoje vale a presença efetiva; datas futuras respeitam o término previsto.
+    const includeOpenCycles = date <= today;
+    const daily = calculateDailyCapacity({ date, ...projection, includeOpenCycles });
     const relevantRoles = selectedIds
       ? daily.byRole.filter(role => role.jobRoleIds.some(id => selectedIds.has(id)))
       : daily.byRole;
@@ -66,7 +70,7 @@ export function buildAvailabilityPeriod({ startDate, endDate, jobRoleId, project
     for (const workflow of plannedWorkflows) {
       if (parseDateKey(workflow.plannedMobilizationDate) !== date) continue;
       const mission = confirmedMissionByProject.get(workflow.projectId);
-      const confirmedMission = mission && missionCoversDate(mission, date, { includeOpenCycles: true }) ? mission : null;
+      const confirmedMission = mission && missionCoversDate(mission, date, { includeOpenCycles }) ? mission : null;
       for (const role of relevantRoles) {
         const plannedCount = (workflow.teamDemands || [])
           .filter(demand => role.jobRoleIds.includes(demand.jobRoleId))
@@ -112,7 +116,7 @@ export function buildAvailabilityPeriod({ startDate, endDate, jobRoleId, project
       const status = entry.absence
         ? STATUS[entry.absence.type] || STATUS.UNAVAILABLE
         : entry.mission
-          ? entry.mission.stage === 'STANDBY' ? STATUS.STANDBY : STATUS.ALLOCATED
+          ? missionAwaitsMobilization(entry.mission) ? STATUS.STANDBY : STATUS.ALLOCATED
           : STATUS.FREE;
       person.days.push({
         date,
