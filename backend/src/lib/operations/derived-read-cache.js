@@ -32,9 +32,10 @@ export async function databaseReadVersion(database) {
 // Module-owned DTO cache: immutable serialized payloads, bounded completed
 // bytes and entry count, single-flight, and no cache entry after a failure.
 export function createDerivedReadCache({ ttlMs = 15000, maxEntries = 32, maxBytes = 16 * 1024 * 1024, maxEntryBytes = 2 * 1024 * 1024,
-  now = Date.now } = {}) {
+  now = Date.now, encode = JSON.stringify, decode = JSON.parse } = {}) {
   if (!Number.isInteger(maxEntries) || maxEntries < 1 || !Number.isFinite(ttlMs) || ttlMs < 0
-    || !Number.isFinite(maxBytes) || maxBytes < 1 || !Number.isFinite(maxEntryBytes) || maxEntryBytes < 1) {
+    || !Number.isFinite(maxBytes) || maxBytes < 1 || !Number.isFinite(maxEntryBytes) || maxEntryBytes < 1
+    || typeof encode !== 'function' || typeof decode !== 'function') {
     throw new TypeError('Limites de cache de leitura inválidos.');
   }
   const entries = new Map();
@@ -46,6 +47,18 @@ export function createDerivedReadCache({ ttlMs = 15000, maxEntries = 32, maxByte
     entries.delete(key);
   }
   function clear() { entries.clear(); bytes = 0; }
+  async function read(identity, entry) {
+    try {
+      const snapshot = await entry.pending;
+      // Binary decoders may return typed-array views into their input. Give
+      // them caller-owned bytes so no returned view can mutate cached storage.
+      return await decode(Buffer.isBuffer(snapshot) ? Buffer.from(snapshot) : snapshot);
+    }
+    catch (error) {
+      if (entries.get(identity) === entry) remove(identity);
+      throw error;
+    }
+  }
   caches.add(clear);
   return {
     clear,
@@ -56,27 +69,27 @@ export function createDerivedReadCache({ ttlMs = 15000, maxEntries = 32, maxByte
       if (entry && entry.expiresAt <= now()) { remove(identity); entry = null; }
       if (entry) {
         entries.delete(identity); entries.set(identity, entry);
-        return JSON.parse(await entry.pending);
+        return read(identity, entry);
       }
       while (entries.size >= maxEntries) remove(entries.keys().next().value);
       entry = { bytes: 0, expiresAt: now() + ttlMs, pending: null };
       entry.pending = Promise.resolve().then(() => versions.run(version, async () => {
-        const json = JSON.stringify(await loader());
-        if (typeof json !== 'string') throw new Error('Resposta de leitura inválida.');
-        return json;
-      })).then(json => {
-        if (entries.get(identity) !== entry) return json;
-        const size = Buffer.byteLength(json);
-        if (size > maxEntryBytes || size > maxBytes) { remove(identity); return json; }
+        const snapshot = encode(await loader());
+        if (typeof snapshot !== 'string' && !Buffer.isBuffer(snapshot)) throw new Error('Resposta de leitura inválida.');
+        return snapshot;
+      })).then(snapshot => {
+        if (entries.get(identity) !== entry) return snapshot;
+        const size = Buffer.byteLength(snapshot);
+        if (size > maxEntryBytes || size > maxBytes) { remove(identity); return snapshot; }
         entry.bytes = size; bytes += size; entry.expiresAt = now() + ttlMs;
         while (bytes > maxBytes) remove(entries.keys().next().value);
-        return json;
+        return snapshot;
       }, error => {
         if (entries.get(identity) === entry) remove(identity);
         throw error;
       });
       entries.set(identity, entry);
-      return JSON.parse(await entry.pending);
+      return read(identity, entry);
     }
   };
 }

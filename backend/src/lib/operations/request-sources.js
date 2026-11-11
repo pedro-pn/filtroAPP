@@ -3,6 +3,8 @@ import { projectAccessCacheKey } from '../projects/access-scope.js';
 
 const sources = new AsyncLocalStorage();
 
+export const hasRequestSourceContext = () => sources.getStore() !== undefined;
+
 // A read request owns these promises. Nothing is shared with another request,
 // write operation, database client or project visibility/channel context.
 export function requestSourceContext(req, _res, next) {

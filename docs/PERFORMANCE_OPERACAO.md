@@ -32,6 +32,20 @@ usam linhas distintas. Não há contador global bloqueado por toda escrita. Sess
 sondagens de jobs e a telemetria excluída não alimentam os três DTOs. Uma falha na
 verificação de revisão retorna 503, inclusive se houver resposta antiga em memória.
 
+O mesmo flag também habilita o snapshot interno do cálculo mensal. Detalhe/grupo
+e ponto podem reutilizá-lo quando a revisão, importação e escopo/canal coincidem.
+Há um limite adicional de oito entradas/8 MiB, até 2 MiB por entrada e 15 s.
+Cada consumidor recebe mapas, datas e valores independentes. O formato V8 existe
+somente na memória do processo; os contratos HTTP continuam em JSON. Jobs,
+escritas e cálculos fora do GET/HEAD verificado não usam esse compartilhamento.
+Esta continuação não exige outra migration além da revisão transacional anterior.
+
+A revisão do avanço passou a ignorar a ordem de retorno dos serviços realizados
+e a ordem das chaves JSON. A primeira leitura após a publicação pode atualizar o
+histórico uma vez pelo novo identificador; leituras seguintes mantêm a revisão
+quando as mesmas fontes apenas chegam em outra ordem. Os cálculos preservam a
+ordem original das entradas.
+
 Novas tabelas de aplicação exigem o mesmo trigger em sua migration. O teste
 `derived-read-cache.integration.test.js` compara cobertura com o schema Prisma.
 O flag não deve ser habilitado quando esse gate ou a migration falhar.

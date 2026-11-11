@@ -28,6 +28,8 @@
 import prisma from '../prisma.js';
 import { loadRequestSource } from '../operations/request-sources.js';
 import { laborReportQuery, loadLaborReportSources } from './labor-report-sources.js';
+import { loadLaborMissionGroups } from './labor-mission-groups.js';
+import { readMonthlyCostSnapshot } from './monthly-cost-snapshot.js';
 import { withPontoImportDates } from './ponto-period-sources.js';
 import { withCollaboratorRoleNames } from './collaborator-role-sources.js';
 import { loadOfficialAllocationSources, officialMissionWhere } from './effective-allocation-sources.js';
@@ -721,15 +723,7 @@ async function getProjectAllocationContext(database = prisma) {
     database.pontoProjectTagAlias.findMany({
       select: { normalizedTag: true, projectId: true }
     }),
-    database.acompanhamentoMissionGroup.findMany({
-      where: { status: 'ACTIVE' },
-      select: {
-        id: true,
-        laborAllocationMode: true,
-        primaryLaborProjectId: true,
-        members: { select: { projectId: true } }
-      }
-    }),
+    loadLaborMissionGroups(database),
     loadOfficialAllocationSources(database)
   ]);
   return {
@@ -2009,6 +2003,10 @@ function costProjectsFromClassification(classified) {
 // Custo/hora e rateio por obra de cada colaborador para o ponto vigente (ou o import indicado),
 // somando a divisão mensal.
 export async function computeCollaboratorRates(importId = null, { includeIgnoredNames = false } = {}) {
+  return readMonthlyCostSnapshot(importId, { includeIgnoredNames }, options => computeCollaboratorRatesUncached(importId, options));
+}
+
+async function computeCollaboratorRatesUncached(importId, { includeIgnoredNames }) {
   const pontoScope = await getPontoImportScope(importId);
   if (!pontoScope) return { pontoImport: null, pontoImports: [], periodStart: null, periodEnd: null, fileName: null, rates: [], byCollaboratorId: new Map() };
 

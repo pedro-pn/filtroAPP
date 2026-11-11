@@ -17,6 +17,7 @@ test('PostgreSQL + HTTP: point projections and batched group sources preserve co
   const { listCommercialDashboard } = await import('../src/lib/acompanhamento/access-import.js');
   const { loadPlannedHours } = await import('../src/lib/acompanhamento/planned-hours.js');
   const { loadGroupDetailSources } = await import('../src/lib/acompanhamento/project-detail-sources.js');
+  const { computeCollaboratorRates } = await import('../src/lib/acompanhamento/labor-cost.js');
   const { clearProjectDerivedCaches } = await import('../src/lib/resource-list-cache.js');
   const { withProjectAccess, withProjectChannel } = await import('../src/lib/projects/access-scope.js');
   let fixture, server;
@@ -150,12 +151,18 @@ test('PostgreSQL + HTTP: point projections and batched group sources preserve co
   assert.equal(refreshedPerson.custoEstimadoRdo, null, 'Cost exclusions are re-read in the next group request');
 
   server = await new Promise(resolve => { const instance = app.listen(0, '127.0.0.1', () => resolve(instance)); });
-  await t.test('a cold authenticated detail shares financial catalogs and a new request observes settings', async sub => {
+  await t.test('detail and point share a verified monthly calculation and a new revision observes settings', async sub => {
     const originalProfiles = database.costProfile.findMany, originalSettings = database.acompanhamentoSetting.findMany;
-    let profileReads = 0, settingReads = 0;
+    const originalPeriods = database.pontoPeriodSummary.findMany;
+    let profileReads = 0, settingReads = 0, monthlyReads = 0;
     database.costProfile.findMany = (...args) => { profileReads++; return originalProfiles.apply(database.costProfile, args); };
     database.acompanhamentoSetting.findMany = (...args) => { settingReads++; return originalSettings.apply(database.acompanhamentoSetting, args); };
-    sub.after(() => { database.costProfile.findMany = originalProfiles; database.acompanhamentoSetting.findMany = originalSettings; });
+    database.pontoPeriodSummary.findMany = (...args) => {
+      if (args[0].where.collaboratorId?.not === null) monthlyReads++;
+      return originalPeriods.apply(database.pontoPeriodSummary, args);
+    };
+    sub.after(() => { database.costProfile.findMany = originalProfiles; database.acompanhamentoSetting.findMany = originalSettings;
+      database.pontoPeriodSummary.findMany = originalPeriods; });
     clearProjectDerivedCaches();
     const detailRequest = async () => {
       const response = await fetch('http://127.0.0.1:' + server.address().port + '/api/acompanhamento/comercial/projetos/' + ids[0] + '/detalhe?progress=current',
@@ -166,6 +173,11 @@ test('PostgreSQL + HTTP: point projections and batched group sources preserve co
     const first = await detailRequest();
     assert.equal(profileReads, 1, 'Point and fallback RDO costs use one role/profile catalog');
     assert.equal(settingReads, 1, 'Point and fallback RDO costs use one annual-cost source');
+    const point = await fetch('http://127.0.0.1:' + server.address().port + '/api/acompanhamento/ponto/colaboradores?view=summary',
+      { headers: { authorization: 'Bearer ' + fixture.sessions.admin[0] } });
+    assert.equal(point.status, 200);
+    assert.ok((await point.json()).rates.length > 0);
+    assert.equal(monthlyReads, 1, 'Different response variants reuse the verified monthly calculation');
     assert.deepEqual(await detailRequest(), first);
     assert.equal(profileReads, 1, 'An unchanged database reuses the projected response');
     const originalRaw = database.$queryRaw;
@@ -182,6 +194,7 @@ test('PostgreSQL + HTTP: point projections and batched group sources preserve co
       const second = await detailRequest();
       assert.equal(profileReads, 2);
       assert.equal(settingReads, 2);
+      assert.equal(monthlyReads, 2, 'Source writes invalidate the monthly snapshot too');
       assert.notDeepEqual(second.maoDeObra, first.maoDeObra, 'The next request must read changed costs');
     } finally {
       if (previous) await database.acompanhamentoSetting.update({ where: { key: 'epiAnnualCost' }, data: { numberValue: previous.numberValue } });
@@ -199,12 +212,15 @@ test('PostgreSQL + HTTP: point projections and batched group sources preserve co
   await database.pontoPeriodSummary.create({ data: { importId: fixture.importId,
     rawName: 'Pessoa ignorada sintética', normalizedName: 'pessoa ignorada sintetica',
     periodStart: new Date('2026-09-01'), periodEnd: new Date('2026-09-30'), workedMinutes: 0 } });
+  const uncached = await computeCollaboratorRates(null, { includeIgnoredNames: true });
+  clearProjectDerivedCaches();
   let ignoredReads = 0, full;
   const originalIgnoredRead = database.pontoExternalEmployee.findMany;
   database.pontoExternalEmployee.findMany = (...args) => { ignoredReads++; return originalIgnoredRead.apply(database.pontoExternalEmployee, args); };
   try { full = await request(''); }
   finally { database.pontoExternalEmployee.findMany = originalIgnoredRead; }
   assert.equal(ignoredReads, 1, 'Full/summary metadata must reuse the engine read of ignored employees');
+  assert.deepEqual(full.body.rates, JSON.parse(JSON.stringify(uncached.rates)), 'Cached binary snapshots preserve every public financial field');
   assert.equal(Object.hasOwn(full.body, 'ignoredExternalEmployees'), false, 'Internal employee metadata must not enter the public contract');
   const explicitFull = await request('?view=full'), summary = await request('?view=summary');
   assert.deepEqual(explicitFull, full);

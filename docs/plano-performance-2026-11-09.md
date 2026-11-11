@@ -292,7 +292,7 @@ não depender de reverter ou apagar dados para reverter o código.
 - [ ] T03 Healthchecks de Nginx/progresso do worker implementados localmente; série publicada pendente.
 - [x] T04 Consultas do Gestor por necessidade da aba, verificadas localmente.
 - [x] T05 Pacote completo de avanço otimizado com paridade, verificado localmente.
-- [ ] T06 Implementação local: projeções, grupos em lote, fontes por requisição e cache versionado; pool aquecido aprovado localmente, meta global com frio/refresh e aceite publicado pendentes.
+- [ ] T06 Implementação local: projeções, grupos em lote, fontes por requisição, snapshot mensal e revisão estável; pool aquecido aprovado localmente, meta global com frio/refresh e aceite publicado pendentes.
 - [ ] T07 Parcial: fontes compartilhadas, catálogos em lote, intervalos por período, calendário antecipado e conciliação sem motor de custos; meta fria geral e aceite HTTP pendentes.
 - [ ] T08 Seções/modais e painéis do Gestor carregados sob demanda localmente; aceite publicado pendente.
 - [ ] T09 Imagens otimizadas e CSS exclusivo da administração extraído; aceite LCP publicado pendente.
@@ -308,12 +308,12 @@ não depender de reverter ou apagar dados para reverter o código.
 | T03 | Healthchecks locais do Nginx e de progresso do worker, incluindo filas de aprovação/e-mail/Data Book | Publicação manual e série de 24 h/sete dias |
 | T04 | Bootstrap projetado por seção, cache separado por seção e usuário, consultas condicionais, tratamento de carga/falha no upload manual e compatibilidade do contrato anterior | Aceite HTTP em ambiente publicado |
 | T05 | Associação das medições e preparo do escopo reutilizados dentro de cada cálculo; curvas não montam grupos de exibição descartados; resultado completo comparado com o anterior | Aceite HTTP em ambiente publicado |
-| T06 | Avanço a cada 15 s; histórico/recortes por revisão; projeções; fontes dos grupos em lote; cache opt-in por versão transacional/usuário/permissões; catálogos por requisição; autenticação sem relações vazias; pool aquecido 100% sem fila em três coortes | Meta de 95% na janela que inclui frio/refresh ainda aberta (89,7–90,6% local); concorrência/p95 e atualização publicados |
-| T07 | Fontes mensais/globais compartilhadas; catálogos em lote/por requisição; horários por período; disponibilidade antecipada; conciliação sem custos; auditoria e eixos equivalentes reutilizados; vínculos nominais em uma consulta; ciclos sob demanda; custo por pessoa compartilhado | Meta fria geral de 50% ainda aberta: 44,8% no cenário esparso e 48,7% no denso; reduzir rajadas no cache frio sem deslocar espera ou alterar regras |
+| T06 | Avanço a cada 15 s; histórico/recortes por revisão; projeções; fontes dos grupos em lote; cache opt-in por versão/usuário/permissões; snapshot mensal por escopo; revisão estável; catálogos por requisição; autenticação sem relações vazias; pool aquecido 100% nas coortes finais | Meta de 95% na janela que inclui frio/refresh ainda aberta (90,2–90,5% na repetição local); concorrência/p95 e atualização publicados |
+| T07 | Fontes mensais/globais compartilhadas; catálogos em lote/por requisição; horários por período; disponibilidade antecipada; conciliação sem custos; auditoria e eixos equivalentes reutilizados; vínculos nominais em uma consulta; ciclos sob demanda; custo por pessoa compartilhado | Meta fria geral de 50% ainda aberta: 44,9% no cenário esparso e 42,3% no denso nesta repetição; reduzir rajadas no cache frio sem deslocar espera ou alterar regras |
 | T08 | Seções do Efetivo/Acompanhamento, cinco modais de workflow e painéis do Gestor sob demanda; visão geral estatística separada dos overlays | Aceite das superfícies autenticadas no ambiente publicado |
 | T09 | Variantes lossless, favicon/hash/prioridade do login e CSS da administração de credenciais separado do shell, preservando a camada legacy | Aceite LCP publicado; outros estilos globais podem ser divididos conforme medição |
 | T10 | Sondagens vazias agregadas; trabalho/falhas individuais; preview e aplicação exclusiva de JobRun, com lotes/auditoria e sem prazo padrão | Definir prazo/política antes da aplicação manual; medir linhas/dia publicado |
-| T11 | Orçamentos, paridade, projeções HTTP/PostgreSQL e navegador no CI; gate de cobertura dos triggers; padrões/runbook; 11 jobs aprovados em `5a82aa25` | Verificar CI desta continuação após envio; validação publicada permanece em T12 |
+| T11 | Orçamentos, paridade, projeções HTTP/PostgreSQL e navegador no CI; gate de cobertura dos triggers; padrões/runbook; 11 jobs aprovados em `1c26fa28` | Verificar CI desta continuação após envio; validação publicada permanece em T12 |
 
 Os aceites publicados, a política/aplicação de retenção e o restante da meta fria de T07 permanecem pendentes. As regras de apropriação
 de custos foram preservadas. Não houve exclusão de histórico, alteração de backup
@@ -323,14 +323,16 @@ ou execução em servidores nesta implementação local.
 
 1. **Pool no frio/refresh — T06/T07:** o cache opt-in fecha o ensaio aquecido
    (100% sem fila, inclusive com JobRun sendo atualizado), mas a combinação das
-   fases medidas chega a 89,7–90,6%, abaixo dos 95%. Restam as rajadas nos misses,
+   fases medidas chega a 90,2–90,5% na repetição de 11/11, abaixo dos 95%. Restam as rajadas nos misses,
    inclusive após gravações reais. Não deslocar espera para uma fila invisível
    nem aumentar o pool para aparentar cumprimento; exigir ganho HTTP e registrar
    qualquer espera na aplicação. A invalidação conservadora mantém a atualização.
-2. **Carga fria — T07:** o cálculo em processo novo melhorou 44,8% no cenário
-   esparso e 48,7% no denso contra o início do plano. A meta geral de 50% segue
+2. **Carga fria — T07:** o cálculo em processo novo melhorou 44,9% no cenário
+   esparso e 42,3% no denso nesta repetição contra o início do plano. A meta geral de 50% segue
    aberta. Perfis e dois protótipos adicionais não justificaram novo transporte
-   SQL/índice; resultados e limitações estão nas evidências da última seção.
+   SQL/índice; resultados e limitações estão nas evidências das últimas seções.
+   As latências variaram entre coortes; os números não demonstram ganho causal
+   geral nem devem ser compostos com percentuais de rodadas anteriores.
 3. **Aceite publicado — T01/T04/T05/T06/T08/T09:** verificar p95 HTTP, conteúdo
    útil/LCP, transferência por rota, dois navegadores, permissões/divisões,
    gravações do worker, atualização até 15 s e página oculta sem polling.
@@ -1913,6 +1915,126 @@ Arquitetura, sintaxe, diff, integridade das evidências e limpeza das fixtures f
 verificados. O CI desta continuação é verificado após envio e informado no
 fechamento. T06 (frio/refresh), T07 (meta fria), política de T10 e aceites publicados
 de T01/T03/T04/T05/T06/T08/T09/T12 continuam abertos; **T02 segue adiada**.
+
+### Snapshot mensal e revisão estável — continuação local de 11/11
+
+A referência incremental é **`1c26fa28`**, enviada e com os 11 jobs do
+[CI aprovados](https://github.com/pedro-pn/filtroAPP/actions/runs/42918304457).
+A continuação foi feita na worktree `filtroAPP-performance`. Não houve operação em
+produção/staging, alteração de pool/concorrência, migration adicional ou trabalho
+em backups. As [evidências](evidence/performance-monthly-snapshots-20261111.json)
+identificam 13 arquivos de código/teste por SHA256, congelados antes dos ensaios.
+
+**Fontes condicionais.** Grupos ativos e dias conferidos mantêm os predicados e a
+ordem dos pais. Seus vínculos só são consultados para os IDs realmente retornados.
+Na fixture de serviço sem grupos/conferências, isso dispensa dois SELECTs vazios.
+Os filhos conservam o escopo do cliente Prisma. Uma falha na leitura dos vínculos
+continua rejeitando a operação; não se apresenta uma apropriação parcial como válida.
+O mock do relatório mensal foi adaptado ao transporte em duas consultas, mantendo
+as verificações de CNPJ, dias conferidos e turno noturno.
+
+**Cálculo mensal compartilhado.** Com o flag de cache existente habilitado,
+GET/HEAD que já verificaram a revisão transacional podem compartilhar o cálculo
+por revisão, importação e escopo/canal de projetos. Detalhe/grupo e ponto usam o
+mesmo resultado canônico; os metadados opcionais de nomes ignorados são projetados
+conforme o consumidor. As respostas finais conservam suas chaves por usuário e
+permissões. Chamadas sem esse contexto e escritas, inclusive uma escrita aninhada
+em leitura verificada, recalculam normalmente.
+
+O armazenamento adicional é limitado a oito entradas/8 MiB, até 2 MiB por entrada
+e 15 s. A serialização V8 fica em memória e preserva Map, Date, precisão numérica
+e aliases internos; cada consumidor recebe um grafo independente. O decoder
+recebe bytes próprios: views de Buffer/TypedArray não podem alterar o armazenamento
+ou outro leitor. Erros de carregamento/decodificação são removidos; uma revisão
+nova não usa um cálculo antigo, mesmo quando ele ainda está pendente. O contrato
+HTTP permanece em JSON e o flag continua desativado por padrão.
+
+O teste com PostgreSQL confirma uma única leitura mensal entre detalhe e ponto,
+e novo cálculo após mudança de configuração, sem invalidação manual. A listagem
+completa em cache é comparada campo a campo com o cálculo sem cache.
+
+**Revisão do avanço.** A comparação também reproduziu um problema existente:
+o banco retornou as mesmas 242 linhas em outra ordem; os demais insumos eram
+iguais, os valores publicados não mudavam e o hash do avanço mudava. Isso pode
+disparar nova busca de históricos na próxima leitura sem alteração de conteúdo.
+O diagnóstico guarda somente contagens, igualdade dos insumos e hashes.
+
+A revisão agora usa chaves JSON canônicas e trata explicitamente a coleção de
+serviços realizados como sem ordem para o digest. Escopos planejados, histórico
+manual e arrays internos das medições mantêm sua ordem. Os cálculos recebem as
+mesmas entradas, sem reordenação. Alterações reais, finalização, data, quantidade
+de linhas, valores e ordem das coleções significativas continuam mudando o token.
+Projeto e divisão têm regressões que invertem a ordem dos serviços e verificam
+revisão estável, valores iguais e nova revisão após editar uma medição.
+
+A primeira versão canônica codificava cada serviço duas vezes. A implementação
+final codifica uma vez e monta o objeto canônico a partir dessas representações.
+O diagnóstico de CPU comparou 54 digests iguais: vinte pares aquecidos por caso,
+primeiras chamadas e insumos capturados. Com 2.420 linhas, a mediana de CPU caiu
+30,8% no projeto e 30,6% na divisão contra o protótipo canônico. Isso é custo do
+hash em Node, separado de HTTP e do algoritmo antigo anterior à canonização.
+A primeira leitura publicada pode atualizar históricos uma vez pelo novo token.
+
+**Paridade.** Oito superfícies em sete estados tiveram 56 pares de saídas de
+negócio iguais: custos explícitos/recentes, metadados do ponto, detalhe, grupo,
+grupo com acesso restrito, dias conferidos e relatório mensal. Foram cobertos
+conferência, troca de vínculo, desconfirmação, compartilhamento, consolidação,
+mudança de cargo e nome. A comparação normaliza somente a ordem de chaves JSON,
+o horário de emissão do relatório e os três tokens opacos de revisão cujo
+algoritmo mudou. Valores, trilhas, escopos, CNPJ, datas e demais campos permanecem
+na comparação. Os testes de revisão/atualização verificam os tokens reais.
+
+**HTTP e pool.** Quatro coortes finais sequenciais, referência/candidato e
+candidato/referência, ambas com o mesmo flag habilitado. Cada uma guarda 832
+respostas medidas (800 aquecidas, oito frias, oito warmups e 16 após escrita),
+mais oito negativas de acesso separadas. Foram 3.328 respostas medidas finais.
+PostgreSQL 16 com uma CPU/768 MiB, pool oito, concorrência quatro, parâmetro de
+1.200 RDOs, 297 linhas de escopo, grupo com dois membros e ponto resumido. Não
+houve testes ou outros ensaios desta tarefa durante as janelas cronometradas;
+o host da API não foi isolado. O artefato também preserva as coortes exploratórias
+do protótipo canônico, sem tratá-las como aceite da versão final.
+
+| Coorte | Aquecido sem fila | Todas as fases sem fila | SQL nas 16 respostas pós-escrita | Última resposta após escrita |
+| --- | ---: | ---: | ---: | ---: |
+| Referência, ida | 100.0% | 89.8% | 400 | 428.9 ms |
+| Candidato, ida | 100.0% | 90.5% | 348 | 472.0 ms |
+| Candidato, ordem inversa | 100.0% | 90.2% | 348 | 554.8 ms |
+| Referência, ordem inversa | 100.0% | 89.5% | 400 | 474.5 ms |
+
+O máximo de SQL do ponto após escrita passou de 30 para cinco no cenário medido;
+no aquecido, os contadores continuam em nove para cards, sete para detalhe e
+quatro para grupo/ponto. A combinação das fases permanece abaixo dos 95%.
+As latências variaram e não demonstraram ganho uniforme, mesmo reduzindo SQL;
+T06 continua parcial. Uma resposta fria por rota/perfil e duas pós-escrita por
+rota/perfil não estabelecem p95 dessas fases. Proxy, TLS, navegador e produção
+não foram medidos nesta continuação.
+
+**Serviço frio.** Cinco pares por modo/cenário contra `3db7e76f`, alternando a
+ordem, confirmaram mais 30 resultados completos iguais. O snapshot mensal é
+ignorado nesses cálculos sem GET/HEAD verificado. Tempos excluem imports/boot e
+usam páginas do banco aquecidas; após sessão significa um SELECT:
+
+| Cenário | Modo | Antes | Depois | Redução |
+| --- | --- | ---: | ---: | ---: |
+| Poucos serviços | Aquecido | 232.1 ms | 63.7 ms | 72.5% |
+| Poucos serviços | Processo novo | 413.9 ms | 227.9 ms | 44.9% |
+| Poucos serviços | Após SELECT de sessão | 324.2 ms | 133.3 ms | 58.9% |
+| Denso | Aquecido | 255.8 ms | 68.4 ms | 73.3% |
+| Denso | Processo novo | 502.0 ms | 289.6 ms | 42.3% |
+| Denso | Após SELECT de sessão | 380.1 ms | 166.3 ms | 56.2% |
+
+A meta fria geral de 50% continua aberta. O artefato preserva as medições
+anteriores, incluindo uma repetição densa muito mais lenta para ambas as fontes;
+foi observada pressão de CPU no host. Não se atribui a variação de rodadas
+separadas a uma mudança isolada nem se compõem percentuais de ganho.
+
+Validação final: **2.808 testes de backend aprovados, 44 ignorados e nenhuma
+falha/cancelamento**; **18 contratos PostgreSQL/HTTP aprovados**, sem ignorados.
+Arquitetura, sintaxe, diff e integridade/privacidade das evidências verificados.
+As fixtures foram removidas e o container descartável com seus volumes foi
+excluído. O CI da continuação é verificado após envio e informado no fechamento.
+Continuam abertos pool no frio/refresh, meta fria geral, política de JobRun e
+aceites publicados de HTTP/conteúdo útil/LCP e 24 h/sete dias. **Backups adiados.**
 
 ### Uso local das ferramentas de medição
 

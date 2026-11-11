@@ -787,7 +787,7 @@ export async function computeProgressDetailsForProjects(projectIds, {
         ...(!hasMeasurableScope(planned) ? { updatedAt: project.updatedAt } : {})
       },
       planned, serviceReports, manualHistory: manualHistoryByProject.get(projectId) ?? []
-    }) } : {};
+    }, { unorderedArrays: ['serviceReports'] }) } : {};
     const timeline = measureRequestStage('progress.timeline', () => buildProgressTimeline(planned, serviceReports, { includeHistory: !currentOnly }));
     const scope = planned.length > 0
       ? buildProgress(planned, timeline.realizedByType)
@@ -880,7 +880,7 @@ export async function computeDivisionProgressDetails(projectId, division, {
     progressSlices: null,
     ...(includeRevision ? { progressRevision: progressSourceRevision({
       projectId, proposalPercentage: project.proposalPercentage, allPlanned, reports, division
-    }) } : {})
+    }, { unorderedArrays: ['reports'] }) } : {})
   };
 }
 

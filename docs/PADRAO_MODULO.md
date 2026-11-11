@@ -312,6 +312,22 @@ cobertura com o schema inteiro; exclusões operacionais exigem justificar que os
 dados não alimentam essas respostas. Não reutilizar esse cache para sessões, jobs
 ou outras fontes excluídas. Ver [operação e aceite](PERFORMANCE_OPERACAO.md).
 
+O cálculo mensal pode compartilhar `readMonthlyCostSnapshot` somente dentro de
+GET/HEAD com revisão verificada. A chave inclui importação e escopo/canal de
+projetos. O snapshot preserva `Map`, datas, precisão e referências internas com
+serialização V8 em memória; cada consumidor recebe seu próprio grafo de objetos.
+O limite adicional é de oito entradas/8 MiB, com até 2 MiB por entrada e 15 s.
+Chamadores sem esse contexto, incluindo jobs e escritas, recalculam normalmente.
+O cálculo compartilhado alimenta as projeções finais por usuário/permissão; nomes
+ignorados continuam sendo metadados internos opcionais. Não persistir esse formato
+nem recebê-lo de clientes. JSON permanece o formato dos DTOs HTTP.
+
+Revisões de avanço usam chaves de objetos canônicas e tratam a coleção de serviços
+realizados como sem ordem somente no digest. Preservar a ordem dos escopos,
+histórico manual e arrays internos das medições. A canonização não reordena as
+fontes entregues aos cálculos; incluir teste de revisão estável com retorno SQL
+em outra ordem e revisão diferente após uma alteração real.
+
 O relatório HTTP agrega `activePool`, amostrado uma única vez por intervalo global
 com requisições ativas. Somar os máximos de cada requisição duplicaria observações
 concorrentes e não mede a fração de intervalos sem fila. Logs antigos, sem essas

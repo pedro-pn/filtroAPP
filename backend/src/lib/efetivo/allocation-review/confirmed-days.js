@@ -18,17 +18,27 @@ export async function loadConfirmedReviewDays({ from, to }, client = prisma) {
       row: { confirmedAt: { not: null } }
     },
     select: {
+      id: true,
       collaboratorId: true,
       workDate: true,
-      kind: true,
-      projects: { select: { projectId: true } }
+      kind: true
     }
   });
+  if (!rows.length) return [];
+  const links = await client.allocationReviewDayProject.findMany({
+    where: { dayId: { in: rows.map(row => row.id) } },
+    select: { dayId: true, projectId: true }
+  });
+  const byDay = new Map();
+  for (const { dayId, projectId } of links) {
+    if (!byDay.has(dayId)) byDay.set(dayId, []);
+    byDay.get(dayId).push(projectId);
+  }
   return rows.map(row => ({
     collaboratorId: row.collaboratorId,
     date: new Date(row.workDate).toISOString().slice(0, 10),
     kind: row.kind,
-    projectIds: (row.projects || []).map(item => item.projectId).sort()
+    projectIds: (byDay.get(row.id) || []).sort()
   }));
 }
 
