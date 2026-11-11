@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: FiltroApp - Administração e API de Integrações
-  version: "1.13.0"
+  version: "1.14.0"
   description: >-
     Contrato da gestão administrativa de credenciais, consultas externas e escrita
     contratada do CRM Prisma no Efetivo. Tokens de integração e sessões humanas
@@ -421,6 +421,7 @@ paths:
                     - integration.events.list
                     - operational.ProjectResponsible.list
                     - efetivo.projects.status.list
+                    - operational.Report.download
                     - operational.ReportAttachment.download
                     - operational.StockItemDocument.download
                     - operational.MaintenanceAttachment.download
@@ -1201,13 +1202,13 @@ paths:
 
   /integracoes/v1/colaboradores:
     get:
-      tags: [IntegrationOperational]
+      tags: [ IntegrationOperational ]
       operationId: listIntegrationCollaborator
       summary: "Colaboradores — identificação operacional"
-      description: "Com projetos selecionados, inclui somente colaboradores de equipes de relatórios aprovados desses projetos; não representa alocação atual."
-      security: [{ IntegrationToken: [] }]
-      x-required-scopes: [colaboradores.operacional.read]
-      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Identificador interno mantido para compatibilidade; nao combine com projectCode."},{"name":"projectCode","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Codigo cadastrado do projeto, tratado como texto e com zeros a esquerda preservados; nao combine com projectId."},{"name":"active","in":"query","schema":{"type":"boolean"}}]
+      description: "Recorte atual por equipe de relatórios aprovados preservado. Com colaboradores.contato_corporativo.read (PERSONAL), acrescenta emailCorporativo da conta vinculada, exclusivamente @filtrovali.com.br, e userId. Sem conta ambos são null; conta com e-mail pessoal mantém userId e emailCorporativo null. Mudanças de conta exigem reconciliação completa: updatedSince segue o colaborador."
+      security: [ { IntegrationToken: [] } ]
+      x-required-scopes: [ colaboradores.operacional.read ]
+      parameters: [ { "$ref": "#/components/parameters/IntegrationLimit" }, { "$ref": "#/components/parameters/IntegrationCursor" }, { "name": "updatedSince", "in": "query", "schema": { "type": "string", "format": "date-time" } }, { "name": "snapshotAt", "in": "query", "schema": { "type": "string", "format": "date-time" } }, { "name": "projectId", "in": "query", "schema": { "type": "string", "minLength": 1, "maxLength": 100 }, "description": "Identificador interno mantido para compatibilidade; nao combine com projectCode." }, { "name": "projectCode", "in": "query", "schema": { "type": "string", "minLength": 1, "maxLength": 100 }, "description": "Codigo cadastrado do projeto, tratado como texto e com zeros a esquerda preservados; nao combine com projectId." }, { "name": "active", "in": "query", "schema": { "type": "boolean" } } ]
       responses:
         '200':
           description: Página operacional por updatedAt e id, sem campos não contratados.
@@ -1219,15 +1220,76 @@ paths:
               schema:
                 type: object
                 additionalProperties: false
-                required: [items, page, generatedAt, schemaVersion, requestId]
+                required: [ items, page, generatedAt, schemaVersion, requestId ]
                 properties:
                   items:
                     type: array
                     items:
-                      type: object
-                      additionalProperties: false
-                      required: ["id","createdAt","updatedAt","code","name","jobRoleId","isActive"]
-                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time"},"code":{"type":"string"},"name":{"type":"string"},"jobRoleId":{"type":"string"},"isActive":{"type":"boolean"}}
+                      oneOf:
+                        - type: object
+                          additionalProperties: false
+                          required:
+                            - id
+                            - createdAt
+                            - updatedAt
+                            - code
+                            - name
+                            - jobRoleId
+                            - isActive
+                          properties:
+                            id:
+                              type: string
+                            createdAt:
+                              type: string
+                              format: date-time
+                            updatedAt:
+                              type: string
+                              format: date-time
+                            code:
+                              type: string
+                            name:
+                              type: string
+                            jobRoleId:
+                              type: string
+                            isActive:
+                              type: boolean
+                        - type: object
+                          additionalProperties: false
+                          required:
+                            - id
+                            - createdAt
+                            - updatedAt
+                            - code
+                            - name
+                            - jobRoleId
+                            - isActive
+                            - emailCorporativo
+                            - userId
+                          properties:
+                            id:
+                              type: string
+                            createdAt:
+                              type: string
+                              format: date-time
+                            updatedAt:
+                              type: string
+                              format: date-time
+                            code:
+                              type: string
+                            name:
+                              type: string
+                            jobRoleId:
+                              type: string
+                            isActive:
+                              type: boolean
+                            emailCorporativo:
+                              type:
+                                - string
+                                - "null"
+                            userId:
+                              type:
+                                - string
+                                - "null"
                   page: { $ref: '#/components/schemas/IntegrationPageMeta' }
                   generatedAt: { type: string, format: date-time }
                   schemaVersion: { type: string, const: '1.0' }
@@ -1236,6 +1298,8 @@ paths:
         '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '429': { $ref: '#/components/responses/RateLimited' }
+      x-optional-scopes:
+        - colaboradores.contato_corporativo.read
 
   /integracoes/v1/cargos:
     get:
@@ -1358,7 +1422,7 @@ paths:
         - IntegrationOperational
       operationId: listIntegrationReport
       summary: Relatórios aprovados — identificação, descrição e horas
-      description: Sem rdo.relatorios.todos.read preserva somente APPROVED e os campos anteriores. Com o novo escopo independente inclui PENDING, RETURNED, APPROVED, SIGNED (nunca rascunhos) e os quatro campos condicionais; approvedAt já existia. updatedSince reflete mudanças de status.
+      description: "Sem todos.read preserva somente APPROVED e os campos anteriores. Com todos.read inclui PENDING, RETURNED, APPROVED e SIGNED, nunca rascunhos. Com pdf.download acrescenta pdf: indicador barato de referências locais de versões persistidas, sem conferir bytes/hashes; não cobre cache do disco ou ZapSign remoto. Download é a verificação definitiva. Manutenção expõe IDs DOCUMENT apenas com registros.read e anexos.metadata.read de manutenção. Metadados PDF e conta vinculada não são cobertos por updatedSince: reconciliar por leitura completa."
       security:
         - IntegrationToken: []
       x-required-scopes:
@@ -1613,7 +1677,220 @@ paths:
                                 - string
                                 - "null"
                               format: date-time
-                      description: Primeira alternativa para escopo legado; segunda exclusivamente com rdo.relatorios.todos.read.
+                        - type: object
+                          additionalProperties: false
+                          required:
+                            - id
+                            - createdAt
+                            - updatedAt
+                            - projectId
+                            - reportType
+                            - sequenceNumber
+                            - status
+                            - reportDate
+                            - arrivalTime
+                            - departureTime
+                            - lunchBreak
+                            - daytimeCount
+                            - daytimeWorkedMinutes
+                            - nighttimeWorkedMinutes
+                            - daytimeOvertimeMinutes
+                            - nighttimeOvertimeMinutes
+                            - totalOvertimeMinutes
+                            - approvedAt
+                            - dailyDescription
+                            - overtimeReason
+                            - reportNumber
+                            - projectCode
+                            - projectName
+                            - pdf
+                          properties:
+                            id:
+                              type: string
+                            createdAt:
+                              type: string
+                              format: date-time
+                            updatedAt:
+                              type: string
+                              format: date-time
+                            projectId:
+                              type: string
+                            reportType:
+                              type: string
+                            sequenceNumber:
+                              type:
+                                - integer
+                                - "null"
+                            status:
+                              type: string
+                            reportDate:
+                              type: string
+                              format: date-time
+                            arrivalTime:
+                              type: string
+                            departureTime:
+                              type: string
+                            lunchBreak:
+                              type: string
+                            daytimeCount:
+                              type: integer
+                            daytimeWorkedMinutes:
+                              type: integer
+                            nighttimeWorkedMinutes:
+                              type: integer
+                            daytimeOvertimeMinutes:
+                              type: integer
+                            nighttimeOvertimeMinutes:
+                              type: integer
+                            totalOvertimeMinutes:
+                              type: integer
+                            approvedAt:
+                              type:
+                                - string
+                                - "null"
+                              format: date-time
+                            dailyDescription:
+                              type:
+                                - string
+                                - "null"
+                            overtimeReason:
+                              type:
+                                - string
+                                - "null"
+                            reportNumber:
+                              type:
+                                - string
+                                - "null"
+                            projectCode:
+                              type: string
+                            projectName:
+                              type: string
+                            pdf: &a5
+                              type: object
+                              additionalProperties: false
+                              required:
+                                - disponivel
+                              properties:
+                                disponivel:
+                                  type: boolean
+                                versao:
+                                  type: string
+                                  enum:
+                                    - FINAL_ASSINADO
+                                    - ZAPSIGN
+                                    - MANUAL
+                                    - BASE_APROVADO
+                                    - CACHE
+                                nomeArquivo:
+                                  type: string
+                                atualizadoEm:
+                                  type:
+                                    - string
+                                    - "null"
+                                  format: date-time
+                                maintenanceAttachmentIds:
+                                  type: array
+                                  items:
+                                    type: string
+                        - type: object
+                          additionalProperties: false
+                          required:
+                            - id
+                            - createdAt
+                            - updatedAt
+                            - projectId
+                            - reportType
+                            - sequenceNumber
+                            - status
+                            - reportDate
+                            - arrivalTime
+                            - departureTime
+                            - lunchBreak
+                            - daytimeCount
+                            - daytimeWorkedMinutes
+                            - nighttimeWorkedMinutes
+                            - daytimeOvertimeMinutes
+                            - nighttimeOvertimeMinutes
+                            - totalOvertimeMinutes
+                            - approvedAt
+                            - dailyDescription
+                            - overtimeReason
+                            - reportNumber
+                            - projectCode
+                            - projectName
+                            - submittedAt
+                            - returnedAt
+                            - signedAt
+                            - clientReleasedAt
+                            - pdf
+                          properties:
+                            id:
+                              source: a1
+                            createdAt:
+                              source: a2
+                            updatedAt:
+                              source: a3
+                            projectId:
+                              source: a4
+                            reportType:
+                              source: a5
+                            sequenceNumber:
+                              source: a6
+                            status:
+                              source: a7
+                            reportDate:
+                              source: a8
+                            arrivalTime:
+                              source: a9
+                            departureTime:
+                              source: a10
+                            lunchBreak:
+                              source: a11
+                            daytimeCount:
+                              source: a12
+                            daytimeWorkedMinutes:
+                              source: a13
+                            nighttimeWorkedMinutes:
+                              source: a14
+                            daytimeOvertimeMinutes:
+                              source: a15
+                            nighttimeOvertimeMinutes:
+                              source: a16
+                            totalOvertimeMinutes:
+                              source: a17
+                            approvedAt:
+                              source: a18
+                            dailyDescription:
+                              source: a19
+                            overtimeReason:
+                              source: a20
+                            reportNumber:
+                              source: a21
+                            projectCode:
+                              source: a22
+                            projectName:
+                              source: a23
+                            submittedAt:
+                              type:
+                                - string
+                                - "null"
+                              format: date-time
+                            returnedAt:
+                              type:
+                                - string
+                                - "null"
+                              format: date-time
+                            signedAt:
+                              type:
+                                - string
+                                - "null"
+                              format: date-time
+                            clientReleasedAt:
+                              type:
+                                - string
+                                - "null"
+                              format: date-time
+                            pdf: *a5
                   page:
                     $ref: "#/components/schemas/IntegrationPageMeta"
                   generatedAt:
@@ -1634,6 +1911,7 @@ paths:
           $ref: "#/components/responses/RateLimited"
       x-optional-scopes:
         - rdo.relatorios.todos.read
+        - rdo.relatorios.pdf.download
       x-scope-alternatives:
         - - rdo.relatorios.todos.read
 
@@ -5278,6 +5556,83 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "429":
           $ref: "#/components/responses/RateLimited"
+
+  /integracoes/v1/rdo/relatorios/{id}/pdf:
+    get:
+      tags:
+        - IntegrationOperational
+      operationId: downloadIntegrationReport
+      summary: Baixar PDF pronto do relatório
+      description: "Entrega o PDF base/final pronto com a prioridade da tela: final assinado, ZapSign no cache local, manual, base aprovada e cache fresco. Sem composição de anexos ou sobreposição de assinaturas parciais. Nunca gera, repara hashes ou consulta rede externa no pedido. Ausência de preparação exige abrir o PDF na tela do FiltroAPP e repetir; não agenda conversão automaticamente. RDO_MAINTENANCE usa os anexos DOCUMENT indicados pela listagem e retorna 404 nesta rota. A mesma visibilidade da listagem é aplicada; todos.read libera estados adicionais. Tokens com projetos selecionados recebem PROJECT_NOT_ALLOWED para outro projeto visível."
+      security:
+        - IntegrationToken: []
+      x-required-scopes:
+        - rdo.relatorios.read
+        - rdo.relatorios.pdf.download
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+      responses:
+        "200":
+          description: Arquivo local autorizado, sem revelar caminho ou token de armazenamento.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+            Content-Disposition:
+              schema:
+                type: string
+            X-Content-Type-Options:
+              schema:
+                const: nosniff
+            Content-Length:
+              schema:
+                type: integer
+                minimum: 0
+                maximum: 52428800
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/InvalidIntegrationToken"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "PDF_NOT_READY: cache ausente/obsoleto, documento incompleto ou hash divergente; preparar pelo fluxo existente e tentar novamente."
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                const: 30
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                code: PDF_NOT_READY
+                message: O PDF ainda não está pronto.
+                requestId: exemplo-pdf
+        "413":
+          description: Arquivo excede 50 MiB.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
 
 components:
   securitySchemes:

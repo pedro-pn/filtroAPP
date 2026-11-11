@@ -14,6 +14,8 @@ import path from 'node:path';
 import os from 'node:os';
 import { Writable } from 'node:stream';
 
+// Os fixtures legados abaixo exercitam downloads de anexos; PDF de relatório tem fixtures próprios.
+const attachmentDownloads = OPERATIONAL_DOWNLOADS.filter(item => item.storage !== 'REPORT_PDF');
 const stamp = new Date('2026-09-07T00:00:00Z');
 const report = projectId => ({ id: `r-${projectId}`, projectId, status: 'APPROVED', createdAt: stamp, deletedAt: null, project: { id: projectId, code: projectId, name: 'Teste', deletedAt: null } });
 const maintenance = projectId => ({ id: `m-${projectId}`, reportId: `r-${projectId}`, status: 'APPROVED', report: report(projectId) });
@@ -69,8 +71,8 @@ test('16 requested scopes are grantable with dependencies and real operations', 
     assert.ok(API_OPERATIONS.some(op => op.requiredScopes.includes(code)), code);
     assert.ok(!futureScopeDefinitions().some(s => s.code === code), code);
   }
-  assert.equal(API_SCOPES.length, 58);
-  assert.equal(API_OPERATIONS.length, 60);
+  assert.equal(API_SCOPES.length, 60);
+  assert.equal(API_OPERATIONS.length, 61);
 });
 
 test('team pagination uses real composite key without fictitious timestamps', async () => {
@@ -184,7 +186,7 @@ test('authenticated files support all three roots and legacy FISPQ; never return
   const root = await mkdtemp(path.join(os.tmpdir(), 'integration-files-'));
   try {
     const roots = { reportsDir: root, uploadDir: root };
-    for (const d of OPERATIONAL_DOWNLOADS) {
+    for (const d of attachmentDownloads) {
       const folder = d.storage === 'REPORT' ? 'Missão p1 - Teste' : d.storage === 'STOCK' ? 'Estoque/Documentos' : 'Equipamentos/Manutenções/EQ1';
       await mkdir(path.join(root, folder), { recursive: true });
       const storagePath = `${folder}/file.pdf`;
@@ -271,7 +273,7 @@ test('empty downloads meter zero bytes without falling back to a JSON body', asy
 test('playground verifies all four downloads with authorization, metadata only, quota and TESTED audit', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'generic-playground-'));
   try {
-    for (const operationId of ['quality.evidence.download', ...OPERATIONAL_DOWNLOADS.map(d => d.operationId)]) {
+    for (const operationId of ['quality.evidence.download', ...attachmentDownloads.map(d => d.operationId)]) {
       const definition = OPERATIONAL_DOWNLOADS.find(d => d.operationId === operationId);
       const folder = !definition ? 'Qualidade/Evidencias' : definition.storage === 'REPORT' ? 'Missão p1 - Teste' : definition.storage === 'STOCK' ? 'Estoque/Documentos' : 'Equipamentos/Manutenções/EQ1';
       const storagePath = `${folder}/demo.pdf`;

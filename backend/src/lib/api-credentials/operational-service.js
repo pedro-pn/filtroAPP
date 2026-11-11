@@ -32,6 +32,10 @@ export function prepareOperationalQuery(operationId, input, context) {
       where: { status: { in: ['PENDING', 'RETURNED', 'APPROVED', 'SIGNED'] }, deletedAt: null, project: { deletedAt: null } }
     };
   }
+  for (const [scope, extra] of Object.entries(resource.scopedFields || {})) {
+    if (context.scopes.has(scope)) resource = { ...resource,
+      fields: { ...resource.fields, ...extra.fields }, select: { ...resource.select, ...extra.select } };
+  }
   if (Object.keys(query).some(key => !resource.queryParams.includes(key))) {
     throw new IntegrationApiError(400, 'UNKNOWN_PARAMETER', 'Parâmetro não disponível nesta operação.');
   }
@@ -115,6 +119,8 @@ export async function listOperationalResources(client, operationId, input, conte
     ...(query.active !== undefined ? { active: query.active } : {}),
     ...(resource.model === 'Report' && context.scopes.has('rdo.relatorios.todos.read') ? { allStates: true } : {}),
     ...(resource.conditionalScope ? { conditionalValues: context.scopes.has(resource.conditionalScope) } : {}),
+    ...(Object.keys(resource.scopedFields || {}).some(scope => context.scopes.has(scope))
+      ? { scopedFields: Object.keys(resource.scopedFields).filter(scope => context.scopes.has(scope)).sort() } : {}),
     policyFingerprint: createHash('sha256').update(stableJson({
       projectAccessMode: context.projectAccessMode,
       projectIds: context.projectAccessMode === 'SELECTED' ? [...context.projectIds].sort() : []

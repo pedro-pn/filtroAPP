@@ -240,6 +240,114 @@ curl --fail-with-body --get \
 
 Downloads autenticados: `/rdo/anexos/{id}/download`, `/estoque/documentos/{id}/download` e `/manutencao/anexos/{id}/download`. Exigem base + metadados + `.download`. O console verifica acesso/disponibilidade e retorna JSON, sem transferir o arquivo; use um cliente HTTP para baixar. Os arquivos originais podem conter dados pessoais/financeiros e não são redigidos. Limite de 50 MiB por arquivo, medição de bytes e cotas de requisições existentes; não há nova cota diária de bytes.
 
+### PDF de relatórios para o Omni — OpenAPI 1.14.0
+
+`GET /api/integracoes/v1/rdo/relatorios/{id}/pdf` exige
+`rdo.relatorios.read` + **`rdo.relatorios.pdf.download`** (`PERSONAL`).
+O documento contém nomes e assinaturas. A seleção compartilha a prioridade da
+tela: final assinado de versão ativa, ZapSign assinado no cache local, manual
+(inclusive versão histórica), base do aprovado e cache fresco. Valida hash de
+versões, frescor de cache, armazenamento gerenciado sem symlinks e 50 MiB antes
+de ler os bytes. O download responde `application/pdf`, `Content-Length`,
+`Content-Disposition` com nome seguro, `Cache-Control: no-store` e `nosniff`.
+Cotas e auditoria de bytes são as mesmas dos demais downloads. O playground
+valida acesso e integridade, retornando somente JSON, sem conteúdo do PDF.
+
+Para manter o prazo de 15s, serve **somente o PDF base/final pronto**, sem juntar
+os anexos PDF (a tela admite até 200 MiB) e sem sobrepor evidências de assinaturas
+parciais. O final assinado preserva as assinaturas completas. Não gera, repara
+hashes, reconcilia ou busca arquivos remotos da ZapSign durante o pedido, nem
+agenda conversões automaticamente. Se necessário, prepare o documento abrindo
+seu PDF na tela do FiltroAPP e repita a consulta. Não há fallback para documento
+inferior quando uma versão prioritária está ausente ou inválida.
+
+| Resposta | Significado |
+|---|---|
+| `200` | PDF pronto e autorizado. |
+| `404 FILE_NOT_FOUND` | Relatório inexistente/invisível, arquivo persistido ausente, caminho inválido ou RDO_MAINTENANCE. |
+| `409 PDF_NOT_READY` | Cache ausente/obsoleto, ZapSign ainda sem cache local, PDF incompleto ou hash divergente. `Retry-After: 30`. |
+| `413 FILE_TOO_LARGE` | Documento maior que 50 MiB. |
+| `403 PROJECT_NOT_ALLOWED` | Relatório visível de projeto fora do recorte da credencial. |
+| `403 INSUFFICIENT_SCOPE` | Falta um dos escopos obrigatórios. |
+
+Aplica a mesma visibilidade de `/rdo/relatorios`: sem `todos.read`, somente
+`APPROVED`; com `rdo.relatorios.todos.read`, também `PENDING`, `RETURNED` e
+`SIGNED`. Rascunhos, excluídos e projetos sem distribuição API continuam ocultos.
+
+Com `rdo.relatorios.pdf.download`, a listagem acrescenta o indicador barato:
+
+```json
+{
+  "id": "relatorio-ficticio",
+  "reportType": "RDO",
+  "status": "SIGNED",
+  "pdf": {
+    "disponivel": true,
+    "versao": "FINAL_ASSINADO",
+    "nomeArquivo": "Missão 5719 Jupiá - RDO 147 - 09-11-2026 - segunda.pdf",
+    "atualizadoEm": "2026-11-10T12:00:00.000Z"
+  }
+}
+```
+
+Exemplo de item parcial; os demais campos contratados permanecem. O indicador
+cobre referências locais de versões ativas final/manual/base e usa `createdAt`
+da versão como `atualizadoEm`. Não lê o filesystem, não valida hash e não
+inspeciona cache gerado ou ZapSign. Assim, `{"disponivel":false}` pode ainda
+permitir download de um cache fresco; `true` não garante existência/integridade
+no disco. O download é a verificação definitiva. Manuais históricos fora da
+versão ativa também são descobertos apenas no download. Mudanças do arquivo ou
+da conta vinculada não alteram necessariamente o `updatedAt` do relatório ou do
+colaborador; reconcilie esses metadados por leitura completa.
+
+`RDO_MAINTENANCE` retorna
+`"pdf":{"disponivel":false,"maintenanceAttachmentIds":["documento-ficticio"]}`.
+São somente IDs de `MaintenanceAttachment` de tipo `DOCUMENT` ligados ao
+relatório, aprovados e visíveis pela política atual de manutenção. Para recebê-los,
+conceda também `manutencao.registros.read` e `manutencao.anexos.metadata.read`;
+sem esses escopos, a lista é vazia. Baixe cada documento pela rota existente
+`GET /api/integracoes/v1/manutencao/anexos/{id}/download` com
+`manutencao.anexos.download`, além das duas dependências. Não se duplica arquivo.
+Relatório `SIGNED` continua sujeito à restrição de publicação da manutenção,
+mesmo com `rdo.relatorios.todos.read` (veja a proposta separada abaixo).
+
+Para atualizar o token do Omni, use **Rotacionar** incluindo os escopos atuais e:
+
+- `rdo.relatorios.pdf.download` e a dependência `rdo.relatorios.read`;
+- `rdo.relatorios.todos.read` para os quatro estados enviados;
+- `manutencao.registros.read`, `manutencao.anexos.metadata.read` e
+  `manutencao.anexos.download` para os documentos de manutenção;
+- `colaboradores.contato_corporativo.read` e
+  `colaboradores.operacional.read` para associação corporativa.
+
+Tokens existentes não ganham permissões automaticamente. Preserve recorte,
+validade, cotas e demais escopos necessários ao Omni.
+
+### Contato corporativo do colaborador
+
+`GET /api/integracoes/v1/colaboradores` acrescenta **`emailCorporativo`** e
+**`userId`** apenas com **`colaboradores.contato_corporativo.read`** (`PERSONAL`,
+dependente de `colaboradores.operacional.read`). Usa a conta `User` vinculada,
+nunca o e-mail pessoal do cadastro. Exemplo parcial:
+`{"id":"colaborador-ficticio","emailCorporativo":"pessoa@filtrovali.com.br","userId":"usuario-ficticio"}`.
+O e-mail é validado, normalizado para minúsculas e deve ter domínio exato
+`@filtrovali.com.br`. Sem conta, ambos são `null`; com conta de e-mail pessoal,
+`userId` permanece e `emailCorporativo` é `null`. Não exige nem libera
+`colaboradores.pii.read`, CPF ou outros contatos. O recorte antigo por equipe de
+relatórios aprovados é preservado; ele não representa alocação atual no Efetivo.
+
+### Proposta separada: SIGNED como publicado
+
+O predicado atual `publishedReport` aceita exclusivamente `APPROVED`. A fonte
+confirma o comportamento, mas não registra justificativa para excluir `SIGNED`.
+Como `SIGNED` é posterior à aprovação, a exclusão parece uma lacuna de publicação.
+Esta entrega preserva a regra conforme solicitado. Proposta para outra mudança:
+incluir `status: { in: ['APPROVED', 'SIGNED'] }` no predicado, ajustar também o
+recorte de colaboradores por relatórios publicados e revisar dependentes
+(versões, equipe, anexos, assinaturas, auditoria e manutenção), com testes de
+listagem/download e exclusão de rascunhos. Isso amplia o acesso de tokens básicos
+existentes e precisa ser comunicado como alteração de política.
+
 ```bash
 # Escopos: rdo.relatorios.read + rdo.anexos.metadata.read + rdo.anexos.download
 # ANEXO_ID deve vir da consulta /rdo/anexos. Escolha um arquivo de saída novo.

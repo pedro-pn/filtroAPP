@@ -4,7 +4,7 @@ import { OPERATIONAL_DOWNLOADS } from './extended-operational-resources.js';
 import { describePlaygroundParameters } from './playground-parameters.js';
 import { CRM_PLANNING_EXAMPLE } from '../../../../shared/modules/crm-planning-example.js';
 
-export const API_CATALOG_VERSION = '2026-11-05.1';
+export const API_CATALOG_VERSION = '2026-11-11.1';
 export { API_DATA_DOMAINS, DATA_CATALOG_VERSION, flattenDataCatalogModels, futureScopeDefinitions } from './data-catalog.js';
 
 const QUALITY_RECORD_FIELDS = ['id', 'number', 'type', 'registeredAt', 'origin', 'project', 'eventDate', 'nature', 'subnature', 'description', 'impact', 'recurrence', 'linkedRnc', 'disposition', 'definedAction', 'actionOwner', 'actionDeadline', 'evidenceSummary', 'resultVerification', 'status', 'createdAt', 'updatedAt'];
@@ -17,6 +17,10 @@ const QUALITY_SCOPE_FIELDS = {
 };
 
 export const API_SCOPES = Object.freeze([
+  { code: 'colaboradores.contato_corporativo.read', domain: 'Pessoas, cargos e acesso', label: 'Ler contato corporativo do colaborador',
+    description: 'Acrescenta emailCorporativo exclusivamente @filtrovali.com.br e userId da conta vinculada. Sem conta, retorna null. Não inclui e-mail pessoal, CPF nem outros dados PII.',
+    sensitivity: 'PERSONAL', status: 'AVAILABLE', dependencies: ['colaboradores.operacional.read'], models: ['Collaborator', 'User'],
+    exposedFields: ['emailCorporativo', 'userId'], excludedFields: ['e-mail pessoal', 'CPF', 'telefone', 'credenciais', 'dados completos do usuário'] },
   { code: 'efetivo.conferencia.read', domain: 'Planejamento de efetivo', label: 'Ler alocação diária conferida (Conecta)',
     description: 'Dias efetivamente conferidos, com colaborador, matrícula, projetos e CNPJ do cliente, viagem e sede. Exige acesso a todos os projetos.',
     sensitivity: 'PERSONAL', status: 'AVAILABLE', dependencies: [], models: ['AllocationReviewDay', 'AllocationReviewRow', 'AllocationReviewWeek', 'AllocationReviewDayProject'],
@@ -60,8 +64,8 @@ export const API_SCOPES = Object.freeze([
   }),
   ...OPERATIONAL_DOWNLOADS.map(item => ({ code: item.scope, domain: API_DATA_DOMAINS.find(domain => domain.code === item.domainCode).label,
     label: item.label, sensitivity: 'PERSONAL', status: 'AVAILABLE', dependencies: item.dependencies,
-    description: `${item.metadata.projectNotice} Download autenticado do arquivo original (até 50 MiB), que pode conter dados pessoais ou financeiros.`,
-    models: [item.model], exposedFields: ['arquivo original'], excludedFields: ['caminhos internos', 'tokens de armazenamento'] }))
+    description: item.description || `${item.metadata.projectNotice} Download autenticado do arquivo original (até 50 MiB), que pode conter dados pessoais ou financeiros.`,
+    models: [item.model], exposedFields: item.storage === 'REPORT_PDF' ? ['PDF base/final', 'pdf.disponivel', 'pdf.versao', 'pdf.nomeArquivo', 'pdf.atualizadoEm', 'pdf.maintenanceAttachmentIds'] : ['arquivo original'], excludedFields: ['caminhos internos', 'tokens de armazenamento'] }))
 ].map(scope => QUALITY_SCOPE_FIELDS[scope.code] ? { ...scope, exposedFields: QUALITY_SCOPE_FIELDS[scope.code] } : scope));
 
 export const API_OPERATIONS = Object.freeze([

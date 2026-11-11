@@ -1,9 +1,9 @@
 import { OPERATIONAL_RESOURCES } from './operational-resources.js';
 import { OPERATIONAL_DOWNLOADS } from './extended-operational-resources.js';
 
-export const DATA_CATALOG_VERSION = '2026-11-03';
+export const DATA_CATALOG_VERSION = '2026-11-11';
 const publishedModels = new Set(OPERATIONAL_RESOURCES.map(item => item.model));
-const publishedScopes = new Set([...OPERATIONAL_RESOURCES, ...OPERATIONAL_DOWNLOADS].map(item => item.scope));
+const publishedScopes = new Set([...OPERATIONAL_RESOURCES, ...OPERATIONAL_DOWNLOADS].flatMap(item => [item.scope, ...Object.keys(item.scopedFields || {})]));
 
 const DEFAULT_INCLUDED_FIELDS = ['id', 'identificação funcional', 'estado', 'datas operacionais'];
 
@@ -23,9 +23,9 @@ export const API_DATA_DOMAINS = Object.freeze([
       ...modelEntries(['CollaboratorJobRoleHistory', 'User'], 'SENSITIVE'),
       ...modelEntries(['CollaboratorSignatureNoticeLog', 'ModuleRole', 'ProjectAuthorizedUser'], 'RESERVED')
     ],
-    candidateScopes: ['colaboradores.operacional.read', 'colaboradores.pii.read', 'cargos.read', 'usuarios.diretorio.read'],
+    candidateScopes: ['colaboradores.operacional.read', 'colaboradores.contato_corporativo.read', 'colaboradores.pii.read', 'cargos.read', 'usuarios.diretorio.read'],
     candidateAvailability: 'SENSITIVE', endpointFamilies: ['/colaboradores', '/cargos', '/usuarios'],
-    excludedFields: ['passwordHash', 'assinaturas', 'documentos', 'contatos sem escopo PII', 'sessões', 'notificações']
+    excludedFields: ['passwordHash', 'assinaturas', 'documentos', 'contatos sem escopo específico', 'sessões', 'notificações']
   }),
   domain({
     code: 'projects-clients', label: 'Projetos, clientes e configurações',
