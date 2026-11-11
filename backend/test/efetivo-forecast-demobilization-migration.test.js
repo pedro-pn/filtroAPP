@@ -55,7 +55,7 @@ async function snapshot(database) {
   };
 }
 
-test('previsão antiga da Klabin não encerra José nem troca o projeto atual pela próxima programação', async () => {
+test('previsão antiga da Klabin preserva a presença real de José e limita a projeção futura', async t => {
   const database = await fixture();
   try {
     await addMission(database, 'klabin');
@@ -93,8 +93,13 @@ test('previsão antiga da Klabin não encerra José nem troca o projeto atual pe
         allocations: [{ collaboratorId: 'jose' }]
       }]
     };
+    t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-11T12:00:00Z') });
     const result = buildAvailabilityPeriod({ startDate: '2026-10-27', endDate: '2026-11-24', projection });
-    assert.ok(result.people[0].days.every(day => day.status === 'MOBILIZED' && day.detail === '5839 · Klabin'));
+    const days = result.people[0].days;
+    assert.ok(days.filter(day => day.date <= '2026-11-11').every(day => day.status === 'MOBILIZED' && day.detail === '5839 · Klabin'));
+    assert.ok(days.filter(day => day.date >= '2026-11-12' && day.date <= '2026-11-14').every(day => day.status === 'AVAILABLE'));
+    assert.ok(days.filter(day => day.date >= '2026-11-15' && day.date <= '2026-11-23').every(day => day.status === 'AWAITING_MOBILIZATION' && day.detail === '5844 · MID'));
+    assert.equal(days.at(-1).status, 'AVAILABLE');
 
     await database.exec(sql);
     assert.deepEqual(await snapshot(database), state, 'reexecutar não altera datas, auditoria ou revisões');

@@ -1,5 +1,6 @@
 import { addCalendarDays, parseDateKey } from './date-only.js';
 import { missionPeriod, OPEN_MOBILIZATION_STAGES } from './mission-period.js';
+import { missionAwaitsMobilization } from '../../../../../shared/modules/mission-mobilization.js';
 
 function normalizedCycle(cycle, fallbackEndDate) {
   const startDate = parseDateKey(cycle.mobilizationDate);
@@ -66,7 +67,8 @@ export function missionCoversDate(mission, value, { includeOpenCycles = false } 
   const date = parseDateKey(value);
   return missionCycles(mission).some(period => (
     period.startDate <= date && (period.endDate >= date
-      || (includeOpenCycles && period.isOpen && OPEN_MOBILIZATION_STAGES.includes(mission.stage)))
+      || (includeOpenCycles && period.isOpen && OPEN_MOBILIZATION_STAGES.includes(mission.stage)
+        && !missionAwaitsMobilization(mission)))
   ));
 }
 

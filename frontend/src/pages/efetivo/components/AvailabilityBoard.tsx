@@ -11,7 +11,7 @@ import { summarizeAvailabilityPeriod } from '../../../utils/availabilitySummary'
 const STATUSES: PeriodAvailabilityStatus[] = ['AVAILABLE', 'AWAITING_MOBILIZATION', 'MOBILIZED', 'ON_VACATION', 'OFFSHORE_FATIGUE', 'OTHER_UNAVAILABLE'];
 const STATUS_META: Record<PeriodAvailabilityStatus, { label: string; short: string; description: string }> = {
   AVAILABLE: { label: 'Disponíveis', short: 'Disponível', description: 'Livres durante todo o período' },
-  AWAITING_MOBILIZATION: { label: 'Aguardando mobilização', short: 'Aguardando', description: 'Com missão em Stand by' },
+  AWAITING_MOBILIZATION: { label: 'Aguardando mobilização', short: 'Aguardando', description: 'Mobilização pendente de confirmação' },
   MOBILIZED: { label: 'Mobilizados', short: 'Mobilizado', description: 'Com alocação no período' },
   ON_VACATION: { label: 'De férias', short: 'Férias', description: 'Com férias no período' },
   OFFSHORE_FATIGUE: { label: 'Fadiga - offshore', short: 'Fadiga - offshore', description: 'Indisponíveis por fadiga offshore no período' },

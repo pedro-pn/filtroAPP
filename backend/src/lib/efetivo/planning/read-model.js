@@ -11,7 +11,8 @@ import { efetivoProjectWhere } from '../project-visibility.js';
 import { jobRoleFamilyKey, jobRoleFamilyName } from '../../collaborators/job-role-service.js';
 
 const missionReadInclude = {
-  project: { select: { id: true, code: true, name: true, clientName: true, location: true, mobilizationDate: true, demobilizationDate: true } },
+  project: { select: { id: true, code: true, name: true, clientName: true, location: true, mobilizationDate: true, demobilizationDate: true, workflow: { select: { stage: true, actualMobilizationDate: true } } } },
+  plan: { select: { kind: true } },
   cycles: { orderBy: { mobilizationDate: 'asc' } },
   demands: { include: { jobRole: { select: { id: true, name: true, calendarColor: true } } } },
   allocations: {
