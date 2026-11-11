@@ -5,6 +5,7 @@
 
 import prisma from '../prisma.js';
 import { loadRequestSource } from '../operations/request-sources.js';
+import { readVerifiedCostSource } from './verified-cost-sources.js';
 
 export const EPI_ANNUAL_COST_KEY = 'epiAnnualCost';
 export const EPI_ANNUAL_COST_DEFAULT = 5000; // R$/ano por colaborador (média fixa atual)
@@ -76,7 +77,8 @@ export async function setEpiAnnualCost(value, updatedByUserId = null) {
 }
 
 export function getAnnualCollaboratorCosts(database = prisma) {
-  return loadRequestSource(database, 'labor.annual-costs', () => loadAnnualCollaboratorCosts(database));
+  return loadRequestSource(database, 'labor.annual-costs',
+    () => readVerifiedCostSource(database, 'labor.annual-costs', () => loadAnnualCollaboratorCosts(database)));
 }
 
 async function loadAnnualCollaboratorCosts(database) {

@@ -77,6 +77,10 @@ export async function seedHttpPerformanceFixture(database, { reportCount = 1200,
         await database.reportService.update({ where: { id: service.id }, data: {
           extraData: { __scopeName: 'Escopo 0', tubes: [{ c: 600, lengthUnit: 'm' }] }
         } });
+        // Point edits need not change a card's total monetary allocation.
+        // Change a report fact too, so card freshness has a direct oracle.
+        await database.report.update({ where: { id: prefix + '-rdo-0' },
+          data: { daytimeWorkedMinutes: { increment: 60 } } });
         const period = await database.pontoPeriodSummary.findFirst({ where: { importId: labor.importId, collaboratorId: prefix + '-person-0' } });
         const monthly = structuredClone(period.monthly);
         monthly['2026-09'].normalMinutes += 60;

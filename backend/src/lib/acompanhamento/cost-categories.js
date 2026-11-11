@@ -1,6 +1,7 @@
 import { getSalaryCategoryCodes } from './salary.js';
 import prisma from '../prisma.js';
 import { loadRequestSource } from '../operations/request-sources.js';
+import { readVerifiedCostSource } from './verified-cost-sources.js';
 
 export async function getManualCostExcludedCategoryCodes() {
   const categories = await prisma.omieCategory.findMany({
@@ -64,8 +65,9 @@ export function buildOmieCostCategoryWhere({
   includeAdminOnly = true,
   excludeChemicalProducts = false
 } = {}) {
-  return loadRequestSource(prisma, ['omie.cost-category-filter', categoryCode || null, includeAdminOnly, excludeChemicalProducts],
-    () => loadOmieCostCategoryWhere({ categoryCode, includeAdminOnly, excludeChemicalProducts }));
+  const key = ['omie.cost-category-filter', categoryCode || null, includeAdminOnly, excludeChemicalProducts];
+  return loadRequestSource(prisma, key, () => readVerifiedCostSource(prisma, key,
+    () => loadOmieCostCategoryWhere({ categoryCode, includeAdminOnly, excludeChemicalProducts })));
 }
 
 async function loadOmieCostCategoryWhere({ categoryCode, includeAdminOnly, excludeChemicalProducts }) {

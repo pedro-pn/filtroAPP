@@ -8,7 +8,8 @@ import { performance } from 'node:perf_hooks';
 import { seedHttpPerformanceFixture } from './fixtures/http-performance.js';
 import { assertLocalPerformanceDatabase, mapConcurrent, summarizeHttpSamples } from './lib/http-performance-report.js';
 
-async function startServer({ poolLimit, directory, sourceRoot, readCacheEnabled }) {
+export async function startHttpPerformanceServer({ poolLimit, directory, sourceRoot, readCacheEnabled }) {
+  assertLocalPerformanceDatabase(process.env.DATABASE_URL);
   const child = fork(fileURLToPath(new URL('./fixtures/http-performance-server.js', import.meta.url)), [sourceRoot], {
     stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
     env: { ...process.env, NODE_ENV: 'test', DATABASE_CONNECTION_LIMIT: String(poolLimit),
@@ -153,14 +154,14 @@ export async function runHttpPerformanceBenchmark({
     // Fixture setup and PostgreSQL page caches are shared and explicitly excluded.
     for (const scenario of Object.keys(routes)) for (const profile of ['admin', 'viewer']) {
       for (let round = 0; round < coldRounds; round++) {
-        server = await startServer({ poolLimit, directory, sourceRoot, readCacheEnabled });
+        server = await startHttpPerformanceServer({ poolLimit, directory, sourceRoot, readCacheEnabled });
         await server.begin();
         await request(scenario, profile, 'first-process', round % 2);
         pool.push({ scenario, profile, phase: 'first-process', round, ...await server.pool() });
         await server.stop(); server = null;
       }
     }
-    server = await startServer({ poolLimit, directory, sourceRoot, readCacheEnabled });
+    server = await startHttpPerformanceServer({ poolLimit, directory, sourceRoot, readCacheEnabled });
     const before = {};
     for (const scenario of Object.keys(routes)) for (const profile of ['admin', 'viewer']) {
       before[scenario + ':' + profile] = await request(scenario, profile, 'warmup');
@@ -192,7 +193,12 @@ export async function runHttpPerformanceBenchmark({
         : scenario === 'ponto'
           ? pontoView === 'reconciliation' ? body.unmatched.length !== reference.unmatched.length
             : body.rates.find(rate => rate.collaboratorId === fixture.prefix + '-person-0').normalHoras !== reference.rates.find(rate => rate.collaboratorId === fixture.prefix + '-person-0').normalHoras
-          : null;
+          : body.some(card => {
+            const previous = reference.find(row => row.projectId === card.projectId && row.groupId === card.groupId && row.id === card.id);
+            return previous && card.workedHours?.normalWorkedHours !== previous.workedHours?.normalWorkedHours;
+          });
+      // Record stale cards as false in legacy baselines too. The current API's
+      // integration contract requires all four surfaces to observe the write.
       if (scenario !== 'cards') assert.equal(changed, true, 'Worker changes must be visible to the next completed request: ' + scenario);
       refresh.push({ scenario, profile, session, changed, completedAfterCommitMs: performance.now() - committedAt });
     });

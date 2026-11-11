@@ -433,11 +433,15 @@ router.get(
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
     const includeAdminOnlyCategories = req.auth?.user?.accountType === 'ADMIN';
-    const [cards, groups, copies, opportunities] = await Promise.all([listProjectCards({ includeAdminOnlyCategories }), loadActiveMissionGroups(), listPresentationCopies(), listCrmOpportunityCards()]);
-    const presentationCards = copies.map(copy => presentationPayload(copy, 'card', includeAdminOnlyCategories));
-    const convertedIds = new Set(cards.flatMap(card => card.crmOpportunity ? [card.crmOpportunity.id] : []));
-    res.json(projectFinancialsForUser([...groupProjectCards(cards, groups), ...presentationCards,
-      ...opportunities.filter(opportunity => !convertedIds.has(opportunity.id))], req.auth.user));
+    const result = await readAcompanhamentoResponse(req, ['project-cards', includeAdminOnlyCategories,
+      canViewProjectFinancials(req.auth.user)], async () => {
+      const [cards, groups, copies, opportunities] = await Promise.all([listProjectCards({ includeAdminOnlyCategories }), loadActiveMissionGroups(), listPresentationCopies(), listCrmOpportunityCards()]);
+      const presentationCards = copies.map(copy => presentationPayload(copy, 'card', includeAdminOnlyCategories));
+      const convertedIds = new Set(cards.flatMap(card => card.crmOpportunity ? [card.crmOpportunity.id] : []));
+      return projectFinancialsForUser([...groupProjectCards(cards, groups), ...presentationCards,
+        ...opportunities.filter(opportunity => !convertedIds.has(opportunity.id))], req.auth.user);
+    });
+    res.json(result);
   })
 );
 

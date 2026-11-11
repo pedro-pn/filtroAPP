@@ -300,7 +300,7 @@ o mesmo GET/HEAD, por cliente Prisma e escopo de projetos. Escritas saem desse
 contexto. Usar `loadRequestSource` para catálogos repetidos, conservando opções na
 chave; isso não autoriza cache global de dados financeiros.
 
-As respostas de detalhe individual/grupo e colaboradores do ponto podem usar
+As respostas de cards, detalhe individual/grupo e colaboradores do ponto podem usar
 `readAcompanhamentoResponse`, depois da autenticação, autorização e validação.
 A chave inclui usuário, escopo, permissões financeiras e variante normalizada.
 A versão transacional prefixa também os caches intermediários. O recurso exige a
@@ -321,6 +321,15 @@ Chamadores sem esse contexto, incluindo jobs e escritas, recalculam normalmente.
 O cálculo compartilhado alimenta as projeções finais por usuário/permissão; nomes
 ignorados continuam sendo metadados internos opcionais. Não persistir esse formato
 nem recebê-lo de clientes. JSON permanece o formato dos DTOs HTTP.
+
+Os catálogos de cargos/parâmetros, custos anuais e filtros de categorias usam
+`readVerifiedCostSource` para compartilhar dados somente sob a mesma revisão
+verificada, cliente Prisma, escopo/canal e opções. O limite conjunto adicional é
+16 entradas/4 MiB, até 1 MiB por entrada e 15 s. Manter os resolvers fora do
+snapshot e reconstruí-los para cada consumidor a partir de dados próprios.
+Uma gravação externa deve provocar nova leitura sem limpar a memória da API.
+Comparações com o caminho sem revisão precisam de uma referência nova: seus
+caches legados por TTL não constituem uma referência sem cache após gravação.
 
 Revisões de avanço usam chaves de objetos canônicas e tratam a coleção de serviços
 realizados como sem ordem somente no digest. Preservar a ordem dos escopos,

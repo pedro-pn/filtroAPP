@@ -21,7 +21,7 @@ Seguir também [PRODUCTION.md](../deploy/PRODUCTION.md) e o planejamento
 
 O cache é local ao processo, limitado a 32 entradas, 16 MiB de respostas concluídas
 e 2 MiB por resposta. O TTL é o menor entre `DASHBOARD_CACHE_TTL_MS` e 15 segundos.
-Abrange detalhe individual, detalhe de grupo e colaboradores do ponto. Cada leitura
+Abrange cards, detalhe individual, detalhe de grupo e colaboradores do ponto. Cada leitura
 autentica novamente e verifica no banco a revisão das fontes. A resposta já contém
 a projeção permitida ao usuário. Filtros, divisão, permissões e escopo entram na
 chave. Cada consumidor recebe um DTO independente.
@@ -29,16 +29,25 @@ chave. Cada consumidor recebe um DTO independente.
 As alterações dos marcadores pertencem à mesma transação dos dados; commits fora
 de ordem continuam detectáveis, e rollback não altera a versão publicada. Escritores
 usam linhas distintas. Não há contador global bloqueado por toda escrita. Sessões,
-sondagens de jobs e a telemetria excluída não alimentam os três DTOs. Uma falha na
+sondagens de jobs e a telemetria excluída não alimentam os DTOs. Uma falha na
 verificação de revisão retorna 503, inclusive se houver resposta antiga em memória.
 
-O mesmo flag também habilita o snapshot interno do cálculo mensal. Detalhe/grupo
+O mesmo flag também habilita o snapshot interno do cálculo mensal. Cards, detalhe/grupo
 e ponto podem reutilizá-lo quando a revisão, importação e escopo/canal coincidem.
 Há um limite adicional de oito entradas/8 MiB, até 2 MiB por entrada e 15 s.
 Cada consumidor recebe mapas, datas e valores independentes. O formato V8 existe
 somente na memória do processo; os contratos HTTP continuam em JSON. Jobs,
 escritas e cálculos fora do GET/HEAD verificado não usam esse compartilhamento.
 Esta continuação não exige outra migration além da revisão transacional anterior.
+
+Catálogos de cargos/parâmetros, custos anuais e filtros de categorias também podem
+compartilhar leituras entre requisições com revisão verificada. O mesmo flag
+controla esse armazenamento adicional: 16 entradas/4 MiB, até 1 MiB por entrada
+e 15 s. Cliente Prisma, escopo/canal e opções do filtro entram na chave. Os
+resolvers são reconstruídos a partir de cópias independentes dos dados; funções
+e clientes não são armazenados. As consultas e regras anteriores são preservadas.
+Falhas não ficam em cache, e uma revisão nova não participa da leitura pendente
+da anterior. Sem GET/HEAD verificado, inclusive em escritas, não há esse reuso.
 
 A revisão do avanço passou a ignorar a ordem de retorno dos serviços realizados
 e a ordem das chaves JSON. A primeira leitura após a publicação pode atualizar o

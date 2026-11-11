@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 const versions = new AsyncLocalStorage();
 const caches = new Set();
 
-// These operational records are not inputs to the three cached financial DTOs.
+// These operational records are not inputs to the cached financial DTOs.
 // Authentication/authorization still read sessions before entering this cache.
 export const UNTRACKED_READ_CACHE_MODELS = Object.freeze([
   'PerformanceReadRevision', 'JobRun', 'JobLock', 'UserSession', 'ApiRequestLog',

@@ -30,6 +30,7 @@ import { loadRequestSource } from '../operations/request-sources.js';
 import { laborReportQuery, loadLaborReportSources } from './labor-report-sources.js';
 import { loadLaborMissionGroups } from './labor-mission-groups.js';
 import { readMonthlyCostSnapshot } from './monthly-cost-snapshot.js';
+import { readVerifiedCostSource } from './verified-cost-sources.js';
 import { withPontoImportDates } from './ponto-period-sources.js';
 import { withCollaboratorRoleNames } from './collaborator-role-sources.js';
 import { loadOfficialAllocationSources, officialMissionWhere } from './effective-allocation-sources.js';
@@ -562,7 +563,7 @@ export function loadRoleCostCatalog(database = prisma) {
 async function loadRoleCostCatalogUncached(database) {
   // Profiles for roles and base models share the same parameter table. Fetch
   // that catalog once, then attach role profiles without a second relation walk.
-  const [roles, profiles] = await Promise.all([
+  const [roles, profiles] = await readVerifiedCostSource(database, 'labor.role-cost-rows', () => Promise.all([
     database.jobRole.findMany({ select: { id: true, name: true } }),
     database.costProfile.findMany({
       select: {
@@ -570,7 +571,7 @@ async function loadRoleCostCatalogUncached(database) {
         parameterSets: { select: { version: true, effectiveDate: true, createdAt: true, params: true } }
       }
     })
-  ]);
+  ]));
   const profilesByRoleId = new Map(profiles.filter(profile => profile.jobRoleId != null).map(profile => [profile.jobRoleId, profile]));
   const resolver = buildRoleParamsResolver({
     roles: roles.map(role => ({ ...role, costProfile: profilesByRoleId.get(role.id) })),

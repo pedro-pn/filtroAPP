@@ -37,6 +37,7 @@ test('HTTP + PostgreSQL: concurrent independent sessions preserve permissions, m
   }
   assert.ok(result.pool.find(row => row.phase === 'warm').samples > 0);
   assert.equal(result.worker.projectTimestampUnchanged, true);
+  for (const row of result.refresh.filter(row => row.scenario === 'cards')) assert.equal(row.changed, true);
 });
 
 test('HTTP benchmark preserves existing operational data and writes a visibly incomplete artifact', {
