@@ -22,7 +22,8 @@ import {
 } from './plan-context.js';
 
 export const missionInclude = {
-  project: { select: { id: true, code: true, name: true, clientName: true, location: true, mobilizationDate: true, demobilizationDate: true, workflow: { select: { actualMobilizationDate: true } } } },
+  project: { select: { id: true, code: true, name: true, clientName: true, location: true, mobilizationDate: true, demobilizationDate: true, workflow: { select: { stage: true, actualMobilizationDate: true } } } },
+  plan: { select: { kind: true } },
   cycles: { orderBy: { mobilizationDate: 'asc' } },
   demands: { include: { jobRole: { select: { id: true, name: true, calendarColor: true } } }, orderBy: { jobRole: { order: 'asc' } } },
   allocations: {

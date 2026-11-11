@@ -7,6 +7,11 @@ import { buildAvailabilityPeriod } from '../src/lib/efetivo/planning/availabilit
 
 const migration = new URL('../prisma/migrations/20261027210000_repair_forecast_demobilizations/migration.sql', import.meta.url);
 
+test.beforeEach(t => {
+  // O cenário histórico permanece no passado, independentemente da data da execução.
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-24T12:00:00Z') });
+});
+
 async function fixture() {
   const database = new PGlite();
   await database.exec(`

@@ -2,6 +2,7 @@ import { addCalendarDays, parseDateKey } from './date-only.js';
 import { businessDatesInclusive, holidayDateSet, isBusinessDay } from './business-days.js';
 import { allocationPeriods, missionCoversDate } from './allocation-period.js';
 import { OPEN_MOBILIZATION_STAGES } from './mission-period.js';
+import { missionAwaitsMobilization } from '../../../../../shared/modules/mission-mobilization.js';
 import { jobRoleFamilyKey, jobRoleFamilyName } from '../../collaborators/job-role-service.js';
 
 function collaboratorRoleId(collaborator) {
@@ -44,9 +45,10 @@ function indexMissionsByCollaborator(missions, includeOpenCycles = false) {
         startDate: period.startDate,
         endDate: period.endDate,
         isOpen: includeOpenCycles && period.isOpen && OPEN_MOBILIZATION_STAGES.includes(mission.stage)
+          && !missionAwaitsMobilization(mission)
       })));
       // Uma missão em campo prevalece sobre uma programação futura em Stand by.
-      if (includeOpenCycles) periods.sort((left, right) => Number(left.record.stage === 'STANDBY') - Number(right.record.stage === 'STANDBY'));
+      if (includeOpenCycles) periods.sort((left, right) => Number(missionAwaitsMobilization(left.record)) - Number(missionAwaitsMobilization(right.record)));
       index.set(allocation.collaboratorId, periods);
     }
   }
