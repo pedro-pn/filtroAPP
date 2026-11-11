@@ -242,13 +242,14 @@ export function createOperationalRouter({
         res.setHeader('Content-Type', file.contentType);
         res.setHeader('Content-Disposition', file.disposition);
         res.setHeader('Content-Length', String(file.bytes));
-        if (!file.bytes) res.end();
+        if (file.buffer) res.end(file.buffer);
+        else if (!file.bytes) res.end();
         else await pipeline(file.handle.createReadStream({ autoClose: false, start: 0, end: file.bytes - 1 }), res);
       } catch (error) {
         if (res.headersSent) res.destroy();
         else throw error;
       } finally {
-        if (file) await file.handle.close().catch(() => {});
+        if (file?.handle) await file.handle.close().catch(() => {});
       }
     }));
   }

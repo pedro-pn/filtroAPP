@@ -123,7 +123,7 @@ export function integrationApiBoundary({ allowedOrigins = [], requireHttps = fal
 export function sendIntegrationError(res, req, statusCode, code, message, extra = {}) {
   applySimulationPreference(req, res);
   req.apiOutcomeCode = code;
-  if (statusCode === 429 && extra.retryAfterSeconds) {
+  if ([409, 429].includes(statusCode) && extra.retryAfterSeconds) {
     res.setHeader('Retry-After', String(extra.retryAfterSeconds));
   }
   const fields = safeErrorFields(extra.fields);

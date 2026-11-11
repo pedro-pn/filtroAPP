@@ -18,6 +18,9 @@ import { removeSubmittedRdoDrafts } from '../../lib/reports/drafts.js';
 import { createPublicReportSignatureScope } from '../../lib/reports/public-signature-scope.js';
 import { createPublicSignatureFiles, createPublicSignaturePdfDownload, signedReportArchive } from '../../lib/reports/public-signature-files.js';
 import { reportApprovalAccessLink } from '../../lib/reports/client-access.js';
+import { calibrationCertificateUrlsForReport, pdfUploadUrlsForReport, pdfCacheMetadataForReport, pdfCacheMetadataMatches } from '../../lib/reports/pdf-cache.js';
+export { pdfUploadUrlsForReport } from '../../lib/reports/pdf-cache.js';
+import { selectReportPdfSource, manualUploadedSourceVersion } from '../../lib/reports/pdf-download-source.js';
 import { hasRdoProgressSourcesChanged, plannedServiceCountForRdo } from '../../lib/reports/rdo-progress-cache.js';
 import { isPressureHoseUnits } from '../../lib/reports/pressure-hose-measurement.js';
 import {
@@ -2000,31 +2003,6 @@ function storedReportPdfDownloadName(report, storedPath) {
     : path.basename(storedPath);
 }
 
-function isManualUploadedPdfUrl(value) {
-  return String(value || '').split('\\').join('/').includes('/uploads-manuais/');
-}
-
-async function manualUploadedSourceVersion(report, client = prisma) {
-  if (!isManualUploadedReport(report)) return null;
-  const included = Array.isArray(report.versions)
-    ? report.versions.find(version => (
-        version.sourcePdfUrl
-        && version.sourceDocumentHash
-        && isManualUploadedPdfUrl(version.sourcePdfUrl)
-      ))
-    : null;
-  if (included) return included;
-  if (!report?.id) return null;
-  return client.reportVersion.findFirst({
-    where: {
-      reportId: report.id,
-      sourcePdfUrl: { contains: 'uploads-manuais/' },
-      sourceDocumentHash: { not: null }
-    },
-    orderBy: { versionNumber: 'desc' }
-  });
-}
-
 function manualReportOriginalFileName(value) {
   const normalized = safePath(String(value || '').trim().replace(/\.pdf$/i, ''));
   return normalized || 'relatorio-antigo';
@@ -2192,112 +2170,6 @@ function reportVersionMatchesCurrentContent(report, version) {
   return Boolean(versionCreatedAt && (!reportUpdatedAt || versionCreatedAt >= reportUpdatedAt));
 }
 
-function calibrationCertificateUrlsForReport(report) {
-  const sc = report?.specialConditions || {};
-  const urls = [];
-  if (Array.isArray(sc.resolvedManometers)) {
-    urls.push(...sc.resolvedManometers.map(item => item?.certificate?.publicUrl));
-  }
-  urls.push(sc.resolvedCounter?.certificate?.publicUrl);
-  return [...new Set(urls.map(url => String(url || '').trim()).filter(Boolean))];
-}
-
-function uploadFingerprintValue(value) {
-  if (typeof value === 'string') {
-    const raw = value.trim();
-    if (!raw) return '';
-    const normalized = normalizeReportUploadReference(raw);
-    if (normalized) return normalized;
-    return /^data:image\//i.test(raw) ? raw : '';
-  }
-
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return '';
-  const raw = String(
-    value.url
-    || value.storagePath
-    || value.path
-    || value.publicUrl
-    || value.href
-    || value.src
-    || value.source
-    || value.dataUrl
-    || ''
-  ).trim();
-  if (raw) {
-    const normalized = normalizeReportUploadReference(raw);
-    if (normalized) return normalized;
-    if (/^data:image\//i.test(raw)) return raw;
-  }
-
-  const fileName = String(value.fileName || value.name || '').trim();
-  const mimeType = String(value.mimeType || '').trim().toLowerCase();
-  return fileName && mimeType.startsWith('image/') ? fileName : '';
-}
-
-function addUploadFingerprint(urls, value) {
-  const fingerprint = uploadFingerprintValue(value);
-  if (fingerprint) urls.push(fingerprint);
-}
-
-function collectUploadFingerprintsFromGroups(urls, groups) {
-  if (!Array.isArray(groups)) return;
-  for (const group of groups) {
-    if (!group || typeof group !== 'object' || Array.isArray(group)) continue;
-    if (!Array.isArray(group.files)) continue;
-    for (const file of group.files) addUploadFingerprint(urls, file);
-  }
-}
-
-function collectUploadFingerprintsFromServiceData(urls, serviceData) {
-  if (!serviceData || typeof serviceData !== 'object' || Array.isArray(serviceData)) return;
-  collectUploadFingerprintsFromGroups(urls, serviceData.__uploads__);
-  for (const [key, value] of Object.entries(serviceData)) {
-    if (key === '__uploads__') continue;
-    if (Array.isArray(value)) {
-      for (const item of value) addUploadFingerprint(urls, item);
-    } else {
-      addUploadFingerprint(urls, value);
-    }
-  }
-}
-
-export function pdfUploadUrlsForReport(report) {
-  const urls = [];
-  const special = report?.specialConditions || {};
-  if (Array.isArray(special.generalUploads)) {
-    for (const item of special.generalUploads) addUploadFingerprint(urls, item);
-  }
-  collectUploadFingerprintsFromServiceData(urls, special.serviceData);
-  for (const attachment of report?.attachments || []) {
-    addUploadFingerprint(urls, attachment);
-  }
-  for (const service of report?.services || []) {
-    collectUploadFingerprintsFromGroups(urls, service?.extraData?.__uploads__);
-    for (const attachment of service?.attachments || []) {
-      addUploadFingerprint(urls, attachment);
-    }
-  }
-  return [...new Set(urls.map(url => String(url || '').trim()).filter(Boolean))];
-}
-
-function pdfCacheMetadataForReport(report) {
-  return {
-    // Bump whenever DOCX/PDF layout rules change so previously rendered files
-    // are not served indefinitely with stale pagination or conditional blocks.
-    version: report.reportType === ReportType.RDO ? 7 : 3,
-    reportId: report.id,
-    reportUpdatedAt: reportUpdatedAtToken(report),
-    fingerprint: sha256Hex(JSON.stringify({
-      photos: pdfUploadUrlsForReport(report).sort(),
-      calibrationLinks: calibrationCertificateUrlsForReport(report).sort(),
-      overtimeAccepted: report?.specialConditions?.overtimeAccepted !== false,
-      daytimeOvertimeMinutes: report?.daytimeOvertimeMinutes || 0,
-      nighttimeOvertimeMinutes: report?.nighttimeOvertimeMinutes || 0,
-      overtimeReason: report?.overtimeReason || ''
-    }))
-  };
-}
-
 function pdfCacheMetadataPath(pdfPath) {
   return `${pdfPath}.meta.json`;
 }
@@ -2319,17 +2191,6 @@ async function writePdfCacheMetadata(pdfPath, report) {
     pdfCacheMetadataPath(pdfPath),
     JSON.stringify(metadata, null, 2),
     'utf8'
-  );
-}
-
-function pdfCacheMetadataMatches(report, metadata) {
-  const expected = pdfCacheMetadataForReport(report);
-  return Boolean(
-    metadata
-    && metadata.version === expected.version
-    && metadata.reportId === expected.reportId
-    && metadata.reportUpdatedAt === expected.reportUpdatedAt
-    && metadata.fingerprint === expected.fingerprint
   );
 }
 
@@ -2638,38 +2499,19 @@ async function getReportBasePdfDownload(report) {
     }
   }
 
-  const finalVersion = Array.isArray(report.versions)
-    ? report.versions.find(version => version.finalPdfUrl)
-    : null;
-  if (report.status === ReportStatus.SIGNED && finalVersion?.finalPdfUrl) {
-    const finalPath = reportSourcePdfPath(finalVersion.finalPdfUrl);
-    if (finalPath) {
-      const buffer = await verifiedFinalPdfBuffer(finalPath, finalVersion);
-      return {
-        fileName: storedReportPdfDownloadName(report, finalPath),
-        buffer
-      };
-    }
+  let source = selectReportPdfSource(report);
+  if (source.kind === 'FINAL_ASSINADO') {
+    const finalPath = reportSourcePdfPath(source.version.finalPdfUrl);
+    if (finalPath) return { fileName: storedReportPdfDownloadName(report, finalPath),
+      buffer: await verifiedFinalPdfBuffer(finalPath, source.version) };
+    source = selectReportPdfSource(report, null, { skipFinal: true });
   }
-
-  if (
-    report.status === ReportStatus.SIGNED &&
-    report.reportType === ReportType.RDO &&
-    (report.zapsignDocToken || report.zapsignDocUrl)
-  ) {
-    return resolveSignedPdf(report);
-  }
-
-  const manualSourceVersion = await manualUploadedSourceVersion(report);
+  if (source.kind === 'ZAPSIGN') return resolveSignedPdf(report);
+  const manualSourceVersion = await manualUploadedSourceVersion(report, prisma);
   if (manualSourceVersion?.sourcePdfUrl) {
     const sourcePath = reportSourcePdfPath(manualSourceVersion.sourcePdfUrl);
-    if (sourcePath) {
-      const buffer = await verifiedSourcePdfBuffer(sourcePath, manualSourceVersion);
-      return {
-        fileName: storedReportPdfDownloadName(report, sourcePath),
-        buffer
-      };
-    }
+    if (sourcePath) return { fileName: storedReportPdfDownloadName(report, sourcePath),
+      buffer: await verifiedSourcePdfBuffer(sourcePath, manualSourceVersion) };
   }
 
   const activeSourceVersion = Array.isArray(report.versions)
@@ -2915,7 +2757,7 @@ async function ensureInternalSignatureRoundAndNotify(report, userId, evidence, o
     include: { signatures: true },
     orderBy: { versionNumber: 'desc' }
   });
-  const manualSourceVersion = activeVersion ? null : await manualUploadedSourceVersion(report);
+  const manualSourceVersion = activeVersion ? null : await manualUploadedSourceVersion(report, prisma);
   let sourcePdfUrl = activeVersion?.sourcePdfUrl || manualSourceVersion?.sourcePdfUrl || '';
   let sourceDocumentHash = activeVersion?.sourceDocumentHash || manualSourceVersion?.sourceDocumentHash || '';
   let generatedSourcePath = '';

@@ -4,11 +4,13 @@ import { RDO_PROJECT_SELECT, RDO_REPORT_DERIVED_FIELDS } from './rdo-resource-de
 import { DELIVERY_B_RESOURCES } from './delivery-b-resources.js';
 import { OMNI_RESOURCES } from './omni-resources.js';
 import { MANAGEMENT_RESOURCES } from './management-resources.js';
+import { REPORT_PDF_SCOPE, REPORT_PDF_FIELDS, CORPORATE_CONTACT_SCOPE, CORPORATE_CONTACT_FIELDS } from './omni-document-fields.js';
 
 export const BASE_OPERATIONAL_RESOURCES = Object.freeze([
   resource('Collaborator', '/colaboradores', 'colaboradores.operacional.read', 'Colaboradores — identificação operacional', 'people-access',
     { code: 'string', name: 'string', jobRoleId: 'string', isActive: 'boolean' }, {
       sensitivity: 'PERSONAL', projectPolicy: 'COLLABORATOR_REPORT',
+      optionalScopes: [CORPORATE_CONTACT_SCOPE], scopedFields: { [CORPORATE_CONTACT_SCOPE]: CORPORATE_CONTACT_FIELDS },
       projectNotice: 'Com projetos selecionados, inclui somente colaboradores de equipes de relatórios aprovados desses projetos; não representa alocação atual.'
     }),
   resource('JobRole', '/cargos', 'cargos.read', 'Cargos', 'people-access', { name: 'string', isActive: 'boolean', isOperational: 'boolean' }),
@@ -28,7 +30,8 @@ export const BASE_OPERATIONAL_RESOURCES = Object.freeze([
     { projectId: 'string', reportType: 'string', sequenceNumber: 'integer?', status: 'string', reportDate: 'datetime', arrivalTime: 'string', departureTime: 'string', lunchBreak: 'string', daytimeCount: 'integer', daytimeWorkedMinutes: 'integer', nighttimeWorkedMinutes: 'integer', daytimeOvertimeMinutes: 'integer', nighttimeOvertimeMinutes: 'integer', totalOvertimeMinutes: 'integer', approvedAt: 'datetime?', dailyDescription: 'string?', overtimeReason: 'string?' },
     { projectPolicy: 'DIRECT', projectNotice: 'Número do relatório e código/nome do projeto, descrição diária e motivo de horas extras. Somente relatórios aprovados, não excluídos e de projetos autorizados não excluídos.', where: publishedReport,
       derivedFields: RDO_REPORT_DERIVED_FIELDS, select: { project: RDO_PROJECT_SELECT }, filterFields: ['reportType', 'status'], includesOperationalNotes: true,
-      optionalScopes: ['rdo.relatorios.todos.read'], scopeAlternatives: [['rdo.relatorios.todos.read']],
+      optionalScopes: ['rdo.relatorios.todos.read', REPORT_PDF_SCOPE], scopeAlternatives: [['rdo.relatorios.todos.read']],
+      scopedFields: { [REPORT_PDF_SCOPE]: REPORT_PDF_FIELDS },
       conditionalFields: { submittedAt: 'datetime?', returnedAt: 'datetime?', signedAt: 'datetime?', clientReleasedAt: 'datetime?' } }),
   resource('DdsTheme', '/rdo/dds', 'rdo.dds.read', 'Temas de DDS', 'rdo', { name: 'string', isActive: 'boolean' }),
   resource('MaintenanceRecord', '/manutencao/registros', 'manutencao.registros.read', 'Manutenções aprovadas — identificação e datas', 'maintenance-production',

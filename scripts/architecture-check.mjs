@@ -15,7 +15,7 @@ import {
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const lineBudgets = new Map([
-  ['backend/src/routes/resources/reports.js', 7497],
+  ['backend/src/routes/resources/reports.js', 7186],
   ['frontend/src/pages/gestor/GestorPage.tsx', 4581],
   ['frontend/src/pages/ReportDetailPage.tsx', 2082],
   ['frontend/src/pages/collaborator/NewReportPage.tsx', 1702]
