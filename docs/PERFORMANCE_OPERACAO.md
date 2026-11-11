@@ -45,7 +45,7 @@ compartilhar leituras entre requisições com revisão verificada. O mesmo flag
 controla esse armazenamento adicional: 16 entradas/4 MiB, até 1 MiB por entrada
 e 15 s. Cliente Prisma, escopo/canal e opções do filtro entram na chave. Os
 resolvers são reconstruídos a partir de cópias independentes dos dados; funções
-e clientes não são armazenados. As consultas e regras anteriores são preservadas.
+e clientes não são armazenados. As seleções de colunas e regras anteriores são preservadas.
 As referências mensais também incluem os colaboradores ignorados e o calendário
 do intervalo. Falhas não ficam em cache, e uma revisão nova não participa da leitura pendente
 da anterior. Sem GET/HEAD verificado, inclusive em escritas, não há esse reuso.

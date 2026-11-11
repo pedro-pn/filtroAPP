@@ -14203,7 +14203,16 @@
     "architecture": "passed",
     "workflowYaml": "passed",
     "responsePairs": 30,
-    "ci": "pending",
+    "ci": {
+      "runId": 43098879792,
+      "url": "https://github.com/pedro-pn/filtroAPP/actions/runs/43098879792",
+      "headSha": "8edae73382f3d59b1fd3e26d0b75caac75d183af",
+      "observedAtUtc": "2026-11-11T21:01:03Z",
+      "status": "queued",
+      "jobs": 11,
+      "completedJobs": 0,
+      "conclusion": null
+    },
     "initialFullBackendFailure": {
       "tests": 2941,
       "pass": 2892,
@@ -14223,7 +14232,8 @@
       "workforceHoliday": 0,
       "jobRun": 0,
       "dataRetentionRun": 0
-    }
+    },
+    "ownedContainerAndVolumeRemoved": true
   },
   "remaining": {
     "mixedPool95Percent": "OPEN: candidate 88.9–89.4%, warm 100%; baseline 87.4–88.5% with the same 11-bucket method.",

@@ -313,9 +313,10 @@ não depender de reverter ou apagar dados para reverter o código.
 | T08 | Seções do Efetivo/Acompanhamento, cinco modais de workflow e painéis do Gestor sob demanda; visão geral estatística separada dos overlays | Aceite das superfícies autenticadas no ambiente publicado |
 | T09 | Variantes lossless, favicon/hash/prioridade do login e CSS da administração de credenciais separado do shell, preservando a camada legacy | Aceite LCP publicado; outros estilos globais podem ser divididos conforme medição |
 | T10 | Sondagens vazias agregadas; trabalho/falhas individuais; preview e aplicação exclusiva de JobRun com lotes/auditoria; política de 90 dias aprovada pelo usuário em 11/11 e validada localmente; relatório somente leitura de linhas/dia e armazenamento | Coletar volume, conferir preview e aplicar manualmente após publicação |
-| T11 | Orçamentos, paridade, projeções HTTP/PostgreSQL e navegador no CI; cobertura dos triggers e catálogos/cards; integração da main/TypeScript 7 com os 11 jobs aprovados em `f9f4c51f` | Validação publicada em T12 |
+| T11 | Orçamentos, paridade, projeções HTTP/PostgreSQL e navegador no CI; cobertura dos triggers e catálogos/cards; integração da main/TypeScript 7 com os 11 jobs aprovados em `f9f4c51f`; novos contratos de fontes e JobRun incluídos no gate | CI de `8edae733` iniciado, ainda na fila; validação publicada em T12 |
 
-Os aceites publicados, a aplicação manual da retenção de 90 dias e o restante da meta fria de T07 permanecem pendentes. As regras de apropriação
+Os aceites publicados, a aplicação manual da retenção de 90 dias e as metas
+quantitativas de T06/T07 permanecem pendentes. As regras de apropriação
 de custos foram preservadas. Não houve exclusão de histórico, alteração de backup
 ou execução em servidores nesta implementação local.
 
@@ -2352,8 +2353,11 @@ Validação local final: **2.893 testes de backend aprovados**, 48 ignorados,
 A primeira suíte completa encontrou uma expectativa antiga de duas agregações
 de compras num teste de visibilidade; o teste passou a conferir a agregação
 combinada e o mesmo filtro de projeto, e a suíte completa foi repetida com sucesso.
-As fixtures ficaram zeradas antes de remover o banco descartável. O CI desta
-rodada será registrado pelo link e SHA da execução, sem substituir o aceite publicado.
+As fixtures ficaram zeradas e o container/volume descartável foi removido.
+O [CI desta rodada](https://github.com/pedro-pn/filtroAPP/actions/runs/43098879792)
+foi iniciado para o commit **`8edae73382f3d59b1fd3e26d0b75caac75d183af`**. Na consulta
+de **11/11 às 21:01 UTC**, os **11 jobs estavam na fila, sem execução ou conclusão**.
+Esse estado não é aprovação do CI e não substitui o aceite publicado.
 
 Os resultados, amostras numéricas, hashes das fontes, coortes exploratórias e
 limitações estão na [evidência desta rodada](evidence/performance-final-sources-retention-20261111.json).
