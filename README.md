@@ -68,7 +68,7 @@ Cada módulo tem sua própria área na aplicação, papéis de acesso e prefixo 
 
 | Camada | Tecnologia |
 |---|---|
-| Frontend | React 19 + TypeScript + Vite 6 |
+| Frontend | React 19 + TypeScript 7 + Vite 8 |
 | Estado / Fetching | TanStack Query v5 + Zustand |
 | Formulários | React Hook Form + Zod |
 | Roteamento | React Router v8 |
@@ -520,6 +520,10 @@ O volume `./backend/src` é montado, então alterações no código são refleti
 ---
 
 ## Validação e Testes
+
+O frontend usa TypeScript 7 para a checagem de tipos (`tsc`, incluído em `npm run build` e `npm run typecheck:rdo:e2e`). O alias `@typescript/native` instala esse compilador; o alias `typescript` aponta para `@typescript/typescript6`, que mantém a API usada pelo ESLint e pelos testes que analisam ou transpilam código TypeScript.
+
+Preserve os dois aliases ao atualizar as dependências. A instalação continua sendo feita com `npm ci` dentro de `frontend`.
 
 Antes de enviar uma alteração, execute as verificações correspondentes:
 
