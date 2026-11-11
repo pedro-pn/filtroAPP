@@ -15,6 +15,7 @@ import {
 
 const REMINDER_INTERVAL_MS = 60 * 60 * 1000;
 const REMINDER_GAP_MS = 3 * 24 * 60 * 60 * 1000;
+const REMINDER_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const CLAIM_STALE_MS = 2 * 60 * 60 * 1000;
 const SIGNATURE_TOKEN_DAYS = 30;
 
@@ -63,6 +64,8 @@ export function signatureReminderDueWhere(now = new Date()) {
     status: ReportSignatureStatus.PENDING,
     isRequired: true,
     signerEmail: { not: '' },
+    // Renewing a link must not restart the window for existing signature requests.
+    createdAt: { gt: new Date(now.getTime() - REMINDER_MAX_AGE_MS) },
     report: {
       reportType: ReportType.RDO,
       status: ReportStatus.APPROVED,
@@ -218,7 +221,7 @@ export async function processSignatureReminders({ limit = 25, mailer = sendClien
     const claim = await client.reportSignature.updateMany({
       where: {
         id: { in: signatureIds },
-        ...signatureReminderDueWhere(now)
+        ...signatureReminderDueWhere(claimedAt)
       },
       data: { reminderClaimedAt: claimedAt }
     });
