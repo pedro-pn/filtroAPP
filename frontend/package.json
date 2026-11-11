@@ -21,7 +21,7 @@
     "@hookform/resolvers": "^7.0.1",
     "@tanstack/react-query": "^5.104.4",
     "@zxing/browser": "^0.2.1",
-    "axios": "^1.20.0",
+    "axios": "^1.21.0",
     "ci": "^2.3.0",
     "driver.js": "^1.10.2",
     "lucide-react": "^1.33.0",
