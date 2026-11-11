@@ -41,7 +41,8 @@ jobs:
 
   backend:
     name: Backend
-    runs-on: ubuntu-latest
+    # Keep native package installation on a fixed runner image.
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16
@@ -380,7 +381,8 @@ jobs:
 
   frontend:
     name: Frontend
-    runs-on: ubuntu-latest
+    # Keep browser dependencies on the same fixed Ubuntu release.
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: frontend
