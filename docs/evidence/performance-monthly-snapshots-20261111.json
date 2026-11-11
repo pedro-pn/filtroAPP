@@ -18994,7 +18994,13 @@
     "runId": 42918304457,
     "url": "https://github.com/pedro-pn/filtroAPP/actions/runs/42918304457",
     "allJobsPassed": 11,
-    "continuation": "Final-source CI is checked after push and reported in task closure."
+    "continuation": "Final application source 3be5b9fb was pushed; all 11 jobs passed.",
+    "finalSource": {
+      "commit": "3be5b9fb33d951204ba088df7f00db030b955359",
+      "runId": 43022340172,
+      "url": "https://github.com/pedro-pn/filtroAPP/actions/runs/43022340172",
+      "allJobsPassed": 11
+    }
   },
   "acceptance": {
     "normalizedBusinessOutputParity": true,

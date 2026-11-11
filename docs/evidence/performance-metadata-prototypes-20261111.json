@@ -1,0 +1,1449 @@
+{
+  "date": "2026-11-11",
+  "branch": "fix/page-loading-performance",
+  "baselineCommit": "3be5b9fb33d951204ba088df7f00db030b955359",
+  "status": "rejected-not-integrated",
+  "applicationCodeChanged": false,
+  "sourceSha256": {
+    "backend/src/lib/acompanhamento/avanco.js": "5a106e5f66a6e337c63ac03739274394e326911ce77dba5afa98570e811d7560",
+    "backend/src/lib/acompanhamento/labor-cost.js": "e16e99cf92d9038abd911a357402f4e6c42b6cebb64fe61937a42cef10b148ad",
+    "backend/src/lib/acompanhamento/labor-mission-groups.js": "7feab2affb64e0a329390c4983031c1762429abe8f04a5b3f967e7b94077eb84",
+    "backend/src/lib/acompanhamento/monthly-cost-snapshot.js": "2fdff4678550263cf7ac3d1cc0137c973d765cefc5bb406bc5e23054cfd94744",
+    "backend/src/lib/acompanhamento/progress-projection.js": "3742af99e176f662552cd35b342038d2db48ea8179cdc944c1228ae905bdf091",
+    "backend/src/lib/efetivo/allocation-review/confirmed-days.js": "7b2b1c4fea77c46410dadf1f57f9404b42679ba8fdeb3e91aad9e7086df7fb69",
+    "backend/src/lib/operations/derived-read-cache.js": "d811a6ce16167fb854b1d3c7acf08736a151017c22dd4cb7c79f3cc27888ecf4",
+    "backend/src/lib/operations/request-sources.js": "ed86c172de6b56e4a04071f0b4825d489a0513e2476e8da135d9f272464859ed",
+    "backend/test/allocation-monthly-report.test.js": "92d8cd570876cb9cf6229e38b4f3fb7d0ab289f144e5503f964b294d9cb9e3e3",
+    "backend/test/labor-conditional-sources.test.js": "0fd21b2df1f91679228272fb657fd36f023f9a009e593bf46b1eacb33dbd781b",
+    "backend/test/monthly-cost-snapshot.test.js": "c5bf649aa8214005b12cbdddd4682e8a6864e14d8007ac1b78335a6827b3d6fa",
+    "backend/test/ponto-detail-performance.integration.test.js": "7ce4151aa6ce09ca0b376481a1569957e833cc3754f820d37b31393f91257bf1",
+    "backend/test/progress-revision-stability.test.js": "852706bd467f8f73bee17580c20a99a1aee40e70a4fbf48fdcd8506a6f00d8ee",
+    "backend/scripts/benchmark-labor-performance.js": "b20767dc9a523e219348f1070d1dc5500e64daf3d8d80c3fb6f60bfeda1284a8",
+    "backend/scripts/fixtures/labor-performance.js": "06d91970de1ed4ae4d3a3a33bcc5735274c96505a37636f25bc895068a052018"
+  },
+  "scope": "Isolated local experiment after the monthly snapshot stage; no production/staging, backups, schema, pool size or application config changes.",
+  "environment": {
+    "postgres": "16",
+    "databaseCpuLimit": 1,
+    "databaseMemoryBytes": 805306368,
+    "databaseBinding": "loopback-only",
+    "migrationsApplied": 250,
+    "apiHostIsolated": false,
+    "applicationWorkDuringTimedWindows": false
+  },
+  "hypothesis": "Reduce metadata round trips in the uncached monthly cost calculation without changing primary period/report reads. Both prototypes use the same Prisma client and pool. These are not deployable concurrency-safe implementations.",
+  "implementation": {
+    "serial": "After explicit import scope is read, await protected project parents and a single parameterized JSONB metadata packet before returning that scope.",
+    "parallel": "Start the same protected project and metadata reads after scope, while original report/period queries can proceed.",
+    "packet": [
+      "job roles",
+      "cost profiles and parameter sets",
+      "three annual settings",
+      "aliases limited to protected project IDs",
+      "day overrides limited to protected projects and import dates",
+      "overlapping absences of linked import collaborators",
+      "ordered manual calendar holidays",
+      "calendar state"
+    ],
+    "hydrateDates": [
+      "parameterSets.effectiveDate",
+      "parameterSets.createdAt",
+      "overrides.workDate",
+      "absences.startDate",
+      "absences.endDate",
+      "holidays.holidayDate"
+    ],
+    "notAShippingDesign": "The experimental preloader patches delegates in benchmark child processes. The application was not patched. Any future implementation needs scoped inputs and lazy promises, complete latest-import/permission coverage and independent full-result parity."
+  },
+  "cohorts": {
+    "serialDense": {
+      "method": "Local paired uncached service calculations on PostgreSQL with warm database pages; not HTTP latency. Timings exclude process boot and module imports. Fresh Node/Prisma processes for every cold sample. After-session performs a SELECT, not HTTP authentication. Prisma operation profiles include mapping; sqlQueries capture pg pool calls and replay SELECTs with EXPLAIN ANALYZE after the calculation. Pool call durations overlap and include queue/event-loop delays. Initialization diagnostics run in separate processes and do not warm timed samples. Result bytes are JSON sizes, not network traffic.",
+      "cpuMethod": "process.cpuUsage delta around the calculation only, before EXPLAIN replay; includes Node/Prisma CPU, excludes PostgreSQL, module imports and process boot. CPU and wall time are separate observations.",
+      "environment": {
+        "nodeVersion": "v24.15.0",
+        "databaseConnectionLimit": 10
+      },
+      "fixture": {
+        "reports": 1203,
+        "services": 4802,
+        "collaborators": 21,
+        "projectPreferenceEntries": 500
+      },
+      "samples": {
+        "warm": [
+          {
+            "beforeMs": 45.73525999999998,
+            "afterMs": 45.374030000000005,
+            "beforeCpuMs": 91.407,
+            "afterCpuMs": 79.504,
+            "cpuMicros": {
+              "before": {
+                "user": 66684,
+                "system": 24723
+              },
+              "after": {
+                "user": 72366,
+                "system": 7138
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 184.981708,
+                "priorReadMs": 249.258059
+              },
+              "after": {
+                "serviceImportMs": 8.966408000000001,
+                "priorReadMs": 211.271107
+              }
+            }
+          },
+          {
+            "beforeMs": 47.74209400000001,
+            "afterMs": 49.231704000000036,
+            "beforeCpuMs": 86.2,
+            "afterCpuMs": 79.215,
+            "cpuMicros": {
+              "before": {
+                "user": 67138,
+                "system": 19062
+              },
+              "after": {
+                "user": 60100,
+                "system": 19115
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 163.77297000000002,
+                "priorReadMs": 229.18817500000003
+              },
+              "after": {
+                "serviceImportMs": 8.529404,
+                "priorReadMs": 206.57862500000002
+              }
+            }
+          },
+          {
+            "beforeMs": 38.04644999999999,
+            "afterMs": 39.169894,
+            "beforeCpuMs": 75.016,
+            "afterCpuMs": 71.046,
+            "cpuMicros": {
+              "before": {
+                "user": 54107,
+                "system": 20909
+              },
+              "after": {
+                "user": 52640,
+                "system": 18406
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 159.949927,
+                "priorReadMs": 234.969662
+              },
+              "after": {
+                "serviceImportMs": 9.035338000000024,
+                "priorReadMs": 205.70849600000003
+              }
+            }
+          }
+        ],
+        "new-process": [
+          {
+            "beforeMs": 218.19442999999998,
+            "afterMs": 215.852815,
+            "beforeCpuMs": 600.618,
+            "afterCpuMs": 564.624,
+            "cpuMicros": {
+              "before": {
+                "user": 538600,
+                "system": 62018
+              },
+              "after": {
+                "user": 492024,
+                "system": 72600
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 169.449287,
+                "priorReadMs": 0.00038200000000188084
+              },
+              "after": {
+                "serviceImportMs": 8.713220000000007,
+                "priorReadMs": 0.00047699999998940257
+              }
+            }
+          },
+          {
+            "beforeMs": 218.50509599999998,
+            "afterMs": 218.78167600000003,
+            "beforeCpuMs": 595.958,
+            "afterCpuMs": 565.701,
+            "cpuMicros": {
+              "before": {
+                "user": 503358,
+                "system": 92600
+              },
+              "after": {
+                "user": 521564,
+                "system": 44137
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 164.944173,
+                "priorReadMs": 0.00045800000000895125
+              },
+              "after": {
+                "serviceImportMs": 8.859012000000007,
+                "priorReadMs": 0.0005060000000014497
+              }
+            }
+          },
+          {
+            "beforeMs": 228.221393,
+            "afterMs": 218.506611,
+            "beforeCpuMs": 636.298,
+            "afterCpuMs": 559.53,
+            "cpuMicros": {
+              "before": {
+                "user": 575092,
+                "system": 61206
+              },
+              "after": {
+                "user": 495383,
+                "system": 64147
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 165.064338,
+                "priorReadMs": 0.0004959999999982756
+              },
+              "after": {
+                "serviceImportMs": 8.605850000000004,
+                "priorReadMs": 0.0004230000000120526
+              }
+            }
+          }
+        ],
+        "after-session": [
+          {
+            "beforeMs": 121.44894,
+            "afterMs": 118.35461800000002,
+            "beforeCpuMs": 343.06,
+            "afterCpuMs": 324.392,
+            "cpuMicros": {
+              "before": {
+                "user": 294607,
+                "system": 48453
+              },
+              "after": {
+                "user": 309148,
+                "system": 15244
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 161.200133,
+                "priorReadMs": 95.86448200000001
+              },
+              "after": {
+                "serviceImportMs": 8.724076000000025,
+                "priorReadMs": 102.89033
+              }
+            }
+          },
+          {
+            "beforeMs": 134.10954399999997,
+            "afterMs": 128.899366,
+            "beforeCpuMs": 351.823,
+            "afterCpuMs": 327.377,
+            "cpuMicros": {
+              "before": {
+                "user": 307330,
+                "system": 44493
+              },
+              "after": {
+                "user": 295085,
+                "system": 32292
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 166.49480499999999,
+                "priorReadMs": 96.89196500000003
+              },
+              "after": {
+                "serviceImportMs": 8.860063999999994,
+                "priorReadMs": 97.98500200000001
+              }
+            }
+          },
+          {
+            "beforeMs": 135.733975,
+            "afterMs": 115.92383999999998,
+            "beforeCpuMs": 373.533,
+            "afterCpuMs": 332.716,
+            "cpuMicros": {
+              "before": {
+                "user": 319501,
+                "system": 54032
+              },
+              "after": {
+                "user": 288991,
+                "system": 43725
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 166.520734,
+                "priorReadMs": 96.45184299999997
+              },
+              "after": {
+                "serviceImportMs": 8.520364999999998,
+                "priorReadMs": 98.08865
+              }
+            }
+          }
+        ]
+      },
+      "summary": {
+        "warm": {
+          "beforeMs": 45.73525999999998,
+          "afterMs": 45.374030000000005,
+          "beforeCpuMs": 86.2,
+          "afterCpuMs": 79.215,
+          "reductionPct": 0.789828241929702,
+          "cpuReductionPct": 8.103248259860784
+        },
+        "new-process": {
+          "beforeMs": 218.50509599999998,
+          "afterMs": 218.506611,
+          "beforeCpuMs": 600.618,
+          "afterCpuMs": 564.624,
+          "reductionPct": -0.0006933476736969979,
+          "cpuReductionPct": 5.992827387790578
+        },
+        "after-session": {
+          "beforeMs": 134.10954399999997,
+          "afterMs": 118.35461800000002,
+          "beforeCpuMs": 351.823,
+          "afterCpuMs": 327.377,
+          "reductionPct": 11.747803720814943,
+          "cpuReductionPct": 6.948380293499845
+        }
+      },
+      "exactParity": true,
+      "profiles": [],
+      "initializationProfiles": []
+    },
+    "serialSparse": {
+      "method": "Local paired uncached service calculations on PostgreSQL with warm database pages; not HTTP latency. Timings exclude process boot and module imports. Fresh Node/Prisma processes for every cold sample. After-session performs a SELECT, not HTTP authentication. Prisma operation profiles include mapping; sqlQueries capture pg pool calls and replay SELECTs with EXPLAIN ANALYZE after the calculation. Pool call durations overlap and include queue/event-loop delays. Initialization diagnostics run in separate processes and do not warm timed samples. Result bytes are JSON sizes, not network traffic.",
+      "cpuMethod": "process.cpuUsage delta around the calculation only, before EXPLAIN replay; includes Node/Prisma CPU, excludes PostgreSQL, module imports and process boot. CPU and wall time are separate observations.",
+      "environment": {
+        "nodeVersion": "v24.15.0",
+        "databaseConnectionLimit": 10
+      },
+      "fixture": {
+        "reports": 1203,
+        "services": 2,
+        "collaborators": 21,
+        "projectPreferenceEntries": 500
+      },
+      "samples": {
+        "warm": [
+          {
+            "beforeMs": 42.337625,
+            "afterMs": 39.91433600000005,
+            "beforeCpuMs": 85.124,
+            "afterCpuMs": 70.029,
+            "cpuMicros": {
+              "before": {
+                "user": 73059,
+                "system": 12065
+              },
+              "after": {
+                "user": 59792,
+                "system": 10237
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 174.79029500000001,
+                "priorReadMs": 234.28393299999996
+              },
+              "after": {
+                "serviceImportMs": 9.59366399999999,
+                "priorReadMs": 204.85518600000003
+              }
+            }
+          },
+          {
+            "beforeMs": 38.90993400000002,
+            "afterMs": 43.66175300000003,
+            "beforeCpuMs": 75.347,
+            "afterCpuMs": 81.459,
+            "cpuMicros": {
+              "before": {
+                "user": 67066,
+                "system": 8281
+              },
+              "after": {
+                "user": 69909,
+                "system": 11550
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 165.71828699999998,
+                "priorReadMs": 226.65922400000002
+              },
+              "after": {
+                "serviceImportMs": 8.495157000000006,
+                "priorReadMs": 213.72363399999998
+              }
+            }
+          },
+          {
+            "beforeMs": 37.91558299999997,
+            "afterMs": 43.441101,
+            "beforeCpuMs": 78.214,
+            "afterCpuMs": 80.55,
+            "cpuMicros": {
+              "before": {
+                "user": 77544,
+                "system": 670
+              },
+              "after": {
+                "user": 75662,
+                "system": 4888
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 159.93923,
+                "priorReadMs": 228.41185199999998
+              },
+              "after": {
+                "serviceImportMs": 9.03716399999999,
+                "priorReadMs": 218.360849
+              }
+            }
+          }
+        ],
+        "new-process": [
+          {
+            "beforeMs": 224.84530800000002,
+            "afterMs": 219.24704699999998,
+            "beforeCpuMs": 580.525,
+            "afterCpuMs": 552.571,
+            "cpuMicros": {
+              "before": {
+                "user": 500684,
+                "system": 79841
+              },
+              "after": {
+                "user": 485396,
+                "system": 67175
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 166.049431,
+                "priorReadMs": 0.0005479999999806751
+              },
+              "after": {
+                "serviceImportMs": 8.673291999999975,
+                "priorReadMs": 0.00045300000002157503
+              }
+            }
+          },
+          {
+            "beforeMs": 240.917077,
+            "afterMs": 216.06855099999999,
+            "beforeCpuMs": 618.587,
+            "afterCpuMs": 549.401,
+            "cpuMicros": {
+              "before": {
+                "user": 545020,
+                "system": 73567
+              },
+              "after": {
+                "user": 477912,
+                "system": 71489
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 170.736562,
+                "priorReadMs": 0.0005209999999920001
+              },
+              "after": {
+                "serviceImportMs": 9.232067,
+                "priorReadMs": 0.0003740000000220789
+              }
+            }
+          },
+          {
+            "beforeMs": 239.93576099999999,
+            "afterMs": 222.83447999999999,
+            "beforeCpuMs": 639.946,
+            "afterCpuMs": 564.554,
+            "cpuMicros": {
+              "before": {
+                "user": 568393,
+                "system": 71553
+              },
+              "after": {
+                "user": 500687,
+                "system": 63867
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 171.349424,
+                "priorReadMs": 0.000522000000017897
+              },
+              "after": {
+                "serviceImportMs": 9.630772000000007,
+                "priorReadMs": 0.0003930000000025302
+              }
+            }
+          }
+        ],
+        "after-session": [
+          {
+            "beforeMs": 125.286945,
+            "afterMs": 116.33111100000002,
+            "beforeCpuMs": 335.355,
+            "afterCpuMs": 306.11,
+            "cpuMicros": {
+              "before": {
+                "user": 302030,
+                "system": 33325
+              },
+              "after": {
+                "user": 269880,
+                "system": 36230
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 168.12735400000003,
+                "priorReadMs": 99.34749099999999
+              },
+              "after": {
+                "serviceImportMs": 9.314733000000018,
+                "priorReadMs": 97.45731900000001
+              }
+            }
+          },
+          {
+            "beforeMs": 132.40534399999996,
+            "afterMs": 118.22255799999999,
+            "beforeCpuMs": 356.493,
+            "afterCpuMs": 303.811,
+            "cpuMicros": {
+              "before": {
+                "user": 313048,
+                "system": 43445
+              },
+              "after": {
+                "user": 267356,
+                "system": 36455
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 174.90716700000002,
+                "priorReadMs": 102.24450500000003
+              },
+              "after": {
+                "serviceImportMs": 8.973725000000002,
+                "priorReadMs": 97.86523000000003
+              }
+            }
+          },
+          {
+            "beforeMs": 128.10258,
+            "afterMs": 124.640332,
+            "beforeCpuMs": 363.906,
+            "afterCpuMs": 325.05,
+            "cpuMicros": {
+              "before": {
+                "user": 316531,
+                "system": 47375
+              },
+              "after": {
+                "user": 285481,
+                "system": 39569
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 170.197545,
+                "priorReadMs": 99.83519999999999
+              },
+              "after": {
+                "serviceImportMs": 8.920974999999999,
+                "priorReadMs": 98.93249100000003
+              }
+            }
+          }
+        ]
+      },
+      "summary": {
+        "warm": {
+          "beforeMs": 38.90993400000002,
+          "afterMs": 43.441101,
+          "beforeCpuMs": 78.214,
+          "afterCpuMs": 80.55,
+          "reductionPct": -11.64527033122178,
+          "cpuReductionPct": -2.986677576904384
+        },
+        "new-process": {
+          "beforeMs": 239.93576099999999,
+          "afterMs": 219.24704699999998,
+          "beforeCpuMs": 618.587,
+          "afterCpuMs": 552.571,
+          "reductionPct": 8.62260544813076,
+          "cpuReductionPct": 10.67206391340264
+        },
+        "after-session": {
+          "beforeMs": 128.10258,
+          "afterMs": 118.22255799999999,
+          "beforeCpuMs": 356.493,
+          "afterCpuMs": 306.11,
+          "reductionPct": 7.712586272657429,
+          "cpuReductionPct": 14.132956327333213
+        }
+      },
+      "exactParity": true,
+      "profiles": [],
+      "initializationProfiles": []
+    },
+    "parallelDense": {
+      "method": "Local paired uncached service calculations on PostgreSQL with warm database pages; not HTTP latency. Timings exclude process boot and module imports. Fresh Node/Prisma processes for every cold sample. After-session performs a SELECT, not HTTP authentication. Prisma operation profiles include mapping; sqlQueries capture pg pool calls and replay SELECTs with EXPLAIN ANALYZE after the calculation. Pool call durations overlap and include queue/event-loop delays. Initialization diagnostics run in separate processes and do not warm timed samples. Result bytes are JSON sizes, not network traffic.",
+      "cpuMethod": "process.cpuUsage delta around the calculation only, before EXPLAIN replay; includes Node/Prisma CPU, excludes PostgreSQL, module imports and process boot. CPU and wall time are separate observations.",
+      "environment": {
+        "nodeVersion": "v24.15.0",
+        "databaseConnectionLimit": 10
+      },
+      "fixture": {
+        "reports": 1203,
+        "services": 4802,
+        "collaborators": 21,
+        "projectPreferenceEntries": 500
+      },
+      "samples": {
+        "warm": [
+          {
+            "beforeMs": 45.93690200000003,
+            "afterMs": 39.600307999999984,
+            "beforeCpuMs": 90.628,
+            "afterCpuMs": 77.658,
+            "cpuMicros": {
+              "before": {
+                "user": 75180,
+                "system": 15448
+              },
+              "after": {
+                "user": 72403,
+                "system": 5255
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 198.18956200000002,
+                "priorReadMs": 266.10735900000003
+              },
+              "after": {
+                "serviceImportMs": 8.889264999999995,
+                "priorReadMs": 218.88499199999998
+              }
+            }
+          },
+          {
+            "beforeMs": 40.90110199999998,
+            "afterMs": 45.294186000000025,
+            "beforeCpuMs": 85.371,
+            "afterCpuMs": 107.592,
+            "cpuMicros": {
+              "before": {
+                "user": 58486,
+                "system": 26885
+              },
+              "after": {
+                "user": 94606,
+                "system": 12986
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 176.549281,
+                "priorReadMs": 240.86973300000002
+              },
+              "after": {
+                "serviceImportMs": 10.970426000000003,
+                "priorReadMs": 239.67229600000002
+              }
+            }
+          },
+          {
+            "beforeMs": 49.595628999999974,
+            "afterMs": 50.13186999999999,
+            "beforeCpuMs": 97.726,
+            "afterCpuMs": 91.386,
+            "cpuMicros": {
+              "before": {
+                "user": 71720,
+                "system": 26006
+              },
+              "after": {
+                "user": 74325,
+                "system": 17061
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 184.366899,
+                "priorReadMs": 263.64713399999994
+              },
+              "after": {
+                "serviceImportMs": 13.231554000000017,
+                "priorReadMs": 223.868844
+              }
+            }
+          },
+          {
+            "beforeMs": 51.14360100000005,
+            "afterMs": 42.472527000000014,
+            "beforeCpuMs": 101.128,
+            "afterCpuMs": 72.653,
+            "cpuMicros": {
+              "before": {
+                "user": 89071,
+                "system": 12057
+              },
+              "after": {
+                "user": 69856,
+                "system": 2797
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 199.884737,
+                "priorReadMs": 257.360215
+              },
+              "after": {
+                "serviceImportMs": 9.68031400000001,
+                "priorReadMs": 227.10427999999996
+              }
+            }
+          },
+          {
+            "beforeMs": 43.674604999999985,
+            "afterMs": 37.04433800000004,
+            "beforeCpuMs": 91.96,
+            "afterCpuMs": 71.76,
+            "cpuMicros": {
+              "before": {
+                "user": 85602,
+                "system": 6358
+              },
+              "after": {
+                "user": 68010,
+                "system": 3750
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 181.166504,
+                "priorReadMs": 239.239971
+              },
+              "after": {
+                "serviceImportMs": 9.518448000000006,
+                "priorReadMs": 228.465312
+              }
+            }
+          }
+        ],
+        "new-process": [
+          {
+            "beforeMs": 291.269129,
+            "afterMs": 208.70552800000002,
+            "beforeCpuMs": 823.041,
+            "afterCpuMs": 569.442,
+            "cpuMicros": {
+              "before": {
+                "user": 696057,
+                "system": 126984
+              },
+              "after": {
+                "user": 499259,
+                "system": 70183
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 167.66301499999997,
+                "priorReadMs": 0.00047399999999697684
+              },
+              "after": {
+                "serviceImportMs": 9.450771000000003,
+                "priorReadMs": 0.0005129999999837764
+              }
+            }
+          },
+          {
+            "beforeMs": 223.824179,
+            "afterMs": 213.61809100000002,
+            "beforeCpuMs": 595.39,
+            "afterCpuMs": 564.256,
+            "cpuMicros": {
+              "before": {
+                "user": 525403,
+                "system": 69987
+              },
+              "after": {
+                "user": 522159,
+                "system": 42097
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 173.393803,
+                "priorReadMs": 0.00045600000001400076
+              },
+              "after": {
+                "serviceImportMs": 8.627953999999988,
+                "priorReadMs": 0.0004749999999944521
+              }
+            }
+          },
+          {
+            "beforeMs": 220.10812500000003,
+            "afterMs": 209.67028499999998,
+            "beforeCpuMs": 600.215,
+            "afterCpuMs": 559.041,
+            "cpuMicros": {
+              "before": {
+                "user": 555190,
+                "system": 45025
+              },
+              "after": {
+                "user": 503958,
+                "system": 55083
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 169.197791,
+                "priorReadMs": 0.0005409999999983484
+              },
+              "after": {
+                "serviceImportMs": 9.056971000000004,
+                "priorReadMs": 0.0005800000000135697
+              }
+            }
+          },
+          {
+            "beforeMs": 247.868621,
+            "afterMs": 217.43593500000003,
+            "beforeCpuMs": 662.579,
+            "afterCpuMs": 597.5,
+            "cpuMicros": {
+              "before": {
+                "user": 568597,
+                "system": 93982
+              },
+              "after": {
+                "user": 494417,
+                "system": 103083
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 174.795078,
+                "priorReadMs": 0.00044700000000830187
+              },
+              "after": {
+                "serviceImportMs": 8.746262000000002,
+                "priorReadMs": 0.0006270000000085929
+              }
+            }
+          },
+          {
+            "beforeMs": 221.754626,
+            "afterMs": 208.056756,
+            "beforeCpuMs": 620.493,
+            "afterCpuMs": 581.37,
+            "cpuMicros": {
+              "before": {
+                "user": 561086,
+                "system": 59407
+              },
+              "after": {
+                "user": 504207,
+                "system": 77163
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 163.913565,
+                "priorReadMs": 0.0004660000000171749
+              },
+              "after": {
+                "serviceImportMs": 9.134721000000013,
+                "priorReadMs": 0.0005040000000064992
+              }
+            }
+          }
+        ],
+        "after-session": [
+          {
+            "beforeMs": 118.53053399999999,
+            "afterMs": 123.24971800000003,
+            "beforeCpuMs": 347.548,
+            "afterCpuMs": 368.048,
+            "cpuMicros": {
+              "before": {
+                "user": 307938,
+                "system": 39610
+              },
+              "after": {
+                "user": 318243,
+                "system": 49805
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 161.170434,
+                "priorReadMs": 96.89273600000001
+              },
+              "after": {
+                "serviceImportMs": 8.563975,
+                "priorReadMs": 103.597364
+              }
+            }
+          },
+          {
+            "beforeMs": 123.07764199999997,
+            "afterMs": 113.33230700000001,
+            "beforeCpuMs": 366.463,
+            "afterCpuMs": 327.772,
+            "cpuMicros": {
+              "before": {
+                "user": 315214,
+                "system": 51249
+              },
+              "after": {
+                "user": 292951,
+                "system": 34821
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 170.496167,
+                "priorReadMs": 114.475053
+              },
+              "after": {
+                "serviceImportMs": 9.091893999999996,
+                "priorReadMs": 104.34599699999998
+              }
+            }
+          },
+          {
+            "beforeMs": 134.38960299999997,
+            "afterMs": 117.91967700000004,
+            "beforeCpuMs": 378.506,
+            "afterCpuMs": 333.106,
+            "cpuMicros": {
+              "before": {
+                "user": 348846,
+                "system": 29660
+              },
+              "after": {
+                "user": 319499,
+                "system": 13607
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 163.72796799999998,
+                "priorReadMs": 103.81799800000002
+              },
+              "after": {
+                "serviceImportMs": 9.187228000000005,
+                "priorReadMs": 103.77551599999998
+              }
+            }
+          },
+          {
+            "beforeMs": 125.18488300000001,
+            "afterMs": 110.13390200000003,
+            "beforeCpuMs": 354.702,
+            "afterCpuMs": 308.914,
+            "cpuMicros": {
+              "before": {
+                "user": 313480,
+                "system": 41222
+              },
+              "after": {
+                "user": 276559,
+                "system": 32355
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 170.078992,
+                "priorReadMs": 99.42282500000002
+              },
+              "after": {
+                "serviceImportMs": 8.646603999999996,
+                "priorReadMs": 95.21113199999999
+              }
+            }
+          },
+          {
+            "beforeMs": 133.094583,
+            "afterMs": 121.77493099999998,
+            "beforeCpuMs": 363.842,
+            "afterCpuMs": 358.762,
+            "cpuMicros": {
+              "before": {
+                "user": 314938,
+                "system": 48904
+              },
+              "after": {
+                "user": 286968,
+                "system": 71794
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 178.11659799999998,
+                "priorReadMs": 100.66702599999999
+              },
+              "after": {
+                "serviceImportMs": 9.247205000000008,
+                "priorReadMs": 100.82722599999997
+              }
+            }
+          }
+        ]
+      },
+      "summary": {
+        "warm": {
+          "beforeMs": 45.93690200000003,
+          "afterMs": 42.472527000000014,
+          "beforeCpuMs": 91.96,
+          "afterCpuMs": 77.658,
+          "reductionPct": 7.541594772760285,
+          "cpuReductionPct": 15.552414093083943
+        },
+        "new-process": {
+          "beforeMs": 223.824179,
+          "afterMs": 209.67028499999998,
+          "beforeCpuMs": 620.493,
+          "afterCpuMs": 569.442,
+          "reductionPct": 6.323666220171864,
+          "cpuReductionPct": 8.227490076439226
+        },
+        "after-session": {
+          "beforeMs": 125.18488300000001,
+          "afterMs": 117.91967700000004,
+          "beforeCpuMs": 363.842,
+          "afterCpuMs": 333.106,
+          "reductionPct": 5.803580932371821,
+          "cpuReductionPct": 8.447622869267423
+        }
+      },
+      "exactParity": true,
+      "profiles": [],
+      "initializationProfiles": []
+    },
+    "unchangedControlSparse": {
+      "method": "Local paired uncached service calculations on PostgreSQL with warm database pages; not HTTP latency. Timings exclude process boot and module imports. Fresh Node/Prisma processes for every cold sample. After-session performs a SELECT, not HTTP authentication. Prisma operation profiles include mapping; sqlQueries capture pg pool calls and replay SELECTs with EXPLAIN ANALYZE after the calculation. Pool call durations overlap and include queue/event-loop delays. Initialization diagnostics run in separate processes and do not warm timed samples. Result bytes are JSON sizes, not network traffic.",
+      "cpuMethod": "process.cpuUsage delta around the calculation only, before EXPLAIN replay; includes Node/Prisma CPU, excludes PostgreSQL, module imports and process boot. CPU and wall time are separate observations.",
+      "environment": {
+        "nodeVersion": "v24.15.0",
+        "databaseConnectionLimit": 10
+      },
+      "fixture": {
+        "reports": 1203,
+        "services": 2,
+        "collaborators": 21,
+        "projectPreferenceEntries": 500
+      },
+      "samples": {
+        "warm": [
+          {
+            "beforeMs": 43.79017200000004,
+            "afterMs": 43.683644000000015,
+            "beforeCpuMs": 86.621,
+            "afterCpuMs": 85.793,
+            "cpuMicros": {
+              "before": {
+                "user": 80954,
+                "system": 5667
+              },
+              "after": {
+                "user": 72924,
+                "system": 12869
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 166.788592,
+                "priorReadMs": 240.673877
+              },
+              "after": {
+                "serviceImportMs": 167.90037999999998,
+                "priorReadMs": 246.082739
+              }
+            }
+          },
+          {
+            "beforeMs": 43.97389800000002,
+            "afterMs": 56.19675599999999,
+            "beforeCpuMs": 88.678,
+            "afterCpuMs": 99.988,
+            "cpuMicros": {
+              "before": {
+                "user": 72662,
+                "system": 16016
+              },
+              "after": {
+                "user": 83285,
+                "system": 16703
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 201.402175,
+                "priorReadMs": 243.815686
+              },
+              "after": {
+                "serviceImportMs": 175.188727,
+                "priorReadMs": 270.435241
+              }
+            }
+          },
+          {
+            "beforeMs": 42.427314999999965,
+            "afterMs": 47.078502999999955,
+            "beforeCpuMs": 88.993,
+            "afterCpuMs": 93.911,
+            "cpuMicros": {
+              "before": {
+                "user": 83021,
+                "system": 5972
+              },
+              "after": {
+                "user": 82259,
+                "system": 11652
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 176.80804500000002,
+                "priorReadMs": 231.72331099999997
+              },
+              "after": {
+                "serviceImportMs": 169.62123400000002,
+                "priorReadMs": 230.274149
+              }
+            }
+          }
+        ],
+        "new-process": [
+          {
+            "beforeMs": 230.386661,
+            "afterMs": 243.095269,
+            "beforeCpuMs": 632.865,
+            "afterCpuMs": 646.546,
+            "cpuMicros": {
+              "before": {
+                "user": 525214,
+                "system": 107651
+              },
+              "after": {
+                "user": 555427,
+                "system": 91119
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 175.911051,
+                "priorReadMs": 0.00030399999999985994
+              },
+              "after": {
+                "serviceImportMs": 182.386989,
+                "priorReadMs": 0.0004080000000215023
+              }
+            }
+          },
+          {
+            "beforeMs": 241.663696,
+            "afterMs": 236.56796599999998,
+            "beforeCpuMs": 643.275,
+            "afterCpuMs": 636.245,
+            "cpuMicros": {
+              "before": {
+                "user": 568606,
+                "system": 74669
+              },
+              "after": {
+                "user": 560922,
+                "system": 75323
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 182.29897499999998,
+                "priorReadMs": 0.00042600000000447835
+              },
+              "after": {
+                "serviceImportMs": 183.086481,
+                "priorReadMs": 0.00039800000001832814
+              }
+            }
+          },
+          {
+            "beforeMs": 238.123273,
+            "afterMs": 268.858541,
+            "beforeCpuMs": 635.717,
+            "afterCpuMs": 726.464,
+            "cpuMicros": {
+              "before": {
+                "user": 552013,
+                "system": 83704
+              },
+              "after": {
+                "user": 636678,
+                "system": 89786
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 182.54932100000002,
+                "priorReadMs": 0.0009090000000071541
+              },
+              "after": {
+                "serviceImportMs": 208.93341700000002,
+                "priorReadMs": 0.0006869999999707943
+              }
+            }
+          }
+        ],
+        "after-session": [
+          {
+            "beforeMs": 148.17627499999998,
+            "afterMs": 162.432814,
+            "beforeCpuMs": 412.682,
+            "afterCpuMs": 463.517,
+            "cpuMicros": {
+              "before": {
+                "user": 357724,
+                "system": 54958
+              },
+              "after": {
+                "user": 421766,
+                "system": 41751
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 180.40167,
+                "priorReadMs": 108.218153
+              },
+              "after": {
+                "serviceImportMs": 187.453955,
+                "priorReadMs": 127.17072200000001
+              }
+            }
+          },
+          {
+            "beforeMs": 144.67911900000001,
+            "afterMs": 146.58158600000002,
+            "beforeCpuMs": 399.327,
+            "afterCpuMs": 398.056,
+            "cpuMicros": {
+              "before": {
+                "user": 373846,
+                "system": 25481
+              },
+              "after": {
+                "user": 346428,
+                "system": 51628
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 192.28311,
+                "priorReadMs": 117.24057300000001
+              },
+              "after": {
+                "serviceImportMs": 179.520938,
+                "priorReadMs": 116.32304999999997
+              }
+            }
+          },
+          {
+            "beforeMs": 137.85995000000003,
+            "afterMs": 155.829561,
+            "beforeCpuMs": 383.931,
+            "afterCpuMs": 442.23,
+            "cpuMicros": {
+              "before": {
+                "user": 331813,
+                "system": 52118
+              },
+              "after": {
+                "user": 389363,
+                "system": 52867
+              }
+            },
+            "initialization": {
+              "before": {
+                "serviceImportMs": 178.864774,
+                "priorReadMs": 104.60319899999999
+              },
+              "after": {
+                "serviceImportMs": 187.10399999999998,
+                "priorReadMs": 110.023766
+              }
+            }
+          }
+        ]
+      },
+      "summary": {
+        "warm": {
+          "beforeMs": 43.79017200000004,
+          "afterMs": 47.078502999999955,
+          "beforeCpuMs": 88.678,
+          "afterCpuMs": 93.911,
+          "reductionPct": -7.5092899840628835,
+          "cpuReductionPct": -5.901125420059095
+        },
+        "new-process": {
+          "beforeMs": 238.123273,
+          "afterMs": 243.095269,
+          "beforeCpuMs": 635.717,
+          "afterCpuMs": 646.546,
+          "reductionPct": -2.087992465986299,
+          "cpuReductionPct": -1.7034309291713345
+        },
+        "after-session": {
+          "beforeMs": 144.67911900000001,
+          "afterMs": 155.829561,
+          "beforeCpuMs": 399.327,
+          "afterCpuMs": 442.23,
+          "reductionPct": -7.70701541250054,
+          "cpuReductionPct": -10.743826488066176
+        }
+      },
+      "exactParity": true,
+      "profiles": [],
+      "initializationProfiles": []
+    }
+  },
+  "failedCohort": {
+    "name": "parallelSparse",
+    "requestedRoundsPerMode": 5,
+    "reportsParameter": 1200,
+    "servicesPerRdoParameter": 0,
+    "status": "aborted-on-full-result-parity",
+    "mode": "warm",
+    "observedDifferingFields": [
+      "rdoNumber"
+    ],
+    "failure": "Complete calculation differs in warm",
+    "rawLogSha256": "eb019da028c06fa18b252aefd570c098f3595552eeff3cae749ae3f7c7bcdd77",
+    "rawLogPublished": false,
+    "reasonLogNotPublished": "Assertion output includes whole synthetic fixture IDs/results; retained here only as an observation and digest.",
+    "partialTimingsDiscardedByExistingHarness": true,
+    "comparisonsCompletedBeforeFailure": "not recorded by the existing harness",
+    "notCountedAsAcceptance": true
+  },
+  "comparison": {
+    "prototypeCompletedEqualPairs": 33,
+    "unchangedControlEqualPairs": 9,
+    "fullBusinessResultCompared": true,
+    "control": "Candidate and archive are the same 3be5b9fb source, with no preloader. All nine pairs passed. This does not resolve or explain the failed experimental cohort.",
+    "orderingObservation": "The existing RDO evidence reduction retains the first encountered report when hours tie. The parent read has no explicit tie order. The experiment observed different rdoNumber evidence; SQL scheduling, planner and physical row order were not traced, so causality is unresolved. No calculation rule or report ordering was changed to make the benchmark pass."
+  },
+  "decision": "Do not integrate either prototype. Serial changes have no uniform cold benefit and regress the sparse warm median; parallel dense has a 6.3% cold gain but the sparse run violates full-result parity. Retain the failed cohort and unchanged control; do not compose percentages with earlier baselines or treat a passing dense cohort as general acceptance.",
+  "acceptance": {
+    "T06": "unchanged: all-phase pool waiting=0 remains 90.2-90.5% in the final application cohorts",
+    "T07": "unchanged: general new-process target >=50% remains open; preceding application stage observed 44.9% sparse and 42.3% dense versus the original plan baseline",
+    "newPerformanceFlagAdded": false
+  },
+  "reproduction": {
+    "harness": "backend/scripts/benchmark-labor-performance.js",
+    "guard": "Requires PostgreSQL on loopback and a database name ending in _test. Use an isolated disposable database with all migrations; never production or a shared development database.",
+    "baseline": "Archive 3be5b9fb backend/shared and reuse matching installed dependencies. Candidate application files must have the recorded source hashes.",
+    "arguments": "--baseline-root=<archived-backend> --rounds=<3-for-serial-or-control;5-for-parallel> --reports=1200 --services-per-rdo=<0-or-4> --output=<evidence.json>",
+    "order": "Serial dense, serial sparse, parallel dense, failed parallel sparse, unchanged control sparse. Child source order alternates in each cohort. No tests or other task DB work during timed windows.",
+    "recipes": {
+      "serial": {
+        "purpose": "Experimental benchmark-only preloader. Never imported by application code or CI. Replace the root placeholder with an archived candidate backend and use NODE_OPTIONS=--import=<recipe-file> only for the loopback test benchmark.",
+        "source": "// Experimental CLI preloader only. Never loaded by the application.\nconst root = '<performance-backend-root>';\nconst source = process.argv.find(arg => arg.startsWith('--source-root='))?.slice('--source-root='.length);\nif (process.argv.some(arg => arg.startsWith('--mode=')) && source === root) {\n  const { default: database } = await import(root + '/src/lib/prisma.js');\n  const findImport = database.pontoImport.findUnique;\n  const findProjects = database.project.findMany;\n  let packet = null;\n  const hydrate = (rows, fields) => rows.map(row => ({ ...row, ...Object.fromEntries(fields.filter(key => row[key] != null)\n    .map(key => [key, new Date(row[key].length === 10 ? row[key] + 'T00:00:00.000Z' : /(?:Z|[+-]\\d\\d:\\d\\d)$/.test(row[key]) ? row[key] : row[key] + 'Z')])) }));\n  database.pontoImport.findUnique = async args => {\n    packet = null;\n    const selected = await findImport.apply(database.pontoImport, [args]);\n    if (!selected) return selected;\n    const projects = await findProjects.call(database.project, { select: {\n      id: true, code: true, offshore: true, laborSleepModeByCollaborator: true, laborCollaboratorIds: true,\n      operatorId: true, mobilizationDate: true, demobilizationDate: true, deletedAt: true\n    } });\n    const ids = projects.map(project => project.id), imports = [selected.id];\n    const start = selected.periodStart, end = selected.periodEnd;\n    const exclusive = new Date(new Date(end).getTime() + 86400000);\n    const [row] = await database.$queryRaw`\n      SELECT jsonb_build_object(\n        'roles', (SELECT COALESCE(jsonb_agg(jsonb_build_object('id', r.id, 'name', r.name)), '[]'::jsonb) FROM \"JobRole\" r),\n        'profiles', (SELECT COALESCE(jsonb_agg(jsonb_build_object('key', p.key, 'jobRoleId', p.\"jobRoleId\",\n          'parameterSets', (SELECT COALESCE(jsonb_agg(jsonb_build_object('version', s.version, 'effectiveDate', s.\"effectiveDate\",\n            'createdAt', s.\"createdAt\", 'params', s.params)), '[]'::jsonb) FROM \"CostParameterSet\" s WHERE s.\"costProfileId\" = p.id))), '[]'::jsonb) FROM \"CostProfile\" p),\n        'settings', (SELECT COALESCE(jsonb_agg(jsonb_build_object('key', s.key, 'numberValue', s.\"numberValue\")), '[]'::jsonb)\n          FROM \"AcompanhamentoSetting\" s WHERE s.key IN ('epiAnnualCost', 'examsTrainingAnnualCost', 'offshoreExamsTrainingAnnualCost')),\n        'aliases', (SELECT COALESCE(jsonb_agg(jsonb_build_object('normalizedTag', a.\"normalizedTag\", 'projectId', a.\"projectId\")), '[]'::jsonb)\n          FROM \"PontoProjectTagAlias\" a WHERE a.\"projectId\" = ANY(${ids}::text[])),\n        'overrides', (SELECT COALESCE(jsonb_agg(jsonb_build_object('collaboratorId', o.\"collaboratorId\", 'workDate', o.\"workDate\", 'projectId', o.\"projectId\")), '[]'::jsonb)\n          FROM \"PontoDayProjectOverride\" o WHERE o.\"workDate\" >= ${start} AND o.\"workDate\" < ${exclusive} AND o.\"projectId\" = ANY(${ids}::text[])),\n        'absences', (SELECT COALESCE(jsonb_agg(to_jsonb(a)), '[]'::jsonb) FROM \"CollaboratorAbsence\" a WHERE a.\"deletedAt\" IS NULL\n          AND a.\"startDate\" <= ${end} AND a.\"endDate\" >= ${start} AND a.\"collaboratorId\" IN (\n            SELECT DISTINCT p.\"collaboratorId\" FROM \"PontoPeriodSummary\" p WHERE p.\"importId\" = ANY(${imports}::text[]) AND p.\"collaboratorId\" IS NOT NULL)),\n        'holidays', (SELECT COALESCE(jsonb_agg(to_jsonb(h) ORDER BY h.\"holidayDate\"), '[]'::jsonb) FROM \"WorkforceHoliday\" h\n          WHERE h.\"deletedAt\" IS NULL AND h.\"holidayDate\" >= ${start} AND h.\"holidayDate\" <= ${end}),\n        'state', (SELECT to_jsonb(s) FROM \"WorkforceCalendarState\" s WHERE s.id = 'global')\n      ) AS data\n    `;\n    packet = { ...row.data, projects };\n    packet.profiles = packet.profiles.map(profile => ({ ...profile, parameterSets: hydrate(profile.parameterSets, ['effectiveDate', 'createdAt']) }));\n    packet.overrides = hydrate(packet.overrides, ['workDate']);\n    packet.absences = hydrate(packet.absences, ['startDate', 'endDate']);\n    packet.holidays = hydrate(packet.holidays, ['holidayDate']);\n    return selected;\n  };\n  const replace = (model, method, read) => {\n    const original = database[model][method];\n    database[model][method] = function (...args) { return packet ? Promise.resolve(read(packet, args[0])) : original.apply(this, args); };\n  };\n  replace('project', 'findMany', data => data.projects);\n  replace('jobRole', 'findMany', data => data.roles);\n  replace('costProfile', 'findMany', data => data.profiles);\n  replace('acompanhamentoSetting', 'findMany', data => data.settings);\n  replace('pontoProjectTagAlias', 'findMany', data => data.aliases);\n  replace('pontoDayProjectOverride', 'findMany', data => data.overrides);\n  replace('collaboratorAbsence', 'findMany', (data, args) => data.absences.filter(row => args.where.collaboratorId.in.includes(row.collaboratorId)));\n  replace('workforceHoliday', 'findMany', data => data.holidays);\n  replace('workforceCalendarState', 'findUnique', data => data.state);\n}\n",
+        "sha256": "efc1ac55b7268ce0be7578050786ee9d5cb45101d437ac49097c29e275f9f25a"
+      },
+      "parallel": {
+        "purpose": "Experimental benchmark-only preloader. Never imported by application code or CI. Replace the root placeholder with an archived candidate backend and use NODE_OPTIONS=--import=<recipe-file> only for the loopback test benchmark.",
+        "source": "// Experimental CLI preloader only. Never loaded by the application.\nconst root = '<performance-backend-root>';\nconst source = process.argv.find(arg => arg.startsWith('--source-root='))?.slice('--source-root='.length);\nif (process.argv.some(arg => arg.startsWith('--mode=')) && source === root) {\n  const { default: database } = await import(root + '/src/lib/prisma.js');\n  const findImport = database.pontoImport.findUnique;\n  const findProjects = database.project.findMany;\n  let pending = null;\n  const hydrate = (rows, fields) => rows.map(row => ({ ...row, ...Object.fromEntries(fields.filter(key => row[key] != null)\n    .map(key => [key, new Date(row[key].length === 10 ? row[key] + 'T00:00:00.000Z' : /(?:Z|[+-]\\d\\d:\\d\\d)$/.test(row[key]) ? row[key] : row[key] + 'Z')])) }));\n  async function prepare(selected) {\n    const projects = await findProjects.call(database.project, { select: {\n      id: true, code: true, offshore: true, laborSleepModeByCollaborator: true, laborCollaboratorIds: true,\n      operatorId: true, mobilizationDate: true, demobilizationDate: true, deletedAt: true\n    } });\n    const ids = projects.map(project => project.id), imports = [selected.id];\n    const start = selected.periodStart, end = selected.periodEnd;\n    const exclusive = new Date(new Date(end).getTime() + 86400000);\n    const [row] = await database.$queryRaw`\n      SELECT jsonb_build_object(\n        'roles', (SELECT COALESCE(jsonb_agg(jsonb_build_object('id', r.id, 'name', r.name)), '[]'::jsonb) FROM \"JobRole\" r),\n        'profiles', (SELECT COALESCE(jsonb_agg(jsonb_build_object('key', p.key, 'jobRoleId', p.\"jobRoleId\",\n          'parameterSets', (SELECT COALESCE(jsonb_agg(jsonb_build_object('version', s.version, 'effectiveDate', s.\"effectiveDate\",\n            'createdAt', s.\"createdAt\", 'params', s.params)), '[]'::jsonb) FROM \"CostParameterSet\" s WHERE s.\"costProfileId\" = p.id))), '[]'::jsonb) FROM \"CostProfile\" p),\n        'settings', (SELECT COALESCE(jsonb_agg(jsonb_build_object('key', s.key, 'numberValue', s.\"numberValue\")), '[]'::jsonb)\n          FROM \"AcompanhamentoSetting\" s WHERE s.key IN ('epiAnnualCost', 'examsTrainingAnnualCost', 'offshoreExamsTrainingAnnualCost')),\n        'aliases', (SELECT COALESCE(jsonb_agg(jsonb_build_object('normalizedTag', a.\"normalizedTag\", 'projectId', a.\"projectId\")), '[]'::jsonb)\n          FROM \"PontoProjectTagAlias\" a WHERE a.\"projectId\" = ANY(${ids}::text[])),\n        'overrides', (SELECT COALESCE(jsonb_agg(jsonb_build_object('collaboratorId', o.\"collaboratorId\", 'workDate', o.\"workDate\", 'projectId', o.\"projectId\")), '[]'::jsonb)\n          FROM \"PontoDayProjectOverride\" o WHERE o.\"workDate\" >= ${start} AND o.\"workDate\" < ${exclusive} AND o.\"projectId\" = ANY(${ids}::text[])),\n        'absences', (SELECT COALESCE(jsonb_agg(to_jsonb(a)), '[]'::jsonb) FROM \"CollaboratorAbsence\" a WHERE a.\"deletedAt\" IS NULL\n          AND a.\"startDate\" <= ${end} AND a.\"endDate\" >= ${start} AND a.\"collaboratorId\" IN (\n            SELECT DISTINCT p.\"collaboratorId\" FROM \"PontoPeriodSummary\" p WHERE p.\"importId\" = ANY(${imports}::text[]) AND p.\"collaboratorId\" IS NOT NULL)),\n        'holidays', (SELECT COALESCE(jsonb_agg(to_jsonb(h) ORDER BY h.\"holidayDate\"), '[]'::jsonb) FROM \"WorkforceHoliday\" h\n          WHERE h.\"deletedAt\" IS NULL AND h.\"holidayDate\" >= ${start} AND h.\"holidayDate\" <= ${end}),\n        'state', (SELECT to_jsonb(s) FROM \"WorkforceCalendarState\" s WHERE s.id = 'global')\n      ) AS data\n    `;\n    const packet = { ...row.data, projects };\n    packet.profiles = packet.profiles.map(profile => ({ ...profile, parameterSets: hydrate(profile.parameterSets, ['effectiveDate', 'createdAt']) }));\n    packet.overrides = hydrate(packet.overrides, ['workDate']);\n    packet.absences = hydrate(packet.absences, ['startDate', 'endDate']);\n    packet.holidays = hydrate(packet.holidays, ['holidayDate']);\n    return packet;\n  }\n  database.pontoImport.findUnique = async args => {\n    pending = null;\n    const selected = await findImport.apply(database.pontoImport, [args]);\n    if (selected) pending = prepare(selected);\n    return selected;\n  };\n  const replace = (model, method, read) => {\n    const original = database[model][method];\n    database[model][method] = function (...args) { return pending ? pending.then(packet => read(packet, args[0])) : original.apply(this, args); };\n  };\n  replace('project', 'findMany', data => data.projects);\n  replace('jobRole', 'findMany', data => data.roles);\n  replace('costProfile', 'findMany', data => data.profiles);\n  replace('acompanhamentoSetting', 'findMany', data => data.settings);\n  replace('pontoProjectTagAlias', 'findMany', data => data.aliases);\n  replace('pontoDayProjectOverride', 'findMany', data => data.overrides);\n  replace('collaboratorAbsence', 'findMany', (data, args) => data.absences.filter(row => args.where.collaboratorId.in.includes(row.collaboratorId)));\n  replace('workforceHoliday', 'findMany', data => data.holidays);\n  replace('workforceCalendarState', 'findUnique', data => data.state);\n}\n",
+        "sha256": "93d7cb89bd7d74e12093ede3ca433a7513f0da1ac018fb13b58e313ebb8bf90f"
+      }
+    }
+  },
+  "cleanup": {
+    "syntheticDataCounts": {
+      "report": 0,
+      "reportCollaborator": 0,
+      "reportService": 0,
+      "collaborator": 0,
+      "collaboratorJobRoleHistory": 0,
+      "collaboratorAbsence": 0,
+      "pontoImport": 0,
+      "pontoPeriodSummary": 0,
+      "pontoDayProjectOverride": 0,
+      "user": 0,
+      "userSession": 0,
+      "acompanhamentoMissionGroup": 0,
+      "acompanhamentoMissionGroupMember": 0,
+      "efetivoPlan": 0,
+      "efetivoMissionPlan": 0,
+      "efetivoMissionAllocation": 0,
+      "efetivoMissionCycle": 0,
+      "efetivoAllocationCycle": 0,
+      "allocationReviewWeek": 0,
+      "allocationReviewRow": 0,
+      "allocationReviewDay": 0,
+      "allocationReviewDayProject": 0,
+      "projectManualCost": 0,
+      "omieCategory": 0,
+      "omiePurchase": 0
+    },
+    "bootstrap": {
+      "projects": 2,
+      "roles": 52,
+      "costProfiles": 2
+    },
+    "revisionMarkers": 6,
+    "ownedContainer": "filtro-performance-native-20261111",
+    "ownedContainerAndVolumesRemoved": true
+  },
+  "limitations": [
+    "Wall time varies on a shared host. Control medians differ by 2.1-7.7% even for identical application source; these few paired samples do not establish statistical or published acceptance.",
+    "Cold service timing excludes module imports/process boot and uses warm database pages; after-session means one SELECT, not HTTP authentication. No HTTP, browser, proxy/TLS or production conclusions follow from this experiment.",
+    "No rerun was used to replace the failed experimental cohort with a passing one. The only follow-up cohort is an explicitly unchanged-source diagnostic control.",
+    "The next transport experiment must first preserve complete allocation evidence under tied RDOs; compare report inputs/order without logging identifiers. Reduce actual database work without moving queue waits out of observation."
+  ]
+}

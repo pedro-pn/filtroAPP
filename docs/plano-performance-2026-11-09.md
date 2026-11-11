@@ -313,7 +313,7 @@ não depender de reverter ou apagar dados para reverter o código.
 | T08 | Seções do Efetivo/Acompanhamento, cinco modais de workflow e painéis do Gestor sob demanda; visão geral estatística separada dos overlays | Aceite das superfícies autenticadas no ambiente publicado |
 | T09 | Variantes lossless, favicon/hash/prioridade do login e CSS da administração de credenciais separado do shell, preservando a camada legacy | Aceite LCP publicado; outros estilos globais podem ser divididos conforme medição |
 | T10 | Sondagens vazias agregadas; trabalho/falhas individuais; preview e aplicação exclusiva de JobRun, com lotes/auditoria e sem prazo padrão | Definir prazo/política antes da aplicação manual; medir linhas/dia publicado |
-| T11 | Orçamentos, paridade, projeções HTTP/PostgreSQL e navegador no CI; gate de cobertura dos triggers; padrões/runbook; 11 jobs aprovados em `1c26fa28` | Verificar CI desta continuação após envio; validação publicada permanece em T12 |
+| T11 | Orçamentos, paridade, projeções HTTP/PostgreSQL e navegador no CI; gate de cobertura dos triggers; padrões/runbook; 11 jobs aprovados em `3be5b9fb` | Validação publicada permanece em T12 |
 
 Os aceites publicados, a política/aplicação de retenção e o restante da meta fria de T07 permanecem pendentes. As regras de apropriação
 de custos foram preservadas. Não houve exclusão de histórico, alteração de backup
@@ -329,14 +329,18 @@ ou execução em servidores nesta implementação local.
    qualquer espera na aplicação. A invalidação conservadora mantém a atualização.
 2. **Carga fria — T07:** o cálculo em processo novo melhorou 44,9% no cenário
    esparso e 42,3% no denso nesta repetição contra o início do plano. A meta geral de 50% segue
-   aberta. Perfis e dois protótipos adicionais não justificaram novo transporte
+   aberta. Perfis e os protótipos adicionais não justificaram novo transporte
    SQL/índice; resultados e limitações estão nas evidências das últimas seções.
+   O protótipo mais recente também falhou na paridade da trilha de RDO no cenário
+   esparso; não foi integrado. Antes de outro transporte, instrumentar a ordem
+   dos insumos e preservar a evidência completa nos dias com RDOs empatados,
+   sem escolher outro desempate para fazer a comparação passar.
    As latências variaram entre coortes; os números não demonstram ganho causal
    geral nem devem ser compostos com percentuais de rodadas anteriores.
 3. **Aceite publicado — T01/T04/T05/T06/T08/T09:** verificar p95 HTTP, conteúdo
    útil/LCP, transferência por rota, dois navegadores, permissões/divisões,
    gravações do worker, atualização até 15 s e página oculta sem polling.
-4. **Operação — T03/T11/T12:** verificar o CI desta continuação após envio;
+4. **Operação — T03/T11/T12:** os 11 jobs do CI de `3be5b9fb` passaram;
    publicação manual com migration antes de habilitar o cache; comparar 24 h e
    sete dias de pool, event loop, CPU steal, memória/OOM, erros e jobs.
 5. **Retenção — T10:** definir o prazo/política e medir linhas/dia. O código local
@@ -2032,9 +2036,48 @@ Validação final: **2.808 testes de backend aprovados, 44 ignorados e nenhuma
 falha/cancelamento**; **18 contratos PostgreSQL/HTTP aprovados**, sem ignorados.
 Arquitetura, sintaxe, diff e integridade/privacidade das evidências verificados.
 As fixtures foram removidas e o container descartável com seus volumes foi
-excluído. O CI da continuação é verificado após envio e informado no fechamento.
+excluído. A implementação foi enviada em **`3be5b9fb`** e os **11 jobs** do
+[CI](https://github.com/pedro-pn/filtroAPP/actions/runs/43022340172) passaram.
 Continuam abertos pool no frio/refresh, meta fria geral, política de JobRun e
 aceites publicados de HTTP/conteúdo útil/LCP e 24 h/sete dias. **Backups adiados.**
+
+### Transporte de metadados — experimento reprovado em 11/11
+
+Após `3be5b9fb`, foram ensaiadas duas variantes isoladas que agrupam leituras
+pequenas de metadados em um pacote JSONB pelo mesmo cliente/pool. As consultas
+principais de períodos e relatórios foram mantidas. O preloader experimental
+existiu somente em processos filhos do benchmark; **nenhuma variante foi integrada
+ao app e nenhum novo flag foi criado**. As [evidências e receitas](evidence/performance-metadata-prototypes-20261111.json)
+preservam todas as coortes concluídas, a falha e o controle posterior.
+
+Na variante serial, o carregamento de metadados termina antes das consultas
+principais. Três pares por modo/cenário preservaram 18 resultados completos.
+No processo novo, a mediana densa foi 218,5 → 218,5 ms; a esparsa,
+239,9 → 219,2 ms. O aquecido esparso piorou 11,6%. Portanto, agrupar SQL não
+demonstrou benefício uniforme de carga fria.
+
+Na variante paralela, os metadados carregam junto das consultas principais.
+Cinco pares por modo preservaram mais 15 resultados completos no cenário denso:
+processo novo 223,8 → 209,7 ms, redução de 6,3%. **A coorte esparsa falhou no
+comparador completo, ainda no modo aquecido**, com divergência em `rdoNumber`
+na trilha de apropriação. A execução foi interrompida; não existe resumo válido
+de latência dessa coorte. Ela não foi substituída por uma repetição favorável.
+
+A redução existente conserva o primeiro relatório encontrado quando as horas
+empatam; a consulta dos pais não define desempate explícito. A mudança observada
+exige diagnóstico dos insumos/ordem antes de outro transporte, mesmo sem mudança
+aparente nas regras. Não foram capturados planos e ordem física nessa falha;
+não há causa fechada. Um controle posterior sem preloader, entre duas cópias
+idênticas de `3be5b9fb`, preservou nove pares completos, sem resolver a divergência
+experimental. As medianas desse controle variaram 2,1–7,7% no mesmo host.
+
+Ambas as variantes foram reprovadas para integração. Não se combina o ganho
+parcial com percentuais de outros baselines nem se muda a regra de RDO por uma
+meta de performance. O PostgreSQL descartável tinha uma CPU/768 MiB, todas as
+250 migrations e acesso apenas por loopback. Não houve testes ou outras
+operações de banco desta tarefa durante as medições. As fixtures ficaram zeradas
+e o container com seu volume foi removido. As metas de T06/T07 permanecem abertas
+nos valores registrados para a implementação aceita em `3be5b9fb`.
 
 ### Uso local das ferramentas de medição
 
