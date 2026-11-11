@@ -313,7 +313,7 @@ não depender de reverter ou apagar dados para reverter o código.
 | T08 | Seções do Efetivo/Acompanhamento, cinco modais de workflow e painéis do Gestor sob demanda; visão geral estatística separada dos overlays | Aceite das superfícies autenticadas no ambiente publicado |
 | T09 | Variantes lossless, favicon/hash/prioridade do login e CSS da administração de credenciais separado do shell, preservando a camada legacy | Aceite LCP publicado; outros estilos globais podem ser divididos conforme medição |
 | T10 | Sondagens vazias agregadas; trabalho/falhas individuais; preview e aplicação exclusiva de JobRun, com lotes/auditoria e sem prazo padrão | Definir prazo/política antes da aplicação manual; medir linhas/dia publicado |
-| T11 | Orçamentos, paridade, projeções HTTP/PostgreSQL e navegador no CI; gate de cobertura dos triggers; padrões/runbook; 11 jobs aprovados em `3be5b9fb` | Validação publicada permanece em T12 |
+| T11 | Orçamentos, paridade, projeções HTTP/PostgreSQL e navegador no CI; gate de cobertura dos triggers; novo gate de catálogos/cards aprovado em `ccfe0ddd`; baseline com 11 jobs aprovados em `3be5b9fb` | Concluir CI geral de `ccfe0ddd` após recuperação do DNS dos runners; validação publicada em T12 |
 
 Os aceites publicados, a política/aplicação de retenção e o restante da meta fria de T07 permanecem pendentes. As regras de apropriação
 de custos foram preservadas. Não houve exclusão de histórico, alteração de backup
@@ -341,7 +341,10 @@ ou execução em servidores nesta implementação local.
 3. **Aceite publicado — T01/T04/T05/T06/T08/T09:** verificar p95 HTTP, conteúdo
    útil/LCP, transferência por rota, dois navegadores, permissões/divisões,
    gravações do worker, atualização até 15 s e página oculta sem polling.
-4. **Operação — T03/T11/T12:** os 11 jobs do CI de `3be5b9fb` passaram;
+4. **Operação — T03/T11/T12:** o CI de `ccfe0ddd` teve nove jobs aprovados,
+   incluindo HTTP/performance. Duas tentativas tiveram falhas de DNS nos mirrors
+   Ubuntu durante instalação de Hunspell/Chromium. Reexecutar os jobs de backend
+   e navegador após normalizar a rede; o CI geral ainda não está aprovado. Depois, realizar a
    publicação manual com migration antes de habilitar o cache; comparar 24 h e
    sete dias de pool, event loop, CPU steal, memória/OOM, erros e jobs.
 5. **Retenção — T10:** definir o prazo/política e medir linhas/dia. O código local
@@ -2178,8 +2181,16 @@ habilitado; após reforçar a fixture de escrita, **nove contratos relevantes fo
 repetidos e aprovados**. Arquitetura, YAML do CI, sintaxe, diff e integridade das
 evidências conferidos. O novo gate cobre catálogos, cards, apresentações e CRM.
 Os 28 conjuntos de fixtures ficaram zerados; container descartável e volume foram
-removidos. O CI da implementação é consultado após o envio. Permanecem abertos
-pool global, meta fria, política de JobRun e aceite publicado de 24 h/sete dias.
+removidos. A implementação foi enviada em **`ccfe0ddd`**. O
+[CI](https://github.com/pedro-pn/filtroAPP/actions/runs/43038179636) teve **nove jobs
+aprovados**, incluindo o novo gate HTTP. Em duas tentativas, o backend parou na
+instalação de Hunspell por falha de DNS dos mirrors Ubuntu, antes dos testes.
+No frontend passaram testes, lint, build e orçamentos; a instalação do navegador
+também registrou falhas de DNS. As tentativas de instalação sem progresso foram
+canceladas, e somente os jobs sem sucesso foram repetidos uma vez. O CI geral
+**não está aprovado**; reexecutar backend/navegador após normalizar a rede.
+Permanecem abertos pool global, meta fria, política de JobRun e aceite publicado
+de 24 h/sete dias.
 
 ### Uso local das ferramentas de medição
 

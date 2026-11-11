@@ -18341,7 +18341,83 @@
       "url": "https://github.com/pedro-pn/filtroAPP/actions/runs/43022340172",
       "passedJobs": 11
     },
-    "candidate": "Checked after push and reported with the implementation commit in task closure."
+    "candidate": {
+      "commit": "ccfe0ddd16a937f25513de6702f51c5bbaffb01b",
+      "runId": 43038179636,
+      "url": "https://github.com/pedro-pn/filtroAPP/actions/runs/43038179636",
+      "attempts": 2,
+      "status": "not-approved-infrastructure-blocked",
+      "passedJobs": 9,
+      "jobs": [
+        {
+          "name": "Frontend",
+          "status": "completed",
+          "conclusion": "cancelled"
+        },
+        {
+          "name": "Backend",
+          "status": "completed",
+          "conclusion": "failure"
+        },
+        {
+          "name": "Architecture",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Commercial contributions (PostgreSQL)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "PrismaCRM planning (PostgreSQL)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "RDO equipment (PostgreSQL)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Docker",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "HTTP performance contracts (PostgreSQL)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Omni phase 2 (PostgreSQL)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Conecta allocation (PostgreSQL)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Notifications (PostgreSQL)",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ],
+      "issue": "Both attempts logged Temporary failure resolving for Ubuntu package mirrors. Backend stopped during Hunspell installation before Data Book/backend tests. Frontend passed tests/lint/build/loading budgets, but browser dependency installation repeatedly failed DNS resolution and was cancelled.",
+      "cancellation": "The owned attempts were cancelled after the setup stalled; only unsuccessful jobs were retried once. No checks were removed or weakened.",
+      "ubuntuHosts": [
+        "security.ubuntu.com",
+        "archive.ubuntu.com",
+        "azure.archive.ubuntu.com"
+      ],
+      "pendingChecks": [
+        "general backend/Data Book suites in CI",
+        "browser regressions in CI"
+      ],
+      "nextAction": "Retry unsuccessful jobs on the same implementation commit after runner DNS recovers. Local source checks and the nine successful jobs remain recorded separately."
+    }
   },
   "acceptance": {
     "T06GlobalPoolTargetMet": false,
