@@ -1,3 +1,4 @@
+import { useUsefulQueryContent } from '../../../observability/useUsefulContent';
 import { SortableTable } from '../../../components/ui/SortableTable';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
@@ -57,6 +58,7 @@ export function ProductivityBoard({ canManage }: Props) {
     placeholderData: keepPreviousData
   });
 
+  useUsefulQueryContent('efetivo:produtividade', 'ProductivityBoard', [query]);
   function updatePeriod(next: Partial<typeof period>) {
     setSearchParams(current => setProductivityPeriodParams(current, { ...period, ...next }), { replace: true });
   }

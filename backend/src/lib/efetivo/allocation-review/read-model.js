@@ -25,6 +25,12 @@ const SYNTHETIC_TAGS = new Set(['Dia sem atividade/viagem']);
 const SAO_PAULO_DATE = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit'
 });
+const REVIEW_WEEK_INCLUDE = { rows: { include: { days: { include: { projects: { select: { projectId: true } } } } } } };
+const COLLABORATOR_SELECT = {
+  id: true, name: true, isActive: true, admissionDate: true, terminationDate: true,
+  jobRole: { select: { id: true, name: true, isActive: true, isOperational: true } }
+};
+const PROJECT_SELECT = { id: true, code: true, name: true, clientName: true, clientCnpj: true, isActive: true, deletedAt: true };
 
 export function saoPauloToday(now = new Date()) {
   return SAO_PAULO_DATE.format(now);
@@ -111,14 +117,13 @@ function mostFrequentProject(days) {
   return best?.projectId || null;
 }
 
-export async function loadReviewWeekContext({ weekStart, collaboratorIds = null }, deps = {}) {
+// Fontes compartilhadas apenas durante a leitura atual. Na visão mensal, o intervalo inclui
+// todas as semanas e seus vizinhos; não há cache entre requisições ou entre usuários.
+async function loadReviewSources({ from, to, collaboratorIds = null }, deps) {
   const database = deps.database || prisma;
   const getTrails = deps.getTrails || getAllocationTrailsForRange;
   const loadEffectiveIndex = deps.loadEffectiveIndex || loadEffectiveAllocationIndex;
   const loadCalendar = deps.loadCalendar || loadCorporateCalendar;
-  const dates = weekDateKeys(weekStart);
-  const from = dates[0];
-  const to = dates[6];
   const fromDate = utcDate(from);
   const toDate = utcDate(to);
   const padFrom = shiftKey(from, -NEIGHBOR_DAYS);
@@ -127,7 +132,7 @@ export async function loadReviewWeekContext({ weekStart, collaboratorIds = null 
   const padToDate = utcDate(padTo);
   const onlyIds = collaboratorIds ? { collaboratorId: { in: collaboratorIds } } : {};
 
-  const [trails, reports, effectiveIndex, overrides, absences, calendar, savedWeek] = await Promise.all([
+  const [trails, reports, effectiveIndex, overrides, absences, calendar] = await Promise.all([
     getTrails({ from: padFrom, to: padTo }),
     database.report.findMany({
       where: { deletedAt: null, reportType: 'RDO', reportDate: { gte: padFromDate, lt: new Date(padToDate.getTime() + DAY_MS) } },
@@ -149,70 +154,74 @@ export async function loadReviewWeekContext({ weekStart, collaboratorIds = null 
       where: { deletedAt: null, startDate: { lte: toDate }, endDate: { gte: fromDate }, ...onlyIds },
       select: { id: true, collaboratorId: true, type: true, startDate: true, endDate: true }
     }),
-    loadCalendar(database, from, to),
-    database.allocationReviewWeek.findUnique({
-      where: { weekStart: fromDate },
-      include: { rows: { include: { days: { include: { projects: { select: { projectId: true } } } } } } }
-    })
+    loadCalendar(database, from, to)
   ]);
 
-  const inWeek = key => key >= from && key <= to;
-  const extraIds = new Set();
-  for (const [collaboratorId, days] of trails) {
-    if ([...days.entries()].some(([key, trail]) => inWeek(key) && pontoFromTrail(trail))) extraIds.add(collaboratorId);
-  }
-  for (const report of reports) {
-    if (!inWeek(dateKeyOf(report.reportDate))) continue;
-    for (const link of report.collaborators) if (link.collaboratorId) extraIds.add(link.collaboratorId);
-  }
-  for (const row of savedWeek?.rows || []) extraIds.add(row.collaboratorId);
+  return { trails, reports, effectiveIndex, overrides, absences, calendar };
+}
 
-  const collaboratorWhere = collaboratorIds
-    ? { id: { in: collaboratorIds } }
-    : {
-      OR: [
-        {
-          AND: [
-            { jobRole: { isActive: true, isOperational: true } },
-            { OR: [{ isActive: true }, { terminationDate: { gte: fromDate } }] },
-            { OR: [{ admissionDate: null }, { admissionDate: { lte: toDate } }] }
-          ]
-        },
-        { id: { in: [...extraIds] } }
-      ]
-    };
-  const collaborators = await database.collaborator.findMany({
-    where: collaboratorWhere,
-    select: {
-      id: true,
-      name: true,
-      isActive: true,
-      admissionDate: true,
-      terminationDate: true,
-      jobRole: { select: { id: true, name: true } }
-    },
-    orderBy: { name: 'asc' }
-  });
-
-  const referencedProjectIds = new Set();
-  for (const report of reports) referencedProjectIds.add(report.projectId);
-  for (const days of trails.values()) for (const trail of days.values()) for (const id of trail.tagProjectIds || []) referencedProjectIds.add(id);
-  for (const item of overrides) referencedProjectIds.add(item.projectId);
-  for (const context of effectiveIndex.values()) for (const window of context.windows) {
-    if (window.startKey <= padTo && window.endKey >= padFrom) referencedProjectIds.add(window.projectId);
+function sourcesForWeek(sources, from, to) {
+  const padFrom = shiftKey(from, -NEIGHBOR_DAYS);
+  const padTo = shiftKey(to, NEIGHBOR_DAYS);
+  const inPadding = key => key >= padFrom && key <= padTo;
+  const trails = new Map();
+  for (const [collaboratorId, days] of sources.trails) {
+    const selected = new Map([...days].filter(([date]) => inPadding(date)));
+    if (selected.size) trails.set(collaboratorId, selected);
   }
-  for (const row of savedWeek?.rows || []) for (const day of row.days) for (const item of day.projects) referencedProjectIds.add(item.projectId);
+  return {
+    trails,
+    reports: sources.reports.filter(report => inPadding(dateKeyOf(report.reportDate))),
+    effectiveIndex: sources.effectiveIndex,
+    overrides: sources.overrides.filter(item => inPadding(dateKeyOf(item.workDate))),
+    absences: sources.absences.filter(item => dateKeyOf(item.startDate) <= to && dateKeyOf(item.endDate) >= from),
+    calendar: {
+      holidays: (sources.calendar?.holidays || []).filter(item => item.date >= from && item.date <= to),
+      holidayDates: new Set([...(sources.calendar?.holidayDates || [])].filter(date => date >= from && date <= to))
+    }
+  };
+}
 
+export async function loadReviewWeekContext({ weekStart, collaboratorIds = null }, deps = {}) {
+  const database = deps.database || prisma;
+  const dates = weekDateKeys(weekStart);
+  const [from, to] = [dates[0], dates[6]];
+  const fromDate = utcDate(from);
+  const padFrom = shiftKey(from, -NEIGHBOR_DAYS);
+  const padTo = shiftKey(to, NEIGHBOR_DAYS);
+  const [sources, savedWeek] = await Promise.all([
+    deps.reviewSources
+      ? sourcesForWeek(deps.reviewSources, from, to)
+      : loadReviewSources({ from, to, collaboratorIds }, deps),
+    deps.reviewSources
+      ? deps.reviewSources.savedWeeks.get(from) || null
+      : database.allocationReviewWeek.findUnique({ where: { weekStart: fromDate }, include: REVIEW_WEEK_INCLUDE })
+  ]);
+  const { trails, reports, effectiveIndex, overrides, absences, calendar } = sources;
+
+  const extraIds = reviewExtraCollaboratorIds({ ...sources, savedWeek, from, to });
+  const collaborators = deps.reviewSources
+    ? deps.reviewSources.collaborators.filter(item => collaboratorMatchesWeek(item, { from, to, collaboratorIds, extraIds }))
+    : await database.collaborator.findMany({
+      where: reviewCollaboratorWhere({ from, to, collaboratorIds, extraIds }),
+      select: COLLABORATOR_SELECT,
+      orderBy: { name: 'asc' }
+    });
+  const referencedProjectIds = reviewProjectIds({ ...sources, savedWeek, padFrom, padTo });
   const closedByUserId = savedWeek?.closedByUserId || null;
   const [projects, closedBy] = await Promise.all([
-    database.project.findMany({
-      where: { OR: [{ id: { in: [...referencedProjectIds] } }, { isActive: true, deletedAt: null }] },
-      select: { id: true, code: true, name: true, clientName: true, clientCnpj: true, isActive: true, deletedAt: true },
-      orderBy: { code: 'asc' }
-    }),
-    closedByUserId
-      ? database.user.findUnique({ where: { id: closedByUserId }, select: { id: true, name: true } })
-      : null
+    deps.reviewSources
+      ? deps.reviewSources.projects.filter(item => referencedProjectIds.has(item.id) || (item.isActive && !item.deletedAt))
+      : database.project.findMany({
+        where: { OR: [{ id: { in: [...referencedProjectIds] } }, { isActive: true, deletedAt: null }] },
+        select: PROJECT_SELECT,
+        orderBy: { code: 'asc' }
+      }),
+    deps.reviewSources
+      ? deps.reviewSources.users.get(closedByUserId) || null
+      : closedByUserId
+        ? database.user.findUnique({ where: { id: closedByUserId }, select: { id: true, name: true } })
+        : null
   ]);
 
   return {
@@ -230,6 +239,90 @@ export async function loadReviewWeekContext({ weekStart, collaboratorIds = null 
     collaborators,
     projects,
     closedBy
+  };
+}
+
+function reviewExtraCollaboratorIds({ trails, reports, savedWeek, from, to }) {
+  const inWeek = key => key >= from && key <= to;
+  const extraIds = new Set();
+  for (const [collaboratorId, days] of trails) {
+    if ([...days.entries()].some(([key, trail]) => inWeek(key) && pontoFromTrail(trail))) extraIds.add(collaboratorId);
+  }
+  for (const report of reports) {
+    if (!inWeek(dateKeyOf(report.reportDate))) continue;
+    for (const link of report.collaborators) if (link.collaboratorId) extraIds.add(link.collaboratorId);
+  }
+  for (const row of savedWeek?.rows || []) extraIds.add(row.collaboratorId);
+  return extraIds;
+}
+
+function reviewCollaboratorWhere({ from, to, extraIds, collaboratorIds = null }) {
+  return collaboratorIds
+    ? { id: { in: collaboratorIds } }
+    : {
+      OR: [
+        {
+          AND: [
+            { jobRole: { isActive: true, isOperational: true } },
+            { OR: [{ isActive: true }, { terminationDate: { gte: utcDate(from) } }] },
+            { OR: [{ admissionDate: null }, { admissionDate: { lte: utcDate(to) } }] }
+          ]
+        },
+        { id: { in: [...extraIds] } }
+      ]
+    };
+}
+
+function collaboratorMatchesWeek(item, { from, to, collaboratorIds, extraIds }) {
+  if (collaboratorIds) return collaboratorIds.includes(item.id);
+  if (extraIds.has(item.id)) return true;
+  return item.jobRole?.isActive && item.jobRole?.isOperational
+    && (item.isActive || (item.terminationDate && dateKeyOf(item.terminationDate) >= from))
+    && (!item.admissionDate || dateKeyOf(item.admissionDate) <= to);
+}
+
+function reviewProjectIds({ reports, trails, overrides, effectiveIndex, savedWeek, padFrom, padTo }) {
+  const referencedProjectIds = new Set();
+  for (const report of reports) referencedProjectIds.add(report.projectId);
+  for (const days of trails.values()) for (const trail of days.values()) for (const id of trail.tagProjectIds || []) referencedProjectIds.add(id);
+  for (const item of overrides) referencedProjectIds.add(item.projectId);
+  for (const context of effectiveIndex.values()) for (const window of context.windows) {
+    if (window.startKey <= padTo && window.endKey >= padFrom) referencedProjectIds.add(window.projectId);
+  }
+  for (const row of savedWeek?.rows || []) for (const day of row.days) for (const item of day.projects) referencedProjectIds.add(item.projectId);
+
+  return referencedProjectIds;
+}
+
+async function loadReviewMonthSources(weekStarts, deps) {
+  const database = deps.database || prisma;
+  const from = weekStarts[0];
+  const to = shiftKey(weekStarts.at(-1), 6);
+  const [sources, savedWeeks] = await Promise.all([
+    loadReviewSources({ from, to }, deps),
+    database.allocationReviewWeek.findMany({ where: { weekStart: { in: weekStarts.map(utcDate) } }, include: REVIEW_WEEK_INCLUDE })
+  ]);
+  const savedWeek = { rows: savedWeeks.flatMap(week => week.rows) };
+  const extraIds = reviewExtraCollaboratorIds({ ...sources, savedWeek, from, to });
+  const referencedProjectIds = reviewProjectIds({ ...sources, savedWeek, padFrom: shiftKey(from, -NEIGHBOR_DAYS), padTo: shiftKey(to, NEIGHBOR_DAYS) });
+  const userIds = [...new Set(savedWeeks.map(week => week.closedByUserId).filter(Boolean))];
+  const [collaborators, projects, users] = await Promise.all([
+    database.collaborator.findMany({
+      where: reviewCollaboratorWhere({ from, to, extraIds }),
+      select: COLLABORATOR_SELECT,
+      orderBy: { name: 'asc' }
+    }),
+    database.project.findMany({
+      where: { OR: [{ id: { in: [...referencedProjectIds] } }, { isActive: true, deletedAt: null }] },
+      select: PROJECT_SELECT,
+      orderBy: { code: 'asc' }
+    }),
+    userIds.length ? database.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true } }) : []
+  ]);
+  return {
+    ...sources, collaborators, projects,
+    savedWeeks: new Map(savedWeeks.map(week => [dateKeyOf(week.weekStart), week])),
+    users: new Map(users.map(user => [user.id, user]))
   };
 }
 
@@ -491,7 +584,7 @@ export async function getReviewPendingCount({ now = new Date() } = {}, deps = {}
 
 /*
  * Visão do mês inteiro: junta as semanas (seg–dom) que tocam o mês e devolve só os dias do mês.
- * As semanas são montadas em sequência para aproveitar o cache das trilhas do ponto.
+ * Lê as fontes do período uma vez e recorta o contexto de cada semana antes de montá-la.
  */
 export async function getReviewMonth({ yearMonth, now = new Date(), user = null }, deps = {}) {
   const [year, month] = yearMonth.split('-').map(Number);
@@ -500,9 +593,10 @@ export async function getReviewMonth({ yearMonth, now = new Date(), user = null 
   const weekStarts = [];
   for (let monday = mondayOf(first); monday <= last; monday = shiftKey(monday, 7)) weekStarts.push(monday);
 
+  const reviewSources = await loadReviewMonthSources(weekStarts, deps);
   const weeks = [];
   for (const weekStart of weekStarts) {
-    weeks.push(await getReviewWeek({ weekStart, now, user }, deps));
+    weeks.push(await getReviewWeek({ weekStart, now, user }, { ...deps, reviewSources }));
   }
   const inMonth = date => date >= first && date <= last;
   const days = weeks.flatMap(week => week.days).filter(day => inMonth(day.date));

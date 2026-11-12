@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router';
 
 import { listPlanningJobRoles } from '../../api/efetivoPlanning';
 import { getAllocationReviewPendingCount } from '../../api/allocationReview';
 import { useAuth } from '../../auth/AuthContext';
-import { Button, Card, Field, Select } from '../../components/ui/ds';
+import { Button, Card, Field, Select, Skeleton } from '../../components/ui/ds';
 import { DateInput } from '../../components/ui/DateInput';
 import { PageHeader } from '../../layout/PageHeader';
 import { usePersistentSearch } from '../../hooks/usePersistentSearch';
@@ -13,17 +13,7 @@ import { addDateOnlyDays, parseDateOnly, todayDateOnly } from '../../utils/calen
 import { groupJobRoles } from '../../utils/jobRoleDisplay';
 import { parsePlanningSection, setPlanningSectionParams, type EfetivoPlanningSection } from '../../utils/planningNavigation';
 import { PROJECT_KANBAN_STAGES, type ProjectKanbanStage } from '../../utils/projectWorkflow';
-import { AbsencesBoard } from './components/AbsencesBoard';
-import { AdministrationBoard } from './components/AdministrationBoard';
-import { AllocationReviewBoard } from './components/AllocationReviewBoard';
-import { AllocationReviewMonthView } from './components/AllocationReviewMonthView';
 import { parseGroupMode, parseShowFilter, parseViewMode, parseWeekStart, parseYearMonth } from './components/allocationReviewPresentation';
-import { AvailabilityBoard } from './components/AvailabilityBoard';
-import { CollaboratorsBoard } from './components/CollaboratorsBoard';
-import { OperationalCalendar } from './components/OperationalCalendar';
-import { OverviewBoard } from './components/OverviewBoard';
-import { ProductivityBoard } from './components/ProductivityBoard';
-import { ProjectWorkflowBoard } from './components/ProjectWorkflowBoard';
 import { EfetivoAppShell, type EfetivoSectionDefinition } from './EfetivoAppShell';
 import { EfetivoPlanningNovelty } from './EfetivoPlanningNovelty';
 import { EfetivoSectionNavigation } from './EfetivoSectionNavigation';
@@ -36,6 +26,17 @@ import './EfetivoPage.ds.css';
 import './EfetivoDialogs.css';
 import './EfetivoProductivityAdmin.ds.css';
 import './EfetivoGuide.ds.css';
+
+const AbsencesBoard = lazy(() => import('./components/AbsencesBoard').then(module => ({ default: module.AbsencesBoard })));
+const AdministrationBoard = lazy(() => import('./components/AdministrationBoard').then(module => ({ default: module.AdministrationBoard })));
+const AllocationReviewBoard = lazy(() => import('./components/AllocationReviewBoard').then(module => ({ default: module.AllocationReviewBoard })));
+const AllocationReviewMonthView = lazy(() => import('./components/AllocationReviewMonthView').then(module => ({ default: module.AllocationReviewMonthView })));
+const AvailabilityBoard = lazy(() => import('./components/AvailabilityBoard').then(module => ({ default: module.AvailabilityBoard })));
+const CollaboratorsBoard = lazy(() => import('./components/CollaboratorsBoard').then(module => ({ default: module.CollaboratorsBoard })));
+const OperationalCalendar = lazy(() => import('./components/OperationalCalendar').then(module => ({ default: module.OperationalCalendar })));
+const OverviewBoard = lazy(() => import('./components/OverviewBoard').then(module => ({ default: module.OverviewBoard })));
+const ProductivityBoard = lazy(() => import('./components/ProductivityBoard').then(module => ({ default: module.ProductivityBoard })));
+const ProjectWorkflowBoard = lazy(() => import('./components/ProjectWorkflowBoard').then(module => ({ default: module.ProjectWorkflowBoard })));
 
 const SECTIONS: readonly EfetivoSectionDefinition[] = [
   { id: 'visao-geral', label: 'Visão geral', description: 'Capacidade, alocação e alertas do dia.' },
@@ -224,6 +225,7 @@ export function EfetivoPage() {
                 </p>
               </Card>
             ) : null}
+            <Suspense fallback={<Card padding="sm"><Skeleton height={160} /></Card>}>
             {section === 'visao-geral' ? <OverviewBoard date={date} jobRoleId={jobRoleId} onNavigate={goToSection} /> : null}
             {section === 'calendario' ? <OperationalCalendar date={date} view={calendarView} jobRoleId={jobRoleId} selectedDay={selectedDay} dayOpen={Boolean(searchParams.get('dia'))} onDayClose={() => updateParam('dia')} onDateChange={value => updateParam('date', value)} onViewChange={value => updateParam('view', value === 'month' ? undefined : value)} onDaySelect={value => updateParam('dia', value)} /> : null}
             {section === 'colaboradores' ? <><CollaboratorsBoard date={date} jobRoleId={jobRoleId} search={search} canManage={canManage} selectedCollaboratorId={selectedCollaboratorId} onSearchChange={setSearch} onCollaboratorSelect={value => updateParam('colaborador', value)} absencePrefill={absencePrefill} onAbsencePrefillDone={() => setSearchParams(current => { const next = new URLSearchParams(current); for (const key of ['cadastrarAusencia', 'tipo', 'de', 'ate']) next.delete(key); return next; }, { replace: true })} /><AbsencesBoard canManage={canManage} selectedAbsenceId={selectedAbsenceId} /></> : null}
@@ -253,6 +255,7 @@ export function EfetivoPage() {
               />
             ) : null}
             {section === 'administracao' ? <AdministrationBoard canManage={canManage} tab={adminTab} onTabChange={value => updateParam('adminTab', value === 'regras' ? undefined : value)} /> : null}
+            </Suspense>
         </section>
       </main>
       <EfetivoTutorial userKey={user?.id || ''} ready={Boolean(user) && canView} goToSection={setSection} triggerRef={tutorialTrigger} />

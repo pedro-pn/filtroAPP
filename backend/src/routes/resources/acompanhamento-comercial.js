@@ -1,4 +1,5 @@
 import { projectChannelWhere } from '../../lib/projects/distribution.js';
+import { canViewProjectFinancials } from '../../../../shared/modules/acompanhamento-permissions.js';
 import { assignReportContribution } from '../../lib/acompanhamento/proposal-scopes.js';
 import { getProposalScopeTracking } from '../../lib/acompanhamento/proposal-scope-tracking.js';
 /*
@@ -33,6 +34,7 @@ import { getMissionGroupRomaneios, getProjectRomaneios } from '../../lib/acompan
 import { groupProjectCards } from '../../lib/acompanhamento/project-card-groups.js';
 import { groupDashboardRows } from '../../lib/acompanhamento/dashboard-groups.js';
 import { getProjectDetail } from '../../lib/acompanhamento/project-detail.js';
+import { readAcompanhamentoResponse } from '../../lib/acompanhamento/read-cache.js';
 import { getProjectInvoices, getMissionGroupInvoices } from '../../lib/acompanhamento/project-invoices.js';
 import { createProjectManagementNote, listProjectManagementNotes, PROJECT_MANAGEMENT_NOTE_MAX_LENGTH } from '../../lib/acompanhamento/project-notes.js';
 import { deleteWeeklyProgressTarget, listWeeklyProgressTargets, saveWeeklyProgressTarget, weeklyTargetWorkdays, weeklyTargetsNeedAttendance } from '../../lib/acompanhamento/weekly-progress-targets.js';
@@ -59,9 +61,15 @@ import {
 } from '../../lib/acompanhamento/comercialapp-bridge.js';
 import { resolveProjectDocumentFile } from '../../lib/efetivo/project-workflow/documents.js';
 import { removeContribution, resolveContributionScope } from '../../lib/acompanhamento/commercial-contributions.js';
+import { progressReadModeSchema } from '../../lib/acompanhamento/progress-projection.js';
 import { requestAdditionalProposalQuery } from '../../lib/projects/commercial-proposal-sync.js';
 
 const router = Router();
+const detailReadQuerySchema = z.object({
+  progress: progressReadModeSchema.default('full'),
+  fields: z.literal('progress').optional()
+});
+const projectDetailReadQuerySchema = detailReadQuerySchema.extend({ division: z.string().max(500).optional() });
 
 // Serve the frozen copy before any operational handler can read or write its ID.
 router.use('/projetos/:projectId', requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res, next) => {
@@ -425,11 +433,15 @@ router.get(
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
     const includeAdminOnlyCategories = req.auth?.user?.accountType === 'ADMIN';
-    const [cards, groups, copies, opportunities] = await Promise.all([listProjectCards({ includeAdminOnlyCategories }), loadActiveMissionGroups(), listPresentationCopies(), listCrmOpportunityCards()]);
-    const presentationCards = copies.map(copy => presentationPayload(copy, 'card', includeAdminOnlyCategories));
-    const convertedIds = new Set(cards.flatMap(card => card.crmOpportunity ? [card.crmOpportunity.id] : []));
-    res.json(projectFinancialsForUser([...groupProjectCards(cards, groups), ...presentationCards,
-      ...opportunities.filter(opportunity => !convertedIds.has(opportunity.id))], req.auth.user));
+    const result = await readAcompanhamentoResponse(req, ['project-cards', includeAdminOnlyCategories,
+      canViewProjectFinancials(req.auth.user)], async () => {
+      const [cards, groups, copies, opportunities] = await Promise.all([listProjectCards({ includeAdminOnlyCategories }), loadActiveMissionGroups(), listPresentationCopies(), listCrmOpportunityCards()]);
+      const presentationCards = copies.map(copy => presentationPayload(copy, 'card', includeAdminOnlyCategories));
+      const convertedIds = new Set(cards.flatMap(card => card.crmOpportunity ? [card.crmOpportunity.id] : []));
+      return projectFinancialsForUser([...groupProjectCards(cards, groups), ...presentationCards,
+        ...opportunities.filter(opportunity => !convertedIds.has(opportunity.id))], req.auth.user);
+    });
+    res.json(result);
   })
 );
 
@@ -615,14 +627,20 @@ router.get(
   requireAuth,
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
+    const query = detailReadQuerySchema.safeParse(req.query);
+    if (!query.success) return res.status(400).json({ error: 'Opções de leitura inválidas.' });
     try {
       const includeCollaboratorCosts = canViewAcompanhamentoLaborCosts(req.auth?.user);
       const includeAdminOnlyCategories = req.auth?.user?.accountType === 'ADMIN';
-      const detail = await getMissionGroupDetail(req.params.groupId, {
-        includeCollaboratorCosts,
-        includeAdminOnlyCategories
-      });
-      res.json(projectFinancialsForUser(detail, req.auth.user));
+      const detail = await readAcompanhamentoResponse(req, ['mission-detail', req.params.groupId, query.data,
+        includeCollaboratorCosts, includeAdminOnlyCategories, canViewProjectFinancials(req.auth.user)],
+        async () => projectFinancialsForUser(await getMissionGroupDetail(req.params.groupId, {
+          progressMode: query.data.progress,
+          projection: query.data.fields === 'progress' ? 'progress' : 'detail',
+          includeCollaboratorCosts,
+          includeAdminOnlyCategories
+        }), req.auth.user));
+      res.json(detail);
     } catch (error) {
       return missionGroupErrorResponse(error, res);
     }
@@ -1024,22 +1042,27 @@ router.get(
   requireAuth,
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
+    const query = projectDetailReadQuerySchema.safeParse(req.query);
+    if (!query.success) return res.status(400).json({ error: 'Opções de leitura inválidas.' });
     try {
-      const divisionKey = typeof req.query.division === 'string' ? req.query.division : null;
-      if (divisionKey && divisionKey.length > 500) return res.status(400).json({ error: 'Divisão inválida.' });
+      const divisionKey = query.data.division;
       const divisions = divisionKey ? await getTrackingDivisions(req.params.projectId) : null;
       const division = divisionKey ? divisions.divisions.find(item => item.key === divisionKey) : null;
       if (divisionKey && !division) return res.status(404).json({ error: 'Divisão não encontrada.' });
       const includeCollaboratorCosts = canViewAcompanhamentoLaborCosts(req.auth?.user);
       const includeAdminOnlyCategories = req.auth?.user?.accountType === 'ADMIN';
-      const detail = await getProjectDetail(req.params.projectId, {
-        includeCollaboratorCosts,
-        includeAdminOnlyCategories,
-        division
-      });
-      res.json(projectFinancialsForUser(detail, req.auth.user));
+      const detail = await readAcompanhamentoResponse(req, ['project-detail', req.params.projectId, query.data,
+        includeCollaboratorCosts, includeAdminOnlyCategories, canViewProjectFinancials(req.auth.user)],
+        async () => projectFinancialsForUser(await getProjectDetail(req.params.projectId, {
+          progressMode: query.data.progress,
+          projection: query.data.fields === 'progress' ? 'progress' : 'detail',
+          includeCollaboratorCosts,
+          includeAdminOnlyCategories,
+          division
+        }), req.auth.user));
+      res.json(detail);
     } catch (error) {
-      res.status(404).json({ error: error.message });
+      res.status(error.status || 404).json({ error: error.message });
     }
   })
 );

@@ -1,0 +1,2292 @@
+{
+  "date": "2026-11-09",
+  "productionOrigin": "https://app.filtrovali.com.br",
+  "publicHttp": {
+    "startedAt": "2026-11-09T17:57:41.100344+00:00",
+    "method": "sequential curl, 20 samples per route, 500 ms interval, external workstation",
+    "routes": {
+      "/": {
+        "samples": [
+          {
+            "http_code": 200,
+            "time_namelookup": 0.002861,
+            "time_connect": 0.016466,
+            "time_appconnect": 0.039781,
+            "time_starttransfer": 0.05547,
+            "time_total": 0.055823,
+            "size_download": 1347
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.002675,
+            "time_connect": 0.018063,
+            "time_appconnect": 0.041201,
+            "time_starttransfer": 0.057577,
+            "time_total": 0.057759,
+            "size_download": 1347
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.0032,
+            "time_connect": 0.016349,
+            "time_appconnect": 0.037634,
+            "time_starttransfer": 0.052137,
+            "time_total": 0.052735,
+            "size_download": 1347
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.002926,
+            "time_connect": 0.01682,
+            "time_appconnect": 0.039797,
+            "time_starttransfer": 0.054987,
+            "time_total": 0.055051,
+            "size_download": 1347
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.002626,
+            "time_connect": 0.016136,
+            "time_appconnect": 0.038352,
+            "time_starttransfer": 0.08211,
+            "time_total": 0.0834,
+            "size_download": 1347
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.003411,
+            "time_connect": 0.017072,
+            "time_appconnect": 0.039898,
+            "time_starttransfer": 0.056427,
+            "time_total": 0.061703,
+            "size_download": 1347
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.003728,
+            "time_connect": 0.019286,
+            "time_appconnect": 0.044312,
+            "time_starttransfer": 0.06276,
+            "time_total": 0.063916,
+            "size_download": 1347
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.003039,
+            "time_connect": 0.018436,
+            "time_appconnect": 0.039602,
+            "time_starttransfer": 0.062258,
+            "time_total": 0.062314,
+            "size_download": 1347
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.003018,
+            "time_connect": 0.016807,
+            "time_appconnect": 0.0397,
+            "time_starttransfer": 0.056846,
+            "time_total": 0.056902,
+            "size_download": 1347
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.002974,
+            "time_connect": 0.017139,
+            "time_appconnect": 0.040904,
+            "time_starttransfer": 0.056181,
+            "time_total": 0.05633,
+            "size_download": 1347
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.002756,
+            "time_connect": 0.017874,
+            "time_appconnect": 0.041655,
+            "time_starttransfer": 0.057328,
+            "time_total": 0.057381,
+            "size_download": 1347
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.004581,
+            "time_connect": 0.017994,
+            "time_appconnect": 0.041675,
+            "time_starttransfer": 0.057323,
+            "time_total": 0.057795,
+            "size_download": 1347
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.003759,
+            "time_connect": 0.017523,
+            "time_appconnect": 0.04266,
+            "time_starttransfer": 0.060791,
+            "time_total": 0.060859,
+            "size_download": 1347
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.002563,
+            "time_connect": 0.01594,
+            "time_appconnect": 0.041476,
+            "time_starttransfer": 0.056878,
+            "time_total": 0.058106,
+            "size_download": 1347
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.002753,
+            "time_connect": 0.016291,
+            "time_appconnect": 0.260161,
+            "time_starttransfer": 0.298209,
+            "time_total": 0.298268,
+            "size_download": 1347
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.002634,
+            "time_connect": 0.016927,
+            "time_appconnect": 0.038714,
+            "time_starttransfer": 0.054763,
+            "time_total": 0.05796,
+            "size_download": 1347
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.002871,
+            "time_connect": 0.016759,
+            "time_appconnect": 0.039043,
+            "time_starttransfer": 0.054723,
+            "time_total": 0.055487,
+            "size_download": 1347
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.002673,
+            "time_connect": 0.01649,
+            "time_appconnect": 0.03835,
+            "time_starttransfer": 0.053945,
+            "time_total": 0.053996,
+            "size_download": 1347
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.004092,
+            "time_connect": 0.018249,
+            "time_appconnect": 0.039198,
+            "time_starttransfer": 0.053616,
+            "time_total": 0.053696,
+            "size_download": 1347
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.002528,
+            "time_connect": 0.016291,
+            "time_appconnect": 0.035929,
+            "time_starttransfer": 0.050415,
+            "time_total": 0.050628,
+            "size_download": 1347
+          }
+        ],
+        "ttfbMs": {
+          "min": 50.41,
+          "p50": 56.43,
+          "p95": 82.11,
+          "max": 298.21
+        },
+        "totalMs": {
+          "min": 50.63,
+          "p50": 57.38,
+          "p95": 83.4,
+          "max": 298.27
+        }
+      },
+      "/health": {
+        "samples": [
+          {
+            "http_code": 200,
+            "time_namelookup": 0.002967,
+            "time_connect": 0.016887,
+            "time_appconnect": 0.038146,
+            "time_starttransfer": 0.05525,
+            "time_total": 0.055301,
+            "size_download": 11
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.002532,
+            "time_connect": 0.016592,
+            "time_appconnect": 0.039473,
+            "time_starttransfer": 0.058037,
+            "time_total": 0.058088,
+            "size_download": 11
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.003053,
+            "time_connect": 0.016673,
+            "time_appconnect": 0.037729,
+            "time_starttransfer": 0.059186,
+            "time_total": 0.059264,
+            "size_download": 11
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.002684,
+            "time_connect": 0.01604,
+            "time_appconnect": 0.036958,
+            "time_starttransfer": 0.056853,
+            "time_total": 0.056914,
+            "size_download": 11
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.00339,
+            "time_connect": 0.024358,
+            "time_appconnect": 0.047211,
+            "time_starttransfer": 0.064036,
+            "time_total": 0.064091,
+            "size_download": 11
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.003067,
+            "time_connect": 0.017788,
+            "time_appconnect": 0.03902,
+            "time_starttransfer": 0.05631,
+            "time_total": 0.056361,
+            "size_download": 11
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.003098,
+            "time_connect": 0.016892,
+            "time_appconnect": 0.040754,
+            "time_starttransfer": 0.057924,
+            "time_total": 0.057983,
+            "size_download": 11
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.002661,
+            "time_connect": 0.016805,
+            "time_appconnect": 0.03842,
+            "time_starttransfer": 0.056777,
+            "time_total": 0.056825,
+            "size_download": 11
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.003134,
+            "time_connect": 0.018883,
+            "time_appconnect": 0.040422,
+            "time_starttransfer": 0.057196,
+            "time_total": 0.057239,
+            "size_download": 11
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.00272,
+            "time_connect": 0.016458,
+            "time_appconnect": 0.035716,
+            "time_starttransfer": 0.053088,
+            "time_total": 0.053139,
+            "size_download": 11
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.002698,
+            "time_connect": 0.016731,
+            "time_appconnect": 0.039842,
+            "time_starttransfer": 0.057247,
+            "time_total": 0.057296,
+            "size_download": 11
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.004433,
+            "time_connect": 0.018212,
+            "time_appconnect": 0.039854,
+            "time_starttransfer": 0.057502,
+            "time_total": 0.057558,
+            "size_download": 11
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.002643,
+            "time_connect": 0.016108,
+            "time_appconnect": 0.036911,
+            "time_starttransfer": 0.056019,
+            "time_total": 0.056072,
+            "size_download": 11
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.005069,
+            "time_connect": 0.019995,
+            "time_appconnect": 0.056044,
+            "time_starttransfer": 0.073887,
+            "time_total": 0.073939,
+            "size_download": 11
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.006578,
+            "time_connect": 0.020366,
+            "time_appconnect": 0.041841,
+            "time_starttransfer": 0.081345,
+            "time_total": 0.081428,
+            "size_download": 11
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.00255,
+            "time_connect": 0.016845,
+            "time_appconnect": 0.041154,
+            "time_starttransfer": 0.071877,
+            "time_total": 0.071936,
+            "size_download": 11
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.003468,
+            "time_connect": 0.02408,
+            "time_appconnect": 0.049869,
+            "time_starttransfer": 0.081818,
+            "time_total": 0.081876,
+            "size_download": 11
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.002658,
+            "time_connect": 0.024277,
+            "time_appconnect": 0.05509,
+            "time_starttransfer": 0.092399,
+            "time_total": 0.092447,
+            "size_download": 11
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.003075,
+            "time_connect": 0.017241,
+            "time_appconnect": 0.040879,
+            "time_starttransfer": 0.071664,
+            "time_total": 0.07172,
+            "size_download": 11
+          },
+          {
+            "http_code": 200,
+            "time_namelookup": 0.00287,
+            "time_connect": 0.01689,
+            "time_appconnect": 0.040492,
+            "time_starttransfer": 0.063976,
+            "time_total": 0.064024,
+            "size_download": 11
+          }
+        ],
+        "ttfbMs": {
+          "min": 53.09,
+          "p50": 57.92,
+          "p95": 81.82,
+          "max": 92.4
+        },
+        "totalMs": {
+          "min": 53.14,
+          "p50": 57.98,
+          "p95": 81.88,
+          "max": 92.45
+        }
+      }
+    },
+    "assets": [
+      {
+        "path": "/assets/index-fzefZX63.js",
+        "transferBytes": 126884,
+        "decodedBytes": 401380,
+        "encoding": "gzip",
+        "cacheControl": "public, max-age=31536000, immutable"
+      },
+      {
+        "path": "/assets/BrandLoading-0CmSd69n.js",
+        "transferBytes": 4589,
+        "decodedBytes": 12318,
+        "encoding": "gzip",
+        "cacheControl": "public, max-age=31536000, immutable"
+      },
+      {
+        "path": "/assets/icons-zzeGkLj5.js",
+        "transferBytes": 4153,
+        "decodedBytes": 10547,
+        "encoding": "gzip",
+        "cacheControl": "public, max-age=31536000, immutable"
+      },
+      {
+        "path": "/assets/ds-Dp9G-Eb5.js",
+        "transferBytes": 10217,
+        "decodedBytes": 34572,
+        "encoding": "gzip",
+        "cacheControl": "public, max-age=31536000, immutable"
+      },
+      {
+        "path": "/assets/Modal-BEnmRkWi.js",
+        "transferBytes": 2752,
+        "decodedBytes": 6971,
+        "encoding": "gzip",
+        "cacheControl": "public, max-age=31536000, immutable"
+      },
+      {
+        "path": "/assets/defineProperty-BS08kETm.js",
+        "transferBytes": 552,
+        "decodedBytes": 1115,
+        "encoding": "gzip",
+        "cacheControl": "public, max-age=31536000, immutable"
+      },
+      {
+        "path": "/assets/RemoveIconButton-Dt00qDNe.js",
+        "transferBytes": 330,
+        "decodedBytes": 330,
+        "encoding": null,
+        "cacheControl": "public, max-age=31536000, immutable"
+      },
+      {
+        "path": "/assets/BrandLoading-_gSDQfv2.css",
+        "transferBytes": 714,
+        "decodedBytes": 2396,
+        "encoding": "gzip",
+        "cacheControl": "public, max-age=31536000, immutable"
+      },
+      {
+        "path": "/assets/icons-cRo2iyF0.css",
+        "transferBytes": 3591,
+        "decodedBytes": 26083,
+        "encoding": "gzip",
+        "cacheControl": "public, max-age=31536000, immutable"
+      },
+      {
+        "path": "/assets/ds-CJ56ddbB.css",
+        "transferBytes": 3465,
+        "decodedBytes": 25894,
+        "encoding": "gzip",
+        "cacheControl": "public, max-age=31536000, immutable"
+      },
+      {
+        "path": "/assets/Modal-Cu81Yt40.css",
+        "transferBytes": 852,
+        "decodedBytes": 3307,
+        "encoding": "gzip",
+        "cacheControl": "public, max-age=31536000, immutable"
+      },
+      {
+        "path": "/assets/RemoveIconButton-Cyz90MS5.css",
+        "transferBytes": 412,
+        "decodedBytes": 1512,
+        "encoding": "gzip",
+        "cacheControl": "public, max-age=31536000, immutable"
+      },
+      {
+        "path": "/assets/index-BsMRBK8T.css",
+        "transferBytes": 50141,
+        "decodedBytes": 295858,
+        "encoding": "gzip",
+        "cacheControl": "public, max-age=31536000, immutable"
+      }
+    ],
+    "htmlHeaders": {
+      "Cache-Control": "no-cache",
+      "Etag": "\"6af20415-543\"",
+      "Last-Modified": "Mon, 09 Nov 2026 17:34:13 GMT",
+      "Vary": "Accept-Encoding"
+    },
+    "finishedAt": "2026-11-09T17:58:07.734854+00:00"
+  },
+  "mobileLogin": {
+    "profile": {
+      "viewport": "390x844",
+      "latencyMs": 150,
+      "downloadBytesPerSecond": 200000,
+      "cpuSlowdown": 4,
+      "cacheDisabled": true
+    },
+    "samples": [
+      {
+        "lcpMs": 3264,
+        "paint": [
+          {
+            "name": "first-paint",
+            "ms": 1092
+          },
+          {
+            "name": "first-contentful-paint",
+            "ms": 1736
+          }
+        ],
+        "navigation": [
+          {
+            "ttfbMs": 20.5,
+            "dclMs": 1469.3999999985099,
+            "loadMs": 1471.0999999977648
+          }
+        ],
+        "resources": [
+          {
+            "name": "/assets/index-fzefZX63.js",
+            "transferBytes": 127184,
+            "decodedBytes": 401380,
+            "durationMs": 1243.800000000745
+          },
+          {
+            "name": "/assets/BrandLoading-0CmSd69n.js",
+            "transferBytes": 4889,
+            "decodedBytes": 12318,
+            "durationMs": 380.5999999977648
+          },
+          {
+            "name": "/assets/icons-zzeGkLj5.js",
+            "transferBytes": 4453,
+            "decodedBytes": 10547,
+            "durationMs": 335.5
+          },
+          {
+            "name": "/assets/ds-Dp9G-Eb5.js",
+            "transferBytes": 10517,
+            "decodedBytes": 34572,
+            "durationMs": 447.6000000014901
+          },
+          {
+            "name": "/assets/defineProperty-BS08kETm.js",
+            "transferBytes": 852,
+            "decodedBytes": 1115,
+            "durationMs": 193.10000000149012
+          },
+          {
+            "name": "/assets/Modal-BEnmRkWi.js",
+            "transferBytes": 3052,
+            "decodedBytes": 6971,
+            "durationMs": 282.3999999985099
+          },
+          {
+            "name": "/assets/RemoveIconButton-Dt00qDNe.js",
+            "transferBytes": 630,
+            "decodedBytes": 330,
+            "durationMs": 199.39999999850988
+          },
+          {
+            "name": "/assets/BrandLoading-_gSDQfv2.css",
+            "transferBytes": 1014,
+            "decodedBytes": 2396,
+            "durationMs": 214.69999999925494
+          },
+          {
+            "name": "/assets/icons-cRo2iyF0.css",
+            "transferBytes": 3891,
+            "decodedBytes": 26083,
+            "durationMs": 341.6000000014901
+          },
+          {
+            "name": "/assets/ds-CJ56ddbB.css",
+            "transferBytes": 3765,
+            "decodedBytes": 25894,
+            "durationMs": 349.19999999925494
+          },
+          {
+            "name": "/assets/Modal-Cu81Yt40.css",
+            "transferBytes": 1152,
+            "decodedBytes": 3307,
+            "durationMs": 229.19999999925494
+          },
+          {
+            "name": "/assets/RemoveIconButton-Cyz90MS5.css",
+            "transferBytes": 712,
+            "decodedBytes": 1512,
+            "durationMs": 236.30000000074506
+          },
+          {
+            "name": "/assets/index-BsMRBK8T.css",
+            "transferBytes": 50441,
+            "decodedBytes": 295858,
+            "durationMs": 858.0999999977648
+          },
+          {
+            "name": "/assets/LoginPage-L7GBkZY1.js",
+            "transferBytes": 1945,
+            "decodedBytes": 3413,
+            "durationMs": 191
+          },
+          {
+            "name": "/assets/PublicFlowShell-D2Ym2MWk.js",
+            "transferBytes": 1256,
+            "decodedBytes": 956,
+            "durationMs": 167.09999999776483
+          },
+          {
+            "name": "/assets/PublicFlowShell-qdkFPNwr.css",
+            "transferBytes": 1554,
+            "decodedBytes": 5126,
+            "durationMs": 173.5
+          },
+          {
+            "name": "/assets/formatCnpj-DyqGavbv.js",
+            "transferBytes": 805,
+            "decodedBytes": 505,
+            "durationMs": 179.59999999776483
+          },
+          {
+            "name": "/assets/Logo/LOGO_TAB.png",
+            "transferBytes": 85730,
+            "decodedBytes": 85430,
+            "durationMs": 1612.699999999255
+          },
+          {
+            "name": "/assets/Logo/LOGO_TAB.png",
+            "transferBytes": 85730,
+            "decodedBytes": 85430,
+            "durationMs": 1601.7999999970198
+          },
+          {
+            "name": "/assets/Logo/LOGO_LOGIN.png",
+            "transferBytes": 92470,
+            "decodedBytes": 92170,
+            "durationMs": 1549
+          },
+          {
+            "name": "/assets/inter-latin-wght-normal-Dx4kXJAl.woff2",
+            "transferBytes": 48556,
+            "decodedBytes": 48256,
+            "durationMs": 1137
+          }
+        ]
+      },
+      {
+        "lcpMs": 3240,
+        "paint": [
+          {
+            "name": "first-paint",
+            "ms": 1072
+          },
+          {
+            "name": "first-contentful-paint",
+            "ms": 1704
+          }
+        ],
+        "navigation": [
+          {
+            "ttfbMs": 32,
+            "dclMs": 1448.300000000745,
+            "loadMs": 1450.6000000014901
+          }
+        ],
+        "resources": [
+          {
+            "name": "/assets/index-fzefZX63.js",
+            "transferBytes": 127184,
+            "decodedBytes": 401380,
+            "durationMs": 1241.2000000029802
+          },
+          {
+            "name": "/assets/BrandLoading-0CmSd69n.js",
+            "transferBytes": 4889,
+            "decodedBytes": 12318,
+            "durationMs": 378
+          },
+          {
+            "name": "/assets/icons-zzeGkLj5.js",
+            "transferBytes": 4453,
+            "decodedBytes": 10547,
+            "durationMs": 317.69999999925494
+          },
+          {
+            "name": "/assets/defineProperty-BS08kETm.js",
+            "transferBytes": 852,
+            "decodedBytes": 1115,
+            "durationMs": 168.40000000223517
+          },
+          {
+            "name": "/assets/Modal-BEnmRkWi.js",
+            "transferBytes": 3052,
+            "decodedBytes": 6971,
+            "durationMs": 272.4000000022352
+          },
+          {
+            "name": "/assets/ds-Dp9G-Eb5.js",
+            "transferBytes": 10517,
+            "decodedBytes": 34572,
+            "durationMs": 445.4000000022352
+          },
+          {
+            "name": "/assets/RemoveIconButton-Dt00qDNe.js",
+            "transferBytes": 630,
+            "decodedBytes": 330,
+            "durationMs": 234.69999999925494
+          },
+          {
+            "name": "/assets/BrandLoading-_gSDQfv2.css",
+            "transferBytes": 1014,
+            "decodedBytes": 2396,
+            "durationMs": 241.19999999925494
+          },
+          {
+            "name": "/assets/icons-cRo2iyF0.css",
+            "transferBytes": 3891,
+            "decodedBytes": 26083,
+            "durationMs": 346.3999999985099
+          },
+          {
+            "name": "/assets/ds-CJ56ddbB.css",
+            "transferBytes": 3765,
+            "decodedBytes": 25894,
+            "durationMs": 354
+          },
+          {
+            "name": "/assets/RemoveIconButton-Cyz90MS5.css",
+            "transferBytes": 712,
+            "decodedBytes": 1512,
+            "durationMs": 203.90000000223517
+          },
+          {
+            "name": "/assets/Modal-Cu81Yt40.css",
+            "transferBytes": 1152,
+            "decodedBytes": 3307,
+            "durationMs": 219.20000000298023
+          },
+          {
+            "name": "/assets/index-BsMRBK8T.css",
+            "transferBytes": 50441,
+            "decodedBytes": 295858,
+            "durationMs": 862.5
+          },
+          {
+            "name": "/assets/LoginPage-L7GBkZY1.js",
+            "transferBytes": 1945,
+            "decodedBytes": 3413,
+            "durationMs": 188.69999999925494
+          },
+          {
+            "name": "/assets/PublicFlowShell-D2Ym2MWk.js",
+            "transferBytes": 1256,
+            "decodedBytes": 956,
+            "durationMs": 163.89999999850988
+          },
+          {
+            "name": "/assets/PublicFlowShell-qdkFPNwr.css",
+            "transferBytes": 1554,
+            "decodedBytes": 5126,
+            "durationMs": 170.5
+          },
+          {
+            "name": "/assets/formatCnpj-DyqGavbv.js",
+            "transferBytes": 805,
+            "decodedBytes": 505,
+            "durationMs": 177.40000000223517
+          },
+          {
+            "name": "/assets/Logo/LOGO_TAB.png",
+            "transferBytes": 85730,
+            "decodedBytes": 85430,
+            "durationMs": 1609
+          },
+          {
+            "name": "/assets/Logo/LOGO_TAB.png",
+            "transferBytes": 85730,
+            "decodedBytes": 85430,
+            "durationMs": 1598
+          },
+          {
+            "name": "/assets/Logo/LOGO_LOGIN.png",
+            "transferBytes": 92470,
+            "decodedBytes": 92170,
+            "durationMs": 1548.5999999977648
+          },
+          {
+            "name": "/assets/inter-latin-wght-normal-Dx4kXJAl.woff2",
+            "transferBytes": 48556,
+            "decodedBytes": 48256,
+            "durationMs": 1138.199999999255
+          }
+        ]
+      },
+      {
+        "lcpMs": 3252,
+        "paint": [
+          {
+            "name": "first-paint",
+            "ms": 1092
+          },
+          {
+            "name": "first-contentful-paint",
+            "ms": 1712
+          }
+        ],
+        "navigation": [
+          {
+            "ttfbMs": 23.900000002235174,
+            "dclMs": 1466.5,
+            "loadMs": 1467.699999999255
+          }
+        ],
+        "resources": [
+          {
+            "name": "/assets/index-fzefZX63.js",
+            "transferBytes": 127184,
+            "decodedBytes": 401380,
+            "durationMs": 1243.8999999985099
+          },
+          {
+            "name": "/assets/icons-zzeGkLj5.js",
+            "transferBytes": 4453,
+            "decodedBytes": 10547,
+            "durationMs": 328.4000000022352
+          },
+          {
+            "name": "/assets/BrandLoading-0CmSd69n.js",
+            "transferBytes": 4889,
+            "decodedBytes": 12318,
+            "durationMs": 380.80000000074506
+          },
+          {
+            "name": "/assets/Modal-BEnmRkWi.js",
+            "transferBytes": 3052,
+            "decodedBytes": 6971,
+            "durationMs": 260.8999999985099
+          },
+          {
+            "name": "/assets/ds-Dp9G-Eb5.js",
+            "transferBytes": 10517,
+            "decodedBytes": 34572,
+            "durationMs": 447.80000000074506
+          },
+          {
+            "name": "/assets/defineProperty-BS08kETm.js",
+            "transferBytes": 852,
+            "decodedBytes": 1115,
+            "durationMs": 179.10000000149012
+          },
+          {
+            "name": "/assets/RemoveIconButton-Dt00qDNe.js",
+            "transferBytes": 630,
+            "decodedBytes": 330,
+            "durationMs": 191.80000000074506
+          },
+          {
+            "name": "/assets/BrandLoading-_gSDQfv2.css",
+            "transferBytes": 1014,
+            "decodedBytes": 2396,
+            "durationMs": 184.70000000298023
+          },
+          {
+            "name": "/assets/icons-cRo2iyF0.css",
+            "transferBytes": 3891,
+            "decodedBytes": 26083,
+            "durationMs": 348.5
+          },
+          {
+            "name": "/assets/ds-CJ56ddbB.css",
+            "transferBytes": 3765,
+            "decodedBytes": 25894,
+            "durationMs": 340.6000000014901
+          },
+          {
+            "name": "/assets/Modal-Cu81Yt40.css",
+            "transferBytes": 1152,
+            "decodedBytes": 3307,
+            "durationMs": 214.30000000074506
+          },
+          {
+            "name": "/assets/RemoveIconButton-Cyz90MS5.css",
+            "transferBytes": 712,
+            "decodedBytes": 1512,
+            "durationMs": 220.59999999776483
+          },
+          {
+            "name": "/assets/index-BsMRBK8T.css",
+            "transferBytes": 50441,
+            "decodedBytes": 295858,
+            "durationMs": 856.2000000029802
+          },
+          {
+            "name": "/assets/LoginPage-L7GBkZY1.js",
+            "transferBytes": 1945,
+            "decodedBytes": 3413,
+            "durationMs": 177.30000000074506
+          },
+          {
+            "name": "/assets/PublicFlowShell-D2Ym2MWk.js",
+            "transferBytes": 1256,
+            "decodedBytes": 956,
+            "durationMs": 160.39999999850988
+          },
+          {
+            "name": "/assets/PublicFlowShell-qdkFPNwr.css",
+            "transferBytes": 1554,
+            "decodedBytes": 5126,
+            "durationMs": 167.19999999925494
+          },
+          {
+            "name": "/assets/formatCnpj-DyqGavbv.js",
+            "transferBytes": 805,
+            "decodedBytes": 505,
+            "durationMs": 179.30000000074506
+          },
+          {
+            "name": "/assets/Logo/LOGO_TAB.png",
+            "transferBytes": 85730,
+            "decodedBytes": 85430,
+            "durationMs": 1606.699999999255
+          },
+          {
+            "name": "/assets/Logo/LOGO_TAB.png",
+            "transferBytes": 85730,
+            "decodedBytes": 85430,
+            "durationMs": 1606.0999999977648
+          },
+          {
+            "name": "/assets/Logo/LOGO_LOGIN.png",
+            "transferBytes": 92470,
+            "decodedBytes": 92170,
+            "durationMs": 1556.1000000014901
+          },
+          {
+            "name": "/assets/inter-latin-wght-normal-Dx4kXJAl.woff2",
+            "transferBytes": 48556,
+            "decodedBytes": 48256,
+            "durationMs": 1134.4000000022352
+          }
+        ]
+      },
+      {
+        "lcpMs": 3244,
+        "paint": [
+          {
+            "name": "first-paint",
+            "ms": 1068
+          },
+          {
+            "name": "first-contentful-paint",
+            "ms": 1704
+          }
+        ],
+        "navigation": [
+          {
+            "ttfbMs": 20.199999999254942,
+            "dclMs": 1450.6000000014901,
+            "loadMs": 1452.9000000022352
+          }
+        ],
+        "resources": [
+          {
+            "name": "/assets/index-fzefZX63.js",
+            "transferBytes": 127184,
+            "decodedBytes": 401380,
+            "durationMs": 1243.6000000014901
+          },
+          {
+            "name": "/assets/BrandLoading-0CmSd69n.js",
+            "transferBytes": 4889,
+            "decodedBytes": 12318,
+            "durationMs": 366.30000000074506
+          },
+          {
+            "name": "/assets/icons-zzeGkLj5.js",
+            "transferBytes": 4453,
+            "decodedBytes": 10547,
+            "durationMs": 342.5999999977648
+          },
+          {
+            "name": "/assets/Modal-BEnmRkWi.js",
+            "transferBytes": 3052,
+            "decodedBytes": 6971,
+            "durationMs": 274.5999999977648
+          },
+          {
+            "name": "/assets/ds-Dp9G-Eb5.js",
+            "transferBytes": 10517,
+            "decodedBytes": 34572,
+            "durationMs": 446.8999999985099
+          },
+          {
+            "name": "/assets/BrandLoading-_gSDQfv2.css",
+            "transferBytes": 1014,
+            "decodedBytes": 2396,
+            "durationMs": 177.90000000223517
+          },
+          {
+            "name": "/assets/defineProperty-BS08kETm.js",
+            "transferBytes": 852,
+            "decodedBytes": 1115,
+            "durationMs": 192.5
+          },
+          {
+            "name": "/assets/RemoveIconButton-Dt00qDNe.js",
+            "transferBytes": 630,
+            "decodedBytes": 330,
+            "durationMs": 200.19999999925494
+          },
+          {
+            "name": "/assets/icons-cRo2iyF0.css",
+            "transferBytes": 3891,
+            "decodedBytes": 26083,
+            "durationMs": 333.5
+          },
+          {
+            "name": "/assets/ds-CJ56ddbB.css",
+            "transferBytes": 3765,
+            "decodedBytes": 25894,
+            "durationMs": 348.5
+          },
+          {
+            "name": "/assets/RemoveIconButton-Cyz90MS5.css",
+            "transferBytes": 712,
+            "decodedBytes": 1512,
+            "durationMs": 221.70000000298023
+          },
+          {
+            "name": "/assets/Modal-Cu81Yt40.css",
+            "transferBytes": 1152,
+            "decodedBytes": 3307,
+            "durationMs": 228.5
+          },
+          {
+            "name": "/assets/index-BsMRBK8T.css",
+            "transferBytes": 50441,
+            "decodedBytes": 295858,
+            "durationMs": 857.3000000007451
+          },
+          {
+            "name": "/assets/LoginPage-L7GBkZY1.js",
+            "transferBytes": 1945,
+            "decodedBytes": 3413,
+            "durationMs": 189.5
+          },
+          {
+            "name": "/assets/PublicFlowShell-D2Ym2MWk.js",
+            "transferBytes": 1256,
+            "decodedBytes": 956,
+            "durationMs": 165.5
+          },
+          {
+            "name": "/assets/PublicFlowShell-qdkFPNwr.css",
+            "transferBytes": 1554,
+            "decodedBytes": 5126,
+            "durationMs": 169.5
+          },
+          {
+            "name": "/assets/formatCnpj-DyqGavbv.js",
+            "transferBytes": 805,
+            "decodedBytes": 505,
+            "durationMs": 174.90000000223517
+          },
+          {
+            "name": "/assets/Logo/LOGO_TAB.png",
+            "transferBytes": 85730,
+            "decodedBytes": 85430,
+            "durationMs": 1627.699999999255
+          },
+          {
+            "name": "/assets/Logo/LOGO_TAB.png",
+            "transferBytes": 85730,
+            "decodedBytes": 85430,
+            "durationMs": 1598.699999999255
+          },
+          {
+            "name": "/assets/Logo/LOGO_LOGIN.png",
+            "transferBytes": 92470,
+            "decodedBytes": 92170,
+            "durationMs": 1564.800000000745
+          },
+          {
+            "name": "/assets/inter-latin-wght-normal-Dx4kXJAl.woff2",
+            "transferBytes": 48556,
+            "decodedBytes": 48256,
+            "durationMs": 1140.0999999977648
+          }
+        ]
+      },
+      {
+        "lcpMs": 3240,
+        "paint": [
+          {
+            "name": "first-paint",
+            "ms": 1072
+          },
+          {
+            "name": "first-contentful-paint",
+            "ms": 1704
+          }
+        ],
+        "navigation": [
+          {
+            "ttfbMs": 17.800000000745058,
+            "dclMs": 1451.8999999985099,
+            "loadMs": 1453.8999999985099
+          }
+        ],
+        "resources": [
+          {
+            "name": "/assets/index-fzefZX63.js",
+            "transferBytes": 127184,
+            "decodedBytes": 401380,
+            "durationMs": 1242.9000000022352
+          },
+          {
+            "name": "/assets/BrandLoading-0CmSd69n.js",
+            "transferBytes": 4889,
+            "decodedBytes": 12318,
+            "durationMs": 372.4000000022352
+          },
+          {
+            "name": "/assets/Modal-BEnmRkWi.js",
+            "transferBytes": 3052,
+            "decodedBytes": 6971,
+            "durationMs": 259.80000000074506
+          },
+          {
+            "name": "/assets/icons-zzeGkLj5.js",
+            "transferBytes": 4453,
+            "decodedBytes": 10547,
+            "durationMs": 319.3999999985099
+          },
+          {
+            "name": "/assets/ds-Dp9G-Eb5.js",
+            "transferBytes": 10517,
+            "decodedBytes": 34572,
+            "durationMs": 447.5
+          },
+          {
+            "name": "/assets/defineProperty-BS08kETm.js",
+            "transferBytes": 852,
+            "decodedBytes": 1115,
+            "durationMs": 177.69999999925494
+          },
+          {
+            "name": "/assets/RemoveIconButton-Dt00qDNe.js",
+            "transferBytes": 630,
+            "decodedBytes": 330,
+            "durationMs": 206.69999999925494
+          },
+          {
+            "name": "/assets/BrandLoading-_gSDQfv2.css",
+            "transferBytes": 1014,
+            "decodedBytes": 2396,
+            "durationMs": 199.40000000223517
+          },
+          {
+            "name": "/assets/icons-cRo2iyF0.css",
+            "transferBytes": 3891,
+            "decodedBytes": 26083,
+            "durationMs": 341.20000000298023
+          },
+          {
+            "name": "/assets/ds-CJ56ddbB.css",
+            "transferBytes": 3765,
+            "decodedBytes": 25894,
+            "durationMs": 349
+          },
+          {
+            "name": "/assets/Modal-Cu81Yt40.css",
+            "transferBytes": 1152,
+            "decodedBytes": 3307,
+            "durationMs": 227.90000000223517
+          },
+          {
+            "name": "/assets/RemoveIconButton-Cyz90MS5.css",
+            "transferBytes": 712,
+            "decodedBytes": 1512,
+            "durationMs": 235.70000000298023
+          },
+          {
+            "name": "/assets/index-BsMRBK8T.css",
+            "transferBytes": 50441,
+            "decodedBytes": 295858,
+            "durationMs": 856.1999999992549
+          },
+          {
+            "name": "/assets/LoginPage-L7GBkZY1.js",
+            "transferBytes": 1945,
+            "decodedBytes": 3413,
+            "durationMs": 188.39999999850988
+          },
+          {
+            "name": "/assets/PublicFlowShell-D2Ym2MWk.js",
+            "transferBytes": 1256,
+            "decodedBytes": 956,
+            "durationMs": 164.5
+          },
+          {
+            "name": "/assets/PublicFlowShell-qdkFPNwr.css",
+            "transferBytes": 1554,
+            "decodedBytes": 5126,
+            "durationMs": 178.10000000149012
+          },
+          {
+            "name": "/assets/formatCnpj-DyqGavbv.js",
+            "transferBytes": 805,
+            "decodedBytes": 505,
+            "durationMs": 169.59999999776483
+          },
+          {
+            "name": "/assets/Logo/LOGO_TAB.png",
+            "transferBytes": 85730,
+            "decodedBytes": 85430,
+            "durationMs": 1611.9000000022352
+          },
+          {
+            "name": "/assets/Logo/LOGO_TAB.png",
+            "transferBytes": 85730,
+            "decodedBytes": 85430,
+            "durationMs": 1614.3999999985099
+          },
+          {
+            "name": "/assets/Logo/LOGO_LOGIN.png",
+            "transferBytes": 92470,
+            "decodedBytes": 92170,
+            "durationMs": 1557
+          },
+          {
+            "name": "/assets/inter-latin-wght-normal-Dx4kXJAl.woff2",
+            "transferBytes": 48556,
+            "decodedBytes": 48256,
+            "durationMs": 1135.300000000745
+          }
+        ]
+      }
+    ]
+  },
+  "infrastructure": {
+    "collectedAt": "2026-11-09T18:03:23.653839+00:00",
+    "cpuCount": 4,
+    "timezone": "Etc/UTC",
+    "hostCheckout": "3db7e76f",
+    "containers": [
+      {
+        "name": "filtrovali-backend",
+        "startedAt": "2026-11-06T23:35:35.18748481Z",
+        "restartCount": 0,
+        "oomKilled": false,
+        "memoryLimitBytes": 2147483648,
+        "cpuLimit": 1.5,
+        "healthcheckConfigured": true,
+        "settings": {
+          "SLOW_OPERATION_LOG_MS": "1000",
+          "BACKGROUND_JOBS_IN_API": "false",
+          "DATABASE_CONNECTION_LIMIT": "8",
+          "PRISMA_SLOW_QUERY_MS": "1000"
+        }
+      },
+      {
+        "name": "filtrovali-worker",
+        "startedAt": "2026-11-06T23:35:50.893656186Z",
+        "restartCount": 0,
+        "oomKilled": false,
+        "memoryLimitBytes": 1610612736,
+        "cpuLimit": 0.75,
+        "healthcheckConfigured": false,
+        "settings": {
+          "PRISMA_SLOW_QUERY_MS": "1000",
+          "BACKGROUND_JOBS_IN_API": "false",
+          "DATABASE_CONNECTION_LIMIT": "2",
+          "SLOW_OPERATION_LOG_MS": "1000"
+        }
+      },
+      {
+        "name": "filtrovali-nginx",
+        "startedAt": "2026-11-09T17:34:23.801363627Z",
+        "restartCount": 0,
+        "oomKilled": false,
+        "memoryLimitBytes": 268435456,
+        "cpuLimit": 0.25,
+        "healthcheckConfigured": false,
+        "settings": {}
+      },
+      {
+        "name": "filtrovali-postgres",
+        "startedAt": "2026-10-23T18:45:07.223412041Z",
+        "restartCount": 0,
+        "oomKilled": false,
+        "memoryLimitBytes": 2147483648,
+        "cpuLimit": 1.25,
+        "healthcheckConfigured": true,
+        "settings": {}
+      }
+    ],
+    "latestFinishedBackup": {
+      "status": "SUCCESS",
+      "startedAt": "2026-11-09T17:00:01+00:00",
+      "finishedAt": "2026-11-09T17:11:33+00:00",
+      "includeReports": true,
+      "includeCerts": true,
+      "includeProxy": true,
+      "b2Configured": false,
+      "uploadSucceeded": false
+    },
+    "backupCron": [
+      "0 0,3-23 * * * INCLUDE_CERTS=true BACKUP_LOCK_TIMEOUT_SECONDS=0 LOCAL_BACKUP_KEEP=2 /usr/local/sbin/filtroapp-backup-run >> /root/logs/backup-filtrovali.log 2>&1",
+      "0 2 * * * B2_URI=b2://filtrovali-backups/daily INCLUDE_CERTS=true BACKUP_LOCK_TIMEOUT_SECONDS=7200 /usr/local/sbin/filtroapp-backup-run >> /root/logs/backup-filtrovali.log 2>&1",
+      "0 1 1 * * B2_URI=b2://filtrovali-backups/monthly INCLUDE_CERTS=true BACKUP_LOCK_TIMEOUT_SECONDS=7200 /usr/local/sbin/filtroapp-backup-run >> /root/logs/backup-filtrovali.log 2>&1"
+    ],
+    "database": {
+      "sizeBytes": 644086807,
+      "statsReset": "2026-10-23T18:45:07.808434+00:00",
+      "connections": 11,
+      "performanceMigrations": [
+        {
+          "name": "20260605130000_add_report_relation_performance_indexes",
+          "finishedAt": "2026-06-09T11:56:49.929448+00:00"
+        },
+        {
+          "name": "20260605133000_add_secondary_performance_indexes",
+          "finishedAt": "2026-06-09T11:56:49.935237+00:00"
+        },
+        {
+          "name": "20260917210000_performance_indexes",
+          "finishedAt": "2026-09-18T12:42:43.599059+00:00"
+        }
+      ]
+    },
+    "largestTables": [
+      {
+        "relname": "JobRun",
+        "bytes": 225443840,
+        "estimatedliverows": 347242,
+        "estimateddeadrows": 28100
+      },
+      {
+        "relname": "Report",
+        "bytes": 163160064,
+        "estimatedliverows": 1959,
+        "estimateddeadrows": 233
+      },
+      {
+        "relname": "ReportSignature",
+        "bytes": 56279040,
+        "estimatedliverows": 1179,
+        "estimateddeadrows": 52
+      },
+      {
+        "relname": "OmiePurchase",
+        "bytes": 51044352,
+        "estimatedliverows": 28858,
+        "estimateddeadrows": 5237
+      },
+      {
+        "relname": "ApiRequestLog",
+        "bytes": 44154880,
+        "estimatedliverows": 66748,
+        "estimateddeadrows": 7
+      },
+      {
+        "relname": "SignatureDocumentSigner",
+        "bytes": 13705216,
+        "estimatedliverows": 366,
+        "estimateddeadrows": 56
+      },
+      {
+        "relname": "ApiUsageBucket",
+        "bytes": 8208384,
+        "estimatedliverows": 11667,
+        "estimateddeadrows": 182
+      },
+      {
+        "relname": "PontoPeriodSummary",
+        "bytes": 8044544,
+        "estimatedliverows": 5122,
+        "estimateddeadrows": 74
+      }
+    ],
+    "topSqlSinceReset": [
+      {
+        "calls": 261,
+        "total_ms": 1396860.8,
+        "mean_ms": 5351.96,
+        "max_ms": 11371.5,
+        "rows": 498457,
+        "query": "COPY public.\"Report\" (id, \"projectId\", \"reportType\", status, \"reportDate\", \"arrivalTime\", \"departureTime\", \"lunchBreak\", \"daytimeCount\", \"overtimeReason\", \"dailyDescription\", \"specialConditions\", \"createdAt\", \"updatedAt\", \"approvedAt\", \"cre"
+      },
+      {
+        "calls": 392,
+        "total_ms": 1198087.5,
+        "mean_ms": 3056.35,
+        "max_ms": 10356.7,
+        "rows": 118928995,
+        "query": "COPY public.\"JobRun\" (id, name, status, \"startedAt\", \"finishedAt\", \"durationMs\", metadata, result, error, \"createdAt\", \"updatedAt\") TO stdout"
+      },
+      {
+        "calls": 392,
+        "total_ms": 866011.0,
+        "mean_ms": 2209.21,
+        "max_ms": 5655.8,
+        "rows": 443399,
+        "query": "COPY public.\"ReportSignature\" (id, \"reportId\", \"versionId\", \"userId\", \"signerName\", \"signerEmail\", \"signerRole\", \"signatureType\", status, \"isRequired\", \"ipAddress\", \"userAgent\", \"signatureImageDataUrl\", \"sourceDocumentHash\", \"finalDocumentH"
+      },
+      {
+        "calls": 424,
+        "total_ms": 789819.3,
+        "mean_ms": 1862.78,
+        "max_ms": 6741.4,
+        "rows": 733854,
+        "query": "SELECT \"public\".\"Report\".\"id\", \"public\".\"Report\".\"projectId\", \"public\".\"Report\".\"reportType\"::text, \"public\".\"Report\".\"reportDate\", \"public\".\"Report\".\"specialConditions\", \"public\".\"Report\".\"daytimeCount\", \"public\".\"Report\".\"daytimeWorkedMin"
+      },
+      {
+        "calls": 307,
+        "total_ms": 785728.2,
+        "mean_ms": 2559.38,
+        "max_ms": 12237.2,
+        "rows": 552379,
+        "query": "SELECT \"public\".\"Report\".\"id\", \"public\".\"Report\".\"projectId\", \"public\".\"Report\".\"reportType\"::text, \"public\".\"Report\".\"reportDate\", \"public\".\"Report\".\"specialConditions\", \"public\".\"Report\".\"daytimeCount\", \"public\".\"Report\".\"daytimeWorkedMin"
+      },
+      {
+        "calls": 382,
+        "total_ms": 620422.1,
+        "mean_ms": 1624.14,
+        "max_ms": 6787.0,
+        "rows": 641608,
+        "query": "SELECT \"public\".\"Report\".\"id\", \"public\".\"Report\".\"projectId\", \"public\".\"Report\".\"reportType\"::text, \"public\".\"Report\".\"reportDate\", \"public\".\"Report\".\"specialConditions\", \"public\".\"Report\".\"daytimeCount\", \"public\".\"Report\".\"daytimeWorkedMin"
+      },
+      {
+        "calls": 1540,
+        "total_ms": 608302.0,
+        "mean_ms": 395.0,
+        "max_ms": 5797.6,
+        "rows": 6714182,
+        "query": "SELECT \"public\".\"PontoPeriodSummary\".\"id\", \"public\".\"PontoPeriodSummary\".\"externalEmployeeId\", \"public\".\"PontoPeriodSummary\".\"collaboratorId\", \"public\".\"PontoPeriodSummary\".\"monthly\", \"public\".\"PontoPeriodSummary\".\"createdAt\", \"public\".\"Pon"
+      },
+      {
+        "calls": 131,
+        "total_ms": 589079.0,
+        "mean_ms": 4496.79,
+        "max_ms": 10675.2,
+        "rows": 239539,
+        "query": "COPY public.\"Report\" (id, \"projectId\", \"reportType\", status, \"reportDate\", \"arrivalTime\", \"departureTime\", \"lunchBreak\", \"daytimeCount\", \"overtimeReason\", \"dailyDescription\", \"specialConditions\", \"createdAt\", \"updatedAt\", \"approvedAt\", \"cre"
+      },
+      {
+        "calls": 1838,
+        "total_ms": 571600.7,
+        "mean_ms": 310.99,
+        "max_ms": 2698.5,
+        "rows": 1838,
+        "query": "SELECT COUNT(*) AS \"_count$_all\" FROM (SELECT \"public\".\"Report\".\"id\" FROM \"public\".\"Report\" LEFT JOIN \"public\".\"Project\" AS \"j0\" ON (\"j0\".\"id\") = (\"public\".\"Report\".\"projectId\") WHERE (\"public\".\"Report\".\"deletedAt\" IS NULL AND (\"j0\".\"delete"
+      },
+      {
+        "calls": 392,
+        "total_ms": 496087.4,
+        "mean_ms": 1265.53,
+        "max_ms": 5505.7,
+        "rows": 11066710,
+        "query": "COPY public.\"OmiePurchase\" (id, \"omieId\", \"codigoProjeto\", \"projectId\", \"osNumber\", valor, \"statusTitulo\", \"categoriaCodigo\", \"categoriaDescricao\", \"fornecedorCodigo\", \"numeroDocumento\", \"numeroDocumentoFiscal\", origem, \"dataEmissao\", \"data"
+      },
+      {
+        "calls": 668,
+        "total_ms": 493111.9,
+        "mean_ms": 738.19,
+        "max_ms": 9741.8,
+        "rows": 272425,
+        "query": "SELECT \"public\".\"Report\".\"id\", \"public\".\"Report\".\"projectId\", \"public\".\"Report\".\"reportType\"::text, \"public\".\"Report\".\"reportDate\", \"public\".\"Report\".\"specialConditions\" FROM \"public\".\"Report\" LEFT JOIN \"public\".\"Project\" AS \"j0\" ON (\"j0\".\""
+      },
+      {
+        "calls": 153,
+        "total_ms": 472401.8,
+        "mean_ms": 3087.59,
+        "max_ms": 7211.5,
+        "rows": 269680,
+        "query": "SELECT \"public\".\"Report\".\"id\", \"public\".\"Report\".\"projectId\", \"public\".\"Report\".\"reportType\"::text, \"public\".\"Report\".\"reportDate\", \"public\".\"Report\".\"specialConditions\", \"public\".\"Report\".\"daytimeCount\", \"public\".\"Report\".\"daytimeWorkedMin"
+      }
+    ],
+    "postgresSettings": [
+      {
+        "name": "log_min_duration_statement",
+        "setting": "1000",
+        "unit": "ms"
+      },
+      {
+        "name": "max_connections",
+        "setting": "50",
+        "unit": null
+      },
+      {
+        "name": "shared_buffers",
+        "setting": "65536",
+        "unit": "8kB"
+      },
+      {
+        "name": "shared_preload_libraries",
+        "setting": "pg_stat_statements",
+        "unit": null
+      },
+      {
+        "name": "track_io_timing",
+        "setting": "on",
+        "unit": null
+      },
+      {
+        "name": "work_mem",
+        "setting": "8192",
+        "unit": "kB"
+      }
+    ],
+    "jobRunCompletedCountsObserved": {
+      "assinaturas:finalization": 105932,
+      "assinaturas:file-purge": 105906,
+      "commercialapp-proposal-sync": 47379,
+      "assinaturas:completion-emails": 22152,
+      "assinaturas:invite-emails": 22151,
+      "legacy-zapsign-reconciliation": 14416,
+      "pontomais-sync": 9977,
+      "survey-reminders": 5367,
+      "monthly-allocation-report": 5367,
+      "signature-reminders": 5367
+    },
+    "observedBackupHelper": {
+      "image": "alpine",
+      "cpuLimit": 0.5,
+      "memoryLimitBytes": 0
+    }
+  },
+  "slowHttpLogs": {
+    "startedAt": "2026-11-09T17:58:18.723238+00:00",
+    "window": "last 6 hours, max 120000 log lines",
+    "onlySlowThresholdMs": 1000,
+    "slowHttpCount": 580,
+    "slowStatuses": {
+      "200": 339,
+      "304": 233,
+      "201": 8
+    },
+    "poolWaitingMaxAtSlowRequestFinish": 42,
+    "routes": [
+      {
+        "route": "GET /",
+        "slowSamples": 180,
+        "minMs": 1005,
+        "medianSlowOnlyMs": 1697,
+        "maxMs": 17543
+      },
+      {
+        "route": "GET /projetos-cards",
+        "slowSamples": 61,
+        "minMs": 1914,
+        "medianSlowOnlyMs": 5990,
+        "maxMs": 14887
+      },
+      {
+        "route": "GET /projetos/:projectId/detalhe",
+        "slowSamples": 4,
+        "minMs": 2773,
+        "medianSlowOnlyMs": 7965,
+        "maxMs": 14026
+      },
+      {
+        "route": "GET /acompanhamento/projetos/semanas",
+        "slowSamples": 10,
+        "minMs": 1034,
+        "medianSlowOnlyMs": 7775,
+        "maxMs": 12786
+      },
+      {
+        "route": "GET /acompanhamento/projetos/custos",
+        "slowSamples": 9,
+        "minMs": 1211,
+        "medianSlowOnlyMs": 1692,
+        "maxMs": 9729
+      },
+      {
+        "route": "GET /gestor",
+        "slowSamples": 59,
+        "minMs": 1139,
+        "medianSlowOnlyMs": 2730,
+        "maxMs": 9592
+      },
+      {
+        "route": "GET /dashboard",
+        "slowSamples": 2,
+        "minMs": 3402,
+        "medianSlowOnlyMs": 9281,
+        "maxMs": 9281
+      },
+      {
+        "route": "GET /report-detail/:reportId",
+        "slowSamples": 9,
+        "minMs": 1196,
+        "medianSlowOnlyMs": 1591,
+        "maxMs": 9172
+      },
+      {
+        "route": "GET /grupos-missoes/:groupId/detalhe",
+        "slowSamples": 2,
+        "minMs": 6639,
+        "medianSlowOnlyMs": 8988,
+        "maxMs": 8988
+      },
+      {
+        "route": "GET /pendencias/contagem",
+        "slowSamples": 63,
+        "minMs": 1061,
+        "medianSlowOnlyMs": 1690,
+        "maxMs": 8269
+      },
+      {
+        "route": "GET /projetos/:projectId/avanco",
+        "slowSamples": 2,
+        "minMs": 1950,
+        "medianSlowOnlyMs": 8268,
+        "maxMs": 8268
+      },
+      {
+        "route": "POST /batch-download",
+        "slowSamples": 2,
+        "minMs": 4710,
+        "medianSlowOnlyMs": 8196,
+        "maxMs": 8196
+      },
+      {
+        "route": "GET /new-report",
+        "slowSamples": 84,
+        "minMs": 1004,
+        "medianSlowOnlyMs": 1521,
+        "maxMs": 7829
+      },
+      {
+        "route": "GET /projetos/:projectId/metas-semanais",
+        "slowSamples": 4,
+        "minMs": 5721,
+        "medianSlowOnlyMs": 5984,
+        "maxMs": 6301
+      },
+      {
+        "route": "GET /client-tabs",
+        "slowSamples": 1,
+        "minMs": 6166,
+        "medianSlowOnlyMs": 6166,
+        "maxMs": 6166
+      },
+      {
+        "route": "GET /projects",
+        "slowSamples": 1,
+        "minMs": 6047,
+        "medianSlowOnlyMs": 6047,
+        "maxMs": 6047
+      },
+      {
+        "route": "GET /grupos-missoes/:groupId/metas-semanais",
+        "slowSamples": 2,
+        "minMs": 4537,
+        "medianSlowOnlyMs": 5299,
+        "maxMs": 5299
+      },
+      {
+        "route": "PUT /:id",
+        "slowSamples": 9,
+        "minMs": 1322,
+        "medianSlowOnlyMs": 2463,
+        "maxMs": 4864
+      },
+      {
+        "route": "GET /eventos",
+        "slowSamples": 1,
+        "minMs": 4289,
+        "medianSlowOnlyMs": 4289,
+        "maxMs": 4289
+      },
+      {
+        "route": "GET /documentos",
+        "slowSamples": 1,
+        "minMs": 4157,
+        "medianSlowOnlyMs": 4157,
+        "maxMs": 4157
+      },
+      {
+        "route": "POST /",
+        "slowSamples": 8,
+        "minMs": 1111,
+        "medianSlowOnlyMs": 2961,
+        "maxMs": 4101
+      },
+      {
+        "route": "GET /me",
+        "slowSamples": 4,
+        "minMs": 1331,
+        "medianSlowOnlyMs": 1957,
+        "maxMs": 3871
+      },
+      {
+        "route": "POST /:id/physical-signature",
+        "slowSamples": 18,
+        "minMs": 1012,
+        "medianSlowOnlyMs": 1367,
+        "maxMs": 3779
+      },
+      {
+        "route": "GET /efetivo/projetos/status",
+        "slowSamples": 6,
+        "minMs": 1037,
+        "medianSlowOnlyMs": 1678,
+        "maxMs": 3225
+      },
+      {
+        "route": "POST /counts",
+        "slowSamples": 11,
+        "minMs": 1017,
+        "medianSlowOnlyMs": 1213,
+        "maxMs": 3123
+      },
+      {
+        "route": "GET /documentos/:id/paginas/:n.png",
+        "slowSamples": 2,
+        "minMs": 2581,
+        "medianSlowOnlyMs": 3073,
+        "maxMs": 3073
+      },
+      {
+        "route": "GET /realizado-categorias",
+        "slowSamples": 1,
+        "minMs": 2665,
+        "medianSlowOnlyMs": 2665,
+        "maxMs": 2665
+      },
+      {
+        "route": "GET /projetos/:projectId/revisoes",
+        "slowSamples": 1,
+        "minMs": 2609,
+        "medianSlowOnlyMs": 2609,
+        "maxMs": 2609
+      },
+      {
+        "route": "POST /availability/check",
+        "slowSamples": 1,
+        "minMs": 2568,
+        "medianSlowOnlyMs": 2568,
+        "maxMs": 2568
+      },
+      {
+        "route": "GET /projetos/:projectId/escopo-previsto",
+        "slowSamples": 1,
+        "minMs": 2355,
+        "medianSlowOnlyMs": 2355,
+        "maxMs": 2355
+      },
+      {
+        "route": "GET /colaboradores-ativos",
+        "slowSamples": 1,
+        "minMs": 2145,
+        "medianSlowOnlyMs": 2145,
+        "maxMs": 2145
+      },
+      {
+        "route": "GET /projetos/:projectId/notas-gestao",
+        "slowSamples": 1,
+        "minMs": 2129,
+        "medianSlowOnlyMs": 2129,
+        "maxMs": 2129
+      },
+      {
+        "route": "GET /ponto/projetos/semanas",
+        "slowSamples": 8,
+        "minMs": 1209,
+        "medianSlowOnlyMs": 1501,
+        "maxMs": 1704
+      },
+      {
+        "route": "GET /overview",
+        "slowSamples": 1,
+        "minMs": 1552,
+        "medianSlowOnlyMs": 1552,
+        "maxMs": 1552
+      },
+      {
+        "route": "GET /file/*filePath",
+        "slowSamples": 3,
+        "minMs": 1400,
+        "medianSlowOnlyMs": 1469,
+        "maxMs": 1482
+      },
+      {
+        "route": "GET /pendencias",
+        "slowSamples": 2,
+        "minMs": 1225,
+        "medianSlowOnlyMs": 1461,
+        "maxMs": 1461
+      },
+      {
+        "route": "GET /:id/audit",
+        "slowSamples": 1,
+        "minMs": 1444,
+        "medianSlowOnlyMs": 1444,
+        "maxMs": 1444
+      },
+      {
+        "route": "POST /documentos/:id/publicar",
+        "slowSamples": 2,
+        "minMs": 1351,
+        "medianSlowOnlyMs": 1432,
+        "maxMs": 1432
+      },
+      {
+        "route": "GET /:projectId",
+        "slowSamples": 1,
+        "minMs": 1188,
+        "medianSlowOnlyMs": 1188,
+        "maxMs": 1188
+      },
+      {
+        "route": "GET /publico/paginas/:n.png",
+        "slowSamples": 1,
+        "minMs": 1176,
+        "medianSlowOnlyMs": 1176,
+        "maxMs": 1176
+      }
+    ]
+  },
+  "controlledServices": {
+    "method": "separate diagnostic Node process in running API container; read-only enforced at PostgreSQL connection level; two connections; one operation at a time; 500ms pause; fresh process-local caches; no API restart or cache purge",
+    "guards": [
+      {
+        "type": "guard",
+        "readOnly": true,
+        "pool": {
+          "total": 1,
+          "idle": 1,
+          "waiting": 0,
+          "max": 2
+        },
+        "startedAt": "2026-11-09T17:57:42.244Z"
+      },
+      {
+        "type": "guard",
+        "readOnly": true,
+        "pool": {
+          "total": 1,
+          "idle": 1,
+          "waiting": 0,
+          "max": 2
+        },
+        "startedAt": "2026-11-09T18:00:58.740Z"
+      }
+    ],
+    "summaries": [
+      {
+        "type": "summary",
+        "name": "commercial_dashboard",
+        "samplesMs": [
+          1074.35,
+          0.1,
+          0.1,
+          0.08,
+          0.09
+        ],
+        "bytes": 271554,
+        "pool": {
+          "total": 2,
+          "idle": 2,
+          "waiting": 0,
+          "max": 2
+        }
+      },
+      {
+        "type": "summary",
+        "name": "project_cards",
+        "samplesMs": [
+          3841.51,
+          0.21,
+          0.09,
+          0.06,
+          0.06
+        ],
+        "bytes": 286657,
+        "pool": {
+          "total": 2,
+          "idle": 2,
+          "waiting": 0,
+          "max": 2
+        }
+      },
+      {
+        "type": "summary",
+        "name": "project_detail_5775",
+        "samplesMs": [
+          492.88,
+          235.58,
+          365.45,
+          217.41,
+          379.08
+        ],
+        "bytes": 122994,
+        "pool": {
+          "total": 2,
+          "idle": 2,
+          "waiting": 0,
+          "max": 2
+        }
+      },
+      {
+        "type": "summary",
+        "name": "project_detail_5719",
+        "samplesMs": [
+          8352.07,
+          6234.93,
+          6919.93,
+          5900.61,
+          5869.22
+        ],
+        "bytes": 1097320,
+        "pool": {
+          "total": 2,
+          "idle": 2,
+          "waiting": 0,
+          "max": 2
+        }
+      },
+      {
+        "type": "summary",
+        "name": "omni_status_5775",
+        "samplesMs": [
+          135.15,
+          154.94,
+          117.09,
+          211.13,
+          121.48
+        ],
+        "bytes": 446,
+        "pool": {
+          "total": 2,
+          "idle": 2,
+          "waiting": 0,
+          "max": 2
+        }
+      },
+      {
+        "type": "summary",
+        "name": "omni_status_5719",
+        "samplesMs": [
+          71.32,
+          76.36,
+          56.23,
+          90.28,
+          81.28
+        ],
+        "bytes": 462,
+        "pool": {
+          "total": 2,
+          "idle": 2,
+          "waiting": 0,
+          "max": 2
+        }
+      },
+      {
+        "type": "summary",
+        "name": "efetivo_overview",
+        "samplesMs": [
+          66.84,
+          48.26,
+          41.66,
+          46.03,
+          45.11
+        ],
+        "bytes": 34742,
+        "pool": {
+          "total": 2,
+          "idle": 2,
+          "waiting": 0,
+          "max": 2
+        }
+      },
+      {
+        "type": "summary",
+        "name": "project_workflows_page1",
+        "samplesMs": [
+          61.21,
+          32.02,
+          31.37,
+          42.12,
+          38.09
+        ],
+        "bytes": 430590,
+        "pool": {
+          "total": 2,
+          "idle": 2,
+          "waiting": 0,
+          "max": 2
+        }
+      },
+      {
+        "type": "summary",
+        "name": "allocation_review_week",
+        "samplesMs": [
+          2420.77,
+          30.47,
+          30.83,
+          30.68,
+          32.13
+        ],
+        "bytes": 268786,
+        "pool": {
+          "total": 2,
+          "idle": 2,
+          "waiting": 0,
+          "max": 2
+        }
+      },
+      {
+        "type": "summary",
+        "name": "allocation_review_month",
+        "samplesMs": [
+          248.56,
+          184.81,
+          212.37,
+          156.63,
+          173.42
+        ],
+        "bytes": 314229,
+        "pool": {
+          "total": 2,
+          "idle": 2,
+          "waiting": 0,
+          "max": 2
+        }
+      },
+      {
+        "type": "summary",
+        "name": "mission_group_detail",
+        "samplesMs": [
+          7214.08,
+          196.99,
+          320.12
+        ],
+        "bytes": 102008,
+        "pool": {
+          "total": 2,
+          "idle": 2,
+          "waiting": 0,
+          "max": 2
+        }
+      },
+      {
+        "type": "summary",
+        "name": "allocation_review_month",
+        "samplesMs": [
+          4168.17,
+          468.62,
+          350.98
+        ],
+        "bytes": 314229,
+        "pool": {
+          "total": 2,
+          "idle": 2,
+          "waiting": 0,
+          "max": 2
+        }
+      }
+    ],
+    "errors": []
+  },
+  "progressProfile": [
+    {
+      "startedAt": "2026-11-09T18:02:50.012Z",
+      "currentOnly": true,
+      "wallMs": 338,
+      "cpuMs": 516,
+      "scopeRows": 297,
+      "dailyPoints": 0,
+      "slices": 0
+    },
+    {
+      "startedAt": "2026-11-09T18:02:50.351Z",
+      "currentOnly": false,
+      "wallMs": 6106,
+      "cpuMs": 6543,
+      "scopeRows": 297,
+      "dailyPoints": 67,
+      "slices": 11
+    }
+  ],
+  "cpuSamples": [
+    {
+      "phase": "during controlled services",
+      "startedAt": "2026-11-09T17:57:58Z",
+      "finishedAt": "2026-11-09T17:58:28Z",
+      "sampleIntervalSeconds": 1,
+      "samples": 30,
+      "cpuStealPercent": [
+        12,
+        23,
+        52,
+        51,
+        42,
+        19,
+        30,
+        20,
+        22,
+        22,
+        19,
+        15,
+        16,
+        9,
+        28,
+        22,
+        12,
+        12,
+        9,
+        7,
+        15,
+        16,
+        15,
+        12,
+        14,
+        9,
+        12,
+        16,
+        11,
+        14
+      ],
+      "meanPercent": 19.2,
+      "maxPercent": 52,
+      "minPercent": 7
+    },
+    {
+      "phase": "passive observation coincident with scheduled full backup; no service probe running",
+      "startedAt": "2026-11-09T18:00:02Z",
+      "finishedAt": "2026-11-09T18:00:33Z",
+      "sampleIntervalSeconds": 1,
+      "samples": 30,
+      "cpuStealPercent": [
+        34,
+        37,
+        64,
+        64,
+        52,
+        67,
+        48,
+        40,
+        40,
+        31,
+        44,
+        40,
+        28,
+        19,
+        18,
+        26,
+        33,
+        41,
+        34,
+        39,
+        29,
+        26,
+        27,
+        36,
+        38,
+        27,
+        26,
+        15,
+        30,
+        21
+      ],
+      "meanPercent": 35.8,
+      "maxPercent": 67,
+      "minPercent": 15
+    }
+  ],
+  "verification": {
+    "expectedPerformanceIndexes": [
+      {
+        "name": "ClientReportReview_reportId_createdAt_idx",
+        "valid": true,
+        "ready": true
+      },
+      {
+        "name": "ReportService_reportId_idx",
+        "valid": true,
+        "ready": true
+      },
+      {
+        "name": "ReportAttachment_reportId_idx",
+        "valid": true,
+        "ready": true
+      },
+      {
+        "name": "ReportAttachment_reportServiceId_idx",
+        "valid": true,
+        "ready": true
+      },
+      {
+        "name": "EpiRecord_collaboratorId_lendDate_createdAt_idx",
+        "valid": true,
+        "ready": true
+      },
+      {
+        "name": "Romaneio_projectId_romaneioDate_createdAt_idx",
+        "valid": true,
+        "ready": true
+      },
+      {
+        "name": "SatisfactionSurvey_sentAt_idx",
+        "valid": true,
+        "ready": true
+      },
+      {
+        "name": "DataSubjectRequest_status_createdAt_idx",
+        "valid": true,
+        "ready": true
+      },
+      {
+        "name": "Report_active_date_created_idx",
+        "valid": true,
+        "ready": true
+      },
+      {
+        "name": "Report_active_project_date_created_idx",
+        "valid": true,
+        "ready": true
+      },
+      {
+        "name": "PontoPeriodSummary_importId_collaboratorId_idx",
+        "valid": true,
+        "ready": true
+      },
+      {
+        "name": "EfetivoMissionPlan_projectId_deletedAt_idx",
+        "valid": true,
+        "ready": true
+      },
+      {
+        "name": "ReportCollaborator_collaboratorId_idx",
+        "valid": true,
+        "ready": true
+      },
+      {
+        "name": "ReportService_equipmentId_idx",
+        "valid": true,
+        "ready": true
+      },
+      {
+        "name": "ReportDraft_userId_updatedAt_idx",
+        "valid": true,
+        "ready": true
+      },
+      {
+        "name": "UserSession_userId_idx",
+        "valid": true,
+        "ready": true
+      },
+      {
+        "name": "OmiePurchase_projectId_statusTitulo_idx",
+        "valid": true,
+        "ready": true
+      },
+      {
+        "name": "OmieReceivable_projectId_codigoTipoDocumento_idx",
+        "valid": true,
+        "ready": true
+      }
+    ],
+    "backendSourceSha256": {
+      "src/lib/acompanhamento/project-detail.js": "d860ad3ab44a9707028e27a3734766ff6780cf0b7b97e189df6c9b13f8a516dd",
+      "src/lib/acompanhamento/avanco.js": "43b227d3ae9bd76577531b259a5a5f4f252ab93c36933b61e130c29060b59bff",
+      "src/lib/api-credentials/efetivo-project-status.js": "7f187933c0352961024cd4ff3f4f924e83dd01a8cce74a746584034671a67b93"
+    },
+    "sourceHashesMatchWorkspace": true
+  },
+  "limitations": [
+    "Slow HTTP logs contain only operations at or above 1000ms; their quantiles cannot be used as whole-traffic p50/p95.",
+    "Five or three controlled service samples are diagnostic, not statistically validated HTTP p95.",
+    "Service timing excludes HTTP authentication, frontend rendering, and network; diagnostic pool max=2 versus deployed API max=8.",
+    "Mobile login is a synthetic lab measurement with warm DNS/TLS connections; it does not measure authenticated pages or field Web Vitals.",
+    "pg_stat_statements totals cover time since 2026-10-23, not only the measurement window.",
+    "CPU steal and backup overlap demonstrate coexistence, not sole causality. No infrastructure or data was modified."
+  ]
+}

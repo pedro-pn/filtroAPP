@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import prisma from '../prisma.js';
+import { loadPlannedHourProjects } from './planned-hour-sources.js';
 import { commercialTransaction } from './commercial-contributions.js';
 import { scaleProposalValue, validateProposalPercentage } from './proposal-percentage.js';
 import { normalizeAdditionalMetricInclusion } from '../../../../shared/modules/additional-proposal-metrics.js';
@@ -115,16 +116,7 @@ export function resolvePlannedHours({ normalHours = [], overtime = [], sources =
 // cards and detail without copying over manual rows.
 export async function loadPlannedHours(projectIds, client = prisma) {
   if (!projectIds.length) return new Map();
-  const projects = await client.project.findMany({
-    where: { id: { in: projectIds }, deletedAt: null },
-    select: {
-      id: true, plannedHoursResolution: true, proposalPercentage: true,
-      plannedNormalHours: { orderBy: [{ order: 'asc' }, { createdAt: 'asc' }], include: { jobRole: { select: { name: true } } } },
-      plannedOvertime: { orderBy: [{ order: 'asc' }, { createdAt: 'asc' }], include: { jobRole: { select: { name: true } } } },
-      budgets: { where: { version: 1 }, select: { source: true, sourceProposalCodBd: true, commercialAppProposalId: true } },
-      additionalProposals: { where: { active: true }, select: { source: true, sourceProposalCodBd: true, commercialAppProposalId: true, metricInclusion: true } }
-    }
-  });
+  const projects = await loadPlannedHourProjects(client, projectIds);
   const selectedSources = project => [project.budgets[0], ...project.additionalProposals.filter(row =>
     normalizeAdditionalMetricInclusion(row.metricInclusion).hours)].filter(Boolean);
   const accessSelections = project => [...new Set(selectedSources(project)
@@ -132,16 +124,23 @@ export async function loadPlannedHours(projectIds, client = prisma) {
   const codBds = [...new Set(projects.flatMap(accessSelections))];
   const appIds = [...new Set(projects.flatMap(selectedSources)
     .filter(row => row.source === 'COMERCIAL_APP').map(row => row.commercialAppProposalId).filter(Boolean))];
-  const proposals = codBds.length ? await client.commercialProposal.findMany({
-    where: { codBd: { in: codBds } }, select: { codBd: true, codProp: true, nRev: true, rawRow: true }
-  }) : [];
-  const appProposals = appIds.length ? await client.commercialAppProposal.findMany({
-    where: { externalId: { in: appIds } },
-    select: { externalId: true, proposalCode: true, revisionNumber: true, snapshot: true }
-  }) : [];
+  // Both manual tables already include the selected role name from the shared
+  // child statement; no additional role relation walk is needed.
+  const [proposals, appProposals] = await Promise.all([
+    codBds.length ? client.commercialProposal.findMany({
+      where: { codBd: { in: codBds } }, select: { codBd: true, codProp: true, nRev: true, rawRow: true }
+    }) : [],
+    appIds.length ? client.commercialAppProposal.findMany({
+      where: { externalId: { in: appIds } },
+      select: { externalId: true, proposalCode: true, revisionNumber: true, snapshot: true }
+    }) : []
+  ]);
   const byCodBd = new Map(proposals.map(row => [row.codBd, row]));
   const byAppId = new Map(appProposals.map(row => [row.externalId, row]));
-  const hoursRow = row => ({ ...row, roleName: row.roleName ?? row.jobRole?.name ?? null });
+  const hoursRow = row => {
+    const jobRole = row.jobRole ?? null;
+    return { ...row, jobRole, roleName: row.roleName ?? jobRole?.name ?? null };
+  };
   return new Map(projects.map(project => [project.id, resolvePlannedHours({
     normalHours: project.plannedNormalHours.map(hoursRow), overtime: project.plannedOvertime.map(hoursRow),
     sources: selectedSources(project).map(row => {

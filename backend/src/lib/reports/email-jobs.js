@@ -1,3 +1,4 @@
+import { beginWorkerTask } from '../operations/worker-health.js';
 import { randomUUID } from 'node:crypto';
 import prisma from '../prisma.js';
 import { clientEmailsEnabled, sendMail } from '../mailer.js';
@@ -83,9 +84,10 @@ export function startReportEmailJob({ intervalMs = 10_000, keepAlive = false } =
   const run = async () => {
     if (running) return;
     running = true;
+    const finishHealth = beginWorkerTask('reports:email', 30 * 60_000);
     try { await processReportEmailQueue(); }
     catch (error) { console.error('Falha na fila de e-mails de relatórios.', error?.message); }
-    finally { running = false; }
+    finally { finishHealth(); running = false; }
   };
   const timer = setInterval(run, intervalMs);
   if (!keepAlive) timer.unref?.();

@@ -131,7 +131,6 @@ test('equipe inicial abre direto em "Colaboradores por disponibilidade", sem o f
   const selector = fs.readFileSync(new URL('../src/pages/efetivo/components/MissionTeamSelector.tsx', import.meta.url), 'utf8');
   const board = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowBoard.tsx', import.meta.url), 'utf8');
   // o board usa o componente direto, não mais o MissionFormModal completo, para "Definir/Editar equipe inicial"
-  assert.match(board, /import \{ InitialTeamAvailabilityModal \} from '\.\/MissionFormModal';/);
   assert.match(board, /<InitialTeamAvailabilityModal/);
   assert.doesNotMatch(board, /<MissionFormModal/);
   // o novo componente abre o MissionTeamSelector direto (autoOpen), sem o gatilho "Ver colaboradores"

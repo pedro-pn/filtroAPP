@@ -3,11 +3,12 @@ import env from '../config/env.js';
 import { isApiWriteSimulation } from './api-credentials/write-context.js';
 import { registerCollaboratorCacheInvalidator } from './cache/invalidation.js';
 import { projectAccessCacheKey } from './projects/access-scope.js';
+import { currentDerivedReadVersion, clearDerivedReadCaches } from './operations/derived-read-cache.js';
 
 function scopedProjectCache(ttl, maxEntries) {
   const cache = createKeyedTtlCache(ttl, maxEntries);
   return {
-    get: (key, loader) => cache.get(JSON.stringify([projectAccessCacheKey(), key]), loader),
+    get: (key, loader) => cache.get(JSON.stringify([projectAccessCacheKey(), currentDerivedReadVersion(), key]), loader),
     clear: () => cache.clear()
   };
 }
@@ -35,6 +36,7 @@ export function clearProjectDerivedCaches() {
   commercialDashboardCache.clear();
   projectCardsCache.clear();
   laborCostCache.clear();
+  clearDerivedReadCaches();
 }
 
 export function clearCollaboratorDerivedCaches() {

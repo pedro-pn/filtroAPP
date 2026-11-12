@@ -266,3 +266,89 @@ Decisões reutilizáveis desse módulo:
 - onboarding permanente via Driver.js é marcado por usuário no `localStorage`.
 
 Na exclusão da conta proprietária (decisão D16 da feature), documentos não concluídos são excluídos e seus bytes passam por quarentena; documentos concluídos são preservados como órfãos, com o nome histórico e a auditoria intactos.
+
+
+## Carregamento, cache e regressões de performance
+
+Rotas novas usam imports dinâmicos. Seções, visualizadores de PDF, editores e
+modais pesados carregam ao serem abertos, com estado de carregamento próprio,
+foco, Escape e URL preservados. Consultas ficam habilitadas apenas para os
+consumidores ativos; não antecipar dados de outra aba para disfarçar o download.
+CSS exclusivo acompanha a rota ou componente; conservar a camada `legacy` ao
+extrair estilos antigos para manter a precedência dos estilos do Design System.
+
+O build gera um manifesto. `npm --prefix frontend run performance:check` soma
+JS/CSS comprimidos e suas dependências estáticas. Toda entrada `*Page.tsx` tem
+um limite padrão. Registrar as superfícies importantes e seus componentes adiados
+em `frontend/performance-budgets.json`; alterações de limites exigem comparação
+antes/depois e justificativa. Não avaliar apenas o chunk que leva o nome da página.
+
+Novos consumidores podem usar `useUsefulQueryContent` junto das consultas que
+alimentam seu primeiro conteúdo útil. Registrar um rótulo fixo em
+`observability/pagePerformance.ts`, sem IDs, URLs, termos pesquisados ou dados
+pessoais. A coleta fica desativada e é habilitada apenas na sessão de diagnóstico.
+Distinguir conteúdo em cache visível de atualização de dados em segundo plano.
+
+Caches precisam respeitar usuário, permissões, divisão e filtros. Dados de revisão
+imutável devem representar todas as fontes utilizadas, inclusive escritas do worker;
+`Project.updatedAt` isolado não representa alterações em medições. Históricos não
+precisam ser reconstruídos em cada polling. Dados atuais devem refletir gravações
+em outro navegador dentro do prazo do módulo, sem polling na página oculta.
+
+O middleware `requestSourceContext` compartilha promessas de fontes somente durante
+o mesmo GET/HEAD, por cliente Prisma e escopo de projetos. Escritas saem desse
+contexto. Usar `loadRequestSource` para catálogos repetidos, conservando opções na
+chave; isso não autoriza cache global de dados financeiros.
+
+As respostas de cards, detalhe individual/grupo e colaboradores do ponto podem usar
+`readAcompanhamentoResponse`, depois da autenticação, autorização e validação.
+A chave inclui usuário, escopo, permissões financeiras e variante normalizada.
+A versão transacional prefixa também os caches intermediários. O recurso exige a
+migration `20261110230000_performance_read_revision` e fica desativado por padrão;
+falha ao verificar a revisão retorna 503 sem servir uma resposta antiga.
+Novas tabelas Prisma que possam alimentar essas respostas precisam do trigger
+`performance_read_revision` na própria migration. O gate PostgreSQL compara a
+cobertura com o schema inteiro; exclusões operacionais exigem justificar que os
+dados não alimentam essas respostas. Não reutilizar esse cache para sessões, jobs
+ou outras fontes excluídas. Ver [operação e aceite](PERFORMANCE_OPERACAO.md).
+
+O cálculo mensal pode compartilhar `readMonthlyCostSnapshot` somente dentro de
+GET/HEAD com revisão verificada. A chave inclui importação e escopo/canal de
+projetos. O snapshot preserva `Map`, datas, precisão e referências internas com
+serialização V8 em memória; cada consumidor recebe seu próprio grafo de objetos.
+O limite adicional é de oito entradas/8 MiB, com até 2 MiB por entrada e 15 s.
+Chamadores sem esse contexto, incluindo jobs e escritas, recalculam normalmente.
+O cálculo compartilhado alimenta as projeções finais por usuário/permissão; nomes
+ignorados continuam sendo metadados internos opcionais. Não persistir esse formato
+nem recebê-lo de clientes. JSON permanece o formato dos DTOs HTTP.
+
+Os catálogos de cargos/parâmetros, custos anuais e filtros de categorias usam
+`readVerifiedCostSource` para compartilhar dados somente sob a mesma revisão
+verificada, cliente Prisma, escopo/canal e opções. O limite conjunto adicional é
+16 entradas/4 MiB, até 1 MiB por entrada e 15 s. Manter os resolvers fora do
+snapshot e reconstruí-los para cada consumidor a partir de dados próprios.
+Uma gravação externa deve provocar nova leitura sem limpar a memória da API.
+Comparações com o caminho sem revisão precisam de uma referência nova: seus
+caches legados por TTL não constituem uma referência sem cache após gravação.
+
+Revisões de avanço usam chaves de objetos canônicas e tratam a coleção de serviços
+realizados como sem ordem somente no digest. Preservar a ordem dos escopos,
+histórico manual e arrays internos das medições. A canonização não reordena as
+fontes entregues aos cálculos; incluir teste de revisão estável com retorno SQL
+em outra ordem e revisão diferente após uma alteração real.
+
+O relatório HTTP agrega `activePool`, amostrado uma única vez por intervalo global
+com requisições ativas. Somar os máximos de cada requisição duplicaria observações
+concorrentes e não mede a fração de intervalos sem fila. Logs antigos, sem essas
+amostras, não permitem aceitar a meta de 95%.
+
+Mudanças nesses contratos incluem testes comportamentais de requisições por aba,
+revisão, gravação e visibilidade. Rodar `npm --prefix frontend run test:performance`,
+além dos testes de domínio relevantes. O CI executa esses cenários com fontes
+simuladas e o componente real; o aceite publicado ainda exige permissões, volume
+e medições HTTP representativas, com pelo menos cem chamadas por cenário.
+
+Sondagens de jobs só podem declarar `hasWork=false` com os mesmos critérios de
+seleção do processador, incluindo retries e recuperação. A agregação de sondagens
+vazias não agrega trabalho ou falhas e não exclui histórico. Retenção de `JobRun`
+fica desativada sem prazo explícito; sua política e aplicação são operacionais.

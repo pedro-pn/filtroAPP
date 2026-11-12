@@ -2,6 +2,15 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// Transactional invalidation metadata only; one writer row per PostgreSQL backend.
+// Application data is never stored in this table. Writer PID 0 is the compaction epoch.
+model PerformanceReadRevision {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  writerPid  Int      @unique
+  revision   BigInt   @default(0)
+  updatedAt  DateTime @default(now())
+}
+
 datasource db {
   provider = "postgresql"
 }

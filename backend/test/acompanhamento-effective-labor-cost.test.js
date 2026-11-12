@@ -12,6 +12,7 @@ import { clearProjectDerivedCaches } from '../src/lib/resource-list-cache.js';
 import { buildProjectDetailCollaborator, divisionLaborAllocation } from '../src/lib/acompanhamento/project-detail.js';
 import { buildAllocationAudit, groupUnallocatedDays } from '../src/lib/acompanhamento/allocation-audit.js';
 import { computeMonthlyCost } from '../src/lib/acompanhamento/cost-engine.js';
+import { costReferenceRows } from './helpers/cost-reference-rows.js';
 
 const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-7, `${actual} ≠ ${expected}`);
 const collaborator = { id: 'c1', name: 'Ana', jobRoleId: 'role1', jobRole: { id: 'role1', name: 'Operador' }, jobRoleHistory: [] };
@@ -32,7 +33,7 @@ function allocation(overrides = {}) {
 
 function mockCalculation(t, {
   start = '2026-09-01', end = '2026-09-30', days = [], reports = [], allocations = [allocation()],
-  laborSleepModeByCollaborator = { c1: 'HOME' }, person = collaborator
+  laborSleepModeByCollaborator = { c1: 'HOME' }, person = collaborator, reportRead, availabilityRead
 } = {}) {
   const stub = (model, method, implementation) => {
     const original = prisma[model][method];
@@ -45,20 +46,49 @@ function mockCalculation(t, {
     collaboratorId: 'c1', collaborator: person, monthly: { '2026-09': { days } }
   }]);
   mock('pontoExternalEmployee', 'findMany', []);
-  mock('jobRole', 'findMany', [{ name: person.jobRole.name, costProfile: { parameterSets: [
-    { effectiveDate: '2026-01-01', params: { salarioBase: 3960 } }
-  ] } }]);
-  mock('costProfile', 'findMany', [{ key: 'operador', parameterSets: [{ effectiveDate: '2026-01-01', params: modelParams }] }]);
-  stub('report', 'findMany', async ({ where }) => where.project?.offshore ? [] : reports);
+  mock('jobRole', 'findMany', [{ id: person.jobRole.id, name: person.jobRole.name }]);
+  mock('costProfile', 'findMany', [
+    { key: 'role-profile', jobRoleId: person.jobRole.id, parameterSets: [{ effectiveDate: '2026-01-01', params: { salarioBase: 3960 } }] },
+    { key: 'operador', jobRoleId: null, parameterSets: [{ effectiveDate: '2026-01-01', params: modelParams }] }
+  ]);
+  const reportRows = reports.map((report, index) => ({ id: 'report-' + index, ...report }));
+  stub('report', 'findMany', async args => reportRead
+    ? (await reportRead(args)).map((report, index) => ({ id: 'report-' + index, ...report }))
+    : args.where.project?.offshore ? [] : reportRows);
+  const originalRaw = prisma.$queryRaw;
+  prisma.$queryRaw = async (_query, reportIds) => {
+    if (_query.join('').includes('labor.day-decisions')) return [{ overrides: await prisma.pontoDayProjectOverride.findMany(), reviews: [] }];
+    if (_query.join('').includes('labor.period-reference-rows')) return [{ ignored: [], holidays: [], revision: 1 }];
+    if (_query.join('').includes('labor.period-collaborators')) return [{ collaborators: [{
+      id: person.id, name: person.name, jobRoleId: person.jobRoleId,
+      jobRoleHistory: (person.jobRoleHistory || []).map(history => ({ ...history,
+        effectiveDate: new Date(history.effectiveDate).toISOString().slice(0,10)
+      }))
+    }], absences: await prisma.collaboratorAbsence.findMany() }];
+    if (_query.join('').includes('labor.cost-reference-rows')) return costReferenceRows({
+      roles: await prisma.jobRole.findMany(), profiles: await prisma.costProfile.findMany(),
+      settings: await prisma.acompanhamentoSetting.findMany()
+    });
+    const rows = reportRead ? await reportRead({ where: { OR: [] } }) : reportRows;
+    return rows.flatMap((report,index) => reportIds.includes(report.id || 'report-' + index)
+      ? (report.collaborators || []).map(({ collaboratorId }) => ({ reportId: report.id || 'report-' + index, collaboratorId })) : []);
+  };
+  t.after(() => { prisma.$queryRaw = originalRaw; });
+  mock('reportService', 'findMany', reportRows.filter(report => report.reportType !== 'RDO')
+    .flatMap(report => (report.services || []).map(service => ({ reportId: report.id, ...service }))));
   mock('acompanhamentoSetting', 'findUnique', { numberValue: 0 });
+  mock('acompanhamentoSetting', 'findMany', ['epiAnnualCost', 'examsTrainingAnnualCost', 'offshoreExamsTrainingAnnualCost'].map(key => ({ key, numberValue: 0 })));
   mock('project', 'findMany', [{ id: 'p1', code: '1001', laborSleepModeByCollaborator }]);
   mock('pontoProjectTagAlias', 'findMany', []);
   mock('acompanhamentoMissionGroup', 'findMany', []);
-  mock('efetivoMissionAllocation', 'findMany', allocations);
-  mock('efetivoMissionPlan', 'findMany', allocations.map(item => ({ projectId: item.mission.projectId })));
+  mock('efetivoMissionAllocation', 'findMany', allocations.map(({ mission, cycles, ...item }) => ({ ...item, missionId: mission.id })));
+  mock('efetivoMissionPlan', 'findMany', allocations.map(({ mission: { plan, cycles, ...mission } }) => ({ ...mission, planId: 'official' })));
+  mock('efetivoAllocationCycle', 'findMany', allocations.flatMap(item => (item.cycles || []).map(cycle => ({ ...cycle, allocationId: item.id }))));
+  mock('efetivoMissionCycle', 'findMany', allocations.flatMap(item => (item.mission.cycles || []).map(cycle => ({ ...cycle, missionId: item.mission.id }))));
+  mock('efetivoPlan', 'findMany', [{ id: 'official', kind: 'OFFICIAL', status: 'ACTIVE' }]);
   mock('pontoDayProjectOverride', 'findMany', []);
   mock('allocationReviewDay', 'findMany', []);
-  mock('collaboratorAbsence', 'findMany', []);
+  stub('collaboratorAbsence', 'findMany', async args => availabilityRead ? availabilityRead(args) : []);
   mock('workforceHoliday', 'findMany', []);
   mock('workforceCalendarState', 'findUnique', { revision: 1 });
   mock('collaborator', 'findMany', person.rdoCostSimulationExcluded ? [{ id: person.id }] : []);
@@ -279,4 +309,42 @@ test('alocações conflitantes sem ponto entram em pendência e podem ser resolv
   near(resolved.byProject.get('p2').normalHours, 8.8);
   assert.deepEqual(resolved.unresolvedDays, []);
   assert.equal(resolved.dayTrail[0].noActivityContext, true);
+});
+
+test('calendário/ausências começam enquanto relatórios estão pendentes, sem alterar o resultado', { timeout: 3000 }, async t => {
+  let armed = false, releaseReports;
+  const gate = new Promise(resolve => { releaseReports = resolve; });
+  const events = [];
+  const reports = [{ reportType: 'RDO', sequenceNumber: 1, projectId: 'p1', reportDate: new Date('2026-09-21'),
+    daytimeWorkedMinutes: 480, nighttimeWorkedMinutes: 0, collaborators: [{ collaboratorId: 'c1' }], services: [] }];
+  mockCalculation(t, {
+    days: [{ date: '2026-09-21', workedMinutes: 480, tags: [] }], reports,
+    reportRead: async ({ where }) => {
+      if (where.project?.offshore) return [];
+      if (armed) { events.push('reports-pending'); await gate; events.push('reports-complete'); }
+      return reports;
+    },
+    availabilityRead: async () => { if (armed) { events.push('availability'); releaseReports(); } return []; }
+  });
+  t.after(releaseReports);
+  const expected = await computeCollaboratorRates();
+  armed = true;
+  const actual = await computeCollaboratorRates();
+  assert.deepEqual(actual, expected);
+  assert.ok(events.indexOf('availability') < events.indexOf('reports-complete'), events.join(', '));
+});
+
+test('falha na disponibilidade rejeita a leitura e a requisição seguinte consulta novamente', async t => {
+  let fail = true, reads = 0;
+  mockCalculation(t, { availabilityRead: async () => {
+    reads++;
+    if (fail) throw new Error('availability temporarily unavailable');
+    return [];
+  } });
+  await assert.rejects(computeCollaboratorRates(), /availability temporarily unavailable/);
+  fail = false;
+  const recovered = await computeCollaboratorRates();
+  assert.equal(reads, 2);
+  assert.equal(recovered.rates.length, 1);
+  assert.equal(recovered.rates[0].workforceCalendarRevision, 1);
 });

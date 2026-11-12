@@ -1,5 +1,6 @@
 import prisma from '../prisma.js';
 import { divisionDateWhere } from './tracking-divisions.js';
+import { loadRequestSource } from '../operations/request-sources.js';
 
 const PROJECT_STOCK_REASONS = ['USO_EM_PROJETO', 'DEVOLUCAO_OBRA', 'ESTORNO'];
 
@@ -82,7 +83,12 @@ export function aggregateStockConsumptionMovements(movements = [], unitCostByBat
 
 export async function getStockConsumptionCostByProject(projectIds = null, client = prisma, division = null) {
   if (Array.isArray(projectIds) && projectIds.length === 0) return new Map();
+  const ids = Array.isArray(projectIds) ? [...new Set(projectIds)].sort() : null;
+  return loadRequestSource(client, ['stock.project-costs', ids, division],
+    () => loadStockConsumptionCostByProject(projectIds, client, division));
+}
 
+async function loadStockConsumptionCostByProject(projectIds, client, division) {
   const movements = await client.stockMovement.findMany({
     where: {
       projectId: Array.isArray(projectIds) ? { in: projectIds } : { not: null },
@@ -97,10 +103,15 @@ export async function getStockConsumptionCostByProject(projectIds = null, client
       quantity: true,
       unitCost: true,
       excludeFromProjectCost: true,
-      item: { select: { type: true } }
+      itemId: true
     }
   });
   if (movements.length === 0) return new Map();
+  const items = await client.stockItem.findMany({
+    where: { id: { in: [...new Set(movements.map(row => row.itemId))] } },
+    select: { id: true, type: true }
+  });
+  const itemsById = new Map(items.map(({ id, type }) => [id, { type }]));
 
   const batchIds = [...new Set(movements.map(movement => movement.batchId).filter(Boolean))];
   const purchaseMovements = batchIds.length
@@ -120,5 +131,7 @@ export async function getStockConsumptionCostByProject(projectIds = null, client
     })
     : [];
 
-  return aggregateStockConsumptionMovements(movements, buildBatchUnitCostMap(purchaseMovements));
+  return aggregateStockConsumptionMovements(movements.map(row => ({ ...row,
+    item: itemsById.get(row.itemId) ?? null
+  })), buildBatchUnitCostMap(purchaseMovements));
 }

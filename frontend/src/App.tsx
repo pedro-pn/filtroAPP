@@ -1,4 +1,6 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { PagePerformanceNavigationContext } from './observability/useUsefulContent';
+import { beginPagePerformanceNavigation } from './observability/pagePerformance';
+import { lazy, Suspense, useEffect, useLayoutEffect, type ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router';
 
 import { modulePathForUser, rememberModuleAccess, preferredEntryPath } from './auth/moduleNavigation';
@@ -48,6 +50,12 @@ const MAINTENANCE_PRODUCTION_ACCESS = moduleRouteAccess(
   'maintenance-production'
 );
 
+function PagePerformanceTracker({ children }: { children: ReactNode }) {
+  const location = useLocation();
+  useLayoutEffect(() => { beginPagePerformanceNavigation(location.key); }, [location.key]);
+  return <PagePerformanceNavigationContext.Provider value={location.key}>{children}</PagePerformanceNavigationContext.Provider>;
+}
+
 function ModuleAccessTracker() {
   const { user } = useAuth();
   const location = useLocation();
@@ -81,7 +89,7 @@ function RdoModuleRedirect() {
 
 export default function App() {
   return (
-    <>
+    <PagePerformanceTracker>
       <ModuleAccessTracker />
       <PageScrollRestorationTracker />
       <Suspense fallback={<BrandLoading fullscreen />}>
@@ -196,6 +204,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </Suspense>
-    </>
+    </PagePerformanceTracker>
   );
 }

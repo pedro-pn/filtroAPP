@@ -1,6 +1,9 @@
+import { useUsefulQueryContent } from '../../../observability/useUsefulContent';
 import { BrandLoading } from '../../../components/brand/BrandLoading';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  lazy,
+  Suspense,
   useEffect,
   useRef,
   useState,
@@ -73,11 +76,12 @@ import {
 } from '../../../utils/reorderDrag';
 import { buildInitialTeamContext } from '../../../utils/initialTeamContext';
 import { missionTeamAllocationPeriod, selectedMissionCollaboratorIds, type InitialTeamContext } from '../../../utils/missionTeam';
-import { InitialTeamAvailabilityModal } from './MissionFormModal';
-import { ProjectLegacyCompletionModal } from './ProjectLegacyCompletionModal';
-import { ProjectExecutionStartModal } from './ProjectExecutionStartModal';
-import { ProjectWorkflowModal } from './ProjectWorkflowModal';
-import { ProjectWorkflowAdminSummaryDialog } from './ProjectWorkflowAdminSummaryDialog';
+
+const InitialTeamAvailabilityModal = lazy(() => import('./MissionFormModal').then(module => ({ default: module.InitialTeamAvailabilityModal })));
+const ProjectLegacyCompletionModal = lazy(() => import('./ProjectLegacyCompletionModal').then(module => ({ default: module.ProjectLegacyCompletionModal })));
+const ProjectExecutionStartModal = lazy(() => import('./ProjectExecutionStartModal').then(module => ({ default: module.ProjectExecutionStartModal })));
+const ProjectWorkflowModal = lazy(() => import('./ProjectWorkflowModal').then(module => ({ default: module.ProjectWorkflowModal })));
+const ProjectWorkflowAdminSummaryDialog = lazy(() => import('./ProjectWorkflowAdminSummaryDialog').then(module => ({ default: module.ProjectWorkflowAdminSummaryDialog })));
 
 type DragState = { projectId: string; snapshot: ProjectKanbanColumns };
 type BlockedMoveFocus = { projectId: string; stage: ProjectWorkflowStage; count: number; token: number };
@@ -374,6 +378,7 @@ export function ProjectWorkflowBoard({
     queryFn: () => listProjectWorkflows(debouncedSearch, page),
     enabled: search === debouncedSearch
   });
+  useUsefulQueryContent('efetivo:evolucao', 'ProjectWorkflowBoard', [list]);
   useEffect(() => {
     const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' });
     let currentDay = formatter.format(new Date());
@@ -1177,7 +1182,8 @@ export function ProjectWorkflowBoard({
           </Button>
         </nav>
       ) : null}
-      {canManage ? (
+      <Suspense fallback={<BrandLoading label="Carregando formulário…" />}>
+      {canManage && missionFormProjectId && (missionFormMission || missionFormProject) ? (
         <InitialTeamAvailabilityModal
           open={Boolean(missionFormProjectId && (missionFormMission || missionFormProject))}
           mission={missionFormMission}
@@ -1190,6 +1196,7 @@ export function ProjectWorkflowBoard({
           onSubmit={payload => saveInitialTeam.mutate({ mission: missionFormMission, payload })}
         />
       ) : null}
+      </Suspense>
       <ConfirmDialog
         open={Boolean(deletingMissionId && deletingMission)}
         title="Remover programação?"
@@ -1199,7 +1206,8 @@ export function ProjectWorkflowBoard({
         onConfirm={() => { if (deletingMission) removeMission.mutate(deletingMission); }}
         onCancel={() => setDeletingMissionId(null)}
       />
-      <ProjectLegacyCompletionModal
+      <Suspense fallback={<BrandLoading label="Carregando encerramento…" />}>
+      {completionTarget ? <ProjectLegacyCompletionModal
         project={completionTarget?.project || null}
         mission={completionTarget?.mission || null}
         open={Boolean(completionTarget)}
@@ -1213,7 +1221,8 @@ export function ProjectWorkflowBoard({
           setColumns(moveProjectInColumns(columns, project.id, 'FINISHED'));
           moveLegacyMission.mutate({ project, stage: 'FINISHED', order, returnDate, snapshot });
         }}
-      />
+      /> : null}
+      </Suspense>
       <ConfirmDialog
         open={Boolean(surveyProject)}
         appearance="design-system"
@@ -1229,7 +1238,8 @@ export function ProjectWorkflowBoard({
         onConfirm={() => void sendCompletionSurvey()}
         onCancel={() => { if (!surveyMutations.sendProjectSurvey.isPending) setSurveyProject(null); }}
       />
-      <ProjectWorkflowModal
+      <Suspense fallback={<BrandLoading label="Carregando projeto…" />}>
+      {selectedProjectId ? <ProjectWorkflowModal
         detail={selectedProjectId ? detail.data || null : null}
         blockedMoveFocus={blockedMoveFocus}
         leaders={leaders.data || []}
@@ -1291,7 +1301,9 @@ export function ProjectWorkflowBoard({
           }
           setMissionStatus.mutate({ mission, status });
         }}
-      />
+      /> : null}
+      </Suspense>
+      <Suspense fallback={<BrandLoading label="Carregando resumo…" />}>
       {adminSummaryProjectId === selectedProjectId && detail.data?.workflow ? <ProjectWorkflowAdminSummaryDialog
         key={adminSummaryProjectId}
         workflow={detail.data.workflow}
@@ -1300,6 +1312,8 @@ export function ProjectWorkflowBoard({
         onClose={() => { if (!convertLegacySummary.isPending) setAdminSummaryProjectId(null); }}
         onConfirm={payload => convertLegacySummary.mutate(payload)}
       /> : null}
+      </Suspense>
+      <Suspense fallback={<BrandLoading label="Carregando execução…" />}>
       {executionStartTarget ? <ProjectExecutionStartModal
         project={executionStartTarget.project}
         plannedStartDate={executionStartTarget.plannedStartDate}
@@ -1324,6 +1338,7 @@ export function ProjectWorkflowBoard({
           } else update.mutate(patch, callbacks);
         }}
       /> : null}
+      </Suspense>
     </div>
   );
 }

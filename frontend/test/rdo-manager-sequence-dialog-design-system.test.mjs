@@ -230,6 +230,11 @@ test('diálogo de numeração mantém opt-in DS e o formulário de RDO usa o Mod
   assert.match(surveyEditorDialog, /<Modal\b[\s\S]*?appearance="design-system"/);
   assert.match(manager, /panelClassName="rdo-archived-reports-dialog rdo-ds-actions"/);
   for (const otherModal of otherManagerModals) {
+    if (otherModal.includes('<BrandLoading')) {
+      assert.match(otherModal, /onClose=/);
+      assert.match(otherModal, /appearance="design-system"/);
+      continue;
+    }
     assert.doesNotMatch(
       otherModal,
       /appearance="design-system"/,

@@ -26,6 +26,17 @@
  */
 
 import prisma from '../prisma.js';
+import { loadRequestSource } from '../operations/request-sources.js';
+import { measureRequestStage } from '../operations/request-performance.js';
+import { laborReportQuery, loadLaborReportSources } from './labor-report-sources.js';
+import { loadLaborMissionGroups } from './labor-mission-groups.js';
+import { readMonthlyCostSnapshot } from './monthly-cost-snapshot.js';
+import { loadCostReferenceSources } from './cost-reference-sources.js';
+import { loadLaborPeriodReferences } from './labor-period-reference-sources.js';
+import { loadLaborDayDecisions } from './labor-day-decisions.js';
+import { withPontoImportDates, loadMonthlyPontoSources } from './ponto-period-sources.js';
+import { withCollaboratorRoleNames } from './collaborator-role-sources.js';
+import { loadOfficialAllocationSources, officialMissionWhere } from './effective-allocation-sources.js';
 import { laborCostCache } from '../resource-list-cache.js';
 import { computeMonthlyCost } from './cost-engine.js';
 import { getAnnualCollaboratorCosts } from './settings.js';
@@ -72,7 +83,7 @@ function costNormalHoursForDay(
 }
 
 function dateKeyUTC(value) {
-  return new Date(value).toISOString().slice(0, 10);
+  return (value instanceof Date ? value : new Date(value)).toISOString().slice(0, 10);
 }
 
 function yearKeyUTC(value) {
@@ -186,7 +197,7 @@ function pontoImportScopeFromRows(imports) {
   };
 }
 
-async function getPontoImportScope(importId, database = prisma) {
+export async function getPontoImportScope(importId, database = prisma) {
   if (importId) {
     const item = await database.pontoImport.findUnique({ where: { id: importId } });
     return item ? pontoImportScopeFromRows([item]) : null;
@@ -548,17 +559,29 @@ export function buildCollaboratorRoleCostSegments({ collaborator, roleParams, st
   ));
 }
 
+export function loadRoleCostCatalog(database = prisma, referenceSources = null) {
+  return loadRequestSource(database, 'labor.role-cost-catalog', () => loadRoleCostCatalogUncached(database, referenceSources));
+}
+
+async function loadRoleCostCatalogUncached(database, referenceSources) {
+  const { roles, profiles } = await (referenceSources ?? loadCostReferenceSources(database));
+  const profilesByRoleId = new Map(profiles.filter(profile => profile.jobRoleId != null).map(profile => [profile.jobRoleId, profile]));
+  const resolver = buildRoleParamsResolver({
+    roles: roles.map(role => ({ ...role, costProfile: profilesByRoleId.get(role.id) })),
+    models: profiles.filter(profile => profile.jobRoleId == null)
+  });
+  return { resolver, rolesById: new Map(roles.map(role => [role.id, role])) };
+}
+
+// A direct service call has no HTTP source context. Its two consumers still
+// own one read, without introducing unverified cross-request retention.
+export function loadLaborCostCatalog(database = prisma) {
+  const source = loadCostReferenceSources(database);
+  return Promise.all([loadRoleCostCatalog(database, source), getAnnualCollaboratorCosts(database, source)]);
+}
+
 export async function getRoleParamsResolver(database = prisma) {
-  const [roles, models] = await Promise.all([
-    database.jobRole.findMany({
-      include: { costProfile: { include: { parameterSets: true } } }
-    }),
-    database.costProfile.findMany({
-      where: { jobRoleId: null },
-      include: { parameterSets: true }
-    })
-  ]);
-  return buildRoleParamsResolver({ roles, models });
+  return (await loadRoleCostCatalog(database)).resolver;
 }
 
 function reportWorkedMinutes(report) {
@@ -569,14 +592,22 @@ function reportWorkedMinutes(report) {
 
 export function rdoDataByCollaboratorFromReports(reports) {
   const map = new Map();
+  // Thousands of historical RDOs often repeat the same dates and the same
+  // project object. Format each timestamp once in this calculation only.
+  const dateKeys = new Map();
+  const dayKey = value => {
+    const date = value instanceof Date ? value : new Date(value), time = date.getTime();
+    if (!dateKeys.has(time)) dateKeys.set(time, date.toISOString().slice(0, 10));
+    return dateKeys.get(time);
+  };
   for (const report of reports) {
     const workedMinutes = reportWorkedMinutes(report);
     if (report.reportType !== 'RDO' && workedMinutes <= 0) continue;
-    const dk = dateKeyUTC(report.reportDate);
+    const dk = dayKey(report.reportDate);
     const workedHours = workedMinutes / 60;
     const offshore = Boolean(report.project?.offshore);
     const mobilizationDate = report.project?.mobilizationDate
-      ? dateKeyUTC(report.project.mobilizationDate)
+      ? dayKey(report.project.mobilizationDate)
       : null;
     for (const link of report.collaborators || []) {
       const sleepMode = sleepModeFor(report.project, link.collaboratorId);
@@ -643,33 +674,7 @@ export function rdoDataByCollaboratorFromReports(reports) {
 
 // RDO por colaborador: por projeto (offshore) e o projeto/horas de cada dia.
 async function getRdoDataByCollaborator(periodStart, periodEndExclusive, database = prisma) {
-  const reports = await database.report.findMany({
-    where: {
-      deletedAt: null,
-      OR: [
-        { reportType: 'RDO' },
-        {
-          reportDate: { gte: periodStart, lt: periodEndExclusive },
-          OR: [
-            { daytimeWorkedMinutes: { gt: 0 } },
-            { nighttimeWorkedMinutes: { gt: 0 } },
-            { services: { some: { startTime: { not: null }, endTime: { not: null } } } }
-          ]
-        }
-      ]
-    },
-    select: {
-      reportType: true,
-      sequenceNumber: true,
-      projectId: true,
-      reportDate: true,
-      daytimeWorkedMinutes: true,
-      nighttimeWorkedMinutes: true,
-      project: { select: { code: true, offshore: true, laborSleepModeByCollaborator: true, mobilizationDate: true } },
-      collaborators: { select: { collaboratorId: true } },
-      services: { select: { startTime: true, endTime: true } }
-    }
-  });
+  const reports = await database.report.findMany(laborReportQuery(periodStart, periodEndExclusive, { includeProject: true }));
   return rdoDataByCollaboratorFromReports(reports);
 }
 
@@ -679,11 +684,7 @@ export function findOfficialEffectiveAllocations(database = prisma) {
   return database.efetivoMissionAllocation.findMany({
     where: {
       deletedAt: null,
-      mission: {
-        deletedAt: null,
-        scheduleStatus: 'CONFIRMED',
-        plan: { kind: 'OFFICIAL', status: 'ACTIVE' }
-      }
+      mission: officialMissionWhere
     },
     select: {
       id: true,
@@ -714,7 +715,7 @@ export async function loadEffectiveAllocationIndex(database = prisma) {
 }
 
 async function getProjectAllocationContext(database = prisma) {
-  const [projects, tagAliases, missionGroups, effectiveAllocations, effectiveMissions] = await Promise.all([
+  const [projects, tagAliases, missionGroups, effectiveSources] = await Promise.all([
     database.project.findMany({
       select: {
         id: true,
@@ -731,32 +732,15 @@ async function getProjectAllocationContext(database = prisma) {
     database.pontoProjectTagAlias.findMany({
       select: { normalizedTag: true, projectId: true }
     }),
-    database.acompanhamentoMissionGroup.findMany({
-      where: { status: 'ACTIVE' },
-      select: {
-        id: true,
-        laborAllocationMode: true,
-        primaryLaborProjectId: true,
-        members: { select: { projectId: true } }
-      }
-    }),
-    findOfficialEffectiveAllocations(database),
-    database.efetivoMissionPlan.findMany({
-      where: {
-        deletedAt: null,
-        scheduleStatus: 'CONFIRMED',
-        plan: { kind: 'OFFICIAL', status: 'ACTIVE' }
-      },
-      select: { projectId: true }
-    })
+    loadLaborMissionGroups(database),
+    loadOfficialAllocationSources(database)
   ]);
-  const effectiveMissionProjectIds = new Set(effectiveMissions.map(mission => mission.projectId));
   return {
     projects,
     resolveTag: buildProjectTagResolver({ projects, tagAliases }),
     missionGroupProjectsByProjectId: buildMissionGroupProjectIndex(missionGroups),
-    scheduleWindows: buildScheduleWindows(projects, effectiveMissionProjectIds),
-    effectiveAllocationIndex: buildEffectiveAllocationIndex(effectiveAllocations),
+    scheduleWindows: buildScheduleWindows(projects, effectiveSources.missionProjectIds),
+    effectiveAllocationIndex: buildEffectiveAllocationIndex(effectiveSources.allocations),
     // Centros de custo da Sede: etiqueta "em viagem" nunca leva custo para eles.
     sedeProjectIds: new Set(projects.filter(project => SEDE_PROJECT_CODES.has(String(project.code || '').trim())).map(project => project.id))
   };
@@ -1531,6 +1515,33 @@ export function classifyProjectHours(
   return { byProject, unresolvedDays, dayTrail, costNormalHours };
 }
 
+// These are the only decisions in buildDailyProjectWeights whose weights
+// depend on the cost axis. Keep the full analytical pass for an entire segment
+// containing any of them, including its original travel-neighbor context.
+const AXIS_DEPENDENT_ALLOCATION_REASONS = new Set([
+  'SHARED_EXECUTION_ACCOUNTING', 'MANUAL_SHARED_OVERRIDE', 'REVIEW_SHARED_CONFIRMED'
+]);
+
+export function classifyProjectHoursForCostAxes(
+  dayRows, rdo, resolveTag, projectMetaById, manualProjectByDate,
+  missionGroupProjectsByProjectId, scheduleWindowContext, seed = null
+) {
+  const context = [rdo, resolveTag, projectMetaById, manualProjectByDate, missionGroupProjectsByProjectId, scheduleWindowContext];
+  const sameSnapshot = seed?.accounting && seed?.context?.length === context.length && seed.context.every((value, index) => value === context[index])
+    && seed.rows?.length === dayRows.length && seed.rows.every((row, index) => row === dayRows[index]);
+  const accounting = sameSnapshot ? seed.accounting : classifyProjectHours(dayRows, rdo, resolveTag, projectMetaById,
+    manualProjectByDate, missionGroupProjectsByProjectId, 'ACCOUNTING', scheduleWindowContext);
+  // Consumers only read these classification snapshots. Reuse all aggregates
+  // and trails when the analytical decisions would be identical; do not reuse
+  // an audit snapshot unless every day object/order and the entire context
+  // are identical. Other month/role/parameter recuts keep their own pass.
+  const analytical = accounting.dayTrail.some(day => AXIS_DEPENDENT_ALLOCATION_REASONS.has(day.reason))
+    ? classifyProjectHours(dayRows, rdo, resolveTag, projectMetaById,
+      manualProjectByDate, missionGroupProjectsByProjectId, 'ANALYTICAL', scheduleWindowContext)
+    : accounting;
+  return { accounting, analytical };
+}
+
 // Fração do mês coberta pelo arquivo (para proporcionalizar o fixo no mês parcial).
 function monthCoverage(monthKey, fileStart, fileEnd) {
   const bounds = monthBounds(monthKey);
@@ -1604,23 +1615,25 @@ export async function loadAllocatedAttendanceDays({ database = prisma } = {}) {
   const scope = await getPontoImportScope(null, database);
   if (!scope) return [];
   const end = endExclusive(scope.periodEnd);
-  const [periodRows, ignored, roleParams, rdoData, context, overrides, reviewDays] = await Promise.all([
+  const [periodRows, ignored, roleCatalog, rdoData, context, overrides, reviewDays] = await Promise.all([
     database.pontoPeriodSummary.findMany({
       where: { importId: { in: scope.pontoImports.map(row => row.id) }, collaboratorId: { not: null } },
-      include: { import: { select: { createdAt: true } }, collaborator: { select: {
-        jobRole: { select: { name: true } }, jobRoleHistory: { select: {
-          effectiveDate: true, jobRoleId: true, jobRole: { select: { id: true, name: true } }
+      include: { collaborator: { select: {
+        jobRoleId: true, jobRoleHistory: { select: {
+          effectiveDate: true, jobRoleId: true
         }, orderBy: { effectiveDate: 'asc' } }
       } } }
     }),
     database.pontoExternalEmployee.findMany({ where: { ignoredAt: { not: null } }, select: { externalEmployeeId: true } }),
-    getRoleParamsResolver(database), getRdoDataByCollaborator(scope.periodStart, end, database),
+    loadRoleCostCatalog(database), getRdoDataByCollaborator(scope.periodStart, end, database),
     getProjectAllocationContext(database),
     database.pontoDayProjectOverride.findMany({ where: { workDate: { gte: scope.periodStart, lt: end } },
       select: { collaboratorId: true, workDate: true, projectId: true } }),
     loadConfirmedReviewDays({ from: scope.periodStart, to: end }, database)
   ]);
-  const periods = mergePontoPeriods(filterIgnoredPontoPeriods(periodRows, ignored.map(row => row.externalEmployeeId)));
+  const periods = mergePontoPeriods(filterIgnoredPontoPeriods(withPontoImportDates(periodRows, scope.pontoImports), ignored.map(row => row.externalEmployeeId)));
+  const { resolver: roleParams, rolesById } = roleCatalog;
+  for (const period of periods) period.collaborator = withCollaboratorRoleNames(period.collaborator, rolesById);
   const manual = manualProjectsByCollaborator(overrides, reviewDays);
   const eligible = buildScheduleWindowEligibility(context.scheduleWindows, rdoData);
   const output = [];
@@ -1998,7 +2011,11 @@ function costProjectsFromClassification(classified) {
 
 // Custo/hora e rateio por obra de cada colaborador para o ponto vigente (ou o import indicado),
 // somando a divisão mensal.
-export async function computeCollaboratorRates(importId = null) {
+export async function computeCollaboratorRates(importId = null, { includeIgnoredNames = false } = {}) {
+  return readMonthlyCostSnapshot(importId, { includeIgnoredNames }, options => computeCollaboratorRatesUncached(importId, options));
+}
+
+async function computeCollaboratorRatesUncached(importId, { includeIgnoredNames }) {
   const pontoScope = await getPontoImportScope(importId);
   if (!pontoScope) return { pontoImport: null, pontoImports: [], periodStart: null, periodEnd: null, fileName: null, rates: [], byCollaboratorId: new Map() };
 
@@ -2006,62 +2023,45 @@ export async function computeCollaboratorRates(importId = null) {
   const periodEndExclusive = endExclusive(pontoScope.periodEnd);
   const fileStart = pontoScope.periodStart;
   const fileEnd = pontoScope.periodEnd;
-  const [
-    periodRows,
-    ignoredEmployees,
-    roleParams,
-    rdoData,
-    offshoreYearsByCollaborator,
-    annualCosts,
-    projectAllocationContext,
-    manualDayOverrides,
-    confirmedReviewDays
-  ] = await Promise.all([
-    prisma.pontoPeriodSummary.findMany({
-      where: { importId: { in: importIds }, collaboratorId: { not: null } },
-      include: {
-        collaborator: {
-          select: {
-            id: true,
-            name: true,
-            jobRoleId: true,
-            jobRole: { select: { id: true, name: true } },
-            jobRoleHistory: {
-              select: { jobRoleId: true, effectiveDate: true, jobRole: { select: { id: true, name: true } } },
-              orderBy: { effectiveDate: 'asc' }
-            }
-          }
-        },
-        import: { select: { createdAt: true } }
-      }
+  // These two sources determine availability independently of reports, roles
+  // and project metadata. Start them first, then overlap the remaining reads
+  // with absence/calendar checks instead of adding another sequential stage.
+  const periodStatePromise = Promise.all([
+    loadMonthlyPontoSources(prisma, importIds, { startDate: pontoScope.periodStart, endDate: pontoScope.periodEnd }),
+    loadLaborPeriodReferences(prisma, { startDate: pontoScope.periodStart, endDate: pontoScope.periodEnd, includeIgnoredNames })
+  ]).then(async ([{ periods: periodRows, absences }, { ignoredEmployees, calendar }]) => {
+    const periods = mergePontoPeriods(filterIgnoredPontoPeriods(withPontoImportDates(periodRows, pontoScope.pontoImports), ignoredEmployees.map(item => item.externalEmployeeId)));
+    const actualAvailability = periods.length ? await checkWorkforceAvailability(prisma, {
+      collaboratorIds: periods.map(period => period.collaboratorId).filter(Boolean),
+      startDate: dateKeyUTC(pontoScope.periodStart), endDate: dateKeyUTC(pontoScope.periodEnd), context: 'ACTUAL_REPORT'
+    }, { calendar, absences }) : { calendarRevision: 1, conflicts: [] };
+    return { periods, actualAvailability, ...(includeIgnoredNames ? { ignoredExternalEmployees: ignoredEmployees } : {}) };
+  });
+  const referenceSources = loadCostReferenceSources(prisma);
+  const projectAllocationContextPromise = getProjectAllocationContext();
+  const [periodState, roleCatalog, annualCosts, projectAllocationContext] = await measureRequestStage('labor.sources.references', () => Promise.all([
+    periodStatePromise,
+    loadRoleCostCatalog(prisma, referenceSources),
+    getAnnualCollaboratorCosts(prisma, referenceSources),
+    projectAllocationContextPromise
+  ]));
+  const [reportSources, { manualDayOverrides, confirmedReviewDays }] = await measureRequestStage('labor.sources.reports', () => Promise.all([
+    loadLaborReportSources({
+      database: prisma, periodStart: pontoScope.periodStart, periodEnd: pontoScope.periodEnd,
+      projects: projectAllocationContext.projects
     }),
-    prisma.pontoExternalEmployee.findMany({
-      where: { ignoredAt: { not: null } },
-      select: { externalEmployeeId: true }
-    }),
-    getRoleParamsResolver(),
-    getRdoDataByCollaborator(pontoScope.periodStart, periodEndExclusive),
-    getOffshoreYearsByCollaborator(pontoScope.periodStart, pontoScope.periodEnd),
-    getAnnualCollaboratorCosts(),
-    getProjectAllocationContext(),
-    prisma.pontoDayProjectOverride.findMany({
-      where: { workDate: { gte: pontoScope.periodStart, lt: periodEndExclusive } },
-      select: { collaboratorId: true, workDate: true, projectId: true }
-    }),
-    loadConfirmedReviewDays({ from: pontoScope.periodStart, to: periodEndExclusive })
-  ]);
-  const periods = mergePontoPeriods(filterIgnoredPontoPeriods(
-    periodRows,
-    ignoredEmployees.map(item => item.externalEmployeeId)
-  ));
-  const actualAvailability = periods.length
-    ? await checkWorkforceAvailability(prisma, {
-        collaboratorIds: periods.map(period => period.collaboratorId).filter(Boolean),
-        startDate: dateKeyUTC(pontoScope.periodStart),
-        endDate: dateKeyUTC(pontoScope.periodEnd),
-        context: 'ACTUAL_REPORT'
-      })
-    : { calendarRevision: 1, conflicts: [] };
+    loadLaborDayDecisions(prisma, { from: pontoScope.periodStart, to: periodEndExclusive, projects: projectAllocationContext.projects })
+  ]));
+  const rdoData = rdoDataByCollaboratorFromReports(reportSources.reports);
+  const offshoreYearsByCollaborator = offshoreYearsByCollaboratorFromReports(reportSources.offshoreReports);
+  const { periods, actualAvailability } = periodState;
+  const { resolver: roleParams, rolesById } = roleCatalog;
+  // The resolver already read every role, including roles without a cost
+  // profile. Resolve current/history names from that request-owned catalog
+  // without walking the same JobRole relations again for the point roster.
+  for (const period of periods) {
+    period.collaborator = withCollaboratorRoleNames(period.collaborator, rolesById);
+  }
   const manualProjects = manualProjectsByCollaborator(manualDayOverrides, confirmedReviewDays);
   const reviewedProjectDates = reviewedProjectDatesByCollaborator(confirmedReviewDays);
   const scheduleWindowEligibility = buildScheduleWindowEligibility(
@@ -2130,24 +2130,30 @@ export async function computeCollaboratorRates(importId = null) {
       period, projectAllocationContext.effectiveAllocationIndex, fileStart, fileEnd,
       reviewedProjectDates.get(period.collaboratorId) || []
     );
-    const trailDays = months.flatMap(mrec => splitOvertimeDays(
-      mrec.days || [],
-      Number(roleParams.paramsFor(
+    const splitDaysByMonth = new Map(months.map(mrec => {
+      const cap = Number(roleParams.paramsFor(
         collaboratorRoleAtDate(period.collaborator, `${mrec.monthKey}-01`)?.roleName || role,
         `${mrec.monthKey}-01`
-      )?.he70LimiteHoras) || 30
-    ));
+      )?.he70LimiteHoras) || 30;
+      return [mrec.monthKey, { cap, days: splitOvertimeDays(mrec.days || [], cap) }];
+    }));
+    const trailDays = [...splitDaysByMonth.values()].flatMap(month => month.days);
     trailDays.sort((left, right) => left.date.localeCompare(right.date));
+    const manualProjectByDate = manualProjects.get(period.collaboratorId) || new Map();
     const trail = classifyProjectHours(
       trailDays,
       rdo,
       projectAllocationContext.resolveTag,
       projectMetaById,
-      manualProjects.get(period.collaboratorId) || new Map(),
+      manualProjectByDate,
       projectAllocationContext.missionGroupProjectsByProjectId,
       'ACCOUNTING',
       scheduleWindowContext
     );
+    // Read-only snapshots owned by this calculation. Reuse only an identical
+    // day sequence/context; partial months, changed caps and recuts stay separate.
+    const classificationSeed = { rows: trailDays, accounting: trail, context: [rdo, projectAllocationContext.resolveTag,
+      projectMetaById, manualProjectByDate, projectAllocationContext.missionGroupProjectsByProjectId, scheduleWindowContext] };
     entry.allocationTrail = trail.dayTrail;
     entry.unresolvedDays = trail.unresolvedDays;
     const hasAllocatedCostDay = trail.dayTrail.some(day => day.allocations.length > 0 && day.costNormalHours > 0);
@@ -2167,7 +2173,8 @@ export async function computeCollaboratorRates(importId = null) {
         const monthRole = collaboratorRoleAtDate(period.collaborator, monthCov.startKey)?.roleName || role;
         const capParams = roleParams.paramsFor(monthRole, monthCov.startKey) || roleParams.paramsFor(monthRole, `${mk}-01`);
         const cap = Number(capParams?.he70LimiteHoras) || 30; // teto de HE70 por mês (excesso vira 100%)
-        const daysWithOvertime = splitOvertimeDays(mrec.days || [], cap);
+        const priorDays = splitDaysByMonth.get(mk);
+        const daysWithOvertime = priorDays.cap === cap ? priorDays.days : splitOvertimeDays(mrec.days || [], cap);
         const segments = buildCollaboratorRoleCostSegments({
           collaborator: period.collaborator,
           roleParams,
@@ -2188,15 +2195,15 @@ export async function computeCollaboratorRates(importId = null) {
           const he70S = segmentDays.reduce((sum, day) => sum + (day.he70Horas || 0), 0);
           const he100S = segmentDays.reduce((sum, day) => sum + (day.he100Horas || 0), 0);
 
-          const classified = classifyProjectHours(
+          const { accounting: classified, analytical: analyticalClassified } = classifyProjectHoursForCostAxes(
             segmentDays,
             rdo,
             projectAllocationContext.resolveTag,
             projectMetaById,
-            manualProjects.get(period.collaboratorId) || new Map(),
+            manualProjectByDate,
             projectAllocationContext.missionGroupProjectsByProjectId,
-            'ACCOUNTING',
-            scheduleWindowContext
+            scheduleWindowContext,
+            classificationSeed
           );
           const normalHoursS = classified.costNormalHours;
           const costWorkedSet = new Set(workedSet);
@@ -2204,16 +2211,6 @@ export async function computeCollaboratorRates(importId = null) {
             if (day.costNormalHours > 0) costWorkedSet.add(day.date);
           }
           const folgaS = countFolgaWeekdays(segCov.start, segCov.end, costWorkedSet) * HORAS_POR_DIA;
-          const analyticalClassified = classifyProjectHours(
-            segmentDays,
-            rdo,
-            projectAllocationContext.resolveTag,
-            projectMetaById,
-            manualProjects.get(period.collaboratorId) || new Map(),
-            projectAllocationContext.missionGroupProjectsByProjectId,
-            'ANALYTICAL',
-            scheduleWindowContext
-          );
           // O dashboard detalha exatamente os segmentos que participaram do custo. Manter esta
           // trilha aqui evita exibir dias fora da vigência do perfil financeiro do colaborador.
           entry.analyticalAllocationTrail.push(...analyticalClassified.dayTrail);
@@ -2337,7 +2334,8 @@ export async function computeCollaboratorRates(importId = null) {
     periodEnd: pontoScope.periodEnd,
     fileName: pontoScope.fileName,
     rates: annotatedRates,
-    byCollaboratorId: annotatedByCollaboratorId
+    byCollaboratorId: annotatedByCollaboratorId,
+    ...(includeIgnoredNames ? { ignoredExternalEmployees: periodState.ignoredExternalEmployees } : {})
   };
 }
 
@@ -2348,10 +2346,11 @@ export async function debugCollaboratorMonth(nameQuery, monthKey, importId = nul
   if (!pontoScope) throw new Error('Sem import de ponto.');
   const importIds = pontoScope.pontoImports.map(item => item.id);
   const periodEndExclusive = endExclusive(pontoScope.periodEnd);
+  const referenceSources = loadCostReferenceSources(prisma);
   const [
     periodRows,
     ignoredEmployees,
-    roleParams,
+    roleCatalog,
     rdoData,
     offshoreYearsByCollaborator,
     annualCosts,
@@ -2367,24 +2366,22 @@ export async function debugCollaboratorMonth(nameQuery, monthKey, importId = nul
             id: true,
             name: true,
             jobRoleId: true,
-            jobRole: { select: { id: true, name: true } },
             jobRoleHistory: {
-              select: { jobRoleId: true, effectiveDate: true, jobRole: { select: { id: true, name: true } } },
+              select: { jobRoleId: true, effectiveDate: true },
               orderBy: { effectiveDate: 'asc' }
             }
           }
-        },
-        import: { select: { createdAt: true } }
+        }
       }
     }),
     prisma.pontoExternalEmployee.findMany({
       where: { ignoredAt: { not: null } },
       select: { externalEmployeeId: true }
     }),
-    getRoleParamsResolver(),
+    loadRoleCostCatalog(prisma, referenceSources),
     getRdoDataByCollaborator(pontoScope.periodStart, periodEndExclusive),
     getOffshoreYearsByCollaborator(pontoScope.periodStart, pontoScope.periodEnd),
-    getAnnualCollaboratorCosts(),
+    getAnnualCollaboratorCosts(prisma, referenceSources),
     getProjectAllocationContext(),
     prisma.pontoDayProjectOverride.findMany({
       where: { workDate: { gte: pontoScope.periodStart, lt: periodEndExclusive } },
@@ -2394,12 +2391,14 @@ export async function debugCollaboratorMonth(nameQuery, monthKey, importId = nul
   ]);
   const query = String(nameQuery || '').trim().toLowerCase();
   const period = mergePontoPeriods(filterIgnoredPontoPeriods(
-    periodRows,
+    withPontoImportDates(periodRows, pontoScope.pontoImports),
     ignoredEmployees.map(item => item.externalEmployeeId)
   )).find(item => (
     String(item.collaborator?.name || item.rawName || '').toLowerCase().includes(query)
   ));
   if (!period) throw new Error(`Colaborador "${nameQuery}" não encontrado no ponto vigente.`);
+  const { resolver: roleParams, rolesById } = roleCatalog;
+  period.collaborator = withCollaboratorRoleNames(period.collaborator, rolesById);
 
   const cov = monthCoverage(monthKey, pontoScope.periodStart, pontoScope.periodEnd);
   const role = collaboratorRoleAtDate(period.collaborator, cov.startKey)?.roleName

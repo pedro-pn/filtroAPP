@@ -15,7 +15,10 @@ import {
 import { sameClientName } from './client-identity.js';
 import { getActiveMissionGroup } from './mission-groups.js';
 import { combineProgressBreakdowns, progressContributionWeight } from './progress-groups.js';
+import { listCommercialDashboard } from './access-import.js';
 import { summarizeReportLaborCost } from './report-labor-cost.js';
+import { progressReadOptions, progressSourceRevision } from './progress-projection.js';
+import { loadGroupDetailSources } from './project-detail-sources.js';
 
 const DAY_STATUS_ORDER = {
   TRABALHADO: 0,
@@ -43,11 +46,8 @@ function progressContributionWeightSafe(progress) {
 }
 
 function combineDailyProgressHistory(details) {
-  const combined = combineProgressHistory(details.map(({ detail, progress }) => ({
-    progressHistory: detail.dailyProgressHistory,
-    progressWeight: progressContributionWeightSafe(progress),
-    plannedCost: detail.consumo?.previsto,
-    salePrice: detail.faturamento?.previsto
+  const combined = combineProgressHistory(details.map(entry => ({
+    ...progressContribution(entry), progressHistory: entry.detail.dailyProgressHistory
   })));
   const memberHistories = details.map(({ detail }) => (detail.dailyProgressHistory ?? [])
     .filter(point => typeof point.date === 'string')
@@ -424,7 +424,42 @@ function combinePlannedScopes(scopes) {
   };
 }
 
-export function groupProjectDetails(group, memberDetails = []) {
+function progressContribution({ detail, progress, dashboardRow }) {
+  return {
+    progressPct: detail.avancoPct,
+    progressWeight: progressContributionWeightSafe(progress),
+    plannedCost: dashboardRow ? toNumber(dashboardRow.plannedTotalCost) : detail.consumo?.previsto,
+    fullPlannedCost: dashboardRow ? toNumber(dashboardRow.fullPlannedTotalCost ?? dashboardRow.plannedTotalCost) : detail.consumo?.previstoIntegral,
+    salePrice: dashboardRow ? dashboardRow.salePrice : detail.faturamento?.previsto
+  };
+}
+
+export function groupProgressProjection(details, { progressMode = 'full', includeRevision = false } = {}) {
+  const groupedScopeProgress = combineProgressBreakdowns(details.map(item => item.progress).filter(Boolean));
+  const fallbackProgress = combineProgress(details.map(progressContribution));
+  const progress = groupedScopeProgress?.progressPct !== null && groupedScopeProgress?.progressPct !== undefined
+    ? groupedScopeProgress
+    : fallbackProgress;
+
+  return {
+    avancoPct: progress.progressPct,
+    avancoMethod: progress.progressMethod,
+    progressBreakdown: groupedScopeProgress,
+    progressHistory: progressMode === 'current' ? undefined : combineProgressHistory(details.map(entry => ({
+      ...progressContribution(entry), progressHistory: entry.detail.progressHistory
+    }))),
+    dailyProgressHistory: progressMode === 'current' ? undefined : combineDailyProgressHistory(details),
+    ...(includeRevision ? {
+      progressReadMode: progressMode,
+      progressRevision: progressSourceRevision(details.map(entry => ({
+        projectId: entry.projectId, revision: entry.detail.progressRevision,
+        plannedCost: progressContribution(entry).plannedCost, salePrice: progressContribution(entry).salePrice
+      })))
+    } : {})
+  };
+}
+
+export function groupProjectDetails(group, memberDetails = [], { progressProjection: preloadedProgressProjection } = {}) {
   const details = memberDetails
     .filter(item => item?.detail)
     .slice()
@@ -436,17 +471,7 @@ export function groupProjectDetails(group, memberDetails = []) {
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
     .map(member => memberSummary(member, details.find(item => item.projectId === member.projectId)?.detail));
   const visibleMembers = members.filter(member => member.visible);
-  const groupedScopeProgress = combineProgressBreakdowns(details.map(item => item.progress).filter(Boolean));
-  const fallbackProgress = combineProgress(details.map(({ detail, progress }) => ({
-    progressPct: detail.avancoPct,
-    progressWeight: progressContributionWeightSafe(progress),
-    plannedCost: detail.consumo?.previsto,
-    fullPlannedCost: detail.consumo?.previstoIntegral,
-    salePrice: detail.faturamento?.previsto
-  })));
-  const progress = groupedScopeProgress?.progressPct !== null && groupedScopeProgress?.progressPct !== undefined
-    ? groupedScopeProgress
-    : fallbackProgress;
+  const progress = preloadedProgressProjection ?? groupProgressProjection(details);
 
   const gasto = sumValues(details, item => item.detail.consumo?.gasto, { nullWhenEmpty: false });
   const previsto = sumValues(details, item => item.detail.consumo?.previsto);
@@ -474,7 +499,6 @@ export function groupProjectDetails(group, memberDetails = []) {
       segment: sameOrNull(details.map(item => item.detail.header.segment))
     },
     alerts: combineAlerts(details.map(item => ({ alerts: item.detail.alerts ?? [] }))),
-    avancoMethod: progress.progressMethod,
     diasCorridos: {
       elapsed: elapsedCorridos,
       planned: plannedCorridos,
@@ -541,16 +565,7 @@ export function groupProjectDetails(group, memberDetails = []) {
     workedHours: combineWorkedHours(details),
     maioresGastos: combineTopExpenses(details),
     manualCosts: details.flatMap(item => item.detail.manualCosts ?? []),
-    avancoPct: progress.progressPct,
-    progressBreakdown: groupedScopeProgress,
-    progressHistory: combineProgressHistory(details.map(({ detail, progress }) => ({
-      progressHistory: detail.progressHistory,
-      progressWeight: progressContributionWeightSafe(progress),
-      plannedCost: detail.consumo?.previsto,
-      fullPlannedCost: detail.consumo?.previstoIntegral,
-      salePrice: detail.faturamento?.previsto
-    }))),
-    dailyProgressHistory: combineDailyProgressHistory(details),
+    ...progress,
     standby: {
       count: sumValues(details, item => item.detail.standby?.count, { nullWhenEmpty: false }),
       minutes: sumValues(details, item => item.detail.standby?.minutes, { nullWhenEmpty: false })
@@ -571,7 +586,9 @@ export function groupProjectDetails(group, memberDetails = []) {
 
 export async function getMissionGroupDetail(groupId, {
   includeCollaboratorCosts = false,
-  includeAdminOnlyCategories = true
+  includeAdminOnlyCategories = true,
+  progressMode = 'full',
+  projection = 'detail'
 } = {}) {
   const [
     { getProjectDetail },
@@ -589,23 +606,29 @@ export async function getMissionGroupDetail(groupId, {
     .slice()
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const memberIds = members.map(member => member.projectId);
-  const [progressDetailsByProject, plannedHoursByProject] = await Promise.all([
-    computeProgressDetailsForProjects(memberIds),
-    loadPlannedHours(memberIds)
+  const [progressDetailsByProject, plannedHoursByProject, dashboardRows, sharedSources] = await Promise.all([
+    // O grupo publica curvas consolidadas, sem os recortes individuais de cada missão.
+    computeProgressDetailsForProjects(memberIds, { ...progressReadOptions(progressMode), includeSlices: false }),
+    projection === 'progress' ? null : loadPlannedHours(memberIds),
+    listCommercialDashboard({ projectIds: memberIds, includeAdminOnlyCategories, includeProgress: false }),
+    projection === 'progress' ? null : loadGroupDetailSources(memberIds, { includeAdminOnlyCategories })
   ]);
+  const dashboardById = new Map(dashboardRows.map(row => [row.projectId, row]));
   const entries = await Promise.all(
     members.map(async member => {
       const progressDetails = progressDetailsByProject.get(member.projectId) ?? null;
-      const plannedHours = plannedHoursByProject.get(member.projectId) ?? null;
+      const plannedHours = plannedHoursByProject?.get(member.projectId) ?? null;
+      const dashboardRow = dashboardById.get(member.projectId);
       const detail = await getProjectDetail(member.projectId, {
         includeCollaboratorCosts,
         includeAdminOnlyCategories,
+        progressMode, projection, dashboardRow,
         progressDetails,
-        plannedHoursByProject
+        plannedHoursByProject, sharedSources
       });
       return {
         projectId: member.projectId,
-        member,
+        member, dashboardRow,
         detail,
         plannedScope: progressDetails && plannedHours
           ? buildPlannedScope(progressDetails.plannedServices, plannedHours)
@@ -614,5 +637,6 @@ export async function getMissionGroupDetail(groupId, {
       };
     })
   );
-  return groupProjectDetails(group, entries);
+  const progressProjection = groupProgressProjection(entries, { progressMode, includeRevision: true });
+  return projection === 'progress' ? progressProjection : groupProjectDetails(group, entries, { progressProjection });
 }

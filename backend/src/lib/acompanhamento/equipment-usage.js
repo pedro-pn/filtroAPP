@@ -17,18 +17,33 @@ export async function getEquipmentUsageByProject(projectIds) {
   const romaneios = await prisma.romaneio.findMany({
     where: { projectId: { in: projectIds }, type: 'OUTBOUND' },
     select: {
+      id: true,
       projectId: true,
-      romaneioDate: true,
-      items: {
-        where: { catalogItem: { sourceType: 'EQUIPAMENTOS' } },
-        select: { itemCode: true, itemName: true, catalogItem: { select: { sourceId: true, code: true, name: true } } }
-      }
+      romaneioDate: true
     }
   });
+  if (!romaneios.length) return result;
+  // Keep protected parent/child queries and their order. Empty logistics must
+  // not dispatch item/catalog reads; resolve only selected catalog identities.
+  const items = await prisma.romaneioItem.findMany({
+    where: { romaneioId: { in: romaneios.map(row => row.id) }, catalogItem: { sourceType: 'EQUIPAMENTOS' } },
+    select: { romaneioId: true, itemCode: true, itemName: true, catalogItemId: true }
+  });
+  if (!items.length) return result;
+  const catalogIds = [...new Set(items.map(row => row.catalogItemId).filter(Boolean))];
+  const catalog = catalogIds.length ? await prisma.romaneioCatalogItem.findMany({
+    where: { id: { in: catalogIds } }, select: { id: true, sourceId: true, code: true, name: true }
+  }) : [];
+  const catalogById = new Map(catalog.map(({ id, ...row }) => [id, row]));
+  const itemsByRomaneio = new Map();
+  for (const item of items) {
+    if (!itemsByRomaneio.has(item.romaneioId)) itemsByRomaneio.set(item.romaneioId, []);
+    itemsByRomaneio.get(item.romaneioId).push({ ...item, catalogItem: catalogById.get(item.catalogItemId) ?? null });
+  }
 
   const byProject = new Map(); // projectId -> Map(key -> { code, name, sinceDate })
   for (const romaneio of romaneios) {
-    for (const item of romaneio.items) {
+    for (const item of itemsByRomaneio.get(romaneio.id) || []) {
       const key = item.catalogItem?.sourceId || item.itemName;
       if (!key) continue;
       let equipMap = byProject.get(romaneio.projectId);

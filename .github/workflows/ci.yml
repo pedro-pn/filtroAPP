@@ -129,6 +129,7 @@ jobs:
           printf 'Acquire::Retries "1";\nAcquire::http::Timeout "20";\nAcquire::https::Timeout "20";\n' | sudo tee /etc/apt/apt.conf.d/zz-ci-retries > /dev/null
 
       - name: Install Hunspell pt-BR (revisão ortográfica do Data Book)
+        timeout-minutes: 5
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends hunspell hunspell-pt-br
 
       - name: Run Data Book generator tests
@@ -254,6 +255,9 @@ jobs:
       NODE_ENV: test
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/omni_phase2_test
       TEST_OMNI_PHASE2_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/omni_phase2_test
+      LABOR_PERFORMANCE_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/omni_phase2_test
+      JOB_PERFORMANCE_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/omni_phase2_test
+      ACOMPANHAMENTO_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/omni_phase2_test
       TRUST_PROXY: "false"
     steps:
       - uses: actions/checkout@v7
@@ -272,7 +276,64 @@ jobs:
           test/integration-omni-delivery-b.test.js test/integration-omni-management.test.js
           test/integration-omni-status-batch.test.js
           test/acompanhamento-current-progress.test.js
+          test/acompanhamento-detail-performance.integration.test.js
+          test/jobs-performance.integration.test.js
           test/api-simulation-db.test.js
+
+      - name: Verify labor source parity and freshness on PostgreSQL
+        run: node --test test/acompanhamento-labor-performance.integration.test.js
+
+  http-performance:
+    name: HTTP performance contracts (PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: http_performance_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d http_performance_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/http_performance_test
+      HTTP_PERFORMANCE_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/http_performance_test
+      TRUST_PROXY: "false"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run prisma:generate
+      - run: npm run prisma:deploy
+      - name: Verify concurrency, permissions, trace privacy and worker freshness
+        run: node --test --test-concurrency=1 test/http-performance-benchmark.test.js test/http-performance.integration.test.js test/derived-read-cache.integration.test.js test/auth-page-performance.integration.test.js
+      - name: Verify point projections, shared catalogs and card consumers
+        env:
+          ACOMPANHAMENTO_READ_CACHE_ENABLED: "true"
+          API_TOKEN_HASH_KEY_V1: ci-prisma-planning-hash-key-over-32-characters
+          PRESENTATION_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/http_performance_test
+          CRM_OPPORTUNITIES_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/http_performance_test
+        run: >-
+          node --test --test-concurrency=1 test/ponto-detail-performance.integration.test.js
+          test/verified-cost-sources.integration.test.js test/project-presentation-copy.integration.test.js
+          test/acompanhamento-operational-sources.integration.test.js
+          test/acompanhamento-source-batches.integration.test.js
+          test/verified-progress-sources.integration.test.js
+          test/job-run-volume.integration.test.js
+          test/crm-opportunities.integration.test.js
 
   conecta-allocation:
     name: Conecta allocation (PostgreSQL)
@@ -434,6 +495,9 @@ jobs:
       - name: Build frontend
         run: npm run build
 
+      - name: Check page loading budgets
+        run: npm run performance:check
+
       - name: Prepare DNS for Ubuntu packages
         run: |
           if ! timeout 5 getent ahostsv4 mirrors.edge.kernel.org > /dev/null; then
@@ -455,8 +519,19 @@ jobs:
           rdo-notifications-equipment.behavior.spec.ts rdo-project-context.behavior.spec.ts
           rdo-service-only-permission.behavior.spec.ts
 
+      - name: Verify page loading, useful content and cross-context updates
+        run: npm run test:performance
+
       - name: Verify Efetivo project closeout and satisfaction surveys in the browser
         run: npx playwright test --config=playwright.efetivo.config.ts
+
+      - name: Upload page performance browser regression report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: page-performance-browser-report
+          path: output/playwright/performance
+          if-no-files-found: warn
 
       - name: Upload Efetivo browser regression report
         if: failure()
@@ -488,6 +563,9 @@ jobs:
 
       - name: Verify staging HTTPS proxy and IP restrictions
         run: python3 deploy/test-staging-https.py
+
+      - name: Verify Nginx health in an isolated local container
+        run: python3 deploy/test-nginx-health.py
 
       - name: Build staging images
         run: docker compose -f docker-compose.staging.yml build backend nginx

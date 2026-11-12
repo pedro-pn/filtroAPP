@@ -1,3 +1,4 @@
+import { useUsefulQueryContent } from '../../../observability/useUsefulContent';
 import { useQuery } from '@tanstack/react-query';
 
 import { getPlanningOverview } from '../../../api/efetivoPlanning';
@@ -28,6 +29,7 @@ export function OverviewBoard({ date, jobRoleId, onNavigate }: {
     queryKey: ['efetivo-planning-overview', date, jobRoleId || 'all'],
     queryFn: () => getPlanningOverview(date, jobRoleId)
   });
+  useUsefulQueryContent('efetivo:visao-geral', 'OverviewBoard', [query]);
   if (query.isLoading) {
     return (
       <Card padding="sm" aria-label="Calculando capacidade operacional">

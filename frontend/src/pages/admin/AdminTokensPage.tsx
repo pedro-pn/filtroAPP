@@ -34,6 +34,7 @@ import { AdminModuleAppShell } from './AdminModuleAppShell';
 import { isApiTokenPlaygroundNoveltyActive, markApiTokenPlaygroundNoveltySeen, shouldShowApiTokenPlaygroundNovelty } from './apiTokenPlaygroundNovelty';
 import { startApiTokenPlaygroundTour } from './apiTokenPlaygroundTour';
 import { startApiWriteSimulationNovelty } from './apiWriteSimulationNovelty';
+import './AdminTokensPage.legacy.css';
 import './AdminTokensPage.ds.css';
 
 const STATUS_FILTER_LABELS: Record<string, string> = {

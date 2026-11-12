@@ -55,6 +55,9 @@ test('B6: HTTP, paridade com painel, privacidade e gatilhos transacionais em Pos
       }
     }
   }
+  const originalRaw = appPrisma.$queryRaw;
+  appPrisma.$queryRaw = (...args) => prisma.$queryRaw(...args);
+  t.after(() => { appPrisma.$queryRaw = originalRaw; });
   const user = await prisma.user.create({ data: { username: 'manager-b6', name: 'PRIVATE_NAME', email: 'private@example.test', passwordHash: 'synthetic', role: 'COORDINATOR' } });
   const role = await prisma.jobRole.create({ data: { name: 'Operador', normalizedKey: 'operador-b6' } });
   const collaborators = await Promise.all([1,2,3].map(n => prisma.collaborator.create({ data: {

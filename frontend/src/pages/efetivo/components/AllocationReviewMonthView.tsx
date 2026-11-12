@@ -1,3 +1,4 @@
+import { useUsefulQueryContent } from '../../../observability/useUsefulContent';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
@@ -39,6 +40,7 @@ function weekdayIndex(date: string) {
 
 export function AllocationReviewMonthView({ yearMonth, search, onMonthChange, onViewChange, onOpenWeek }: Props) {
   const month = useQuery({ queryKey: ['allocation-review-month', yearMonth], queryFn: () => getAllocationReviewMonth(yearMonth) });
+  useUsefulQueryContent('efetivo:conferencia', 'AllocationReviewMonthView', [month]);
   const data = month.data;
   const projectsById = useMemo(() => new Map((data?.projects || []).map(project => [project.id, project])), [data?.projects]);
   const rows = useMemo(() => (data?.rows || []).filter(row => rowMatchesSearch(row, search, projectsById)), [data?.rows, projectsById, search]);

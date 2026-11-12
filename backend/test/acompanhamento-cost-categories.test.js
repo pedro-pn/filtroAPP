@@ -20,8 +20,8 @@ test('buildOmieCostCategoryWhere combina exclusões manuais com categorias de sa
   const originalCategoryFindMany = prisma.omieCategory.findMany;
   const originalPurchaseGroupBy = prisma.omiePurchase.groupBy;
   prisma.omieCategory.findMany = async (args) => {
-    assert.deepEqual(args.where, { includeInAcompanhamentoCosts: false });
-    return [{ codigo: '2.04.92' }];
+    assert.ok(args.where.includeInAcompanhamentoCosts === false || args.where.OR);
+    return [{ codigo: '2.04.92', includeInAcompanhamentoCosts: false }];
   };
   prisma.omiePurchase.groupBy = async () => [
     { categoriaCodigo: '2.01.01', categoriaDescricao: 'Salários e ordenados' },
@@ -46,6 +46,10 @@ test('categorias exclusivas de admin são omitidas somente para as demais contas
   const originalCategoryFindMany = prisma.omieCategory.findMany;
   const originalPurchaseGroupBy = prisma.omiePurchase.groupBy;
   prisma.omieCategory.findMany = async (args) => {
+    if (args.where?.OR) return [
+      { codigo: '2.04.92', includeInAcompanhamentoCosts: false },
+      { codigo: '9.99.99', adminOnly: true }
+    ];
     if (args.where?.adminOnly === true) return [{ codigo: '9.99.99' }];
     if (args.where?.includeInAcompanhamentoCosts === false) return [{ codigo: '2.04.92' }];
     return [];
@@ -79,6 +83,8 @@ test('químicos do Omie são excluídos somente nos projetos com saída de quím
     if (where.includeInAcompanhamentoCosts === false) return [{ codigo: 'manual' }];
     if (where.adminOnly === true) return [{ codigo: 'admin' }];
     return [
+      { codigo: 'manual', includeInAcompanhamentoCosts: false },
+      { codigo: 'admin', adminOnly: true },
       { codigo: 'chemical-catalog', descricao: 'PRODUTOS QUÍMICOS' },
       { codigo: 'other', descricao: 'Insumos petroquímicos' }
     ];
@@ -126,4 +132,28 @@ test('químicos do Omie são excluídos somente nos projetos com saída de quím
   });
   assert.deepEqual(selectedCategory.AND[0], { categoriaCodigo: 'chemical-catalog' });
   assert.ok(selectedCategory.AND[2].OR[1].AND[0].OR[1].categoriaCodigo.notIn.includes('chemical-catalog'));
+});
+
+test('filtros financeiros compartilham um catálogo e releem alterações na chamada seguinte', async t => {
+  const originalCategory = prisma.omieCategory.findMany, originalPurchase = prisma.omiePurchase.groupBy;
+  t.after(() => { prisma.omieCategory.findMany = originalCategory; prisma.omiePurchase.groupBy = originalPurchase; });
+  let reads = 0, excluded = true;
+  prisma.omieCategory.findMany = async () => {
+    reads++;
+    return [
+      { codigo: 'changing', descricao: 'Hospedagem', includeInAcompanhamentoCosts: excluded, adminOnly: false },
+      { codigo: 'private', descricao: 'Categoria restrita', includeInAcompanhamentoCosts: true, adminOnly: true },
+      { codigo: 'chem', descricao: 'Produtos químicos', includeInAcompanhamentoCosts: true, adminOnly: false }
+    ];
+  };
+  prisma.omiePurchase.groupBy = async () => [];
+  const first = await buildOmieCostCategoryWhere({ includeAdminOnly: false, excludeChemicalProducts: true });
+  assert.equal(reads, 1);
+  assert.deepEqual(first.AND[0].OR[1].categoriaCodigo.notIn.filter(code => ['changing', 'private'].includes(code)), ['private']);
+  excluded = false;
+  const second = await buildOmieCostCategoryWhere({ includeAdminOnly: true, excludeChemicalProducts: true });
+  assert.equal(reads, 2);
+  assert.ok(second.AND[0].OR[1].categoriaCodigo.notIn.includes('changing'));
+  assert.ok(!second.AND[0].OR[1].categoriaCodigo.notIn.includes('private'));
+  assert.deepEqual(second.AND[1].OR[1].AND[0].OR[1].categoriaCodigo.notIn, ['chem']);
 });

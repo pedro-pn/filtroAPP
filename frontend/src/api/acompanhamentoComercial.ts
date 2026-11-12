@@ -1106,6 +1106,8 @@ export interface ProjectDetail {
   manualCosts?: ManualProjectCost[];
   avancoPct: number | null;
   progressBreakdown?: ProjectProgress | null;
+  progressReadMode?: ProjectProgressReadMode;
+  progressRevision?: string;
   progressHistory?: ProgressHistoryPoint[];
   dailyProgressHistory?: DailyProgressPoint[];
   requiredWeeklyProgress?: RequiredWeeklyProgress;
@@ -1130,9 +1132,26 @@ export interface ProjectDetail {
   };
 }
 
-export async function getProjectDetail(projectId: string, divisionKey?: string): Promise<ProjectDetail> {
+export type ProjectProgressReadMode = 'current' | 'history' | 'full';
+export type ProjectDetailProgress = Pick<ProjectDetail,
+  'avancoPct' | 'avancoMethod' | 'progressBreakdown' | 'progressReadMode' | 'progressRevision'
+  | 'progressHistory' | 'dailyProgressHistory' | 'requiredWeeklyProgress' | 'progressFilters'>;
+
+export async function getProjectDetailProgress(projectId: string, divisionKey: string, progress: ProjectProgressReadMode): Promise<ProjectDetailProgress> {
+  return (await apiClient.get<ProjectDetailProgress>(`/acompanhamento/comercial/projetos/${projectId}/detalhe`, {
+    params: { ...(divisionKey ? { division: divisionKey } : {}), progress, fields: 'progress' }
+  })).data;
+}
+
+export async function getMissionGroupDetailProgress(groupId: string, progress: ProjectProgressReadMode): Promise<ProjectDetailProgress> {
+  return (await apiClient.get<ProjectDetailProgress>(`/acompanhamento/comercial/grupos-missoes/${groupId}/detalhe`, {
+    params: { progress, fields: 'progress' }
+  })).data;
+}
+
+export async function getProjectDetail(projectId: string, divisionKey?: string, progress?: ProjectProgressReadMode): Promise<ProjectDetail> {
   const { data } = await apiClient.get<ProjectDetail>(`/acompanhamento/comercial/projetos/${projectId}/detalhe`, {
-    params: divisionKey ? { division: divisionKey } : undefined
+    params: { ...(divisionKey ? { division: divisionKey } : {}), ...(progress ? { progress } : {}) }
   });
   return data;
 }
@@ -1181,8 +1200,10 @@ export async function saveTrackingDivision(projectId: string, division: Tracking
   return data;
 }
 
-export async function getMissionGroupDetail(groupId: string): Promise<ProjectDetail> {
-  const { data } = await apiClient.get<ProjectDetail>(`/acompanhamento/comercial/grupos-missoes/${groupId}/detalhe`);
+export async function getMissionGroupDetail(groupId: string, progress?: ProjectProgressReadMode): Promise<ProjectDetail> {
+  const { data } = await apiClient.get<ProjectDetail>(`/acompanhamento/comercial/grupos-missoes/${groupId}/detalhe`, {
+    params: progress ? { progress } : undefined
+  });
   return data;
 }
 

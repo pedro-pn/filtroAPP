@@ -1,0 +1,1921 @@
+{
+  "date": "2026-11-09",
+  "baselineCommit": "3db7e76f",
+  "workingBranch": "fix/page-loading-performance",
+  "scope": "local code only; backup files and settings excluded",
+  "progress": {
+    "scenario": "297 scope rows, 133 source services, 63 dates, 11 slices; 1 warmup + 5 paired samples",
+    "beforeMedianMs": 347.53150600000004,
+    "afterMedianMs": 85.71070899999995,
+    "reductionPercent": 75.33728380873764,
+    "samples": [
+      {
+        "name": "before",
+        "ms": 362.9559620000001
+      },
+      {
+        "name": "after",
+        "ms": 88.00892199999998
+      },
+      {
+        "name": "before",
+        "ms": 347.53150600000004
+      },
+      {
+        "name": "after",
+        "ms": 85.71070899999995
+      },
+      {
+        "name": "before",
+        "ms": 310.94576099999995
+      },
+      {
+        "name": "after",
+        "ms": 83.77298000000019
+      },
+      {
+        "name": "before",
+        "ms": 306.7516420000002
+      },
+      {
+        "name": "after",
+        "ms": 79.43183499999986
+      },
+      {
+        "name": "before",
+        "ms": 355.6348240000002
+      },
+      {
+        "name": "after",
+        "ms": 91.85416400000031
+      }
+    ],
+    "fullResultSha256": "57a47118dce05f144ca0b14e7df62d9aae605eb64af1714252f9afdf136ec383",
+    "parity": true
+  },
+  "bundles": [
+    {
+      "surface": "shell",
+      "beforeGzipBytes": 205372,
+      "afterGzipBytes": 205604,
+      "reductionPercent": -0.11296574021775196
+    },
+    {
+      "surface": "efetivo-visao-geral",
+      "beforeGzipBytes": 552299,
+      "afterGzipBytes": 294229,
+      "reductionPercent": 46.72650140594135
+    },
+    {
+      "surface": "acompanhamento-dashboard",
+      "beforeGzipBytes": 482235,
+      "afterGzipBytes": 284253,
+      "reductionPercent": 41.055087249992226
+    },
+    {
+      "surface": "gestor",
+      "beforeGzipBytes": 449496,
+      "afterGzipBytes": 450410,
+      "reductionPercent": -0.20333885062380208
+    }
+  ],
+  "bundleMethod": "gzip JS/CSS, union of initial shell and static dependency closure; includes OverviewBoard for Efetivo and AcompanhamentoDashboard; excludes images, fonts, API payloads and unopened dynamic entries",
+  "mobileLoginLab": {
+    "profile": {
+      "viewport": "390x844",
+      "latencyMs": 150,
+      "downloadBytesPerSecond": 200000,
+      "cpuSlowdown": 4,
+      "cacheDisabled": true
+    },
+    "samples": [
+      {
+        "lcpMs": 2108,
+        "paint": [
+          {
+            "name": "first-paint",
+            "ms": 1300
+          },
+          {
+            "name": "first-contentful-paint",
+            "ms": 1804
+          }
+        ],
+        "navigation": [
+          {
+            "ttfbMs": 5.899999998509884,
+            "dclMs": 1531.0999999977648,
+            "loadMs": 1535
+          }
+        ],
+        "resources": [
+          {
+            "name": "/assets/index-A5S90EsM.js",
+            "transferBytes": 126127,
+            "decodedBytes": 401546,
+            "durationMs": 1261.300000000745
+          },
+          {
+            "name": "/assets/BrandLoading-BBM-nI7z.js",
+            "transferBytes": 4910,
+            "decodedBytes": 12345,
+            "durationMs": 274.0999999977648
+          },
+          {
+            "name": "/assets/react-dom-naazCSYH.js",
+            "transferBytes": 1695,
+            "decodedBytes": 3865,
+            "durationMs": 212.30000000074506
+          },
+          {
+            "name": "/assets/defineProperty-BS08kETm.js",
+            "transferBytes": 852,
+            "decodedBytes": 1115,
+            "durationMs": 181.5
+          },
+          {
+            "name": "/assets/icons-Bv6Oq9F1.js",
+            "transferBytes": 4447,
+            "decodedBytes": 10547,
+            "durationMs": 285.30000000074506
+          },
+          {
+            "name": "/assets/ds-D-wLpGTJ.js",
+            "transferBytes": 10413,
+            "decodedBytes": 34572,
+            "durationMs": 338
+          },
+          {
+            "name": "/assets/Modal-CURchGd9.js",
+            "transferBytes": 1812,
+            "decodedBytes": 3209,
+            "durationMs": 581.9000000022352
+          },
+          {
+            "name": "/assets/RemoveIconButton-DBRGUfuV.js",
+            "transferBytes": 630,
+            "decodedBytes": 330,
+            "durationMs": 610.6999999992549
+          },
+          {
+            "name": "/assets/BrandLoading-_gSDQfv2.css",
+            "transferBytes": 1011,
+            "decodedBytes": 2396,
+            "durationMs": 347.80000000074506
+          },
+          {
+            "name": "/assets/icons-cRo2iyF0.css",
+            "transferBytes": 3792,
+            "decodedBytes": 26083,
+            "durationMs": 390.29999999701977
+          },
+          {
+            "name": "/assets/ds-CJ56ddbB.css",
+            "transferBytes": 3711,
+            "decodedBytes": 25894,
+            "durationMs": 464.0999999977648
+          },
+          {
+            "name": "/assets/Modal-Cu81Yt40.css",
+            "transferBytes": 1150,
+            "decodedBytes": 3307,
+            "durationMs": 441.19999999925494
+          },
+          {
+            "name": "/assets/RemoveIconButton-Cyz90MS5.css",
+            "transferBytes": 711,
+            "decodedBytes": 1512,
+            "durationMs": 494.3999999985099
+          },
+          {
+            "name": "/assets/index-BsMRBK8T.css",
+            "transferBytes": 48605,
+            "decodedBytes": 295858,
+            "durationMs": 1012.9000000022352
+          },
+          {
+            "name": "/assets/LoginPage-D53dD_lw.js",
+            "transferBytes": 1959,
+            "decodedBytes": 3413,
+            "durationMs": 172.90000000223517
+          },
+          {
+            "name": "/assets/PublicFlowShell-BbJTX92K.js",
+            "transferBytes": 1277,
+            "decodedBytes": 977,
+            "durationMs": 161.30000000074506
+          },
+          {
+            "name": "/assets/PublicFlowShell-qdkFPNwr.css",
+            "transferBytes": 1545,
+            "decodedBytes": 5126,
+            "durationMs": 197.5
+          },
+          {
+            "name": "/assets/formatCnpj-DyqGavbv.js",
+            "transferBytes": 805,
+            "decodedBytes": 505,
+            "durationMs": 177.30000000074506
+          },
+          {
+            "name": "/assets/symbol-y_PZzkUS.webp",
+            "transferBytes": 14180,
+            "decodedBytes": 13880,
+            "durationMs": 265.3999999985099
+          },
+          {
+            "name": "/assets/favicon-D6Mb05zO.png",
+            "transferBytes": 3980,
+            "decodedBytes": 3680,
+            "durationMs": 190.89999999850988
+          },
+          {
+            "name": "/assets/login-dJPhQj0q.webp",
+            "transferBytes": 24126,
+            "decodedBytes": 23826,
+            "durationMs": 293.80000000074506
+          },
+          {
+            "name": "/assets/inter-latin-wght-normal-Dx4kXJAl.woff2",
+            "transferBytes": 48556,
+            "decodedBytes": 48256,
+            "durationMs": 416.5
+          }
+        ]
+      },
+      {
+        "lcpMs": 2140,
+        "paint": [
+          {
+            "name": "first-paint",
+            "ms": 1344
+          },
+          {
+            "name": "first-contentful-paint",
+            "ms": 1832
+          }
+        ],
+        "navigation": [
+          {
+            "ttfbMs": 10.399999998509884,
+            "dclMs": 1538.3999999985099,
+            "loadMs": 1542
+          }
+        ],
+        "resources": [
+          {
+            "name": "/assets/index-A5S90EsM.js",
+            "transferBytes": 126127,
+            "decodedBytes": 401546,
+            "durationMs": 1262.6000000014901
+          },
+          {
+            "name": "/assets/BrandLoading-BBM-nI7z.js",
+            "transferBytes": 4910,
+            "decodedBytes": 12345,
+            "durationMs": 278.1000000014901
+          },
+          {
+            "name": "/assets/react-dom-naazCSYH.js",
+            "transferBytes": 1695,
+            "decodedBytes": 3865,
+            "durationMs": 210.10000000149012
+          },
+          {
+            "name": "/assets/defineProperty-BS08kETm.js",
+            "transferBytes": 852,
+            "decodedBytes": 1115,
+            "durationMs": 181.90000000223517
+          },
+          {
+            "name": "/assets/icons-Bv6Oq9F1.js",
+            "transferBytes": 4447,
+            "decodedBytes": 10547,
+            "durationMs": 284.4000000022352
+          },
+          {
+            "name": "/assets/ds-D-wLpGTJ.js",
+            "transferBytes": 10413,
+            "decodedBytes": 34572,
+            "durationMs": 336.1000000014901
+          },
+          {
+            "name": "/assets/Modal-CURchGd9.js",
+            "transferBytes": 1812,
+            "decodedBytes": 3209,
+            "durationMs": 597
+          },
+          {
+            "name": "/assets/RemoveIconButton-DBRGUfuV.js",
+            "transferBytes": 630,
+            "decodedBytes": 330,
+            "durationMs": 626.6000000014901
+          },
+          {
+            "name": "/assets/BrandLoading-_gSDQfv2.css",
+            "transferBytes": 1011,
+            "decodedBytes": 2396,
+            "durationMs": 348.19999999925494
+          },
+          {
+            "name": "/assets/icons-cRo2iyF0.css",
+            "transferBytes": 3792,
+            "decodedBytes": 26083,
+            "durationMs": 390.80000000074506
+          },
+          {
+            "name": "/assets/ds-CJ56ddbB.css",
+            "transferBytes": 3711,
+            "decodedBytes": 25894,
+            "durationMs": 465.80000000074506
+          },
+          {
+            "name": "/assets/Modal-Cu81Yt40.css",
+            "transferBytes": 1150,
+            "decodedBytes": 3307,
+            "durationMs": 443
+          },
+          {
+            "name": "/assets/RemoveIconButton-Cyz90MS5.css",
+            "transferBytes": 711,
+            "decodedBytes": 1512,
+            "durationMs": 489.3999999985099
+          },
+          {
+            "name": "/assets/index-BsMRBK8T.css",
+            "transferBytes": 48605,
+            "decodedBytes": 295858,
+            "durationMs": 1005.1999999992549
+          },
+          {
+            "name": "/assets/LoginPage-D53dD_lw.js",
+            "transferBytes": 1959,
+            "decodedBytes": 3413,
+            "durationMs": 165.80000000074506
+          },
+          {
+            "name": "/assets/PublicFlowShell-BbJTX92K.js",
+            "transferBytes": 1277,
+            "decodedBytes": 977,
+            "durationMs": 169.80000000074506
+          },
+          {
+            "name": "/assets/PublicFlowShell-qdkFPNwr.css",
+            "transferBytes": 1545,
+            "decodedBytes": 5126,
+            "durationMs": 207.39999999850988
+          },
+          {
+            "name": "/assets/formatCnpj-DyqGavbv.js",
+            "transferBytes": 805,
+            "decodedBytes": 505,
+            "durationMs": 176.59999999776483
+          },
+          {
+            "name": "/assets/symbol-y_PZzkUS.webp",
+            "transferBytes": 14180,
+            "decodedBytes": 13880,
+            "durationMs": 285.69999999925494
+          },
+          {
+            "name": "/assets/favicon-D6Mb05zO.png",
+            "transferBytes": 3980,
+            "decodedBytes": 3680,
+            "durationMs": 206.10000000149012
+          },
+          {
+            "name": "/assets/login-dJPhQj0q.webp",
+            "transferBytes": 24126,
+            "decodedBytes": 23826,
+            "durationMs": 307.5
+          },
+          {
+            "name": "/assets/inter-latin-wght-normal-Dx4kXJAl.woff2",
+            "transferBytes": 48556,
+            "decodedBytes": 48256,
+            "durationMs": 435.69999999925494
+          }
+        ]
+      },
+      {
+        "lcpMs": 2104,
+        "paint": [
+          {
+            "name": "first-paint",
+            "ms": 1312
+          },
+          {
+            "name": "first-contentful-paint",
+            "ms": 1816
+          }
+        ],
+        "navigation": [
+          {
+            "ttfbMs": 4.099999997764826,
+            "dclMs": 1558.199999999255,
+            "loadMs": 1562
+          }
+        ],
+        "resources": [
+          {
+            "name": "/assets/index-A5S90EsM.js",
+            "transferBytes": 126127,
+            "decodedBytes": 401546,
+            "durationMs": 1257.5999999977648
+          },
+          {
+            "name": "/assets/BrandLoading-BBM-nI7z.js",
+            "transferBytes": 4910,
+            "decodedBytes": 12345,
+            "durationMs": 273.0999999977648
+          },
+          {
+            "name": "/assets/react-dom-naazCSYH.js",
+            "transferBytes": 1695,
+            "decodedBytes": 3865,
+            "durationMs": 210.60000000149012
+          },
+          {
+            "name": "/assets/defineProperty-BS08kETm.js",
+            "transferBytes": 852,
+            "decodedBytes": 1115,
+            "durationMs": 178.5
+          },
+          {
+            "name": "/assets/icons-Bv6Oq9F1.js",
+            "transferBytes": 4447,
+            "decodedBytes": 10547,
+            "durationMs": 282.5999999977648
+          },
+          {
+            "name": "/assets/ds-D-wLpGTJ.js",
+            "transferBytes": 10413,
+            "decodedBytes": 34572,
+            "durationMs": 334.5
+          },
+          {
+            "name": "/assets/Modal-CURchGd9.js",
+            "transferBytes": 1812,
+            "decodedBytes": 3209,
+            "durationMs": 597.8999999985099
+          },
+          {
+            "name": "/assets/RemoveIconButton-DBRGUfuV.js",
+            "transferBytes": 630,
+            "decodedBytes": 330,
+            "durationMs": 628.3000000007451
+          },
+          {
+            "name": "/assets/BrandLoading-_gSDQfv2.css",
+            "transferBytes": 1011,
+            "decodedBytes": 2396,
+            "durationMs": 350
+          },
+          {
+            "name": "/assets/icons-cRo2iyF0.css",
+            "transferBytes": 3792,
+            "decodedBytes": 26083,
+            "durationMs": 402.1000000014901
+          },
+          {
+            "name": "/assets/ds-CJ56ddbB.css",
+            "transferBytes": 3711,
+            "decodedBytes": 25894,
+            "durationMs": 472.0999999977648
+          },
+          {
+            "name": "/assets/Modal-Cu81Yt40.css",
+            "transferBytes": 1150,
+            "decodedBytes": 3307,
+            "durationMs": 455.1000000014901
+          },
+          {
+            "name": "/assets/RemoveIconButton-Cyz90MS5.css",
+            "transferBytes": 711,
+            "decodedBytes": 1512,
+            "durationMs": 500.30000000074506
+          },
+          {
+            "name": "/assets/index-BsMRBK8T.css",
+            "transferBytes": 48605,
+            "decodedBytes": 295858,
+            "durationMs": 1017.1000000014901
+          },
+          {
+            "name": "/assets/LoginPage-D53dD_lw.js",
+            "transferBytes": 1959,
+            "decodedBytes": 3413,
+            "durationMs": 171.80000000074506
+          },
+          {
+            "name": "/assets/PublicFlowShell-BbJTX92K.js",
+            "transferBytes": 1277,
+            "decodedBytes": 977,
+            "durationMs": 164.19999999925494
+          },
+          {
+            "name": "/assets/PublicFlowShell-qdkFPNwr.css",
+            "transferBytes": 1545,
+            "decodedBytes": 5126,
+            "durationMs": 184.5
+          },
+          {
+            "name": "/assets/formatCnpj-DyqGavbv.js",
+            "transferBytes": 805,
+            "decodedBytes": 505,
+            "durationMs": 172.60000000149012
+          },
+          {
+            "name": "/assets/symbol-y_PZzkUS.webp",
+            "transferBytes": 14180,
+            "decodedBytes": 13880,
+            "durationMs": 256.69999999925494
+          },
+          {
+            "name": "/assets/favicon-D6Mb05zO.png",
+            "transferBytes": 3980,
+            "decodedBytes": 3680,
+            "durationMs": 194.60000000149012
+          },
+          {
+            "name": "/assets/login-dJPhQj0q.webp",
+            "transferBytes": 24126,
+            "decodedBytes": 23826,
+            "durationMs": 274
+          },
+          {
+            "name": "/assets/inter-latin-wght-normal-Dx4kXJAl.woff2",
+            "transferBytes": 48556,
+            "decodedBytes": 48256,
+            "durationMs": 401.1000000014901
+          }
+        ]
+      },
+      {
+        "lcpMs": 2060,
+        "paint": [
+          {
+            "name": "first-paint",
+            "ms": 1280
+          },
+          {
+            "name": "first-contentful-paint",
+            "ms": 1780
+          }
+        ],
+        "navigation": [
+          {
+            "ttfbMs": 6.800000000745058,
+            "dclMs": 1518.800000000745,
+            "loadMs": 1519.300000000745
+          }
+        ],
+        "resources": [
+          {
+            "name": "/assets/index-A5S90EsM.js",
+            "transferBytes": 126127,
+            "decodedBytes": 401546,
+            "durationMs": 1272.2999999970198
+          },
+          {
+            "name": "/assets/BrandLoading-BBM-nI7z.js",
+            "transferBytes": 4910,
+            "decodedBytes": 12345,
+            "durationMs": 285.8999999985099
+          },
+          {
+            "name": "/assets/react-dom-naazCSYH.js",
+            "transferBytes": 1695,
+            "decodedBytes": 3865,
+            "durationMs": 216.80000000074506
+          },
+          {
+            "name": "/assets/defineProperty-BS08kETm.js",
+            "transferBytes": 852,
+            "decodedBytes": 1115,
+            "durationMs": 164.5
+          },
+          {
+            "name": "/assets/icons-Bv6Oq9F1.js",
+            "transferBytes": 4447,
+            "decodedBytes": 10547,
+            "durationMs": 287.20000000298023
+          },
+          {
+            "name": "/assets/ds-D-wLpGTJ.js",
+            "transferBytes": 10413,
+            "decodedBytes": 34572,
+            "durationMs": 343.8999999985099
+          },
+          {
+            "name": "/assets/Modal-CURchGd9.js",
+            "transferBytes": 1812,
+            "decodedBytes": 3209,
+            "durationMs": 597.6000000014901
+          },
+          {
+            "name": "/assets/RemoveIconButton-DBRGUfuV.js",
+            "transferBytes": 630,
+            "decodedBytes": 330,
+            "durationMs": 625.6000000014901
+          },
+          {
+            "name": "/assets/BrandLoading-_gSDQfv2.css",
+            "transferBytes": 1011,
+            "decodedBytes": 2396,
+            "durationMs": 323.6000000014901
+          },
+          {
+            "name": "/assets/icons-cRo2iyF0.css",
+            "transferBytes": 3792,
+            "decodedBytes": 26083,
+            "durationMs": 398.30000000074506
+          },
+          {
+            "name": "/assets/ds-CJ56ddbB.css",
+            "transferBytes": 3711,
+            "decodedBytes": 25894,
+            "durationMs": 471.80000000074506
+          },
+          {
+            "name": "/assets/Modal-Cu81Yt40.css",
+            "transferBytes": 1150,
+            "decodedBytes": 3307,
+            "durationMs": 448.9000000022352
+          },
+          {
+            "name": "/assets/RemoveIconButton-Cyz90MS5.css",
+            "transferBytes": 711,
+            "decodedBytes": 1512,
+            "durationMs": 486.19999999925494
+          },
+          {
+            "name": "/assets/index-BsMRBK8T.css",
+            "transferBytes": 48605,
+            "decodedBytes": 295858,
+            "durationMs": 1003.5999999977648
+          },
+          {
+            "name": "/assets/LoginPage-D53dD_lw.js",
+            "transferBytes": 1959,
+            "decodedBytes": 3413,
+            "durationMs": 175.60000000149012
+          },
+          {
+            "name": "/assets/PublicFlowShell-BbJTX92K.js",
+            "transferBytes": 1277,
+            "decodedBytes": 977,
+            "durationMs": 163.19999999925494
+          },
+          {
+            "name": "/assets/PublicFlowShell-qdkFPNwr.css",
+            "transferBytes": 1545,
+            "decodedBytes": 5126,
+            "durationMs": 189.69999999925494
+          },
+          {
+            "name": "/assets/formatCnpj-DyqGavbv.js",
+            "transferBytes": 805,
+            "decodedBytes": 505,
+            "durationMs": 178.59999999776483
+          },
+          {
+            "name": "/assets/symbol-y_PZzkUS.webp",
+            "transferBytes": 14180,
+            "decodedBytes": 13880,
+            "durationMs": 266.30000000074506
+          },
+          {
+            "name": "/assets/favicon-D6Mb05zO.png",
+            "transferBytes": 3980,
+            "decodedBytes": 3680,
+            "durationMs": 194.30000000074506
+          },
+          {
+            "name": "/assets/login-dJPhQj0q.webp",
+            "transferBytes": 24126,
+            "decodedBytes": 23826,
+            "durationMs": 278.3999999985099
+          },
+          {
+            "name": "/assets/inter-latin-wght-normal-Dx4kXJAl.woff2",
+            "transferBytes": 48556,
+            "decodedBytes": 48256,
+            "durationMs": 397.80000000074506
+          }
+        ]
+      },
+      {
+        "lcpMs": 2128,
+        "paint": [
+          {
+            "name": "first-paint",
+            "ms": 1300
+          },
+          {
+            "name": "first-contentful-paint",
+            "ms": 1828
+          }
+        ],
+        "navigation": [
+          {
+            "ttfbMs": 5,
+            "dclMs": 1541.5999999977648,
+            "loadMs": 1544.5999999977648
+          }
+        ],
+        "resources": [
+          {
+            "name": "/assets/index-A5S90EsM.js",
+            "transferBytes": 126127,
+            "decodedBytes": 401546,
+            "durationMs": 1264
+          },
+          {
+            "name": "/assets/BrandLoading-BBM-nI7z.js",
+            "transferBytes": 4910,
+            "decodedBytes": 12345,
+            "durationMs": 278.80000000074506
+          },
+          {
+            "name": "/assets/react-dom-naazCSYH.js",
+            "transferBytes": 1695,
+            "decodedBytes": 3865,
+            "durationMs": 218.80000000074506
+          },
+          {
+            "name": "/assets/defineProperty-BS08kETm.js",
+            "transferBytes": 852,
+            "decodedBytes": 1115,
+            "durationMs": 179.39999999850988
+          },
+          {
+            "name": "/assets/icons-Bv6Oq9F1.js",
+            "transferBytes": 4447,
+            "decodedBytes": 10547,
+            "durationMs": 284.19999999925494
+          },
+          {
+            "name": "/assets/ds-D-wLpGTJ.js",
+            "transferBytes": 10413,
+            "decodedBytes": 34572,
+            "durationMs": 338.5
+          },
+          {
+            "name": "/assets/Modal-CURchGd9.js",
+            "transferBytes": 1812,
+            "decodedBytes": 3209,
+            "durationMs": 604.8000000007451
+          },
+          {
+            "name": "/assets/RemoveIconButton-DBRGUfuV.js",
+            "transferBytes": 630,
+            "decodedBytes": 330,
+            "durationMs": 626.3999999985099
+          },
+          {
+            "name": "/assets/BrandLoading-_gSDQfv2.css",
+            "transferBytes": 1011,
+            "decodedBytes": 2396,
+            "durationMs": 348.4000000022352
+          },
+          {
+            "name": "/assets/icons-cRo2iyF0.css",
+            "transferBytes": 3792,
+            "decodedBytes": 26083,
+            "durationMs": 408.80000000074506
+          },
+          {
+            "name": "/assets/ds-CJ56ddbB.css",
+            "transferBytes": 3711,
+            "decodedBytes": 25894,
+            "durationMs": 476.1000000014901
+          },
+          {
+            "name": "/assets/Modal-Cu81Yt40.css",
+            "transferBytes": 1150,
+            "decodedBytes": 3307,
+            "durationMs": 453.30000000074506
+          },
+          {
+            "name": "/assets/RemoveIconButton-Cyz90MS5.css",
+            "transferBytes": 711,
+            "decodedBytes": 1512,
+            "durationMs": 498.4000000022352
+          },
+          {
+            "name": "/assets/index-BsMRBK8T.css",
+            "transferBytes": 48605,
+            "decodedBytes": 295858,
+            "durationMs": 1014.8000000007451
+          },
+          {
+            "name": "/assets/LoginPage-D53dD_lw.js",
+            "transferBytes": 1959,
+            "decodedBytes": 3413,
+            "durationMs": 161.40000000223517
+          },
+          {
+            "name": "/assets/PublicFlowShell-BbJTX92K.js",
+            "transferBytes": 1277,
+            "decodedBytes": 977,
+            "durationMs": 163.90000000223517
+          },
+          {
+            "name": "/assets/PublicFlowShell-qdkFPNwr.css",
+            "transferBytes": 1545,
+            "decodedBytes": 5126,
+            "durationMs": 179.60000000149012
+          },
+          {
+            "name": "/assets/formatCnpj-DyqGavbv.js",
+            "transferBytes": 805,
+            "decodedBytes": 505,
+            "durationMs": 168.09999999776483
+          },
+          {
+            "name": "/assets/symbol-y_PZzkUS.webp",
+            "transferBytes": 14180,
+            "decodedBytes": 13880,
+            "durationMs": 254.30000000074506
+          },
+          {
+            "name": "/assets/favicon-D6Mb05zO.png",
+            "transferBytes": 3980,
+            "decodedBytes": 3680,
+            "durationMs": 191.60000000149012
+          },
+          {
+            "name": "/assets/login-dJPhQj0q.webp",
+            "transferBytes": 24126,
+            "decodedBytes": 23826,
+            "durationMs": 276.30000000074506
+          },
+          {
+            "name": "/assets/inter-latin-wght-normal-Dx4kXJAl.woff2",
+            "transferBytes": 48556,
+            "decodedBytes": 48256,
+            "durationMs": 401.5
+          }
+        ]
+      }
+    ]
+  },
+  "gestorMockedBrowserReadRequests": [
+    {
+      "tab": "pendentes",
+      "requests": [
+        {
+          "url": "/rdo/drafts"
+        },
+        {
+          "url": "/notifications",
+          "params": {
+            "filter": "unread"
+          }
+        },
+        {
+          "url": "/rdo/reports",
+          "params": {
+            "summary": "true",
+            "reviewQueue": "true",
+            "projectActive": "true",
+            "projectSort": "asc",
+            "pageSize": 50,
+            "page": 1
+          }
+        }
+      ]
+    },
+    {
+      "tab": "projetos",
+      "requests": [
+        {
+          "url": "/rdo/bootstrap/gestor",
+          "params": {
+            "section": "projetos"
+          }
+        },
+        {
+          "url": "/acompanhamento/comercial/pendencias"
+        },
+        {
+          "url": "/admin/accounts",
+          "params": {
+            "group": "internal"
+          }
+        },
+        {
+          "url": "/notifications",
+          "params": {
+            "filter": "unread"
+          }
+        }
+      ]
+    },
+    {
+      "tab": "usuarios",
+      "requests": [
+        {
+          "url": "/rdo/bootstrap/gestor",
+          "params": {
+            "section": "usuarios"
+          }
+        },
+        {
+          "url": "/admin/accounts",
+          "params": {
+            "group": "internal"
+          }
+        },
+        {
+          "url": "/admin/accounts",
+          "params": {
+            "group": "client"
+          }
+        },
+        {
+          "url": "/notifications",
+          "params": {
+            "filter": "unread"
+          }
+        }
+      ]
+    },
+    {
+      "tab": "nps",
+      "requests": [
+        {
+          "url": "/rdo/bootstrap/gestor",
+          "params": {
+            "section": "nps"
+          }
+        },
+        {
+          "url": "/notifications",
+          "params": {
+            "filter": "unread"
+          }
+        }
+      ]
+    }
+  ],
+  "assets": {
+    "sourceLoginBytes": 92170,
+    "webLoginBytes": 23826,
+    "sourceSymbolBytes": 85430,
+    "webSymbolBytes": 13880,
+    "faviconBytes": 3680
+  },
+  "validation": {
+    "frontendFullSuite": {
+      "passed": 889,
+      "failed": 0
+    },
+    "frontendAfterUploadLoadingGuard": {
+      "passed": 57,
+      "failed": 0
+    },
+    "backendFullSuiteWithIsolatedPostgres": {
+      "passed": 2738,
+      "skipped": 36,
+      "failedBeforeSchemaSetup": 1,
+      "failure": "realized-corrections.integration.test.js: empty isolated database without Project table; migrations then applied locally"
+    },
+    "backendTargetedMetricsBootstrapAndPostgres": {
+      "passed": 16,
+      "failed": 0
+    },
+    "architectureCheck": "passed",
+    "frontendBuild": "passed",
+    "frontendLint": "passed",
+    "bundleBudgets": "passed",
+    "postgresIntegrationsAfterMigrations": {
+      "passed": 2,
+      "failed": 0
+    },
+    "backendValidatedTestSet": {
+      "passed": 2739,
+      "skipped": 36,
+      "failed": 0,
+      "method": "full suite plus successful rerun of the schema-dependent test after applying all migrations to a new local temporary PostgreSQL; no production/staging database used"
+    }
+  },
+  "limitations": [
+    "These are local synthetic comparisons, not production HTTP p95.",
+    "The lab login uses loopback HTTP and cannot be directly subtracted from production HTTPS measurements.",
+    "Code is not deployed. Backups, global cold labor costs, job retention and production validation of revision-based summary polling remain pending; monthly review now shares request-local sources."
+  ],
+  "continuation": {
+    "localOnly": true,
+    "allocationReviewMonth": {
+      "parity": [
+        {
+          "yearMonth": "2021-02",
+          "weeks": 4,
+          "beforeReads": 36,
+          "afterReads": 9
+        },
+        {
+          "yearMonth": "2026-10",
+          "weeks": 5,
+          "beforeReads": 46,
+          "afterReads": 10
+        },
+        {
+          "yearMonth": "2026-11",
+          "weeks": 6,
+          "beforeReads": 55,
+          "afterReads": 10
+        },
+        {
+          "yearMonth": "2026-12",
+          "weeks": 5,
+          "beforeReads": 45,
+          "afterReads": 9
+        },
+        {
+          "yearMonth": "2027-01",
+          "weeks": 5,
+          "beforeReads": 45,
+          "afterReads": 9
+        }
+      ],
+      "pairs": [
+        {
+          "beforeMs": 96.99096800000001,
+          "afterMs": 12.542309999999986
+        },
+        {
+          "beforeMs": 96.46220300000004,
+          "afterMs": 12.79899899999998
+        },
+        {
+          "beforeMs": 97.52751799999999,
+          "afterMs": 13.141118000000006
+        },
+        {
+          "beforeMs": 97.72767899999997,
+          "afterMs": 14.553393000000028
+        },
+        {
+          "beforeMs": 96.30006500000002,
+          "afterMs": 12.033271000000013
+        }
+      ],
+      "method": "Mocked sources, fixed 5 ms delay per dependency read; not a SQL or production HTTP measurement",
+      "beforeMedianMs": 96.99096800000001,
+      "afterMedianMs": 12.79899899999998,
+      "sourceReadsBefore": 55,
+      "sourceReadsAfter": 10,
+      "baselineCommit": "3db7e76f",
+      "snapshotSha256": "df9c7bd57eeb58141f469d28df9e1c3c29e8a355a3e24aacbb75efad0fd07e92",
+      "postgresParity": {
+        "result": "passed",
+        "postgres": "16-alpine, temporary local database with all migrations",
+        "weeks": 6,
+        "exactResponseParity": true,
+        "admissionAndSavedProjectVerified": true
+      }
+    },
+    "workflowLoading": {
+      "surface": "efetivo-evolucao",
+      "beforeGzipBytes": 528134,
+      "afterGzipBytes": 307261,
+      "reductionPercent": 41.821393812933835,
+      "workingTreeAfterGzipBytes": 307015,
+      "method": "Paired builds in the same temporary directory, identical source and dependencies except the modal imports/render guards in ProjectWorkflowBoard. JS + CSS + static dependency closure, excluding images, fonts and API data."
+    },
+    "validation": {
+      "backendFullSuite": {
+        "passed": 2740,
+        "failed": 0,
+        "skipped": 37,
+        "database": "new temporary local PostgreSQL with all migrations; tests requiring separate opt-in database variables remain skipped"
+      },
+      "frontendFullSuite": {
+        "passed": 889,
+        "failed": 0,
+        "skipped": 0
+      },
+      "existingWorkflowBrowserSuite": {
+        "passed": 5,
+        "failed": 0,
+        "viewport": "390x844",
+        "api": "mocked",
+        "note": "Original tests run against manually started loopback Vite through a temporary config override; normal webServer probe hung on an unopened local port"
+      },
+      "lazyWorkflowBrowser": {
+        "beforeOpenModalRequests": 0,
+        "workflowModuleRequestedOnOpen": 1,
+        "reopenedAndClosedWithEscape": true,
+        "pageErrors": 0,
+        "api": "mocked, no external writes"
+      },
+      "build": "passed",
+      "lint": "passed",
+      "architecture": "passed",
+      "bundleBudgets": "passed"
+    },
+    "remaining": [
+      "Validate authenticated concurrent clients and published HTTP after local projection optimization",
+      "Continue fresh-process profiling after the global source loading optimization",
+      "Split Gestor panels and reduce shell CSS",
+      "Add content-ready instrumentation and browser request checks to CI",
+      "Production validation deferred; backups excluded by user"
+    ]
+  },
+  "detailRefresh": {
+    "localOnly": true,
+    "projections": [
+      "current",
+      "history",
+      "full"
+    ],
+    "revisionSources": [
+      "considered planned scope and system identities",
+      "native/historical realized services after corrections",
+      "manual progress history and manual timestamp anchor",
+      "schedule dates and reference calendar day",
+      "group membership and consolidation weights"
+    ],
+    "cache": {
+      "perRevision": true,
+      "completedRevisionIsStatic": true,
+      "incompleteReadCanBeCancelledAndRestarted": true,
+      "inactiveGcMs": 60000,
+      "backendDerivedCacheAdded": false
+    },
+    "benchmark": {
+      "method": "Five warmed paired local calculations using the same dense test fixture; not production HTTP p95",
+      "scopeRows": 297,
+      "services": 133,
+      "dates": 63,
+      "slices": 11,
+      "samples": [
+        {
+          "currentMs": 2.866220999999996,
+          "historyMs": 12.492353999999978,
+          "fullMs": 78.34636699999999
+        },
+        {
+          "currentMs": 2.313952000000029,
+          "historyMs": 12.566385999999966,
+          "fullMs": 82.77566200000001
+        },
+        {
+          "currentMs": 2.281902999999943,
+          "historyMs": 17.613247,
+          "fullMs": 124.673362
+        },
+        {
+          "currentMs": 2.426546999999914,
+          "historyMs": 11.102036999999996,
+          "fullMs": 72.08675000000005
+        },
+        {
+          "currentMs": 2.7136219999999867,
+          "historyMs": 11.453754000000004,
+          "fullMs": 66.87842
+        }
+      ],
+      "medianMs": {
+        "current": 2.426546999999914,
+        "history": 12.492353999999978,
+        "full": 78.34636699999999
+      },
+      "exactProgressAndHistoryParity": true
+    },
+    "browser": {
+      "initial": [
+        {
+          "mode": "current",
+          "revision": 1
+        },
+        {
+          "mode": "history",
+          "revision": 1
+        }
+      ],
+      "unchanged": [
+        {
+          "mode": "current",
+          "revision": 1
+        },
+        {
+          "mode": "history",
+          "revision": 1
+        },
+        {
+          "mode": "current",
+          "revision": 1
+        },
+        {
+          "mode": "current",
+          "revision": 1
+        }
+      ],
+      "currentProjectReads": [
+        {
+          "mode": "current",
+          "revision": 1
+        },
+        {
+          "mode": "history",
+          "revision": 1
+        },
+        {
+          "mode": "current",
+          "revision": 1
+        },
+        {
+          "mode": "current",
+          "revision": 1
+        },
+        {
+          "mode": "full",
+          "revision": 1
+        },
+        {
+          "mode": "current",
+          "revision": 2
+        },
+        {
+          "mode": "history",
+          "revision": 2
+        },
+        {
+          "mode": "full",
+          "revision": 2
+        },
+        {
+          "mode": "current",
+          "revision": 3
+        },
+        {
+          "mode": "full",
+          "revision": 3
+        },
+        {
+          "mode": "current",
+          "revision": 4
+        },
+        {
+          "mode": "full",
+          "revision": 4
+        },
+        {
+          "mode": "current",
+          "revision": 4
+        },
+        {
+          "mode": "full",
+          "revision": 4
+        },
+        {
+          "mode": "current",
+          "revision": 5
+        },
+        {
+          "mode": "full",
+          "revision": 5
+        },
+        {
+          "mode": "current",
+          "revision": 6
+        },
+        {
+          "mode": "full",
+          "revision": 6
+        },
+        {
+          "mode": "current",
+          "revision": 7
+        },
+        {
+          "mode": "full",
+          "revision": 7
+        }
+      ],
+      "groupReads": [
+        {
+          "mode": "current",
+          "revision": 1
+        },
+        {
+          "mode": "history",
+          "revision": 1
+        },
+        {
+          "mode": "current",
+          "revision": 1
+        },
+        {
+          "mode": "current",
+          "revision": 1
+        }
+      ],
+      "legacyCompatible": true,
+      "hiddenPolling": false,
+      "failedReadRetried": true,
+      "concurrentWriteRecovered": true,
+      "selectedSliceKeptWhileClosed": true,
+      "errors": [],
+      "api": "mocked through the real component and application QueryClient",
+      "viewport": "390x844",
+      "clock": "controlled for 15-second intervals and hidden-tab checks"
+    },
+    "validation": {
+      "backendFullRun": {
+        "passed": 2744,
+        "failed": 2,
+        "skipped": 34,
+        "failure": "ECONNRESET in one HTTP write-simulation subtest and its parent during concurrent suite execution"
+      },
+      "writeSimulationIsolatedRerun": {
+        "passed": 15,
+        "failed": 0
+      },
+      "backendValidatedTestSet": {
+        "passed": 2746,
+        "failed": 0,
+        "skipped": 34,
+        "method": "full run plus successful isolated rerun; source-revision tests and PostgreSQL projection/permissions test repeated after review"
+      },
+      "sourceRevisionAndHttpPostReview": {
+        "passed": 5,
+        "failed": 0
+      },
+      "frontendFullSuite": {
+        "passed": 891,
+        "failed": 0
+      },
+      "immutableRevisionCacheTests": {
+        "passed": 34,
+        "failed": 0
+      },
+      "build": "passed",
+      "lint": "passed",
+      "architecture": "passed",
+      "bundleBudgets": "passed",
+      "postgres": "temporary PostgreSQL 16 on local loopback, all migrations applied, removed after validation",
+      "ci": "PostgreSQL projection and permissions regression added to existing Omni job; immutable-cache regressions run in frontend unit suite"
+    },
+    "limitations": [
+      "Calculation timings are synthetic local CPU measurements, not production HTTP p95.",
+      "A first view needs current data plus history for weekly targets; the later fields=progress implementation removes unrelated detail reads from the second request.",
+      "Global labor source loading was subsequently optimized; full cold-load targets and production/multiple-browser acceptance remain pending."
+    ]
+  },
+  "remainingReadsImplementation": {
+    "localOnly": true,
+    "progressOnlyProjection": {
+      "parameter": "fields=progress",
+      "sameDefaultDetailContract": true,
+      "sameSourceRevisionsAndProgress": true,
+      "projectDivisionAndGroupVerified": true,
+      "financialPermissionsVerified": true,
+      "unrelatedReadsBlockedAfterSummary": [
+        "omiePurchase.groupBy",
+        "omieReceivable.findMany",
+        "pontoImport.findMany",
+        "reportCollaborator.findMany",
+        "costProfile.findMany",
+        "collaborator.findMany"
+      ],
+      "commercialReadsForTwoMemberGroupSummaryPlusHistory": 1,
+      "responseBytes": [
+        {
+          "owner": "project",
+          "mode": "current",
+          "before": 5251,
+          "after": 1664
+        },
+        {
+          "owner": "project",
+          "mode": "history",
+          "before": 5519,
+          "after": 1932
+        },
+        {
+          "owner": "project",
+          "mode": "full",
+          "before": 7374,
+          "after": 3787
+        },
+        {
+          "owner": "group",
+          "mode": "current",
+          "before": 5221,
+          "after": 823
+        },
+        {
+          "owner": "group",
+          "mode": "history",
+          "before": 5490,
+          "after": 1092
+        },
+        {
+          "owner": "group",
+          "mode": "full",
+          "before": 5487,
+          "after": 1089
+        }
+      ]
+    },
+    "laborSourceLoading": {
+      "method": "Uncached global rate calculations on temporary local PostgreSQL, same synthetic rows and dependencies, warm database pages; exact parity including all rates, monthly costs, allocations and trails. No production measurements.",
+      "reportCount": 1201,
+      "collaborators": 21,
+      "projectPreferenceEntries": 500,
+      "legacyReportPayloadBytes": 29107545,
+      "currentReportPayloadBytes": 333357,
+      "sharedProjectPayloadBytes": 24112,
+      "samples": [
+        {
+          "beforeMs": 221.8328160000001,
+          "afterMs": 76.67614600000024
+        },
+        {
+          "beforeMs": 192.13825000000043,
+          "afterMs": 59.94412300000022
+        },
+        {
+          "beforeMs": 195.85475300000007,
+          "afterMs": 62.18320500000027
+        },
+        {
+          "beforeMs": 203.98707999999988,
+          "afterMs": 62.77951299999995
+        },
+        {
+          "beforeMs": 190.84984900000018,
+          "afterMs": 71.97402200000033
+        }
+      ],
+      "beforeMedianMs": 195.85475300000007,
+      "afterMedianMs": 62.77951299999995,
+      "exactParity": true,
+      "coldProcessSamples": [
+        {
+          "beforeMs": 476.965892,
+          "afterMs": 313.13300000000004
+        },
+        {
+          "beforeMs": 476.442601,
+          "afterMs": 332.74101500000006
+        },
+        {
+          "beforeMs": 469.75792,
+          "afterMs": 336.9281920000001
+        }
+      ],
+      "coldProcessBeforeMedianMs": 476.442601,
+      "coldProcessAfterMedianMs": 332.74101500000006,
+      "authenticatedProcessSamples": [
+        {
+          "beforeMs": 371.00855200000007,
+          "afterMs": 212.203458
+        },
+        {
+          "beforeMs": 340.1555450000001,
+          "afterMs": 207.33370099999996
+        },
+        {
+          "beforeMs": 376.09346200000005,
+          "afterMs": 223.89288600000003
+        }
+      ],
+      "authenticatedBeforeMedianMs": 371.00855200000007,
+      "authenticatedAfterMedianMs": 212.203458,
+      "payloadMethod": "JSON size of query results returned by Prisma plus the already shared project context; not a packet-level network measurement",
+      "baselineCommit": "3db7e76f",
+      "syntheticDataset": {
+        "month": "2026-09",
+        "rdoCount": 1200,
+        "annualZeroHourServiceReportCount": 1,
+        "collaborators": 21,
+        "salaryBase": 3960,
+        "offshoreProjectCount": 1,
+        "projectPreferenceEntries": 500,
+        "imports": 1
+      },
+      "clarifications": [
+        "Uncached calculation is computeCollaboratorRates, not total HTTP latency.",
+        "Fresh-process samples open a new Node/Prisma instance for each calculation.",
+        "Authenticated-process samples simulate the preceding session read with userSession.findFirst; no HTTP authentication or browser is measured here.",
+        "Payload bytes describe JSON serialization of query results returned by Prisma, not captured network packets."
+      ],
+      "uncachedReductionPercent": 67.94588232433658,
+      "freshProcessReductionPercent": 30.161363761004225,
+      "afterSessionReadReductionPercent": 42.803620871790585,
+      "serializedSourcePayloadReductionPercent": 98.85474024003055
+    },
+    "browser": {
+      "initial": [
+        {
+          "mode": "current",
+          "revision": 1
+        },
+        {
+          "mode": "history",
+          "revision": 1,
+          "fields": "progress"
+        }
+      ],
+      "unchanged": [
+        {
+          "mode": "current",
+          "revision": 1
+        },
+        {
+          "mode": "history",
+          "revision": 1,
+          "fields": "progress"
+        },
+        {
+          "mode": "current",
+          "revision": 1
+        },
+        {
+          "mode": "current",
+          "revision": 1
+        }
+      ],
+      "currentProjectReads": [
+        {
+          "mode": "current",
+          "revision": 1
+        },
+        {
+          "mode": "history",
+          "revision": 1,
+          "fields": "progress"
+        },
+        {
+          "mode": "current",
+          "revision": 1
+        },
+        {
+          "mode": "current",
+          "revision": 1
+        },
+        {
+          "mode": "full",
+          "revision": 1,
+          "fields": "progress"
+        },
+        {
+          "mode": "current",
+          "revision": 2
+        },
+        {
+          "mode": "history",
+          "revision": 2,
+          "fields": "progress"
+        },
+        {
+          "mode": "full",
+          "revision": 2,
+          "fields": "progress"
+        },
+        {
+          "mode": "current",
+          "revision": 3
+        },
+        {
+          "mode": "full",
+          "revision": 3,
+          "fields": "progress"
+        },
+        {
+          "mode": "current",
+          "revision": 4
+        },
+        {
+          "mode": "full",
+          "revision": 4,
+          "fields": "progress"
+        },
+        {
+          "mode": "current",
+          "revision": 4
+        },
+        {
+          "mode": "full",
+          "revision": 4,
+          "fields": "progress"
+        },
+        {
+          "mode": "current",
+          "revision": 5
+        },
+        {
+          "mode": "full",
+          "revision": 5,
+          "fields": "progress"
+        },
+        {
+          "mode": "current",
+          "revision": 6
+        },
+        {
+          "mode": "full",
+          "revision": 6,
+          "fields": "progress"
+        },
+        {
+          "mode": "current",
+          "revision": 7
+        },
+        {
+          "mode": "full",
+          "revision": 7,
+          "fields": "progress"
+        }
+      ],
+      "groupReads": [
+        {
+          "mode": "current",
+          "revision": 1
+        },
+        {
+          "mode": "history",
+          "revision": 1,
+          "fields": "progress"
+        },
+        {
+          "mode": "current",
+          "revision": 1
+        },
+        {
+          "mode": "current",
+          "revision": 1
+        }
+      ],
+      "legacyCompatible": true,
+      "hiddenPolling": false,
+      "failedReadRetried": true,
+      "concurrentWriteRecovered": true,
+      "selectedSliceKeptWhileClosed": true,
+      "errors": [],
+      "api": "mocked, real component and real application QueryClient; projected responses omit all unrelated fields"
+    },
+    "validation": {
+      "backendFullSuite": {
+        "passed": 2750,
+        "failed": 0,
+        "skipped": 34
+      },
+      "postReviewProjectionAndWeightingAndSourceTests": {
+        "passed": 33,
+        "failed": 0
+      },
+      "frontendFullSuite": {
+        "passed": 891,
+        "failed": 0
+      },
+      "build": "passed",
+      "lint": "passed",
+      "architecture": "passed",
+      "bundleBudgets": "passed",
+      "database": "temporary local PostgreSQL 16, all migrations, removed after validation"
+    },
+    "remaining": [
+      "Published HTTP and authenticated multi-client acceptance",
+      "50% fresh-process cold-load target not yet reached in this synthetic fixture",
+      "Gestor panel splitting, shell CSS, content-ready instrumentation and remaining CI browser integration",
+      "Job growth/retention decisions; backups explicitly deferred"
+    ]
+  },
+  "nextStages": {
+    "baseCommit": "acd2a2ba",
+    "scope": "Local implementation only; no production/staging operations or backup changes.",
+    "coldCosts": {
+      "method": "Five paired measurements of uncached calculations; same local PostgreSQL 16 with warm DB pages, pool limit 8, DB container limited to 1 CPU. Fresh Node/Prisma processes for cold samples; after-session mode performs one session SELECT first, not HTTP authentication. No production measurements.",
+      "fixture": {
+        "reports": 1201,
+        "collaborators": 21,
+        "projectPreferences": 500
+      },
+      "revisions": [
+        "3db7e76f",
+        "acd2a2ba",
+        "working-tree-after-acd2a2ba"
+      ],
+      "samplesMs": {
+        "warm": [
+          [
+            338.9506470000001,
+            81.615679,
+            76.11269500000003
+          ],
+          [
+            220.7669279999999,
+            86.56392099999994,
+            64.30540599999995
+          ],
+          [
+            216.07597699999997,
+            64.65415499999995,
+            71.384005
+          ],
+          [
+            215.09454399999993,
+            71.76896600000009,
+            55.67724499999997
+          ],
+          [
+            213.90638,
+            65.47465599999998,
+            59.03938700000003
+          ]
+        ],
+        "new-process": [
+          [
+            499.06711100000007,
+            364.780832,
+            314.31440299999997
+          ],
+          [
+            496.242896,
+            344.8422089999999,
+            319.78999
+          ],
+          [
+            483.148033,
+            393.54540699999995,
+            315.111607
+          ],
+          [
+            474.05388800000003,
+            303.88209300000005,
+            310.580727
+          ],
+          [
+            493.85496300000005,
+            321.82099999999997,
+            276.360099
+          ]
+        ],
+        "new-process-after-session": [
+          [
+            367.607907,
+            255.37074799999994,
+            219.19376899999997
+          ],
+          [
+            367.38515700000005,
+            263.595936,
+            226.43796599999996
+          ],
+          [
+            384.960088,
+            248.40418400000004,
+            218.62760000000003
+          ],
+          [
+            375.74445399999996,
+            208.82550999999995,
+            179.93694300000004
+          ],
+          [
+            362.39839900000004,
+            199.49765000000008,
+            195.29238599999996
+          ]
+        ]
+      },
+      "summary": {
+        "warm": [
+          {
+            "revision": "3db7e76f",
+            "medianMs": 216.07597699999997
+          },
+          {
+            "revision": "acd2a2ba",
+            "medianMs": 71.76896600000009
+          },
+          {
+            "revision": "working-tree-after-acd2a2ba",
+            "medianMs": 64.30540599999995
+          }
+        ],
+        "new-process": [
+          {
+            "revision": "3db7e76f",
+            "medianMs": 493.85496300000005
+          },
+          {
+            "revision": "acd2a2ba",
+            "medianMs": 344.8422089999999
+          },
+          {
+            "revision": "working-tree-after-acd2a2ba",
+            "medianMs": 314.31440299999997
+          }
+        ],
+        "new-process-after-session": [
+          {
+            "revision": "3db7e76f",
+            "medianMs": 367.607907
+          },
+          {
+            "revision": "acd2a2ba",
+            "medianMs": 248.40418400000004
+          },
+          {
+            "revision": "working-tree-after-acd2a2ba",
+            "medianMs": 218.62760000000003
+          }
+        ]
+      },
+      "exactParity": true,
+      "coldTargetReached": false
+    },
+    "bundles": {
+      "method": "Gzip size of JS/CSS plus static dependency closure, including shell; excludes API data, fonts and images.",
+      "shell": 205323,
+      "efetivoOverview": 293850,
+      "efetivoWorkflow": 306790,
+      "acompanhamentoDashboard": 284228,
+      "gestorInitial": 406097,
+      "gestorStatistics": 414390,
+      "gestorInitialBefore": 450845,
+      "statsDetailsDeferred": true
+    },
+    "css": {
+      "adminLegacyCssRemovedFromShellBytes": 16197,
+      "cascadeLayer": "legacy"
+    },
+    "usefulContent": {
+      "enabledByDefault": false,
+      "sessionStorageKey": "filtro:page-performance",
+      "maxSamples": 200,
+      "windowMs": 900000,
+      "percentilesMinimumSamples": 100,
+      "truncatedPercentilesSuppressed": true,
+      "surfaces": [
+        "Gestor tabs",
+        "Project cards",
+        "Project detail summary",
+        "Eight Efetivo sections"
+      ],
+      "sources": [
+        "cache",
+        "network"
+      ],
+      "phases": [
+        "content-visible",
+        "refresh-complete"
+      ],
+      "urlsOrEntityIdsRecorded": false
+    },
+    "jobs": {
+      "emptyChecksAggregated": [
+        "assinaturas:finalization",
+        "assinaturas:file-purge"
+      ],
+      "windowMs": 900000,
+      "historyDeleted": false,
+      "retentionEnabledByDefault": false,
+      "preservedByRetention": [
+        "FAILED",
+        "RUNNING",
+        "latest COMPLETED per name, including ties"
+      ],
+      "localPostgresRegressionPassed": true
+    },
+    "health": {
+      "nginxIsolatedHttpPassed": true,
+      "workerTracksCompletedScansAndActiveDeadlines": true,
+      "workerSnapshotMaxAgeMs": 45000,
+      "workerIdleMaxAgeMs": 120000
+    },
+    "validation": {
+      "backendFullSuite": {
+        "passed": 2755,
+        "skipped": 38,
+        "failed": 0
+      },
+      "frontendFullSuite": {
+        "passed": 895,
+        "failed": 0
+      },
+      "browserScenariosPassed": 8,
+      "additionalHistoryBrowserScenario": "passed",
+      "reviewedJobHealthPostgresChecksPassed": 15,
+      "build": true,
+      "lint": true,
+      "architecture": true,
+      "bundleBudgets": true,
+      "browserMethod": "Seven scenarios in the full browser run plus the historical-upload scenario in a targeted run; real React consumers with controlled/mock API sources."
+    },
+    "limitations": [
+      "Synthetic local measurements, not HTTP p95 or production performance.",
+      "First uncached calculation in a fresh process still below 50 percent reduction.",
+      "Retention period requires an approved policy before manual application.",
+      "Published permission/volume, LCP, p50/p95 and 24-hour/seven-day validation remain pending."
+    ]
+  }
+}

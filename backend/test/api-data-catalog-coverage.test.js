@@ -5,6 +5,12 @@ import test from 'node:test';
 import { API_DATA_DOMAINS, CATALOG_EXCLUDED_INFRASTRUCTURE_MODELS, flattenDataCatalogModels } from '../src/lib/api-credentials/data-catalog.js';
 import { OPERATIONAL_RESOURCES } from '../src/lib/api-credentials/operational-resources.js';
 
+test('performance cache markers remain infrastructure without external API access', () => {
+  assert.ok(CATALOG_EXCLUDED_INFRASTRUCTURE_MODELS.some(item => item.model === 'PerformanceReadRevision'));
+  assert.equal(flattenDataCatalogModels().some(item => item.model === 'PerformanceReadRevision'), false);
+  assert.equal(OPERATIONAL_RESOURCES.some(item => item.model === 'PerformanceReadRevision'), false);
+});
+
 test('executable catalog classifies every one of the 182 business Prisma models exactly once', async () => {
   const schema = await readFile(new URL('../prisma/schema.prisma', import.meta.url), 'utf8');
   const prismaModels = [...schema.matchAll(/^model\s+(\w+)\s*\{/gm)].map(match => match[1]);

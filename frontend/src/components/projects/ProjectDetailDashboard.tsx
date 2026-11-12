@@ -1,3 +1,4 @@
+import { useUsefulContent } from '../../observability/useUsefulContent';
 import { todayDateOnly } from '../../utils/dateOnly';
 import { ProjectScopeDialog } from './ProjectScopeDialog';
 import { SortableTable } from '../ui/SortableTable';
@@ -10,8 +11,10 @@ import {
   createManualProjectCost,
   deleteManualProjectCost,
   getMissionGroupDetail,
+  getMissionGroupDetailProgress,
   getProjectPlanningContext,
   getProjectDetail,
+  getProjectDetailProgress,
   getProjectProgress,
   getTrackingDivisions,
   listProjectManagementNotes,
@@ -43,7 +46,7 @@ import { ProjectStandbyHistoryNovelty } from './ProjectStandbyHistoryNovelty';
 import { ProjectWeeklyTargetNovelty } from './ProjectWeeklyTargetNovelty';
 import { ProjectWeeklyTargets } from './ProjectWeeklyTargets';
 import type { WeeklyTargetOwner } from '../../api/weeklyProgressTargets';
-import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
+import { acompanhamentoRefreshQueryOptions, progressRevisionQueryOptions } from './acompanhamentoRefresh';
 import { Card, Button, Badge, Alert, Field, Input, Select, Textarea, Skeleton, EmptyState } from '../ui/ds';
 import { AppIcon } from '../icons/AppIcon';
 import { ArrowLeft, CalendarDays } from 'lucide-react';
@@ -96,6 +99,9 @@ export function ProjectDetailDashboard({
   const viewUserId = progressHistoryNoveltyUser?.id ?? null;
   const [detailTab, setDetailTab] = useState(() => readProjectDetailTab(viewUserId));
   const [scopeOpen, setScopeOpen] = useState(false);
+  const detailOwnerKey = groupId ? `group:${groupId}` : `project:${projectId}`;
+  const [scopeDetailsOwner, setScopeDetailsOwner] = useState<string | null>(null);
+  const scopeDetailsOpen = scopeDetailsOwner === detailOwnerKey;
   const [scheduleProject, setScheduleProject] = useState<{ projectId: string; code: string } | null>(null);
   const [trackingDivisionsOpen, setTrackingDivisionsOpen] = useState(false);
   const [trackingDivisionToEdit, setTrackingDivisionToEdit] = useState<string | undefined>();
@@ -140,11 +146,34 @@ export function ProjectDetailDashboard({
   });
   const activeDivisionKey = trackingDivisions?.divisions.some(item => item.key === trackingDivisionKey) ? trackingDivisionKey : '';
   const detailKey = isGroup ? ['mission-group-detail', groupId] : ['project-detail', projectId, ...(activeDivisionKey ? [activeDivisionKey] : [])];
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, isLoading, isError, isFetching, isFetchedAfterMount, dataUpdatedAt, refetch } = useQuery({
     queryKey: detailKey,
-    queryFn: () => isGroup ? getMissionGroupDetail(groupId!) : getProjectDetail(projectId!, activeDivisionKey),
+    queryFn: () => isGroup ? getMissionGroupDetail(groupId!, 'current') : getProjectDetail(projectId!, activeDivisionKey, 'current'),
     ...acompanhamentoRefreshQueryOptions
   });
+  useUsefulContent('acompanhamento:detail', `${detailOwnerKey}:${activeDivisionKey}`, { ready: Boolean(data) && !isError, fetching: isFetching, cached: !isFetchedAfterMount, dataUpdatedAt });
+  const progressMode = scopeDetailsOpen || detailTab === 'daily' || progressScopeKey || progressEquipmentKey ? 'full' : 'history';
+  const progressDetails = useQuery({
+    queryKey: [...detailKey, 'progress', progressMode, data?.progressRevision],
+    queryFn: async () => {
+      const result = isGroup
+        ? await getMissionGroupDetailProgress(groupId!, progressMode)
+        : await getProjectDetailProgress(projectId!, activeDivisionKey, progressMode);
+      if (result.progressRevision !== data?.progressRevision) {
+        // Uma gravação pode terminar entre o resumo e o histórico. Confirma as fontes
+        // novamente antes de apresentar esse histórico como a revisão do resumo.
+        void queryClient.invalidateQueries({ queryKey: detailKey, exact: true });
+        throw new Error('As medições mudaram durante a leitura. Atualizando o resumo.');
+      }
+      return result;
+    },
+    enabled: Boolean(data?.progressRevision && data.progressReadMode === 'current' && !data.rentalTracking
+      && (!activeDivisionKey || progressMode === 'full')),
+    ...progressRevisionQueryOptions
+  });
+  const progressData = data?.progressReadMode === 'current' && !data.rentalTracking
+    ? progressDetails.data?.progressRevision === data.progressRevision ? progressDetails.data : undefined
+    : data;
   const noteProjects = isGroup
     ? (data?.group?.members ?? []).filter(member => member.visible !== false)
     : projectId ? [{ projectId, code: data?.header.code ?? '', name: '' }] : [];
@@ -165,7 +194,8 @@ export function ProjectDetailDashboard({
   const { data: projectProgress } = useQuery({
     queryKey: ['project-progress', projectId, ...(activeDivisionKey ? [activeDivisionKey] : [])],
     queryFn: () => getProjectProgress(projectId!, activeDivisionKey),
-    enabled: !isGroup && Boolean(projectId),
+    // Compatibilidade com respostas antigas: o detalhe atual já inclui o avanço.
+    enabled: !isGroup && Boolean(projectId && data && !data.progressBreakdown),
     ...acompanhamentoRefreshQueryOptions
   });
   const planningReferenceDate = data?.header.lastRdoDate?.slice(0, 10) || todayDateOnly();
@@ -315,7 +345,7 @@ export function ProjectDetailDashboard({
   );
   // Avanço por Escopo e/ou equipamento do cliente: o recorte troca o percentual, o ritmo e o
   // histórico. A combinação escolhida aponta para um recorte já calculado pelo backend.
-  const progressFilters = isGroup ? null : data.progressFilters ?? null;
+  const progressFilters = isGroup ? null : progressData?.progressFilters ?? null;
   const progressScopes = progressFilters?.scopes ?? [];
   const progressEquipments = progressFilters?.equipments ?? [];
   const activeScopeKey = progressScopes.some(item => item.key === progressScopeKey) ? progressScopeKey : '';
@@ -324,13 +354,14 @@ export function ProjectDetailDashboard({
     (!scopeKey && !equipmentKey) || progressFilters?.lookup[`${scopeKey}|${equipmentKey}`] !== undefined;
   const sliceIndex = progressFilters?.lookup[`${activeScopeKey}|${activeEquipmentKey}`];
   const selectedProgressSlice = progressFilters && typeof sliceIndex === 'number' ? progressFilters.slices[sliceIndex] : null;
-  const progressFilterLabel = [
+  const progressSelectionPending = Boolean((progressScopeKey || progressEquipmentKey) && !progressData);
+  const progressFilterLabel = progressSelectionPending ? 'Atualizando recorte…' : [
     progressScopes.find(item => item.key === activeScopeKey)?.name,
     progressEquipments.find(item => item.key === activeEquipmentKey)?.name
   ].filter(Boolean).join(' · ');
-  const shownAvancoPct = selectedProgressSlice ? selectedProgressSlice.avancoPct : data.avancoPct;
-  const shownProgressHistory = selectedProgressSlice ? selectedProgressSlice.progressHistory : data.progressHistory;
-  const shownDailyProgressHistory = selectedProgressSlice ? selectedProgressSlice.dailyProgressHistory : data.dailyProgressHistory;
+  const shownAvancoPct = progressSelectionPending ? null : selectedProgressSlice ? selectedProgressSlice.avancoPct : data.avancoPct;
+  const shownProgressHistory = selectedProgressSlice ? selectedProgressSlice.progressHistory : progressData?.progressHistory;
+  const shownDailyProgressHistory = selectedProgressSlice ? selectedProgressSlice.dailyProgressHistory : progressData?.dailyProgressHistory;
   const shownRequiredWeeklyProgress = selectedProgressSlice ? selectedProgressSlice.requiredWeeklyProgress : data.requiredWeeklyProgress;
   const changeProgressScope = (scopeKey: string) => {
     setProgressScopeKey(scopeKey);
@@ -353,7 +384,13 @@ export function ProjectDetailDashboard({
   const weeklyTargetOwner: WeeklyTargetOwner | null = groupId
     ? { area: 'acompanhamento', groupId }
     : projectId ? { area: 'acompanhamento', projectId } : null;
-  const weeklyProgressHistory = activeDivisionKey ? undefined : data.dailyProgressHistory ?? data.progressHistory ?? [];
+  const weeklyProgressHistory = activeDivisionKey ? undefined : progressData?.dailyProgressHistory ?? progressData?.progressHistory;
+  const progressLoadState = !progressData && !data.rentalTracking
+    ? progressDetails.isError
+      ? <Alert tone="warning" title="Não foi possível carregar o histórico de avanço."
+        action={<Button size="sm" variant="secondary" onClick={() => void progressDetails.refetch()}>Tentar novamente</Button>} />
+      : <Skeleton height={160} />
+    : null;
   const meeting = projectMeeting(data, shownAvancoPct);
   const deviationCount = deviationProjects.length && qualityDeviationQueries.every(query => query.data)
     ? qualityDeviationQueries.reduce((total, query) => total + (query.data?.length ?? 0), 0) : deviationProjects.length ? null : 0;
@@ -494,8 +531,11 @@ export function ProjectDetailDashboard({
       </Alert> : null}
 
       <ProjectMeetingSummary key={groupId || projectId} meeting={meeting} scopeLabel={progressFilterLabel}
-        weekly={weeklyTargetOwner && !data.rentalTracking ? <ProjectWeeklyTargets view="summary" owner={weeklyTargetOwner}
-          members={data.group?.members} progressHistory={weeklyProgressHistory} /> : null}
+        onOpenChange={key => setScopeDetailsOwner(key === 'scope' ? detailOwnerKey : null)}
+        weekly={weeklyTargetOwner && !data.rentalTracking ? activeDivisionKey || progressData
+          ? <ProjectWeeklyTargets view="summary" owner={weeklyTargetOwner} members={data.group?.members} progressHistory={weeklyProgressHistory} />
+          : <span role="status">{progressDetails.isError ? 'Metas aguardam o histórico de avanço.' : 'Carregando metas…'}</span>
+          : null}
         details={{
           cost: <>
             <ProjectFinancialSnapshot data={data} status={meeting.cost.status} onViewAdditionalContribution={proposal => {
@@ -601,7 +641,7 @@ export function ProjectDetailDashboard({
               ) : null}
             </ProjectFinancialSnapshot>
           </>,
-          scope: data.rentalTracking ? null : <>
+          scope: data.rentalTracking ? null : progressLoadState ?? <>
             <ProjectDetailOverview
               progressHistory={shownProgressHistory}
               chartKey={`${activeScopeKey}|${activeEquipmentKey}`}
@@ -625,8 +665,8 @@ export function ProjectDetailDashboard({
             />
             <ProjectDetailServiceComposition
               target={shownRequiredWeeklyProgress}
-              fallbackProgress={isGroup ? data.progressBreakdown : undefined}
-              fallbackServices={!activeScopeKey && !activeEquipmentKey && projectProgress?.hasScope ? projectProgress.services : undefined}
+              fallbackProgress={!activeScopeKey && !activeEquipmentKey ? data.progressBreakdown : undefined}
+              fallbackServices={!activeScopeKey && !activeEquipmentKey && (data.progressBreakdown ?? projectProgress)?.hasScope ? (data.progressBreakdown ?? projectProgress)?.services : undefined}
             />
             {weeklyTargetOwner ? <ProjectWeeklyTargets view="spotlight" owner={weeklyTargetOwner} members={data.group?.members} progressHistory={weeklyProgressHistory}
               canManage={canManageProjectNotes} onOpenHistory={() => setWeeklyHistoryOpen(true)} /> : null}
@@ -641,6 +681,7 @@ export function ProjectDetailDashboard({
           ) : null} />,
           time: <ProjectTimeDetail data={data} onOpenStandbyHistory={!isGroup ? () => setStandbyHistoryOpen(true) : undefined} />
         }} />
+      {progressDetails.isError && !progressData && !scopeDetailsOpen && !activeDivisionKey ? progressLoadState : null}
 
       <ProjectDetailTabs selected={detailTab} onSelect={tab => {
         setDetailTab(tab);
@@ -902,7 +943,7 @@ export function ProjectDetailDashboard({
               </div>
             </Card>
         </> },
-        { key: 'daily', label: 'Avanço diário', content: <ProjectScopeDailyTable points={shownDailyProgressHistory} filterLabel={progressFilterLabel} limit={14} /> }
+        { key: 'daily', label: 'Avanço diário', content: progressLoadState ?? <ProjectScopeDailyTable points={shownDailyProgressHistory} filterLabel={progressFilterLabel} limit={14} /> }
       ]} />
 
     </div>

@@ -209,6 +209,12 @@ export interface PontoColaboradores {
   unmatched: UnmatchedPontoName[];
 }
 
+export type PontoReconciliation = Omit<PontoColaboradores, 'rates'>;
+export const pontoColaboradoresQueryKeys = {
+  rates: ['ponto-colaboradores'] as const,
+  reconciliation: ['ponto-colaboradores', 'reconciliation'] as const
+};
+
 export interface PontoImportResult {
   skippedDuplicate: boolean;
   importId: string;
@@ -399,7 +405,12 @@ export async function deletePontoImport(id: string): Promise<void> {
 }
 
 export async function getPontoColaboradores(): Promise<PontoColaboradores> {
-  const { data } = await apiClient.get<PontoColaboradores>('/acompanhamento/ponto/colaboradores');
+  const { data } = await apiClient.get<PontoColaboradores>('/acompanhamento/ponto/colaboradores', { params: { view: 'summary' } });
+  return data;
+}
+
+export async function getPontoReconciliation(): Promise<PontoReconciliation> {
+  const { data } = await apiClient.get<PontoReconciliation>('/acompanhamento/ponto/colaboradores', { params: { view: 'reconciliation' } });
   return data;
 }
 

@@ -5,6 +5,8 @@ import prisma from '../prisma.js';
 import { errorTrackingStatus } from './error-tracking.js';
 
 export const RECURRING_JOB_NAMES = [
+  'assinaturas:finalization',
+  'assinaturas:file-purge',
   'survey-reminders',
   'signature-reminders',
   'calibration-reminders',
@@ -18,6 +20,8 @@ const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
 const RECURRING_JOB_MAX_AGE_MS = {
+  'assinaturas:finalization': 5 * 60_000,
+  'assinaturas:file-purge': 5 * 60_000,
   'survey-reminders': 3 * HOUR_MS,
   'signature-reminders': 3 * HOUR_MS,
   'calibration-reminders': 36 * HOUR_MS,

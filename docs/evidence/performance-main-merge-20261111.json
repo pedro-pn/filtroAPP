@@ -1,0 +1,387 @@
+{
+  "date": "2026-11-11",
+  "branch": "fix/page-loading-performance",
+  "performanceParent": "a55b5941fd3f8001cb652c559f8c20d12f7bdf93",
+  "remoteMain": "a00eb6ce94f6c7041253a8e96cfac328b2991751",
+  "mergeBase": "3db7e76fcf7b050a2ab5b84e186e66026e9e6117",
+  "integration": "Merge with both parents retained; only textual conflict was .github/workflows/ci.yml.",
+  "conflictResolution": [
+    "Preserve Check page loading budgets and performance browser tests",
+    "Preserve current HTTP/catalog/card PostgreSQL gate",
+    "Keep Ubuntu 24.04 plus DNS recovery and reachable mirror steps from remote main"
+  ],
+  "typescript": {
+    "compiler": "7.0.2",
+    "compilerAlias": "@typescript/native -> typescript",
+    "toolingApi": "6.0.3",
+    "toolingAlias": "typescript -> @typescript/typescript6",
+    "appAndNodeBuildPassed": true,
+    "e2eTypecheckPassed": true,
+    "implementationPreviewTypecheckPassed": true,
+    "runtimeTypingChangesRequired": false,
+    "budgetsRaised": false
+  },
+  "checks": {
+    "frontend": {
+      "tests": 898,
+      "pass": 898,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0
+    },
+    "backend": {
+      "tests": 2920,
+      "pass": 2875,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 45
+    },
+    "postgres": {
+      "tests": 30,
+      "pass": 30,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0
+    }
+  },
+  "browser": {
+    "suite": "performance.behavior.spec.mjs",
+    "passed": 8,
+    "failed": 0,
+    "finalExitCode": 0,
+    "initialAttempt": "All eight assertions passed; the first npm invocation ended with SIGTERM during shutdown. A direct rerun of the same suite completed with exit code zero."
+  },
+  "architecture": "passed",
+  "lint": "passed",
+  "build": "passed",
+  "workflowYaml": "parsed; performance and network gates explicitly verified",
+  "surfaces": [
+    {
+      "name": "shell",
+      "gzipBytes": 209082,
+      "limitBytes": 220000
+    },
+    {
+      "name": "efetivo-visao-geral",
+      "gzipBytes": 298619,
+      "limitBytes": 320000
+    },
+    {
+      "name": "efetivo-evolucao",
+      "gzipBytes": 311568,
+      "limitBytes": 320000
+    },
+    {
+      "name": "acompanhamento-dashboard",
+      "gzipBytes": 289186,
+      "limitBytes": 360000
+    },
+    {
+      "name": "gestor",
+      "gzipBytes": 411005,
+      "limitBytes": 430000
+    },
+    {
+      "name": "gestor-estatisticas",
+      "gzipBytes": 419304,
+      "limitBytes": 440000
+    }
+  ],
+  "preservedRuntimeSources": [
+    "backend/src/config/env.js",
+    "backend/src/lib/acompanhamento/avanco.js",
+    "backend/src/lib/acompanhamento/collaborator-role-sources.js",
+    "backend/src/lib/acompanhamento/cost-categories.js",
+    "backend/src/lib/acompanhamento/effective-allocation-sources.js",
+    "backend/src/lib/acompanhamento/labor-cost.js",
+    "backend/src/lib/acompanhamento/labor-mission-groups.js",
+    "backend/src/lib/acompanhamento/labor-report-sources.js",
+    "backend/src/lib/acompanhamento/manual-costs.js",
+    "backend/src/lib/acompanhamento/monthly-cost-snapshot.js",
+    "backend/src/lib/acompanhamento/planned-hours.js",
+    "backend/src/lib/acompanhamento/ponto-period-sources.js",
+    "backend/src/lib/acompanhamento/ponto-responses.js",
+    "backend/src/lib/acompanhamento/progress-projection.js",
+    "backend/src/lib/acompanhamento/project-detail-collaborators.js",
+    "backend/src/lib/acompanhamento/project-detail-groups.js",
+    "backend/src/lib/acompanhamento/project-detail-sources.js",
+    "backend/src/lib/acompanhamento/project-detail.js",
+    "backend/src/lib/acompanhamento/project-progress-projection.js",
+    "backend/src/lib/acompanhamento/read-cache.js",
+    "backend/src/lib/acompanhamento/salary.js",
+    "backend/src/lib/acompanhamento/settings.js",
+    "backend/src/lib/acompanhamento/system-progress.js",
+    "backend/src/lib/acompanhamento/verified-cost-sources.js",
+    "backend/src/lib/assinaturas/file-quarantine.js",
+    "backend/src/lib/assinaturas/jobs.js",
+    "backend/src/lib/collaborators/availability-service.js",
+    "backend/src/lib/data-retention.js",
+    "backend/src/lib/databook/jobs.js",
+    "backend/src/lib/efetivo/allocation-review/confirmed-days.js",
+    "backend/src/lib/efetivo/allocation-review/read-model.js",
+    "backend/src/lib/jobs/probes.js",
+    "backend/src/lib/jobs/runner.js",
+    "backend/src/lib/operations/derived-read-cache.js",
+    "backend/src/lib/operations/read-revision-maintenance.js",
+    "backend/src/lib/operations/request-performance.js",
+    "backend/src/lib/operations/request-sources.js",
+    "backend/src/lib/operations/status.js",
+    "backend/src/lib/operations/worker-health.js",
+    "backend/src/lib/reports/email-jobs.js",
+    "backend/src/lib/reports/jobs.js",
+    "backend/src/lib/resource-list-cache.js",
+    "backend/src/middleware/auth.js",
+    "backend/src/middleware/request-metrics.js",
+    "backend/src/routes/resources/acompanhamento-comercial.js",
+    "backend/src/routes/resources/acompanhamento-ponto.js",
+    "backend/src/routes/resources/bootstrap.js",
+    "backend/src/worker.js",
+    "frontend/src/App.tsx",
+    "frontend/src/api/acompanhamentoComercial.ts",
+    "frontend/src/api/acompanhamentoPonto.ts",
+    "frontend/src/api/bootstrap.ts",
+    "frontend/src/assets/brand/favicon.png",
+    "frontend/src/assets/brand/login.webp",
+    "frontend/src/assets/brand/symbol.webp",
+    "frontend/src/components/brand/brandAssets.ts",
+    "frontend/src/components/projects/LaborRateTable.tsx",
+    "frontend/src/components/projects/PontoImportPanel.tsx",
+    "frontend/src/components/projects/ProjectCardsBoard.tsx",
+    "frontend/src/components/projects/ProjectDetailDashboard.tsx",
+    "frontend/src/components/projects/ProjectMeetingSummary.tsx",
+    "frontend/src/components/projects/acompanhamentoRefresh.ts",
+    "frontend/src/components/stats/StatsCountCards.tsx",
+    "frontend/src/components/stats/StatsDashboard.tsx",
+    "frontend/src/components/stats/StatsOverview.tsx",
+    "frontend/src/hooks/useBootstrap.ts",
+    "frontend/src/main.tsx",
+    "frontend/src/observability/pagePerformance.ts",
+    "frontend/src/observability/useUsefulContent.ts",
+    "frontend/src/pages/PublicFlowShell.tsx",
+    "frontend/src/pages/acompanhamento/AcompanhamentoPage.tsx",
+    "frontend/src/pages/admin/AdminTokensPage.legacy.css",
+    "frontend/src/pages/admin/AdminTokensPage.tsx",
+    "frontend/src/pages/efetivo/EfetivoPage.tsx",
+    "frontend/src/pages/efetivo/components/AdministrationBoard.tsx",
+    "frontend/src/pages/efetivo/components/AllocationReviewBoard.tsx",
+    "frontend/src/pages/efetivo/components/AllocationReviewMonthView.tsx",
+    "frontend/src/pages/efetivo/components/CollaboratorsBoard.tsx",
+    "frontend/src/pages/efetivo/components/OperationalCalendar.tsx",
+    "frontend/src/pages/efetivo/components/OverviewBoard.tsx",
+    "frontend/src/pages/efetivo/components/ProductivityBoard.tsx",
+    "frontend/src/pages/efetivo/components/ProjectWorkflowBoard.tsx",
+    "frontend/src/pages/gestor/GestorPage.tsx",
+    "frontend/src/pages/gestor/LegacyReportsUploadModal.tsx",
+    "frontend/src/pages/gestor/PhysicalSignatureBatchAction.tsx",
+    "frontend/src/pages/operationalStatusPresentation.ts",
+    "frontend/src/styles/base.css"
+  ],
+  "semanticReview": [
+    "Merged app retains requestSourceContext and main request-body changes",
+    "API data catalog keeps PerformanceReadRevision excluded and main field additions",
+    "AvailabilityBoard keeps useful-content instrumentation and new mobilization status logic",
+    "Financial allocationPeriods retains bounded period behavior; new open-cycle mobilization checks remain in capacity/availability",
+    "New ReportSignature and EquipmentCategory fields use existing tracked tables; no extra revision-trigger migration needed",
+    "Main PDF-cache helpers and performance history/lazy-read regressions pass together"
+  ],
+  "migrations": {
+    "oldMigrations": 250,
+    "appliedMigrations": 251,
+    "sourceTriggers": 187,
+    "oldRowPreserved": true,
+    "attachmentsDefaultFalse": true,
+    "signatureCommentNullable": true,
+    "documentEnumAvailable": true,
+    "newFieldMutationChangesReadVersion": true
+  },
+  "legacyDesignPreview": {
+    "mergedErrors": 66,
+    "mainErrors": 66,
+    "preMergePerformanceErrors": 66,
+    "newSignaturesVsBothParents": 0,
+    "mainCommit": "a00eb6ce94f6c7041253a8e96cfac328b2991751",
+    "performanceCommit": "a55b5941fd3f8001cb652c559f8c20d12f7bdf93",
+    "comparison": "Same TypeScript 7 compiler/dependencies; deprecated baseUrl removed in the archived pre-merge config only to match main config."
+  },
+  "cleanup": {
+    "databases": {
+      "fresh": {
+        "fixtureCounts": {
+          "Report": 0,
+          "ReportCollaborator": 0,
+          "ReportService": 0,
+          "Collaborator": 0,
+          "CollaboratorJobRoleHistory": 0,
+          "CollaboratorAbsence": 0,
+          "PontoImport": 0,
+          "PontoPeriodSummary": 0,
+          "PontoDayProjectOverride": 0,
+          "User": 0,
+          "UserSession": 0,
+          "AcompanhamentoMissionGroup": 0,
+          "AcompanhamentoMissionGroupMember": 0,
+          "EfetivoPlan": 0,
+          "EfetivoMissionPlan": 0,
+          "EfetivoMissionAllocation": 0,
+          "AllocationReviewWeek": 0,
+          "AllocationReviewRow": 0,
+          "AllocationReviewDay": 0,
+          "AllocationReviewDayProject": 0,
+          "ProjectManualCost": 0,
+          "OmieCategory": 0,
+          "OmiePurchase": 0,
+          "CrmOpportunity": 0,
+          "CommercialProposal": 0,
+          "ProjectPresentationCopy": 0
+        },
+        "upgradeCategoryRemoved": true,
+        "projects": 2
+      },
+      "upgraded": {
+        "fixtureCounts": {
+          "Report": 0,
+          "ReportCollaborator": 0,
+          "ReportService": 0,
+          "Collaborator": 0,
+          "CollaboratorJobRoleHistory": 0,
+          "CollaboratorAbsence": 0,
+          "PontoImport": 0,
+          "PontoPeriodSummary": 0,
+          "PontoDayProjectOverride": 0,
+          "User": 0,
+          "UserSession": 0,
+          "AcompanhamentoMissionGroup": 0,
+          "AcompanhamentoMissionGroupMember": 0,
+          "EfetivoPlan": 0,
+          "EfetivoMissionPlan": 0,
+          "EfetivoMissionAllocation": 0,
+          "AllocationReviewWeek": 0,
+          "AllocationReviewRow": 0,
+          "AllocationReviewDay": 0,
+          "AllocationReviewDayProject": 0,
+          "ProjectManualCost": 0,
+          "OmieCategory": 0,
+          "OmiePurchase": 0,
+          "CrmOpportunity": 0,
+          "CommercialProposal": 0,
+          "ProjectPresentationCopy": 0
+        },
+        "upgradeCategoryRemoved": true,
+        "projects": 2
+      }
+    },
+    "ownedContainerAndVolumesRemoved": true
+  },
+  "sourceSha256": {
+    "frontend/package.json": "48a77d87f97e0249c6423d2ed20d7927c5055127fb89088c55fcd2492699b4bf",
+    "frontend/package-lock.json": "4e81c9ec332e2e7061fcbea5de13e773e2423f096ba39b35d934c6cbb1c8e380",
+    "frontend/tsconfig.app.json": "c34b04e391f155ea4eacb7f27b77750b7ade7410ddb33220161b26ebc2ddab1c",
+    "frontend/tsconfig.e2e.json": "453ac18bd592b840e05ac6512b2694c76895ad4a89b3a48f767d3b8e7d39cf3b",
+    ".github/workflows/ci.yml": "9fbbbb58be72aa273e02d86166d234f5ac141b933511c661c58c7e7a38f74379",
+    "backend/package.json": "7abb1768b497b54f18010923e52279f19c51795d08fe53dcf97c8da5bc61d3bd",
+    "backend/package-lock.json": "3d4bd814d368a686187a1c40a8d185511a8228776096785e9a3844538acd5702",
+    "backend/prisma/schema.prisma": "5fb03a6bdaf6562505118c647328ef684b1935ff81dec66315a84227cd8f5f2d",
+    "backend/src/app.js": "d71709fa1fbabd50b94ca9e35d47992add1f532e0f9fa24dc1ad773b89737bbd",
+    "backend/src/lib/api-credentials/data-catalog.js": "e292bfb7fbab0e129d67ecc9ec4368b995e2b063e69e68ced87d667f5445be8c",
+    "frontend/src/pages/efetivo/components/AvailabilityBoard.tsx": "0c193d8a50ecd31b65cd7583d99c0ee2fafc9f0fd168f46b1e92f035b762f302",
+    "backend/src/lib/acompanhamento/verified-cost-sources.js": "cc40ca8f627ca5f4ff18020c8e6f0d5db0e5c6ac66fb7e146e2b515ce10e788e",
+    "backend/src/lib/acompanhamento/labor-cost.js": "a45c47803b28479033c6361a51c0211fb51ce091c623d66f8057909aca20da53",
+    "backend/src/lib/acompanhamento/effective-allocation-sources.js": "81f152c71ed6faa47d2ae8f733a399cccbe4722136a34e45abc2c33a67eb1f07"
+  },
+  "ci": {
+    "sourceCommit": "f9f4c51fcad719ecda81653d877b984ea07ca9ca",
+    "runId": 43069946051,
+    "url": "https://github.com/pedro-pn/filtroAPP/actions/runs/43069946051",
+    "event": "workflow_dispatch",
+    "attempt": 1,
+    "status": "completed",
+    "conclusion": "success",
+    "updatedAt": "2026-11-11T17:42:34Z",
+    "jobs": [
+      {
+        "id": 130694804157,
+        "name": "Architecture",
+        "conclusion": "success"
+      },
+      {
+        "id": 130694804609,
+        "name": "RDO equipment (PostgreSQL)",
+        "conclusion": "success"
+      },
+      {
+        "id": 130694804678,
+        "name": "HTTP performance contracts (PostgreSQL)",
+        "conclusion": "success"
+      },
+      {
+        "id": 130694804721,
+        "name": "Notifications (PostgreSQL)",
+        "conclusion": "success"
+      },
+      {
+        "id": 130694804723,
+        "name": "Frontend",
+        "conclusion": "success"
+      },
+      {
+        "id": 130694804752,
+        "name": "PrismaCRM planning (PostgreSQL)",
+        "conclusion": "success"
+      },
+      {
+        "id": 130694804795,
+        "name": "Docker",
+        "conclusion": "success"
+      },
+      {
+        "id": 130694804811,
+        "name": "Conecta allocation (PostgreSQL)",
+        "conclusion": "success"
+      },
+      {
+        "id": 130694804901,
+        "name": "Commercial contributions (PostgreSQL)",
+        "conclusion": "success"
+      },
+      {
+        "id": 130694805039,
+        "name": "Backend",
+        "conclusion": "success"
+      },
+      {
+        "id": 130694805727,
+        "name": "Omni phase 2 (PostgreSQL)",
+        "conclusion": "success"
+      }
+    ],
+    "frontend": {
+      "tests": 898,
+      "pass": 898,
+      "fail": 0
+    },
+    "backend": {
+      "tests": 2924,
+      "pass": 2889,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 35
+    },
+    "dataBook": {
+      "tests": 23,
+      "passed": true
+    },
+    "browser": {
+      "rdoNotificationsEquipmentPassed": 28,
+      "performancePassed": 8,
+      "efetivoPassed": 5,
+      "totalPassed": 41
+    },
+    "pageBudgets": "All six budgets passed with byte counts identical to the local build.",
+    "note": "The previous ccfe0ddd DNS failure remains historical. This integrated source passed on the first CI attempt."
+  },
+  "limits": [
+    "No new HTTP/cold-service benchmark or production acceptance was claimed from this merge. Previous timing evidence belongs to its recorded source commits.",
+    "Experimental design-preview retains the same 66 diagnostic signatures under TypeScript 7 in remote main, pre-merge performance and the merged tree. The archived pre-merge config had deprecated baseUrl removed solely for that comparison; production strictness/budgets were not relaxed.",
+    "Implementation and validation used the performance worktree and owned local test databases only; backup work remains deferred."
+  ]
+}

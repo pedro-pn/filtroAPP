@@ -10,7 +10,7 @@ import { recordDocumentEvent } from './audit.js';
 import { purgeDocumentFiles, sourcePdfBuffer } from './document.js';
 import { buildFinalPdfBytes } from './final-pdf.js';
 import { beginDocumentFinalization } from './finalization.js';
-import { processSignatureFilePurges } from './file-quarantine.js';
+import { hasSignatureFilePurgeWork, processSignatureFilePurges } from './file-quarantine.js';
 import { expireOverdueInvites } from './invites.js';
 import { purgePreviews } from './preview.js';
 import { signatureOperationLog } from './observability.js';
@@ -188,29 +188,38 @@ export async function processDocumentFinalization(client, documentId, {
   }
 }
 
+function recoverableFinalizationWhere() {
+  return {
+    status: 'AGUARDANDO_ASSINATURAS', deletedAt: null,
+    signers: {
+      some: { status: 'ASSINADO' },
+      none: { isRequired: true, status: { notIn: ['ASSINADO', 'REVOGADO'] } }
+    }
+  };
+}
+function finalizationWhere(now) {
+  return {
+    status: 'FINALIZANDO',
+    OR: [{ finalizationNextAttemptAt: null }, { finalizationNextAttemptAt: { lte: now } }]
+  };
+}
+export async function hasPendingFinalizations(client, now = new Date()) {
+  return Boolean(await client.signatureDocument.findFirst({
+    where: { OR: [recoverableFinalizationWhere(), finalizationWhere(now)] }, select: { id: true }
+  }));
+}
+
 export async function processPendingFinalizations(client = prisma, { now = new Date(), ...dependencies } = {}) {
   // Recover published documents left pending by an earlier invite revocation.
   const ready = await client.signatureDocument.findMany({
-    where: {
-      status: 'AGUARDANDO_ASSINATURAS', deletedAt: null,
-      signers: {
-        some: { status: 'ASSINADO' },
-        none: { isRequired: true, status: { notIn: ['ASSINADO', 'REVOGADO'] } }
-      }
-    },
+    where: recoverableFinalizationWhere(),
     select: { id: true }, orderBy: { updatedAt: 'asc' }, take: 10
   });
   for (const document of ready) {
     await client.$transaction(tx => beginDocumentFinalization(tx, document, { now }));
   }
   const documents = await client.signatureDocument.findMany({
-    where: {
-      status: 'FINALIZANDO',
-      OR: [
-        { finalizationNextAttemptAt: null },
-        { finalizationNextAttemptAt: { lte: now } }
-      ]
-    },
+    where: finalizationWhere(now),
     select: { id: true },
     orderBy: { updatedAt: 'asc' },
     take: 10
@@ -271,7 +280,7 @@ export function startAssinaturasJobs({ client = prisma, intervalMs = FINALIZATIO
   const runFinalization = () => runTrackedJob(
     'assinaturas:finalization',
     () => processPendingFinalizations(client),
-    { prismaClient: client, lockTtlMs: Math.max(intervalMs * 2, CLAIM_TTL_MS) }
+    { prismaClient: client, lockTtlMs: Math.max(intervalMs * 2, CLAIM_TTL_MS), hasWork: () => hasPendingFinalizations(client) }
   ).catch(error => {
     console.error('Falha no job de finalização de assinaturas.', error?.message || error);
   });
@@ -292,7 +301,7 @@ export function startAssinaturasJobs({ client = prisma, intervalMs = FINALIZATIO
   const runFilePurges = () => runTrackedJob(
     'assinaturas:file-purge',
     () => processSignatureFilePurges(client),
-    { prismaClient: client, lockTtlMs: CLAIM_TTL_MS * 2 }
+    { prismaClient: client, lockTtlMs: CLAIM_TTL_MS * 2, hasWork: () => hasSignatureFilePurgeWork(client) }
   ).catch(error => {
     console.error('Falha no job de purga da quarentena de assinaturas.', error?.message || error);
   });

@@ -1,3 +1,4 @@
+import { useUsefulQueryContent } from '../../../observability/useUsefulContent';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -47,6 +48,7 @@ export function OperationalCalendar({
     queryKey: ['efetivo-planning-calendar', startDate, endDate, jobRoleId || 'all'],
     queryFn: () => getPlanningCalendar(startDate, endDate, jobRoleId)
   });
+  useUsefulQueryContent('efetivo:calendario', 'OperationalCalendar', [query]);
   const events = query.data?.events || [];
   const conflicts = query.data?.conflicts || [];
   return (

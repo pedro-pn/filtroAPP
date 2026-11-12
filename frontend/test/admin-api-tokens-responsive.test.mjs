@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const page = () => readFile(new URL('../src/pages/admin/AdminTokensPage.tsx', import.meta.url), 'utf8');
 const catalog = () => readFile(new URL('../src/components/admin/api-tokens/ApiScopeCatalog.tsx', import.meta.url), 'utf8');
-const styles = () => readFile(new URL('../src/styles/base.css', import.meta.url), 'utf8');
+const styles = () => readFile(new URL('../src/pages/admin/AdminTokensPage.legacy.css', import.meta.url), 'utf8');
 const novelty = () => readFile(new URL('../src/pages/admin/apiTokenPlaygroundNovelty.ts', import.meta.url), 'utf8');
 const tour = () => readFile(new URL('../src/pages/admin/apiTokenPlaygroundTour.ts', import.meta.url), 'utf8');
 const alert = () => readFile(new URL('../src/components/ui/ds/Alert.tsx', import.meta.url), 'utf8');

@@ -1,0 +1,329 @@
+diff --git a/backend/scripts/lib/http-performance-report.js b/backend/scripts/lib/http-performance-report.js
+index da12c4d9..1ff8483c 100644
+--- a/backend/scripts/lib/http-performance-report.js
++++ b/backend/scripts/lib/http-performance-report.js
+@@ -23,6 +23,7 @@ export function summarizeHttpSamples(samples) {
+       return values[Math.ceil(values.length * fraction) - 1];
+     };
+     const enoughSamples = rows.length >= 100;
++    const queueWait = row => (row.server.stages?.['labor.sources.queue'] || 0) + (row.server.stages?.['detail.sources.queue'] || 0);
+     return { scenario: first.scenario, profile: first.profile, phase: first.phase,
+       status: first.status, aborted: first.server.aborted, requests: rows.length, enoughSamples,
+       clientMedianMs: percentile(row => row.clientMs, .5),
+@@ -32,6 +33,11 @@ export function summarizeHttpSamples(samples) {
+       maxBytes: Math.max(...rows.map(row => row.bytes)),
+       databaseCallsMedian: percentile(row => row.server.databaseCalls || 0, .5),
+       databaseCallsMax: Math.max(...rows.map(row => row.server.databaseCalls || 0)),
++      ...(rows.some(row => row.server.stages && (Object.hasOwn(row.server.stages, 'labor.sources.queue') || Object.hasOwn(row.server.stages, 'detail.sources.queue'))) ? {
++        sourceQueueWaitTotalMedianMs: percentile(queueWait, .5),
++        sourceQueueWaitTotalP95Ms: enoughSamples ? percentile(queueWait, .95) : null,
++        sourceQueueWaitTotalMaxMs: Math.max(...rows.map(queueWait))
++      } : {}),
+       ...(rows.some(row => row.server.databaseQueriesPeak != null) ? {
+         databaseQueriesPeakMedian: percentile(row => row.server.databaseQueriesPeak || 0, .5),
+         databaseQueriesPeakMax: Math.max(...rows.map(row => row.server.databaseQueriesPeak || 0))
+diff --git a/backend/src/lib/acompanhamento/labor-cost.js b/backend/src/lib/acompanhamento/labor-cost.js
+index 7b018b91..d51721c3 100644
+--- a/backend/src/lib/acompanhamento/labor-cost.js
++++ b/backend/src/lib/acompanhamento/labor-cost.js
+@@ -27,6 +27,7 @@
+ 
+ import prisma from '../prisma.js';
+ import { laborReportQuery, loadLaborReportSources } from './labor-report-sources.js';
++import { loadReadSources } from '../operations/read-sources.js';
+ import { laborCostCache } from '../resource-list-cache.js';
+ import { computeMonthlyCost } from './cost-engine.js';
+ import { getAnnualCollaboratorCosts } from './settings.js';
+@@ -1992,10 +1993,10 @@ export async function computeCollaboratorRates(importId = null) {
+   const periodEndExclusive = endExclusive(pontoScope.periodEnd);
+   const fileStart = pontoScope.periodStart;
+   const fileEnd = pontoScope.periodEnd;
+-  // These two sources determine availability independently of reports, roles
+-  // and project metadata. Start them first, then overlap the remaining reads
+-  // with absence/calendar checks instead of adding another sequential stage.
+-  const periodStatePromise = Promise.all([
++  // Period/availability work remains independent of reports and cost metadata.
++  // Admit it alongside the allocation context and roles, then overlap later
++  // reads with its absence/calendar checks within the source budget below.
++  const loadPeriodState = () => Promise.all([
+     prisma.pontoPeriodSummary.findMany({
+       where: { importId: { in: importIds }, collaboratorId: { not: null } },
+       include: {
+@@ -2025,30 +2026,31 @@ export async function computeCollaboratorRates(importId = null) {
+     }) : { calendarRevision: 1, conflicts: [] };
+     return { periods, actualAvailability };
+   });
+-  const projectAllocationContextPromise = getProjectAllocationContext();
++  let projectAllocationContextPromise;
++  const loadAllocationContext = () => projectAllocationContextPromise ??= getProjectAllocationContext();
+   const [
++    projectAllocationContext,
++    reportSources,
+     periodState,
+     roleCatalog,
+-    reportSources,
+     annualCosts,
+-    projectAllocationContext,
+     manualDayOverrides,
+     confirmedReviewDays
+-  ] = await Promise.all([
+-    periodStatePromise,
+-    loadRoleCostCatalog(),
+-    loadLaborReportSources({
++  ] = await loadReadSources([
++    loadAllocationContext,
++    () => loadLaborReportSources({
+       database: prisma, periodStart: pontoScope.periodStart, periodEnd: pontoScope.periodEnd,
+-      projects: projectAllocationContextPromise.then(context => context.projects)
++      projects: loadAllocationContext().then(context => context.projects)
+     }),
+-    getAnnualCollaboratorCosts(),
+-    projectAllocationContextPromise,
+-    prisma.pontoDayProjectOverride.findMany({
++    loadPeriodState,
++    () => loadRoleCostCatalog(),
++    () => getAnnualCollaboratorCosts(),
++    () => prisma.pontoDayProjectOverride.findMany({
+       where: { workDate: { gte: pontoScope.periodStart, lt: periodEndExclusive } },
+       select: { collaboratorId: true, workDate: true, projectId: true }
+     }),
+-    loadConfirmedReviewDays({ from: pontoScope.periodStart, to: periodEndExclusive })
+-  ]);
++    () => loadConfirmedReviewDays({ from: pontoScope.periodStart, to: periodEndExclusive })
++  ], { concurrency: 3, stage: 'labor.sources' });
+   const rdoData = rdoDataByCollaboratorFromReports(reportSources.reports);
+   const offshoreYearsByCollaborator = offshoreYearsByCollaboratorFromReports(reportSources.offshoreReports);
+   const { periods, actualAvailability } = periodState;
+diff --git a/backend/src/lib/acompanhamento/project-detail.js b/backend/src/lib/acompanhamento/project-detail.js
+index 1950f1d6..cd69e16e 100644
+--- a/backend/src/lib/acompanhamento/project-detail.js
++++ b/backend/src/lib/acompanhamento/project-detail.js
+@@ -42,6 +42,7 @@ import { getProjectInvoices } from './project-invoices.js';
+ import { progressReadOptions } from './progress-projection.js';
+ import { addCalendarDays, projectProgressCalendar, projectProgressProjection } from './project-progress-projection.js';
+ import { projectAccessCacheKey } from '../projects/access-scope.js';
++import { loadReadSources } from '../operations/read-sources.js';
+ export { buildProjectCalendarPeriod } from './project-progress-projection.js';
+ 
+ function toNum(value) {
+@@ -439,18 +440,25 @@ export async function getProjectDetail(projectId, {
+   });
+ 
+   const [
++    loadedProgressDetails,
++    hoursByProject,
++    labor,
+     queriedReports,
+     queriedCollaborators,
+     costGroups,
+     costStatusGroups,
+-    labor,
+     equipmentByProject,
+     stockCosts,
+-    manualCostsByProject,
+-    hoursByProject,
+-    loadedProgressDetails
+-  ] = await Promise.all([
+-    prisma.report.findMany({
++    manualCostsByProject
++  ] = await loadReadSources([
++    // Start multi-stage sources first. Delaying these behind the small cost
++    // lookups lengthens the critical path even when the pool queue shrinks.
++    () => division
++      ? computeDivisionProgressDetails(projectId, division, progressReadOptions(progressMode))
++      : preloadedProgressDetails ?? computeProjectProgressDetails(projectId, progressReadOptions(progressMode)),
++    () => preloadedPlannedHoursByProject ?? loadPlannedHours([projectId]),
++    () => laborCostByProject(),
++    () => prisma.report.findMany({
+       where: { projectId, deletedAt: null, ...divisionDateWhere('reportDate', division) },
+       select: {
+         id: true,
+@@ -465,7 +473,7 @@ export async function getProjectDetail(projectId, {
+       },
+       orderBy: { reportDate: 'asc' }
+     }),
+-    prisma.reportCollaborator.findMany({
++    () => prisma.reportCollaborator.findMany({
+       where: { report: { projectId, deletedAt: null, ...divisionDateWhere('reportDate', division) } },
+       select: {
+         reportId: true,
+@@ -480,25 +488,20 @@ export async function getProjectDetail(projectId, {
+       const catalog = await sources.loadReportCollaborators();
+       return rows.map(item => ({ ...item, collaborator: catalog.get(item.collaboratorId) ?? null }));
+     }),
+-    sources?.costGroupsByProject.get(projectId) ?? prisma.omiePurchase.groupBy({
++    () => sources?.costGroupsByProject.get(projectId) ?? prisma.omiePurchase.groupBy({
+       by: ['categoriaCodigo', 'categoriaDescricao'],
+       where: { projectId, ...categoryWhere, ...purchaseDivisionWhere(division) },
+       _sum: { valor: true }
+     }),
+-    sources?.costStatusGroupsByProject.get(projectId) ?? prisma.omiePurchase.groupBy({
++    () => sources?.costStatusGroupsByProject.get(projectId) ?? prisma.omiePurchase.groupBy({
+       by: ['statusTitulo', 'categoriaCodigo', 'categoriaDescricao'],
+       where: { projectId, ...categoryWhere, ...purchaseDivisionWhere(division) },
+       _sum: { valor: true }
+     }),
+-    laborCostByProject(), // custo de mão de obra (HH) do ponto vigente
+-    sources?.equipmentByProject ?? getEquipmentUsageByProject([projectId]),
+-    sources?.stockCosts ?? getStockConsumptionCostByProject([projectId], prisma, division),
+-    sources?.manualCostsByProject ?? getManualProjectCostsByProject([projectId], { includeEntries: true, division }),
+-    preloadedPlannedHoursByProject ?? loadPlannedHours([projectId]),
+-    division
+-      ? computeDivisionProgressDetails(projectId, division, progressReadOptions(progressMode))
+-      : preloadedProgressDetails ?? computeProjectProgressDetails(projectId, progressReadOptions(progressMode))
+-  ]);
++    () => sources?.equipmentByProject ?? getEquipmentUsageByProject([projectId]),
++    () => sources?.stockCosts ?? getStockConsumptionCostByProject([projectId], prisma, division),
++    () => sources?.manualCostsByProject ?? getManualProjectCostsByProject([projectId], { includeEntries: true, division })
++  ], { concurrency: sources ? 10 : 6, stage: 'detail.sources' });
+   const {
+     project,
+     progress: projectProgress
+diff --git a/backend/src/lib/operations/request-performance.js b/backend/src/lib/operations/request-performance.js
+index 43a52788..aa9c34c4 100644
+--- a/backend/src/lib/operations/request-performance.js
++++ b/backend/src/lib/operations/request-performance.js
+@@ -7,6 +7,13 @@ export function withRequestPerformance(trace, callback) {
+   return requests.run(trace, callback);
+ }
+ 
++export function recordRequestStageDuration(name, durationMs) {
++  const trace = requests.getStore();
++  if (!trace) return;
++  if (!Object.hasOwn(trace.stages, name) && Object.keys(trace.stages).length >= 20) return;
++  trace.stages[name] = (trace.stages[name] || 0) + durationMs;
++}
++
+ // Os nomes são constantes do código. Nenhum parâmetro, corpo ou resultado é guardado.
+ export function measureRequestStage(name, callback) {
+   const trace = requests.getStore();
+diff --git a/backend/test/http-performance-benchmark.test.js b/backend/test/http-performance-benchmark.test.js
+index bd659d7c..d52bd231 100644
+--- a/backend/test/http-performance-benchmark.test.js
++++ b/backend/test/http-performance-benchmark.test.js
+@@ -30,6 +30,12 @@ test('HTTP percentiles separate phase, profile, status and aborts and suppress p
+   })));
+   assert.equal(withPeaks.databaseQueriesPeakMedian, 3);
+   assert.equal(withPeaks.databaseQueriesPeakMax, 7);
++  const [withWait] = summarizeHttpSamples(samples.slice(0, 100).map(sample => ({
++    ...sample, server: { ...sample.server, stages: { 'labor.sources.queue': 10, 'detail.sources.queue': 20 } }
++  })));
++  assert.equal(withWait.sourceQueueWaitTotalMedianMs, 30);
++  assert.equal(withWait.sourceQueueWaitTotalP95Ms, 30);
++  assert.equal(Object.hasOwn(groups[0], 'sourceQueueWaitTotalMedianMs'), false);
+ });
+ 
+ test('pool target uses active interval samples and detects sustained observed queueing', () => {
+diff --git a/backend/test/request-metrics.test.js b/backend/test/request-metrics.test.js
+index 4fe7632e..c85ba483 100644
+--- a/backend/test/request-metrics.test.js
++++ b/backend/test/request-metrics.test.js
+@@ -3,6 +3,7 @@ import test from 'node:test';
+ import express from 'express';
+ import { createRequestMetrics, normalizedRequestRoute } from '../src/middleware/request-metrics.js';
+ import { measureRequestStage } from '../src/lib/operations/request-performance.js';
++import { loadReadSources } from '../src/lib/operations/read-sources.js';
+ import { createPerformanceReport } from '../scripts/report-performance.js';
+ 
+ test('mede respostas rápidas e 304, preserva prefixo do módulo e o pico do pool', async t => {
+@@ -18,6 +19,10 @@ test('mede respostas rápidas e 304, preserva prefixo do módulo e o pico do poo
+       await new Promise(resolve => setTimeout(resolve, 35));
+       waiting = 0;
+     });
++    await loadReadSources([
++      () => new Promise(resolve => setTimeout(resolve, 15)),
++      () => ({ privateValue: req.params.id })
++    ], { concurrency: 1, stage: 'detail.sources' });
+     if (req.query.unchanged) return res.status(304).end();
+     res.json({ ok: true });
+   });
+@@ -36,6 +41,8 @@ test('mede respostas rápidas e 304, preserva prefixo do módulo e o pico do poo
+   assert.equal(records[0].poolWaitingMax, 7);
+   assert.equal(records[0].dbPool.waiting, 0);
+   assert.ok(records[0].stages.sources >= 30);
++  assert.ok(records[0].stages['detail.sources.queue'] >= 10, 'Application admission wait is emitted even with an idle pool');
++  assert.ok(records[0].stages['detail.sources.run'] >= 10);
+   assert.ok(Object.hasOwn(records[0].stages, 'http.serialize'));
+   assert.ok(records[0].responseBytes > 0);
+   assert.doesNotMatch(JSON.stringify(records), /private-id|token=secret/);
+diff --git a/backend/src/lib/operations/read-sources.js b/backend/src/lib/operations/read-sources.js
+new file mode 100644
+index 00000000..deb82d2e
+--- /dev/null
++++ b/backend/src/lib/operations/read-sources.js
+@@ -0,0 +1,21 @@
++import { performance } from 'node:perf_hooks';
++import { measureRequestStage, recordRequestStageDuration } from './request-performance.js';
++
++// Limit independent source groups, not connections or queries. Each source may
++// use its existing relation queries. Queueing acquires/reserves no database
++// connection. Every admitted source's queue time is observable.
++export async function loadReadSources(sources, { concurrency = 3, stage = 'read.sources' } = {}) {
++  if (!Number.isInteger(concurrency) || concurrency < 1) throw new RangeError('Invalid source concurrency');
++  const results = new Array(sources.length), queuedAt = performance.now();
++  let next = 0, failure;
++  await Promise.all(Array.from({ length: Math.min(concurrency, sources.length) }, async () => {
++    while (!failure && next < sources.length) {
++      const index = next++;
++      recordRequestStageDuration(stage + '.queue', performance.now() - queuedAt);
++      try { results[index] = await measureRequestStage(stage + '.run', sources[index]); }
++      catch (error) { failure ??= { error }; }
++    }
++  }));
++  if (failure) throw failure.error;
++  return results;
++}
+diff --git a/backend/test/read-sources.test.js b/backend/test/read-sources.test.js
+new file mode 100644
+index 00000000..720964e4
+--- /dev/null
++++ b/backend/test/read-sources.test.js
+@@ -0,0 +1,48 @@
++import assert from 'node:assert/strict';
++import test from 'node:test';
++import { setImmediate } from 'node:timers/promises';
++import { loadReadSources } from '../src/lib/operations/read-sources.js';
++import { withRequestPerformance } from '../src/lib/operations/request-performance.js';
++
++test('lazy read sources obey the budget, retain result order and record queue time inside the request', async () => {
++  let active = 0, peak = 0;
++  const trace = { stages: {} };
++  const result = await withRequestPerformance(trace, () => loadReadSources(Array.from({ length: 9 }, (_, index) => async () => {
++    active++; peak = Math.max(peak, active);
++    await setImmediate();
++    active--;
++    return { id: 'private-' + index };
++  }), { concurrency: 3, stage: 'detail.sources' }));
++  assert.equal(peak, 3);
++  assert.deepEqual(result.map(row => row.id), Array.from({ length: 9 }, (_, index) => 'private-' + index));
++  assert.ok(trace.stages['detail.sources.queue'] > 0);
++  assert.ok(trace.stages['detail.sources.run'] > 0);
++  assert.deepEqual(Object.keys(trace.stages).sort(), ['detail.sources.queue', 'detail.sources.run']);
++  assert.doesNotMatch(JSON.stringify(trace), /private-/);
++});
++
++test('failed reads stop admission and drain already admitted sources before rejecting', async () => {
++  let release, completed = false;
++  const started = [], failure = new Error('read failed'), gate = new Promise(resolve => { release = resolve; });
++  const pending = loadReadSources([
++    async () => { started.push(0); throw failure; },
++    async () => { started.push(1); await gate; },
++    () => { started.push(2); }
++  ], { concurrency: 2 }).catch(error => { completed = true; return error; });
++  await setImmediate();
++  assert.deepEqual(started, [0, 1]);
++  assert.equal(completed, false);
++  release();
++  assert.equal(await pending, failure);
++  assert.deepEqual(started, [0, 1]);
++});
++
++test('source budgets belong to the calculation and do not serialize other requests', async () => {
++  let active = 0, peak = 0;
++  const source = async () => { active++; peak = Math.max(peak, active); await setImmediate(); active--; };
++  await Promise.all([loadReadSources([source, source], { concurrency: 2 }), loadReadSources([source, source], { concurrency: 2 })]);
++  assert.equal(peak, 4);
++  assert.deepEqual(await loadReadSources([]), []);
++  assert.deepEqual(await loadReadSources([() => null, () => false, () => 0]), [null, false, 0]);
++  for (const concurrency of [0, -1, 1.5]) await assert.rejects(loadReadSources([], { concurrency }), RangeError);
++});

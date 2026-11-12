@@ -17,6 +17,7 @@ import { laborCostByProject } from './labor-cost.js';
 import { getEquipmentUsageByProject } from './equipment-usage.js';
 import { reportAllCollaboratorIds, reportPersonTimeMetrics } from './report-time.js';
 import prisma from '../prisma.js';
+import { measureRequestStage } from '../operations/request-performance.js';
 import { projectCardsCache } from '../resource-list-cache.js';
 
 function toNum(value) {
@@ -146,7 +147,8 @@ async function listProjectCardsUncached({ includeAdminOnlyCategories = true } = 
   const projectIds = rows.map(r => r.projectId);
   if (projectIds.length === 0) return [];
 
-  const [projects, queriedReports, queriedCollaborators, labor, hoursByProject] = await Promise.all([
+  const labor = await measureRequestStage('cards.sources.labor', () => laborCostByProject());
+  const [projects, queriedReports, queriedCollaborators, hoursByProject] = await measureRequestStage('cards.sources.metadata', () => Promise.all([
     prisma.project.findMany({
       where: { id: { in: projectIds } },
       select: { id: true, serviceCategory: true, startDate: true, endDate: true, workdayHours: true, weekendWorkdayHours: true, acompanhamentoCardName: true }
@@ -172,9 +174,8 @@ async function listProjectCardsUncached({ includeAdminOnlyCategories = true } = 
       where: { report: { projectId: { in: projectIds }, deletedAt: null } },
       select: { reportId: true, collaboratorId: true }
     }),
-    laborCostByProject(), // custo de mão de obra (HH) do ponto vigente — separado do realizado Omie
     loadPlannedHours(projectIds)
-  ]);
+  ]));
   const { reports, collaborators } = selectRealizedSourceReportData(queriedReports, queriedCollaborators);
   const laborByProject = labor.byProjectId;
   const hasAllocatedHours = (collaboratorId, projectId) => {

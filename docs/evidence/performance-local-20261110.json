@@ -1,0 +1,923 @@
+{
+  "date": "2026-11-10",
+  "baselineCommit": "9721c798",
+  "candidate": "working-tree-after-9721c798",
+  "scope": "Local implementation and synthetic measurements only; no deployment or production/staging access.",
+  "environment": {
+    "nodeVersion": "v24.15.0",
+    "database": "PostgreSQL 16, disposable loopback container",
+    "databaseCpuLimit": 1,
+    "databaseMemoryMiB": 768,
+    "databaseConnectionLimit": 8
+  },
+  "method": "Five paired uncached service calculations per scenario and mode, alternating baseline/candidate order on the same migrated local PostgreSQL with warm database pages. Cold samples use fresh Node/Prisma processes; timings exclude process boot and module imports. After-session performs one session SELECT, not HTTP authentication. Profiles are separate extra instrumented calls; their timings are not benchmark samples. Profile counts are Prisma operations, not individual SQL statements. Result bytes are JSON sizes, not network traffic. Exact parity compares serialized complete calculations including Map and Set.",
+  "changes": [
+    "Omit unused service intervals for RDO children without altering the parent report selection.",
+    "Start point-period reads first so actual-workforce availability can overlap independent report, role and project reads."
+  ],
+  "scenarios": {
+    "thin": {
+      "fixture": {
+        "reports": 1203,
+        "services": 2,
+        "collaborators": 21,
+        "projectPreferenceEntries": 500
+      },
+      "samples": {
+        "warm": [
+          {
+            "beforeMs": 64.86333200000001,
+            "afterMs": 61.03608400000007
+          },
+          {
+            "beforeMs": 61.23848600000008,
+            "afterMs": 59.30747999999994
+          },
+          {
+            "beforeMs": 64.08075500000007,
+            "afterMs": 56.12639200000001
+          },
+          {
+            "beforeMs": 58.95076700000004,
+            "afterMs": 58.11550999999997
+          },
+          {
+            "beforeMs": 58.994028999999955,
+            "afterMs": 57.86255600000004
+          }
+        ],
+        "new-process": [
+          {
+            "beforeMs": 293.68413599999997,
+            "afterMs": 328.231061
+          },
+          {
+            "beforeMs": 332.215972,
+            "afterMs": 298.771776
+          },
+          {
+            "beforeMs": 315.765078,
+            "afterMs": 308.13392799999997
+          },
+          {
+            "beforeMs": 305.580607,
+            "afterMs": 283.1108459999999
+          },
+          {
+            "beforeMs": 313.4129909999999,
+            "afterMs": 315.319759
+          }
+        ],
+        "after-session": [
+          {
+            "beforeMs": 227.40458699999994,
+            "afterMs": 238.478336
+          },
+          {
+            "beforeMs": 224.80641000000003,
+            "afterMs": 208.28015900000003
+          },
+          {
+            "beforeMs": 182.71047999999996,
+            "afterMs": 196.49915000000004
+          },
+          {
+            "beforeMs": 202.16873800000008,
+            "afterMs": 215.89627800000005
+          },
+          {
+            "beforeMs": 176.461047,
+            "afterMs": 179.041881
+          }
+        ]
+      },
+      "summary": {
+        "warm": {
+          "beforeMs": 61.23848600000008,
+          "afterMs": 58.11550999999997,
+          "reductionPct": 5.099694985927805
+        },
+        "new-process": {
+          "beforeMs": 313.4129909999999,
+          "afterMs": 308.13392799999997,
+          "reductionPct": 1.6843791264542496
+        },
+        "after-session": {
+          "beforeMs": 202.16873800000008,
+          "afterMs": 208.28015900000003,
+          "reductionPct": -3.0229307757760004
+        }
+      },
+      "exactParity": true,
+      "profiles": []
+    },
+    "dense": {
+      "fixture": {
+        "reports": 1203,
+        "services": 4802,
+        "collaborators": 21,
+        "projectPreferenceEntries": 500
+      },
+      "samples": {
+        "warm": [
+          {
+            "beforeMs": 62.916449,
+            "afterMs": 76.45511399999998
+          },
+          {
+            "beforeMs": 65.43406900000002,
+            "afterMs": 51.355785999999966
+          },
+          {
+            "beforeMs": 65.98674799999998,
+            "afterMs": 46.697272
+          },
+          {
+            "beforeMs": 65.058468,
+            "afterMs": 76.06172199999992
+          },
+          {
+            "beforeMs": 79.58478899999994,
+            "afterMs": 57.34268899999995
+          }
+        ],
+        "new-process": [
+          {
+            "beforeMs": 294.734898,
+            "afterMs": 245.69622699999996
+          },
+          {
+            "beforeMs": 334.19991899999997,
+            "afterMs": 244.637262
+          },
+          {
+            "beforeMs": 274.385622,
+            "afterMs": 282.27045999999996
+          },
+          {
+            "beforeMs": 324.27773899999994,
+            "afterMs": 267.786249
+          },
+          {
+            "beforeMs": 272.344246,
+            "afterMs": 287.558771
+          }
+        ],
+        "after-session": [
+          {
+            "beforeMs": 175.503555,
+            "afterMs": 205.447448
+          },
+          {
+            "beforeMs": 172.746463,
+            "afterMs": 153.836225
+          },
+          {
+            "beforeMs": 203.030935,
+            "afterMs": 207.69838200000004
+          },
+          {
+            "beforeMs": 211.007607,
+            "afterMs": 164.19749900000005
+          },
+          {
+            "beforeMs": 226.451192,
+            "afterMs": 223.52108500000003
+          }
+        ]
+      },
+      "summary": {
+        "warm": {
+          "beforeMs": 65.43406900000002,
+          "afterMs": 57.34268899999995,
+          "reductionPct": 12.36569897555977
+        },
+        "new-process": {
+          "beforeMs": 294.734898,
+          "afterMs": 267.786249,
+          "reductionPct": 9.14335193520246
+        },
+        "after-session": {
+          "beforeMs": 203.030935,
+          "afterMs": 205.447448,
+          "reductionPct": -1.1902191161164755
+        }
+      },
+      "exactParity": true,
+      "profiles": [
+        {
+          "durationMs": 230.03333400000002,
+          "queries": [
+            {
+              "model": "pontoImport",
+              "method": "findUnique",
+              "startedAt": 0.7145869999999945,
+              "durationMs": 12.765385000000038,
+              "rows": 1,
+              "resultJsonBytes": 457
+            },
+            {
+              "model": "project",
+              "method": "findMany",
+              "startedAt": 13.920933999999988,
+              "durationMs": 34.16800900000004,
+              "rows": 3,
+              "resultJsonBytes": 39064
+            },
+            {
+              "model": "pontoExternalEmployee",
+              "method": "findMany",
+              "startedAt": 14.141914999999983,
+              "durationMs": 70.31730800000003,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "pontoProjectTagAlias",
+              "method": "findMany",
+              "startedAt": 13.987657000000013,
+              "durationMs": 72.08939600000002,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "efetivoMissionPlan",
+              "method": "findMany",
+              "startedAt": 14.095454000000018,
+              "durationMs": 78.38514900000001,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "pontoDayProjectOverride",
+              "method": "findMany",
+              "startedAt": 14.454474000000005,
+              "durationMs": 78.926197,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "costProfile",
+              "method": "findMany",
+              "startedAt": 14.20811100000003,
+              "durationMs": 80.44629199999997,
+              "rows": 3,
+              "resultJsonBytes": 2517
+            },
+            {
+              "model": "acompanhamentoSetting",
+              "method": "findMany",
+              "startedAt": 14.434960999999987,
+              "durationMs": 82.47399000000001,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "report",
+              "method": "findMany",
+              "startedAt": 14.380427999999995,
+              "durationMs": 83.35072200000002,
+              "rows": 2,
+              "resultJsonBytes": 439
+            },
+            {
+              "model": "acompanhamentoMissionGroup",
+              "method": "findMany",
+              "startedAt": 14.010364999999979,
+              "durationMs": 117.951615,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "allocationReviewDay",
+              "method": "findMany",
+              "startedAt": 14.521763000000021,
+              "durationMs": 120.234016,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "jobRole",
+              "method": "findMany",
+              "startedAt": 14.188940000000002,
+              "durationMs": 124.715555,
+              "rows": 53,
+              "resultJsonBytes": 18213
+            },
+            {
+              "model": "efetivoMissionAllocation",
+              "method": "findMany",
+              "startedAt": 14.076561000000027,
+              "durationMs": 125.40880499999997,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "report",
+              "method": "findMany",
+              "startedAt": 14.360989000000018,
+              "durationMs": 169.23477599999995,
+              "rows": 1202,
+              "resultJsonBytes": 583421
+            },
+            {
+              "model": "pontoPeriodSummary",
+              "method": "findMany",
+              "startedAt": 14.127769999999998,
+              "durationMs": 174.45390499999996,
+              "rows": 21,
+              "resultJsonBytes": 81599
+            },
+            {
+              "model": "workforceCalendarState",
+              "method": "findUnique",
+              "startedAt": 201.34933300000006,
+              "durationMs": 4.423192999999969,
+              "rows": 1,
+              "resultJsonBytes": 106
+            },
+            {
+              "model": "collaboratorAbsence",
+              "method": "findMany",
+              "startedAt": 201.22108799999995,
+              "durationMs": 5.187155000000075,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "workforceHoliday",
+              "method": "findMany",
+              "startedAt": 201.33239299999997,
+              "durationMs": 5.284866000000079,
+              "rows": 0,
+              "resultJsonBytes": 2
+            }
+          ]
+        },
+        {
+          "durationMs": 194.59923199999997,
+          "queries": [
+            {
+              "model": "pontoImport",
+              "method": "findUnique",
+              "startedAt": 0.6974440000000186,
+              "durationMs": 16.895128999999997,
+              "rows": 1,
+              "resultJsonBytes": 457
+            },
+            {
+              "model": "pontoProjectTagAlias",
+              "method": "findMany",
+              "startedAt": 18.213211,
+              "durationMs": 59.70309500000002,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "pontoExternalEmployee",
+              "method": "findMany",
+              "startedAt": 18.06339700000001,
+              "durationMs": 60.30234999999999,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "project",
+              "method": "findMany",
+              "startedAt": 18.18902300000002,
+              "durationMs": 62.76885299999998,
+              "rows": 3,
+              "resultJsonBytes": 39064
+            },
+            {
+              "model": "acompanhamentoSetting",
+              "method": "findMany",
+              "startedAt": 18.72753399999999,
+              "durationMs": 63.54229000000004,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "pontoDayProjectOverride",
+              "method": "findMany",
+              "startedAt": 18.746159000000034,
+              "durationMs": 66.04514499999999,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "efetivoMissionPlan",
+              "method": "findMany",
+              "startedAt": 18.332255000000032,
+              "durationMs": 68.575198,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "costProfile",
+              "method": "findMany",
+              "startedAt": 18.414521000000036,
+              "durationMs": 70.22264999999999,
+              "rows": 3,
+              "resultJsonBytes": 2517
+            },
+            {
+              "model": "acompanhamentoMissionGroup",
+              "method": "findMany",
+              "startedAt": 18.23731600000002,
+              "durationMs": 72.53975299999996,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "report",
+              "method": "findMany",
+              "startedAt": 18.648258,
+              "durationMs": 72.872567,
+              "rows": 2,
+              "resultJsonBytes": 439
+            },
+            {
+              "model": "jobRole",
+              "method": "findMany",
+              "startedAt": 18.39139799999998,
+              "durationMs": 106.42324100000002,
+              "rows": 53,
+              "resultJsonBytes": 18213
+            },
+            {
+              "model": "allocationReviewDay",
+              "method": "findMany",
+              "startedAt": 18.835887000000014,
+              "durationMs": 107.04285199999998,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "pontoPeriodSummary",
+              "method": "findMany",
+              "startedAt": 18.015863000000024,
+              "durationMs": 114.11445499999996,
+              "rows": 21,
+              "resultJsonBytes": 81599
+            },
+            {
+              "model": "report",
+              "method": "findMany",
+              "startedAt": 18.617617999999993,
+              "durationMs": 147.71898100000004,
+              "rows": 1202,
+              "resultJsonBytes": 392582
+            },
+            {
+              "model": "workforceCalendarState",
+              "method": "findUnique",
+              "startedAt": 141.67449399999998,
+              "durationMs": 27.121009000000015,
+              "rows": 1,
+              "resultJsonBytes": 106
+            },
+            {
+              "model": "workforceHoliday",
+              "method": "findMany",
+              "startedAt": 141.660599,
+              "durationMs": 27.817740000000015,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "collaboratorAbsence",
+              "method": "findMany",
+              "startedAt": 141.54871100000003,
+              "durationMs": 28.517209999999977,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "efetivoMissionAllocation",
+              "method": "findMany",
+              "startedAt": 18.30962199999999,
+              "durationMs": 156.04135000000002,
+              "rows": 0,
+              "resultJsonBytes": 2
+            }
+          ]
+        }
+      ]
+    },
+    "large": {
+      "fixture": {
+        "reports": 6003,
+        "services": 24002,
+        "collaborators": 21,
+        "projectPreferenceEntries": 500
+      },
+      "samples": {
+        "warm": [
+          {
+            "beforeMs": 269.72322899999995,
+            "afterMs": 145.497529
+          },
+          {
+            "beforeMs": 169.87658199999998,
+            "afterMs": 199.029768
+          },
+          {
+            "beforeMs": 181.21386400000006,
+            "afterMs": 154.62685399999998
+          },
+          {
+            "beforeMs": 191.79499800000008,
+            "afterMs": 175.75336399999992
+          },
+          {
+            "beforeMs": 177.11028700000008,
+            "afterMs": 150.586594
+          }
+        ],
+        "new-process": [
+          {
+            "beforeMs": 546.546231,
+            "afterMs": 374.99699300000003
+          },
+          {
+            "beforeMs": 451.17343700000004,
+            "afterMs": 383.839824
+          },
+          {
+            "beforeMs": 468.52966799999996,
+            "afterMs": 439.51272199999994
+          },
+          {
+            "beforeMs": 498.614594,
+            "afterMs": 451.41710800000004
+          },
+          {
+            "beforeMs": 469.92407899999995,
+            "afterMs": 414.80836600000004
+          }
+        ],
+        "after-session": [
+          {
+            "beforeMs": 432.45420799999994,
+            "afterMs": 288.131583
+          },
+          {
+            "beforeMs": 358.860423,
+            "afterMs": 240.21385099999998
+          },
+          {
+            "beforeMs": 393.590339,
+            "afterMs": 286.26487599999996
+          },
+          {
+            "beforeMs": 415.6740070000001,
+            "afterMs": 312.402686
+          },
+          {
+            "beforeMs": 423.341681,
+            "afterMs": 337.13747599999994
+          }
+        ]
+      },
+      "summary": {
+        "warm": {
+          "beforeMs": 181.21386400000006,
+          "afterMs": 154.62685399999998,
+          "reductionPct": 14.671620268524311
+        },
+        "new-process": {
+          "beforeMs": 469.92407899999995,
+          "afterMs": 414.80836600000004,
+          "reductionPct": 11.728642021767932
+        },
+        "after-session": {
+          "beforeMs": 415.6740070000001,
+          "afterMs": 288.131583,
+          "reductionPct": 30.683281093397806
+        }
+      },
+      "exactParity": true,
+      "profiles": [
+        {
+          "durationMs": 371.43381600000004,
+          "queries": [
+            {
+              "model": "pontoImport",
+              "method": "findUnique",
+              "startedAt": 0.5877619999999979,
+              "durationMs": 12.331185000000005,
+              "rows": 1,
+              "resultJsonBytes": 457
+            },
+            {
+              "model": "project",
+              "method": "findMany",
+              "startedAt": 13.34509700000001,
+              "durationMs": 32.68876,
+              "rows": 3,
+              "resultJsonBytes": 39064
+            },
+            {
+              "model": "acompanhamentoSetting",
+              "method": "findMany",
+              "startedAt": 13.853498000000002,
+              "durationMs": 84.15146800000002,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "pontoDayProjectOverride",
+              "method": "findMany",
+              "startedAt": 13.876378999999986,
+              "durationMs": 86.20169300000003,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "pontoProjectTagAlias",
+              "method": "findMany",
+              "startedAt": 13.393081999999993,
+              "durationMs": 87.19494800000001,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "pontoExternalEmployee",
+              "method": "findMany",
+              "startedAt": 13.548475999999994,
+              "durationMs": 95.88366200000002,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "costProfile",
+              "method": "findMany",
+              "startedAt": 13.622896000000026,
+              "durationMs": 97.84210399999995,
+              "rows": 3,
+              "resultJsonBytes": 2517
+            },
+            {
+              "model": "report",
+              "method": "findMany",
+              "startedAt": 13.795732999999984,
+              "durationMs": 100.32660400000003,
+              "rows": 2,
+              "resultJsonBytes": 439
+            },
+            {
+              "model": "acompanhamentoMissionGroup",
+              "method": "findMany",
+              "startedAt": 13.416112999999996,
+              "durationMs": 101.030891,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "efetivoMissionPlan",
+              "method": "findMany",
+              "startedAt": 13.495353000000023,
+              "durationMs": 102.27607799999998,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "allocationReviewDay",
+              "method": "findMany",
+              "startedAt": 13.956434999999999,
+              "durationMs": 103.02815299999997,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "jobRole",
+              "method": "findMany",
+              "startedAt": 13.602958999999998,
+              "durationMs": 104.82638100000003,
+              "rows": 53,
+              "resultJsonBytes": 18213
+            },
+            {
+              "model": "efetivoMissionAllocation",
+              "method": "findMany",
+              "startedAt": 13.47286600000001,
+              "durationMs": 108.18926699999997,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "pontoPeriodSummary",
+              "method": "findMany",
+              "startedAt": 13.533969000000013,
+              "durationMs": 111.36891800000001,
+              "rows": 21,
+              "resultJsonBytes": 81599
+            },
+            {
+              "model": "report",
+              "method": "findMany",
+              "startedAt": 13.775804999999991,
+              "durationMs": 287.14660899999996,
+              "rows": 6002,
+              "resultJsonBytes": 2918621
+            },
+            {
+              "model": "workforceCalendarState",
+              "method": "findUnique",
+              "startedAt": 342.359769,
+              "durationMs": 8.252267000000074,
+              "rows": 1,
+              "resultJsonBytes": 106
+            },
+            {
+              "model": "collaboratorAbsence",
+              "method": "findMany",
+              "startedAt": 342.235789,
+              "durationMs": 9.995616000000041,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "workforceHoliday",
+              "method": "findMany",
+              "startedAt": 342.343865,
+              "durationMs": 10.043093999999996,
+              "rows": 0,
+              "resultJsonBytes": 2
+            }
+          ]
+        },
+        {
+          "durationMs": 313.66628299999996,
+          "queries": [
+            {
+              "model": "pontoImport",
+              "method": "findUnique",
+              "startedAt": 0.6130249999999933,
+              "durationMs": 12.191002999999967,
+              "rows": 1,
+              "resultJsonBytes": 457
+            },
+            {
+              "model": "efetivoMissionPlan",
+              "method": "findMany",
+              "startedAt": 13.418647999999962,
+              "durationMs": 93.70477800000003,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "project",
+              "method": "findMany",
+              "startedAt": 13.299871999999993,
+              "durationMs": 94.968321,
+              "rows": 3,
+              "resultJsonBytes": 39064
+            },
+            {
+              "model": "pontoProjectTagAlias",
+              "method": "findMany",
+              "startedAt": 13.321149999999989,
+              "durationMs": 95.60745299999996,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "acompanhamentoSetting",
+              "method": "findMany",
+              "startedAt": 13.716946000000007,
+              "durationMs": 99.95195899999999,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "pontoDayProjectOverride",
+              "method": "findMany",
+              "startedAt": 13.731180999999992,
+              "durationMs": 102.79679799999997,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "costProfile",
+              "method": "findMany",
+              "startedAt": 13.48637199999996,
+              "durationMs": 105.42825300000004,
+              "rows": 3,
+              "resultJsonBytes": 2517
+            },
+            {
+              "model": "pontoExternalEmployee",
+              "method": "findMany",
+              "startedAt": 13.205431999999973,
+              "durationMs": 106.13850400000001,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "report",
+              "method": "findMany",
+              "startedAt": 13.654247999999995,
+              "durationMs": 108.856964,
+              "rows": 2,
+              "resultJsonBytes": 439
+            },
+            {
+              "model": "allocationReviewDay",
+              "method": "findMany",
+              "startedAt": 13.805084999999963,
+              "durationMs": 108.970572,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "jobRole",
+              "method": "findMany",
+              "startedAt": 13.466734999999971,
+              "durationMs": 139.80708600000003,
+              "rows": 53,
+              "resultJsonBytes": 18213
+            },
+            {
+              "model": "pontoPeriodSummary",
+              "method": "findMany",
+              "startedAt": 13.167902999999967,
+              "durationMs": 141.802006,
+              "rows": 21,
+              "resultJsonBytes": 81599
+            },
+            {
+              "model": "efetivoMissionAllocation",
+              "method": "findMany",
+              "startedAt": 13.400679999999966,
+              "durationMs": 153.895757,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "workforceCalendarState",
+              "method": "findUnique",
+              "startedAt": 163.98548,
+              "durationMs": 5.398388000000011,
+              "rows": 1,
+              "resultJsonBytes": 106
+            },
+            {
+              "model": "collaboratorAbsence",
+              "method": "findMany",
+              "startedAt": 163.854336,
+              "durationMs": 5.946764999999971,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "workforceHoliday",
+              "method": "findMany",
+              "startedAt": 163.97083199999997,
+              "durationMs": 5.951023000000021,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "acompanhamentoMissionGroup",
+              "method": "findMany",
+              "startedAt": 13.341068000000007,
+              "durationMs": 157.18343899999996,
+              "rows": 0,
+              "resultJsonBytes": 2
+            },
+            {
+              "model": "report",
+              "method": "findMany",
+              "startedAt": 13.636336999999969,
+              "durationMs": 260.300303,
+              "rows": 6002,
+              "resultJsonBytes": 1964582
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "validation": {
+    "backendFullSuite": {
+      "passed": 2758,
+      "skipped": 38,
+      "failed": 0
+    },
+    "realPostgresParityAndWriteFreshness": true,
+    "availabilityReadOverlapAndErrorRecovery": true,
+    "architecture": true,
+    "frontendChanged": false
+  },
+  "coldTargetReached": false,
+  "limitations": [
+    "Synthetic local service measurements; not HTTP p50/p95, authenticated browser performance or production evidence.",
+    "After-session medians increased slightly in the two smaller scenarios; gains are not uniform.",
+    "These incremental percentages must not be composed with the November 9 fixture results.",
+    "First uncached calculation in a fresh process still lacks the planned 50 percent acceptance.",
+    "Published concurrency, permission/volume, LCP/useful-content and 24-hour/seven-day acceptance remain pending.",
+    "Retention policy/application remains pending. Backups remain deferred and unchanged."
+  ]
+}

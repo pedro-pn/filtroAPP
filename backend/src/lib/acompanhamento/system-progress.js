@@ -56,18 +56,8 @@ function scopeAttribution(rows, measurement) {
   return groups.size === 1 ? [...groups.values()][0] : null;
 }
 
-export function buildSystemProgress(plannedServices, realizedByType, normalizeServiceType, {
-  includeUnmatched = true, referencePlannedServices = plannedServices
-} = {}) {
-  const registry = [...new Map(referencePlannedServices.flatMap(service => service.systems ?? [])
-    .filter(row => row.projectSystem).map(row => [row.projectSystem.id, row.projectSystem])).values()];
-  const referenceRows = new Map();
-  for (const service of referencePlannedServices) {
-    const type = normalizeServiceType(service.serviceType) ?? service.serviceType;
-    if (!referenceRows.has(type)) referenceRows.set(type, []);
-    referenceRows.get(type).push(...(service.systems ?? []).map(row => ({ ...row, scopeName: service.scopeName?.trim() || null })));
-  }
-  const grouped = new Map(), pending = new Map();
+function groupPlannedSystems(plannedServices, normalizeServiceType) {
+  const grouped = new Map();
   for (const service of plannedServices) {
     const type = normalizeServiceType(service.serviceType) ?? service.serviceType;
     if (!grouped.has(type)) grouped.set(type, { serviceType: type, weight: 0, rows: new Map() });
@@ -89,6 +79,50 @@ export function buildSystemProgress(plannedServices, realizedByType, normalizeSe
       if (row.quantity != null && Number.isFinite(Number(row.quantity))) bucket.plannedQty = (bucket.plannedQty ?? 0) + Number(row.quantity);
     }
   }
+  return grouped;
+}
+
+// O cadastro e a associação de uma medição não mudam entre os pontos da mesma
+// curva. Este contexto pertence a um cálculo, nunca a um cache entre requisições.
+export function createSystemProgressContext(referencePlannedServices, normalizeServiceType) {
+  const registry = [...new Map(referencePlannedServices.flatMap(service => service.systems ?? [])
+    .filter(row => row.projectSystem).map(row => [row.projectSystem.id, row.projectSystem])).values()];
+  const referenceRows = new Map();
+  for (const service of referencePlannedServices) {
+    const type = normalizeServiceType(service.serviceType) ?? service.serviceType;
+    if (!referenceRows.has(type)) referenceRows.set(type, []);
+    referenceRows.get(type).push(...(service.systems ?? []).map(row => ({ ...row, scopeName: service.scopeName?.trim() || null })));
+  }
+  const resolutionsByType = new Map();
+  const templates = new WeakMap();
+  return {
+    groupsFor(plannedServices) {
+      if (!templates.has(plannedServices)) templates.set(plannedServices, groupPlannedSystems(plannedServices, normalizeServiceType));
+      return new Map([...templates.get(plannedServices)].map(([type, service]) => [type, {
+        ...service, rows: new Map([...service.rows].map(([key, row]) => [key, { ...row }]))
+      }]));
+    },
+    resolve(type, measurement) {
+      if (!resolutionsByType.has(type)) resolutionsByType.set(type, new WeakMap());
+      const resolutions = resolutionsByType.get(type);
+      if (resolutions.has(measurement)) return resolutions.get(measurement);
+      const allRows = referenceRows.get(type) ?? [];
+      const match = resolveProjectSystem(registry, { ...measurement, serviceType: type });
+      const candidates = match ? allRows.filter(row => row.projectSystemId === match.id && row.systemType === measurement.systemType) : [];
+      const target = candidates.find(row => rowBitola(row) && rowBitola(row) === measurement.bitola)
+        ?? candidates.find(row => !rowBitola(row));
+      const result = { match, target, attribution: target ? null : scopeAttribution(allRows, measurement) };
+      resolutions.set(measurement, result);
+      return result;
+    }
+  };
+}
+
+export function buildSystemProgress(plannedServices, realizedByType, normalizeServiceType, {
+  includeUnmatched = true, referencePlannedServices = plannedServices, systemContext
+} = {}) {
+  const context = systemContext ?? createSystemProgressContext(referencePlannedServices, normalizeServiceType);
+  const grouped = context.groupsFor(plannedServices), pending = new Map();
   const addPending = (type, measurement, match, attributedScope) => {
     const key = JSON.stringify([type, measurement.equipment, measurement.system, measurement.systemType, measurement.bitola, measurement.projectSystemId || null, match?.id || null, measurement.scopeName, attributedScope]);
     if (!pending.has(key)) pending.set(key, {
@@ -103,7 +137,6 @@ export function buildSystemProgress(plannedServices, realizedByType, normalizeSe
   };
   const services = [...grouped.values()].map(service => {
     const rows = [...service.rows.values()];
-    const allRows = referenceRows.get(service.serviceType) ?? [];
     const attributed = [];
     const realized = realizedByType.get(service.serviceType) ?? {};
     const legacyMetrics = new Set(rows.filter(row => !row.projectSystemId).map(row => row.systemType));
@@ -112,16 +145,12 @@ export function buildSystemProgress(plannedServices, realizedByType, normalizeSe
     }
     for (const measurement of realized.measurements ?? []) {
       if (legacyMetrics.has(measurement.systemType)) continue;
-      const match = resolveProjectSystem(registry, { ...measurement, serviceType: service.serviceType });
-      const candidates = match ? allRows.filter(row => row.projectSystemId === match.id && row.systemType === measurement.systemType) : [];
-      const target = candidates.find(row => rowBitola(row) && rowBitola(row) === measurement.bitola)
-        ?? candidates.find(row => !rowBitola(row));
+      const { match, target, attribution } = context.resolve(service.serviceType, measurement);
       if (target) {
         const bucket = service.rows.get(rowKey(target));
         if (bucket) bucket.realizedQty += measurement.quantity;
         continue;
       }
-      const attribution = scopeAttribution(allRows, measurement);
       const belongsHere = attribution && plannedServices.some(planned =>
         (normalizeServiceType(planned.serviceType) ?? planned.serviceType) === service.serviceType
         && systemNameKey(planned.scopeName) === systemNameKey(attribution.scopeName)

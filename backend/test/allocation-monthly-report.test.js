@@ -656,14 +656,17 @@ test('unexpected persistence failure still records actual partial completion for
 // === Conferência semanal de alocação (feature 037) ===
 
 function reviewClient({ reports = [], reviewDays = [], projects = [], collaborators = [] } = {}) {
+  const days = reviewDays.map(({ projects: _projects, ...day }, index) => ({ ...day, id: `review-${index}` }));
+  const links = reviewDays.flatMap((day, index) => (day.projects || []).map(project => ({ dayId: `review-${index}`, ...project })));
   return {
     report: { findMany: async () => reports },
     allocationReviewDay: {
       findMany: async args => {
         assert.deepEqual(args.where.row, { confirmedAt: { not: null } });
-        return reviewDays;
+        return days;
       }
     },
+    allocationReviewDayProject: { findMany: async args => links.filter(link => args.where.dayId.in.includes(link.dayId)) },
     project: { findMany: async () => projects },
     collaborator: { findMany: async () => collaborators }
   };

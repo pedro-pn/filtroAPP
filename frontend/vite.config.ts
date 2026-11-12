@@ -39,6 +39,7 @@ export default defineConfig(() => {
       }
     ],
     build: {
+      manifest: true,
       // Preserve the browser targets used before the Vite 8 migration.
       target: ['es2020', 'edge88', 'firefox78', 'chrome87', 'safari14']
     },

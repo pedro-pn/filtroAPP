@@ -1,3 +1,4 @@
+import { useUsefulQueryContent } from '../../../observability/useUsefulContent';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState, type CSSProperties, type MouseEvent } from 'react';
 
@@ -112,6 +113,7 @@ export function AvailabilityBoard({ date, endDate, jobRoleId, view, onViewChange
     queryFn: () => getPlanningAvailability(date, endDate, jobRoleId),
     enabled: validPeriod
   });
+  useUsefulQueryContent('efetivo:disponibilidade', 'AvailabilityBoard', [query]);
   const data = query.data;
   const [viewportWidth, setViewportWidth] = useState(() => typeof window === 'undefined' ? 1280 : window.innerWidth);
   useEffect(() => {

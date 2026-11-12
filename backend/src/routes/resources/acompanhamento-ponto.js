@@ -18,7 +18,9 @@ import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import { importPonto, linkPontoName } from '../../lib/acompanhamento/ponto-import.js';
-import { computeCollaboratorRates } from '../../lib/acompanhamento/labor-cost.js';
+import { computeCollaboratorRates, getPontoImportScope } from '../../lib/acompanhamento/labor-cost.js';
+import { summarizePontoRate } from '../../lib/acompanhamento/ponto-responses.js';
+import { readAcompanhamentoResponse } from '../../lib/acompanhamento/read-cache.js';
 import {
   getPontoMaisPending,
   getPontoMaisIntegrationStatus,
@@ -46,6 +48,7 @@ import {
 import { requireAcompanhamentoAccess, requireAcompanhamentoManager, requireAuth } from '../../middleware/auth.js';
 
 const router = Router();
+const collaboratorViewSchema = z.enum(['full', 'summary', 'reconciliation']).optional().default('full');
 
 const MAX_FILE_BYTES = 15 * 1024 * 1024; // 15 MB (o export real tem ~centenas de KB)
 
@@ -553,38 +556,45 @@ router.get(
   requireAuth,
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
-    const { pontoImport, pontoImports = [], periodStart, periodEnd, fileName, rates } = await computeCollaboratorRates();
-    const xlsxImportIds = pontoImports
-      .filter(item => item.source !== 'PONTOMAIS_API')
-      .map(item => item.id);
-    const [unmatchedPeriods, ignoredExternalEmployees] = xlsxImportIds.length
-      ? await Promise.all([
-        prisma.pontoPeriodSummary.findMany({
-          where: {
-            importId: { in: xlsxImportIds },
-            collaboratorId: null
-          },
-          select: { rawName: true, normalizedName: true },
-          orderBy: { createdAt: 'asc' }
-        }),
-        prisma.pontoExternalEmployee.findMany({
-          where: { ignoredAt: { not: null } },
-          select: { externalName: true }
-        })
-      ])
-      : [[], []];
-    // Quem foi marcado como ignorado na aba de colaboradores não volta como pendência aqui. A lista
-    // do XLSX é por nome (a planilha não traz o id externo), então o cruzamento é pelo nome
-    // normalizado — o mesmo critério que o vínculo automático já usa.
-    const ignoredNames = new Set(ignoredExternalEmployees.map(item => normalizeName(item.externalName)));
-    res.json({
-      importId: pontoImport?.id ?? null,
-      periodStart: periodStart ?? null,
-      periodEnd: periodEnd ?? null,
-      fileName: fileName ?? pontoImport?.fileName ?? null,
-      rates,
-      unmatched: currentUnmatchedPontoNames(unmatchedPeriods).filter(item => !ignoredNames.has(item.normalizedName))
+    const view = collaboratorViewSchema.safeParse(req.query.view);
+    if (!view.success) return res.status(400).json({ error: 'Opção de leitura inválida.' });
+    const response = await readAcompanhamentoResponse(req, ['ponto-collaborators', view.data], async () => {
+      const { pontoImport, pontoImports = [], periodStart, periodEnd, fileName, rates = [], ignoredExternalEmployees: preloadedIgnoredEmployees } = view.data === 'reconciliation'
+        ? await getPontoImportScope() ?? {}
+        : await computeCollaboratorRates(null, { includeIgnoredNames: true });
+      const xlsxImportIds = pontoImports
+        .filter(item => item.source !== 'PONTOMAIS_API')
+        .map(item => item.id);
+      const [unmatchedPeriods, ignoredExternalEmployees] = xlsxImportIds.length
+        ? await Promise.all([
+          prisma.pontoPeriodSummary.findMany({
+            where: {
+              importId: { in: xlsxImportIds },
+              collaboratorId: null
+            },
+            select: { rawName: true, normalizedName: true },
+            orderBy: { createdAt: 'asc' }
+          }),
+          preloadedIgnoredEmployees ?? prisma.pontoExternalEmployee.findMany({
+            where: { ignoredAt: { not: null } },
+            select: { externalName: true }
+          })
+        ])
+        : [[], []];
+      // Quem foi marcado como ignorado na aba de colaboradores não volta como pendência aqui. A lista
+      // do XLSX é por nome (a planilha não traz o id externo), então o cruzamento é pelo nome
+      // normalizado — o mesmo critério que o vínculo automático já usa.
+      const ignoredNames = new Set(ignoredExternalEmployees.map(item => normalizeName(item.externalName)));
+      return {
+        importId: pontoImport?.id ?? null,
+        periodStart: periodStart ?? null,
+        periodEnd: periodEnd ?? null,
+        fileName: fileName ?? pontoImport?.fileName ?? null,
+        ...(view.data === 'reconciliation' ? {} : { rates: view.data === 'summary' ? rates.map(summarizePontoRate) : rates }),
+        unmatched: currentUnmatchedPontoNames(unmatchedPeriods).filter(item => !ignoredNames.has(item.normalizedName))
+      };
     });
+    res.json(response);
   })
 );
 

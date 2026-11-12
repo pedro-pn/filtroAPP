@@ -1,3 +1,4 @@
+import { useUsefulQueryContent } from '../../../observability/useUsefulContent';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
@@ -104,6 +105,7 @@ export function AdministrationBoard({ canManage, tab, onTabChange }: {
   const roles = useQuery({ queryKey: ['efetivo-planning-job-roles'], queryFn: listPlanningJobRoles });
   const settings = useQuery({ queryKey: ['efetivo-planning-settings'], queryFn: getPlanningSettings });
   const users = useQuery({ queryKey: ['efetivo-planning-users'], queryFn: listEfetivoRoleUsers });
+  useUsefulQueryContent('efetivo:administracao', 'AdministrationBoard', [roles, settings, users]);
   const notificationEmails = useQuery({ queryKey: ['efetivo-notification-emails'], queryFn: listNotificationEmailSettings, enabled: tab === 'notificacoes' });
   const [target, setTarget] = useState('80');
   useEffect(() => { if (settings.data) setTarget(String(settings.data.plannedUtilizationTarget)); }, [settings.data]);

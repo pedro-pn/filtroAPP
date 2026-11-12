@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { costReferenceRows } from './helpers/cost-reference-rows.js';
 import { buildCollaboratorHourlyRates } from '../src/lib/acompanhamento/collaborator-hourly-rates.js';
 import { buildRoleParamsResolver } from '../src/lib/acompanhamento/labor-cost.js';
 
@@ -95,11 +96,17 @@ test('API exige acesso ao Acompanhamento, valida a data e permite consulta pelo 
     calls.push(where.id);
     return where.id === collaborator.id ? collaborator : null;
   });
-  stub(prisma.jobRole, 'findMany', async () => [{
-    name: 'Operador', costProfile: { parameterSets: [{ effectiveDate: '2026-01-01', params: { salarioBase: 1980 } }] }
-  }]);
-  stub(prisma.costProfile, 'findMany', async () => [{ key: 'operador', parameterSets: [{ effectiveDate: '2026-01-01', params }] }]);
+  stub(prisma.jobRole, 'findMany', async () => [{ id: 'role1', name: 'Operador' }]);
+  stub(prisma.costProfile, 'findMany', async () => [
+    { key: 'role-profile', jobRoleId: 'role1', parameterSets: [{ effectiveDate: '2026-01-01', params: { salarioBase: 1980 } }] },
+    { key: 'operador', jobRoleId: null, parameterSets: [{ effectiveDate: '2026-01-01', params }] }
+  ]);
   stub(prisma.acompanhamentoSetting, 'findUnique', async ({ where }) => ({ numberValue: annualCosts[where.key] }));
+  stub(prisma.acompanhamentoSetting, 'findMany', async () => Object.entries(annualCosts).map(([key, numberValue]) => ({ key, numberValue })));
+  stub(prisma, '$queryRaw', async () => costReferenceRows({
+    roles: await prisma.jobRole.findMany(), profiles: await prisma.costProfile.findMany(),
+    settings: await prisma.acompanhamentoSetting.findMany()
+  }));
   const app = express();
   app.use(router);
   app.use((error, _req, res, _next) => res.status(error.name === 'ZodError' ? 400 : 500).json({ error: error.message }));
