@@ -5,7 +5,7 @@ const requests = new AsyncLocalStorage();
 
 export const REQUEST_CACHE_NAMES = Object.freeze(['responses', 'monthly', 'references', 'progress']);
 export const REQUEST_CACHE_FIELDS = Object.freeze(['hit', 'miss', 'shared', 'bypassed', 'expired', 'evicted',
-  'oversized', 'loadFailed', 'decodeFailed', 'revisionChanged', 'encodedBytes', 'encodeMs', 'decodeMs']);
+  'oversized', 'loadFailed', 'decodeFailed', 'revisionChanged', 'admissionRejected', 'encodedBytes', 'admissionMs', 'encodeMs', 'decodeMs']);
 
 // Fixed labels and numeric aggregates only: cache keys, revisions, users and
 // payloads never enter telemetry. No clock or allocation when collection is off.

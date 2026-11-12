@@ -71,12 +71,15 @@ continua com o flag principal desligado durante essa investigação.
 Com a coleta HTTP ativa, cada evento inclui `caches` com rótulos fixos `responses`,
 `monthly`, `references` e `progress`. O relatório soma `hit`, `miss`, `shared`,
 `bypassed`, `expired`, `evicted`, `oversized`, `loadFailed`, `decodeFailed`,
-`revisionChanged`, `encodedBytes`, `encodeMs` e `decodeMs`. A etapa `cache.verify`
+`revisionChanged`, `admissionRejected`, `encodedBytes`, `admissionMs`, `encodeMs`
+e `decodeMs`. A etapa `cache.verify`
 mede a verificação no banco. `revisionChanged` conta trocas de revisão observadas
 pela camada, não identifica tabelas nem representa uma contagem de commits.
 Tempos de encode/decode são somas, não percentis; decode inclui a cópia de buffers.
-Valores grandes continuam sujeitos aos limites de armazenamento, mas essas métricas
-permitem identificar o custo de serializar e copiar uma entrada descartada.
+Valores grandes continuam sujeitos aos limites de armazenamento. No mensal,
+`admissionRejected` registra uma decisão conservativa anterior ao V8; não é uma
+medição exata dos bytes. `bypassed` indica cálculo sem armazenamento/compartilhamento,
+inclusive nas leituras seguintes que usam apenas o marcador de tamanho.
 Nenhuma chave, revisão, usuário, ID de projeto ou conteúdo entra nessa telemetria.
 Requisições abortadas podem encerrar seu registro antes que o cálculo termine;
 os tempos de trabalho posteriores ao aborto não entram nesse evento.
@@ -95,6 +98,32 @@ Cada consumidor recebe mapas, datas e valores independentes. O formato V8 existe
 somente na memória do processo; os contratos HTTP continuam em JSON. Jobs,
 escritas e cálculos fora do GET/HEAD verificado não usam esse compartilhamento.
 Esta continuação não exige outra migration além da revisão transacional anterior.
+
+A ocorrência de staging em 12/11 mostrou um snapshot mensal de 32.548.590 bytes,
+descartado após 561,73 ms somados de encode/decode. O mensal agora verifica a
+admissão antes de serializar, com orçamento de 2 MiB, no máximo 50.000 visitas e
+64 níveis. Strings, arrays e buffers grandes encerram a verificação cedo;
+objetos inesperados ou com getters também seguem sem cache. A estimativa é
+conservativa e pode recusar um resultado menor; o limite real do buffer continua
+sendo verificado quando há serialização. Nenhum campo, período ou cálculo é cortado
+para caber no limite.
+
+O loader mensal constrói um grafo próprio por cálculo. Um resultado recusado vai
+somente ao consumidor que o produziu, sem encode/decode pelo cache. Requisições
+que já aguardavam esse cálculo executam seus próprios loaders, no contexto de
+permissões e revisão de cada uma, para manter Maps, datas e valores independentes.
+São mantidos até oito marcadores de chave/prazo, sem o conteúdo do cálculo,
+por até 15 s: leituras seguintes seguem imediatamente pelo caminho sem snapshot,
+sem repetir a inspeção ou aguardar outra tentativa de admissão. Nova revisão,
+expiração ou limpeza permite tentar admitir novamente. Falhas não criam marcadores.
+Os snapshots pequenos continuam compartilhados e respeitam os limites anteriores.
+
+Repetir a comparação mensal em staging. Para históricos grandes, esperar
+`bypassed` e ausência de `encodedBytes`/`encodeMs`/`decodeMs` do mensal quando a
+triagem recusar o snapshot. Comparar também concorrência com a base desligada:
+fora do orçamento não há reaproveitamento do cálculo entre requisições. Isso
+remove custo inútil do cache, mas não substitui a otimização do cálculo original,
+o aceite de p95 nem a investigação de CPU steal no host.
 
 O pipeline separa referências e relatórios/decisões do mês, e carrega o custo antes
 dos metadados de cards/detalhe. Seus tempos aparecem nas etapas `labor.sources.*`,

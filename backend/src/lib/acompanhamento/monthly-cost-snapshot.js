@@ -3,6 +3,7 @@ import env from '../../config/env.js';
 import { projectAccessCacheKey } from '../projects/access-scope.js';
 import { createDerivedReadCache, currentDerivedReadVersion } from '../operations/derived-read-cache.js';
 import { hasRequestSourceContext } from '../operations/request-sources.js';
+import { fitsMonthlySnapshotBudget } from './monthly-snapshot-admission.js';
 
 // Only read requests that verified the transactional source revision may share
 // monthly calculations. Serialize trusted in-process values to preserve Dates,
@@ -10,7 +11,7 @@ import { hasRequestSourceContext } from '../operations/request-sources.js';
 const snapshots = createDerivedReadCache({ ttlMs: Math.min(env.dashboardCacheTtlMs, 15000),
   cacheName: 'monthly',
   maxEntries: 8, maxBytes: 8 * 1024 * 1024, maxEntryBytes: 2 * 1024 * 1024,
-  encode: serialize, decode: deserialize });
+  encode: serialize, decode: deserialize, admitOwnedValue: fitsMonthlySnapshotBudget });
 
 export async function readMonthlyCostSnapshot(importId, options, loader) {
   const version = currentDerivedReadVersion();
