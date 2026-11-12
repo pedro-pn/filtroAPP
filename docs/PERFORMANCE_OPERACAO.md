@@ -14,17 +14,72 @@ Seguir também [PRODUCTION.md](../deploy/PRODUCTION.md) e o planejamento
    e triggers de statement nas 187 tabelas de aplicação relacionadas no SQL.
    Não modifica cópias históricas/backup nem cria índice de negócio.
 3. Manter `ACOMPANHAMENTO_READ_CACHE_ENABLED=false` inicialmente. Depois do aceite
-   funcional, definir `true` em `backend/.env.production` e recriar o serviço HTTP
-   pelo processo de publicação. `restart` não atualiza o ambiente do container.
+   funcional e da comparação em staging, habilitar uma camada de cada vez pelo
+   procedimento abaixo e recriar o serviço HTTP pelo processo de publicação.
+   `restart` não atualiza o ambiente do container.
 4. Para desativar, restaurar `false` e recriar o serviço HTTP. A migration pode
    permanecer: não depende do flag e não exige reversão destrutiva do schema.
 
-O cache é local ao processo, limitado a 32 entradas, 16 MiB de respostas concluídas
+Com `ACOMPANHAMENTO_RESPONSE_CACHE_ENABLED=true`, o cache de respostas é local ao
+processo, limitado a 32 entradas, 16 MiB de respostas concluídas
 e 2 MiB por resposta. O TTL é o menor entre `DASHBOARD_CACHE_TTL_MS` e 15 segundos.
 Abrange cards, detalhe individual, detalhe de grupo e colaboradores do ponto. Cada leitura
 autentica novamente e verifica no banco a revisão das fontes. A resposta já contém
 a projeção permitida ao usuário. Filtros, divisão, permissões e escopo entram na
 chave. Cada consumidor recebe um DTO independente.
+
+O TTL começa quando o cálculo termina. Resultados concluídos e cálculos pendentes
+possuem mapas separados: expiração e LRU de resultados não descartam cálculos
+em andamento. Cada camada admite até 256 chaves pendentes; ao atingir esse limite,
+novas chaves executam sem entrar no cache e sem fila de admissão. As chaves já
+admitidas continuam compartilhadas. Limpar o cache não permite que uma execução
+antiga republique seu resultado depois da limpeza. Os limites de bytes e entradas
+acima continuam aplicados aos resultados concluídos.
+
+### Comparação por camada após a ocorrência de 12/11
+
+A primeira janela em produção mostrou lentidão e melhorou após desativar o cache
+e recriar a API às 09h25min54s. A comparação teve tráfego desigual e CPU steal alto;
+não demonstra que o cache sozinho causou a ocorrência. A correção local cobre a
+duplicação por TTL e por descarte de cálculos pendentes, não encerra o aceite em
+produção. Ver [evidência](evidence/performance-production-observation-20261112.json).
+
+Para a próxima comparação **em staging**, configurar explicitamente:
+
+```dotenv
+ACOMPANHAMENTO_READ_CACHE_ENABLED=true
+ACOMPANHAMENTO_RESPONSE_CACHE_ENABLED=false
+ACOMPANHAMENTO_MONTHLY_CACHE_ENABLED=false
+ACOMPANHAMENTO_REFERENCE_CACHE_ENABLED=false
+ACOMPANHAMENTO_PROGRESS_CACHE_ENABLED=false
+```
+
+Os quatro subcontroles têm default `true` para preservar a configuração anterior
+quando só o flag principal era informado. O flag principal `false` continua
+desligando todas as camadas. Com todas as camadas desligadas, a API também evita
+a consulta de revisão. Com qualquer camada interna ligada e respostas desligadas,
+a API verifica a revisão, executa o handler e permite compartilhar apenas as
+fontes selecionadas.
+
+Recriar a API e medir uma base aquecida; depois testar cada subcontrole isoladamente,
+recriando e repetindo o mesmo aquecimento, volume, concorrência, rotas e perfis em
+cada fase. Começar por referências, depois mensal, avanço e respostas. Só combinar
+as camadas que passarem individualmente. Validar também gravações externas do worker,
+ausências, calendário, permissões e igualdade financeira das respostas. Produção
+continua com o flag principal desligado durante essa investigação.
+
+Com a coleta HTTP ativa, cada evento inclui `caches` com rótulos fixos `responses`,
+`monthly`, `references` e `progress`. O relatório soma `hit`, `miss`, `shared`,
+`bypassed`, `expired`, `evicted`, `oversized`, `loadFailed`, `decodeFailed`,
+`revisionChanged`, `encodedBytes`, `encodeMs` e `decodeMs`. A etapa `cache.verify`
+mede a verificação no banco. `revisionChanged` conta trocas de revisão observadas
+pela camada, não identifica tabelas nem representa uma contagem de commits.
+Tempos de encode/decode são somas, não percentis; decode inclui a cópia de buffers.
+Valores grandes continuam sujeitos aos limites de armazenamento, mas essas métricas
+permitem identificar o custo de serializar e copiar uma entrada descartada.
+Nenhuma chave, revisão, usuário, ID de projeto ou conteúdo entra nessa telemetria.
+Requisições abortadas podem encerrar seu registro antes que o cálculo termine;
+os tempos de trabalho posteriores ao aborto não entram nesse evento.
 
 As alterações dos marcadores pertencem à mesma transação dos dados; commits fora
 de ordem continuam detectáveis, e rollback não altera a versão publicada. Escritores
@@ -32,7 +87,8 @@ usam linhas distintas. Não há contador global bloqueado por toda escrita. Sess
 sondagens de jobs e a telemetria excluída não alimentam os DTOs. Uma falha na
 verificação de revisão retorna 503, inclusive se houver resposta antiga em memória.
 
-O mesmo flag também habilita o snapshot interno do cálculo mensal. Cards, detalhe/grupo
+`ACOMPANHAMENTO_MONTHLY_CACHE_ENABLED` controla o snapshot interno do cálculo mensal.
+Cards, detalhe/grupo
 e ponto podem reutilizá-lo quando a revisão, importação e escopo/canal coincidem.
 Há um limite adicional de oito entradas/8 MiB, até 2 MiB por entrada e 15 s.
 Cada consumidor recebe mapas, datas e valores independentes. O formato V8 existe
@@ -48,8 +104,9 @@ protegido. Ausências levam apenas IDs/datas, sem tipos ou observações; seus d
 intermediários não recebem um novo cache entre requisições.
 
 Catálogos de cargos/parâmetros, custos anuais e filtros de categorias também podem
-compartilhar leituras entre requisições com revisão verificada. O mesmo flag
-controla esse armazenamento adicional: 16 entradas/4 MiB, até 1 MiB por entrada
+compartilhar leituras entre requisições com revisão verificada.
+`ACOMPANHAMENTO_REFERENCE_CACHE_ENABLED` controla esse armazenamento adicional:
+16 entradas/4 MiB, até 1 MiB por entrada
 e 15 s. Cliente Prisma, escopo/canal e opções do filtro entram na chave. Os
 resolvers são reconstruídos a partir de cópias independentes dos dados; funções
 e clientes não são armazenados. As seleções de colunas e regras anteriores são preservadas.
@@ -57,7 +114,8 @@ As referências mensais também incluem os colaboradores ignorados e o calendár
 do intervalo. Falhas não ficam em cache, e uma revisão nova não participa da leitura pendente
 da anterior. Sem GET/HEAD verificado, inclusive em escritas, não há esse reuso.
 
-As fontes normalizadas do avanço são compartilhadas por projeto entre cards,
+Com `ACOMPANHAMENTO_PROGRESS_CACHE_ENABLED=true`, as fontes normalizadas do avanço
+são compartilhadas por projeto entre cards,
 detalhe e grupo, preservando os leitores protegidos e sua ordem. Há outro limite
 de oito entradas/8 MiB, até 2 MiB por projeto e 15 s, com cópias independentes.
 Cliente, escopo/canal, modo de correção e revisão entram na chave. IDs ausentes
@@ -91,10 +149,11 @@ Para gerar o relatório, **rode no servidor**, na raiz do checkout:
 
 ```bash
 docker compose --env-file backend/.env.production -f docker-compose.prod.yml logs --since 24h --no-color backend \
-  | node backend/scripts/report-performance.js > /tmp/filtro-performance-report.json
+  | docker compose --env-file backend/.env.production -f docker-compose.prod.yml exec -T backend \
+      node scripts/report-performance.js > /tmp/filtro-performance-report.json
 ```
 
-O comando requer Node no host; o script lê stdin, ignora linhas sem o evento
+O comando usa Node no container; o script lê stdin, ignora linhas sem o evento
 `[HTTP PERFORMANCE]` e mantém agregados limitados. Não salvar logs brutos junto
 das evidências. O p95 só é informado quando todos os tempos da rota couberem no
 limite de amostras; um valor `null` não é aceite.

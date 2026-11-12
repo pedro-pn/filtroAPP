@@ -1,5 +1,6 @@
 import { createInterface } from 'node:readline';
 import { pathToFileURL } from 'node:url';
+import { REQUEST_CACHE_NAMES, REQUEST_CACHE_FIELDS } from '../src/lib/operations/request-performance.js';
 
 // Limita a memória mesmo quando a entrada contém logs de vários dias.
 export function createPerformanceReport({ maxRoutes = 256, maxSamples = 10000 } = {}) {
@@ -7,10 +8,19 @@ export function createPerformanceReport({ maxRoutes = 256, maxSamples = 10000 } 
   let droppedRoutes = 0;
   const pool = { samples: 0, waitingZeroSamples: 0, waitingMax: 0, observedWaitingRunMaxMs: 0 };
   const poolIntervals = new Set();
+  const caches = {};
   return {
     add(event) {
       if (!event || typeof event.path !== 'string' || typeof event.method !== 'string'
         || !Number.isFinite(event.durationMs) || event.durationMs < 0) return;
+      for (const name of REQUEST_CACHE_NAMES) {
+        for (const field of REQUEST_CACHE_FIELDS) {
+          const value = event.caches?.[name]?.[field];
+          if (!Number.isFinite(value) || value < 0 || (!field.endsWith('Ms') && !Number.isSafeInteger(value))) continue;
+          const counters = caches[name] ??= {};
+          counters[field] = Math.min(Number.MAX_SAFE_INTEGER, (counters[field] || 0) + value);
+        }
+      }
       const activePool = event.activePool;
       if (activePool && Number.isSafeInteger(activePool.samples) && activePool.samples >= 0
         && Number.isSafeInteger(activePool.waitingZeroSamples) && activePool.waitingZeroSamples >= 0
@@ -39,6 +49,8 @@ export function createPerformanceReport({ maxRoutes = 256, maxSamples = 10000 } 
         waitingZeroFraction: pool.samples ? pool.waitingZeroSamples / pool.samples : null,
         waitingZeroTargetMet: pool.samples ? pool.waitingZeroSamples / pool.samples >= .95 : null,
         observedWaitingOverFiveSeconds: pool.samples ? pool.observedWaitingRunMaxMs > 5000 : null },
+      caches: Object.fromEntries(Object.entries(caches).map(([name, values]) =>
+        [name, Object.fromEntries(Object.entries(values).map(([field, value]) => [field, Math.round(value * 100) / 100]))])),
       routes: [...routes.values()].map(({ durations, ...route }) => {
         const values = durations.toSorted((a, b) => a - b);
         const complete = route.requests === values.length;

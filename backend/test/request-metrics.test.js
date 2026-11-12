@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import express from 'express';
 import { createRequestMetrics, normalizedRequestRoute } from '../src/middleware/request-metrics.js';
-import { measureRequestStage } from '../src/lib/operations/request-performance.js';
+import { measureRequestStage, withRequestPerformance, recordRequestCache } from '../src/lib/operations/request-performance.js';
+import { createDerivedReadCache } from '../src/lib/operations/derived-read-cache.js';
 import { createPerformanceReport } from '../scripts/report-performance.js';
 
 test('mede respostas rápidas e 304, preserva prefixo do módulo e o pico do pool', async t => {
@@ -112,4 +113,55 @@ test('relatório separa status, inclui leituras rápidas e não declara p95 de e
   assert.equal(result.routes[1].p95Ms, 2);
   assert.equal(result.routes[1].enoughSamplesForAcceptance, false);
   assert.equal(result.droppedRoutes, 1);
+});
+
+test('cache telemetry counts work once, measures copies per consumer and never exposes keys or revisions', async () => {
+  const cache = createDerivedReadCache({ cacheName: 'monthly', maxEntryBytes: 50 });
+  const trace = { stages: {} };
+  await withRequestPerformance(trace, async () => {
+    await Promise.all([1, 2].map(() => cache.get('secret-revision', ['private-user', 'private-project'], () => ({ total: 1 }))));
+    await cache.get('secret-revision', ['private-user', 'private-project'], () => assert.fail('cached'));
+    await cache.get('another-revision', 'large-secret-key', () => ({ value: 'x'.repeat(100) }));
+    await assert.rejects(cache.get('another-revision', 'failed-secret-key', () => { throw new Error('private-error'); }), /private-error/);
+    recordRequestCache('private-cache', 'hit');
+    recordRequestCache('monthly', 'private-field');
+  });
+  const values = trace.caches.monthly;
+  assert.equal(values.miss, 3);
+  assert.equal(values.shared, 1);
+  assert.equal(values.hit, 1);
+  assert.equal(values.oversized, 1);
+  assert.equal(values.loadFailed, 1);
+  assert.equal(values.revisionChanged, 1);
+  assert.equal(values.decodeFailed, undefined);
+  assert.ok(values.encodedBytes > 100 && values.encodeMs >= 0 && values.decodeMs >= 0);
+  assert.deepEqual(Object.keys(trace.caches), ['monthly']);
+  assert.doesNotMatch(JSON.stringify(trace), /secret|private|another-revision/);
+  const report = createPerformanceReport();
+  report.add({ method: 'GET', path: '/api/projects', durationMs: 1, caches: trace.caches });
+  report.add({ method: 'GET', path: '/api/projects', durationMs: 1, caches: {
+    monthly: { hit: 2, miss: -1, shared: 'bad', decodeMs: Infinity, private: 42 }, 'private-cache': { hit: 1 }
+  } });
+  assert.equal(report.result().caches.monthly.hit, 3);
+  assert.equal(report.result().caches.monthly.miss, 3);
+  assert.deepEqual(Object.keys(report.result().caches), ['monthly']);
+  assert.doesNotMatch(JSON.stringify(report.result()), /private/);
+});
+
+test('HTTP records include fixed cache aggregates only while detailed collection is enabled', async t => {
+  const records = [];
+  const cache = createDerivedReadCache({ cacheName: 'responses' });
+  const app = express();
+  app.use(createRequestMetrics({ enabled: true, windowMs: 5000, getPool: () => ({ waiting: 0 }),
+    slowLog() {}, write: row => records.push(row) }));
+  app.get('/work/:id', async (_req, res) => res.json(await cache.get('private-revision', 'private-key', () => ({ ok: true }))));
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise(resolve => server.once('listening', resolve));
+  t.after(() => new Promise(resolve => { server.close(resolve); server.closeAllConnections(); }));
+  const url = `http://127.0.0.1:${server.address().port}/work/private-id`;
+  await (await fetch(url)).text(); await (await fetch(url)).text();
+  assert.equal(records[0].caches.responses.miss, 1);
+  assert.equal(records[1].caches.responses.hit, 1);
+  assert.ok(records[0].caches.responses.encodeMs >= 0);
+  assert.doesNotMatch(JSON.stringify(records), /private/);
 });

@@ -8,12 +8,13 @@ import { hasRequestSourceContext } from '../operations/request-sources.js';
 // monthly calculations. Serialize trusted in-process values to preserve Dates,
 // Maps and aliases, with an independent object graph for every consumer.
 const snapshots = createDerivedReadCache({ ttlMs: Math.min(env.dashboardCacheTtlMs, 15000),
+  cacheName: 'monthly',
   maxEntries: 8, maxBytes: 8 * 1024 * 1024, maxEntryBytes: 2 * 1024 * 1024,
   encode: serialize, decode: deserialize });
 
 export async function readMonthlyCostSnapshot(importId, options, loader) {
   const version = currentDerivedReadVersion();
-  if (!version || !hasRequestSourceContext()) return loader(options);
+  if (!env.acompanhamentoMonthlyCacheEnabled || !version || !hasRequestSourceContext()) return loader(options);
   // Cost projection and point listing use exactly the same calculation. Load
   // ignored names once too, then remove that optional metadata for cost readers.
   const result = await snapshots.get(version, [projectAccessCacheKey(), importId || null],
