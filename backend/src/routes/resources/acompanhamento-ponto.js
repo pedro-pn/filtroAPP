@@ -23,6 +23,7 @@ import { summarizePontoRate } from '../../lib/acompanhamento/ponto-responses.js'
 import { readAcompanhamentoResponse } from '../../lib/acompanhamento/read-cache.js';
 import {
   getPontoMaisPending,
+  getPontoMaisPendingEmployeeCount,
   getPontoMaisIntegrationStatus,
   linkPontoMaisExternalEmployee,
   linkPontoMaisProjectTag,
@@ -743,11 +744,10 @@ router.get(
   requireAuth,
   requireAcompanhamentoManager,
   asyncHandler(async (_req, res) => {
-    const [unallocated, integrationPending] = await Promise.all([
+    const [unallocated, unlinkedEmployees] = await Promise.all([
       getUnallocatedDays(),
-      getPontoMaisPending()
+      getPontoMaisPendingEmployeeCount()
     ]);
-    const unlinkedEmployees = integrationPending.employees.length;
     res.json({
       unallocatedDays: unallocated.counts.actionableDays,
       unallocatedBlocks: unallocated.actionable.length,

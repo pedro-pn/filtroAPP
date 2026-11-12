@@ -458,6 +458,36 @@ pós-gravação e produção. Ver [evidência](evidence/performance-staging-resp
 
 ## Entregas locais e próximos incrementos
 
+### Topologia validada em staging e contador corrigido localmente — 12/11
+
+O usuário publicou `345f4892` e relatou navegação normal. A avaliação confirmou
+API, worker, PostgreSQL e Nginx saudáveis, limites/pools corretos, progresso do
+worker, estatísticas SQL disponíveis e ausência de reinícios/OOM. Foram **600
+respostas 200 no HTTPS público**, cem por caso, carga sequencial de até uma
+requisição/s, com cache novo desligado e caches legados de 60 s. O p95 foi
+1.818,64 ms em cards, 621,30 ms no projeto selecionado, 401,40 ms no grupo,
+510,32 ms no dashboard, 2.065,25 ms no contador e 4.042,21 ms no ponto. Cards e
+detalhe atingiram as metas nesta coorte leve; isso não encerra o aceite global.
+
+Os logs da entrada inicial ainda mostraram dashboard/contador em 6,56/6,60 s,
+com uma amostra por caso. O contador carregava o conjunto completo de pendências
+da integração para usar apenas o total de colaboradores. A correção local agora
+consulta somente históricos bem-sucedidos, vínculos e ignorados, preservando
+histórico, deduplicação, permissões e os demais campos do contrato. Cinco pares
+somente leitura no staging mantiveram o mesmo resultado, reduzindo esse trecho
+de 22 para três consultas e de mediana 1.236,95 para 27,62 ms; não é uma medição
+do endpoint inteiro. A correção ainda não foi publicada.
+
+Passaram **2.934 testes de backend** (54 ignorados) e os três do gate
+PostgreSQL/HTTP, incluindo paridade e atualização do contador. O pico da API na
+coorte foi 0,60 GiB, sem OOM. O relatório acumulado teve 96,59% das observações
+ativas sem fila, incluindo acessos fora da coorte. Steal mediano de 37,30% sem
+carga sintética e 18,60% durante a coleta mantém a investigação com o provedor.
+Permanecem em T12: publicação da correção e reteste da entrada/contador, comparação
+de respostas isoladas na nova topologia, recálculo do ponto, concorrência,
+outros perfis/divisões e séries de 24 h/sete dias. Backups/retenção inalterados.
+Ver [evidência](evidence/performance-staging-postdeploy-345f4892-20261112.json).
+
 | Tarefa | Entrega nesta rodada | Trabalho restante |
 | --- | --- | --- |
 | T01 | Coleta HTTP opt-in, marcas de conteúdo útil e benchmark HTTP local com sessões reais, concorrência e amostragem do pool; cache e refresh separados | Janela completa de HTTP/conteúdo útil após publicação |

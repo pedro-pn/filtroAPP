@@ -479,6 +479,75 @@ cards/ponto antes de escolher uma otimização do cálculo. Nenhum flag ou servi
 existente foi alterado; backups e retenção permanecem inalterados.
 Ver [amostras, correlação e perfil](evidence/performance-staging-response-comparison-20261112.json).
 
+### Validação da topologia publicada e correção do contador — 12/11, `345f4892`
+
+Após a publicação manual e a navegação relatada como normal pelo usuário, foram
+confirmados os quatro serviços saudáveis, orçamentos/pools corretos, jobs internos
+desligados na API e `pg_stat_statements` consultável. API e worker usam as fontes
+esperadas. O cache novo ficou desligado; os caches legados mantiveram TTL de 60 s.
+
+Entre **20h02min11s e 20h14min55s UTC**, o HTTPS público respondeu **600 vezes com
+200**, cem por caso, administrador, concorrência um e envio limitado a uma
+requisição/s. Uma leitura inicial por caso ficou fora da coorte. Não houve limpeza
+forçada de cache ou de páginas do banco. Cada caso manteve um único hash de JSON
+canônico. Uma pausa de 24 s por steal sustentado conservou todas as observações.
+
+| Caso | p95 do cliente | Escopo da conclusão |
+| --- | ---: | --- |
+| Cards | 1.818,64 ms | Meta <2 s atingida nesta coorte leve |
+| Projeto selecionado | 621,30 ms | Meta <1,5 s atingida nesta coorte leve |
+| Grupo | 401,40 ms | Sem novo aceite de comparação fria |
+| Dashboard | 510,32 ms | Cache legado/aquecimento; não mede p95 da primeira carga |
+| Contagem de pendências | 2.065,25 ms | Leitura auxiliar ainda cara na versão publicada |
+| Resumo do ponto | 4.042,21 ms | Recálculos ainda caros; máximo de 8.162,06 ms |
+
+Não houve erros HTTP, reinícios, falhas de progresso ou OOM observados. O pico do
+cgroup da API após a coorte foi **649.117.696 B (0,60 GiB)**, com limite de 2 GiB.
+Os 44 JobRuns desde o início do worker estavam concluídos. O indicador de saúde
+do worker também inclui varreduras vazias de filas; não equivale a esse total.
+O relatório de logs acumulado desde a publicação teve **96,59%** das 1.408
+observações ativas sem fila, com maior sequência observada de espera de 693 ms.
+Esse relatório inclui navegação anterior, healthchecks e outros acessos; não há
+correlação individual exata entre seus eventos e as 600 chamadas do cliente.
+
+O steal permaneceu alto: mediana **37,30%** em 45 amostras sem carga sintética de
+API, e **18,60%** durante a coleta, com máximo de 84,60%. O inventário cobriu 44
+containers em múltiplos daemons; RAM disponível e atividade de outros apps foram
+registradas. Os dados não distinguem créditos/limitação da VPS de contenção no nó
+físico. Não há comparação causal com ensaios anteriores de carga/flags diferentes.
+
+Os logs de navegação inicial mostraram dashboard em 6.559,34 ms e contador em
+6.596,15 ms, cada um com uma amostra. A inspeção do código confirmou que o aviso
+de pendências chama a leitura completa da integração apenas para usar
+`employees.length`, trazendo meses, RDOs e alocações desnecessários para essa parte.
+Essa rota e o dashboard geral não usam diretamente o cache de respostas das
+quatro superfícies cobertas anteriormente.
+
+A **correção local** cria `getPendingEmployeeCount()`: reúne os IDs distintos de
+todos os lotes históricos bem-sucedidos e remove vínculos e ignorados atuais.
+A rota usa esse número com as mesmas contagens de dias/blocos/horas e o mesmo
+controle de acesso. A consulta completa de pendências permanece disponível.
+Não foi criado cache adicional nem reduzido o histórico consultado.
+
+Cinco pares alternados sobre os dados de staging, em uma transação **Repeatable
+Read / Read Only**, devolveram contagens iguais. A parte de colaboradores passou
+de **22 para três consultas**, eliminando a leitura de períodos mensais, com
+mediana de **1.236,95 → 27,62 ms**. Esse tempo é apenas da função comparada; as
+consultas da transação são serializadas e não representam o endpoint inteiro.
+O módulo candidato foi executado em memória por um CLI descartável; os arquivos,
+imagens, flags e serviços publicados permaneceram inalterados.
+
+Validação local: **2.934 testes de backend aprovados, 54 ignorados**, sem falhas,
+com PostgreSQL descartável migrado. O gate PostgreSQL/HTTP aprovou seus três testes,
+incluindo paridade integral do contador, 401/403, alterações de vínculos/ignorados
+e proteção contra leituras de meses/RDOs. Os bancos/volumes descartáveis foram
+removidos. Não houve publicação da correção, exclusão de histórico ou alteração
+de backup/retenção. Ver [evidência completa](evidence/performance-staging-postdeploy-345f4892-20261112.json).
+
+Próximo gate: publicar manualmente essa correção e repetir o contador/entrada do
+módulo; depois comparar somente respostas na topologia atual e concluir os testes
+concorrentes, demais perfis/divisões e observação de produção de 24 h/sete dias.
+
 O pipeline separa referências e relatórios/decisões do mês, e carrega o custo antes
 dos metadados de cards/detalhe. Seus tempos aparecem nas etapas `labor.sources.*`,
 `cards.sources.*` e `detail.sources.*`; continuam dentro da duração HTTP. Não há
