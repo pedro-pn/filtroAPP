@@ -125,6 +125,118 @@ fora do orçamento não há reaproveitamento do cálculo entre requisições. Is
 remove custo inútil do cache, mas não substitui a otimização do cálculo original,
 o aceite de p95 nem a investigação de CPU steal no host.
 
+### Comparação controlada em staging — 12/11, 12h09–12h27
+
+Foi executada uma instância HTTP temporária da mesma imagem de staging, com
+`BACKGROUND_JOBS_IN_API=false`, pool de oito conexões, 1,5 CPU e 2 GiB de memória.
+O backend original continuou ativo, inclusive seus jobs; esta separação não
+reproduz integralmente o worker de produção. Não houve alteração persistente no
+ambiente, publicação ou reinício dos serviços existentes.
+
+Cada fase teve três passagens de aquecimento por rota. A carga medida intercalou
+as quatro rotas com concorrência dois e despacho limitado a duas requisições por
+segundo, usando o administrador dedicado de staging. A base e a fase com apenas
+respostas concluíram cem leituras por rota. p95 do cliente HTTP interno:
+
+| Rota | Novas camadas desligadas | Apenas cache de respostas |
+| --- | ---: | ---: |
+| Cards | 2.201,5 ms | 1.173,5 ms |
+| Detalhe de projeto | 2.536,1 ms | 851,6 ms |
+| Detalhe de grupo | 351,6 ms | 103,8 ms |
+| Ponto, resumo | 3.329,9 ms | 1.964,6 ms |
+
+O cache de respostas registrou 350 hits em 400 leituras. As metas aquecidas de
+cards e detalhe foram observadas nessa fase e nesse perfil. O CPU steal mediano,
+porém, foi diferente: 18,0% na base e 11,0% com respostas. São fases sequenciais,
+portanto a diferença de latência não pode ser atribuída integralmente ao cache.
+O pool ficou sem fila em 98,24% e 99,11% dos intervalos amostrados, respectivamente;
+esses intervalos excluem primeira carga, aquecimento e leitura após gravação.
+
+A fase apenas mensal foi interrompida após 366 leituras por cinco amostras
+consecutivas de CPU steal acima de 50%, chegando a 74,3%. Não há p95 de aceite
+para essa fase incompleta. Houve 16 recusas antecipadas de snapshot, somando
+204,75 ms de inspeção, sem bytes codificados nem encode/decode pelo cache mensal.
+A correção evitou esse trabalho de serialização; o cálculo original continuou
+necessário. As 1.166 leituras medidas das três fases retornaram 200, sem abortos,
+com um único hash de JSON canônico por rota, igual entre as fases.
+
+Depois de expirar o cache de respostas, um pedido adicional de resumo do ponto
+foi perfilado, fora da coorte de latência. `addDate` e
+`classifyActualWorkforceDays` somaram 387 das 1.418 amostras próprias (27,3%);
+coleta de lixo apareceu em 206 (14,5%). O código percorre o intervalo completo
+para cada colaborador e recria/converte datas UTC. A próxima otimização local é
+preparar e reutilizar o calendário desse cálculo, preservando todas as listas,
+conflitos e valores financeiros. Esse perfil isolado não explica todos os bytes
+do snapshot nem toda a latência das rotas.
+
+O cache de respostas segue como candidato para validação com outros perfis,
+gravações externas e navegação. O mensal não recebeu aceite de latência. A meta
+de CPU steal abaixo de 5% na maior parte do tempo permanece pendente, assim como
+frio/pós-gravação, LCP, proxy/TLS e observação de 24 h/sete dias em produção.
+As sessões de teste foram encerradas e a instância temporária removida; o backend
+original manteve imagem e horário de início. Backups e retenção não foram alterados.
+Ver [amostras, telemetria, perfil e limites da comparação](evidence/performance-staging-controlled-20261112.json).
+
+### Correção local do calendário e investigação de capacidade — 12/11
+
+A continuação local implementou um calendário UTC preparado uma vez por cálculo
+mensal e reutilizado na classificação dos colaboradores. A preparação é adiada
+até a primeira classificação, e não há cache entre requisições. Jornadas,
+ausências, feriados e arrays de resultado continuam independentes; nenhum dia do
+histórico foi removido. A etapa numérica `labor.workforce.days` mede a anotação e
+classificação dentro do cálculo mensal.
+
+Cinco pares alternados com Node 22.23.2, em container local de 1,5 CPU/2 GiB:
+
+| Cenário sintético | Mediana anterior | Mediana atual |
+| --- | ---: | ---: |
+| Classificação de 200 colaboradores, setembro/2026 | 9,95 ms | 2,09 ms |
+| Classificação de 200 colaboradores, janeiro/2010–setembro/2026 | 1.662,60 ms | 76,44 ms |
+| Cálculo mensal completo, 21 colaboradores, histórico longo | 201,62 ms | 98,40 ms |
+
+O ganho de 51,2% do cálculo completo exclui boot/imports, aquecimento e serialização;
+não é ganho percentual do app nem p95 HTTP. Todos os resultados financeiros dos
+pares foram iguais. Foram comparadas também 24 respostas HTTP completas contra
+`3c2b887e`: administrador/visualizador, quatro rotas e três estados de dados,
+incluindo gravação externa e mudança de ausência/calendário, com a candidata ativa.
+A suíte de backend passou com 2.923 aprovações e 54 ignorados em Node 24; o grupo
+adicional com PostgreSQL/HTTP passou em 21 verificações, e 23 testes focados também
+passaram em Node 22. Arquitetura passou. O banco/volume descartável foi removido.
+Ver [evidência da correção](evidence/performance-workforce-calendar-20261112.json).
+
+A investigação da VPS foi somente leitura, sem carga HTTP sintética. Há quatro
+vCPUs KVM e 43 containers em cinco daemons Docker. Em duas janelas de 45 amostras,
+o CPU steal mediano foi 9,68%/16,33%, com máximos de 52,91%/51,47%. Na segunda
+janela a API usou somente 0,751 segundo de CPU, enquanto o host ainda registrou
+steal elevado. Isso sustenta investigar a disponibilidade de CPU do host;
+não identifica um vizinho nem comprova a causa no provedor. O número de containers
+isoladamente também não demonstra saturação.
+
+Separadamente, a API tem cota de 1,5 CPU. Na primeira janela, houve throttling em
+40 dos 144 períodos ativos de cota (27,8%); na segunda, zero em 26. Essa fração não
+representa porcentagem de requisições ou de tempo transcorrido. Não houve OOM nos
+cgroups observados do filtroAPP. A interpretação segue a documentação de
+[steal no KVM](https://docs.kernel.org/virt/kvm/x86/msr.html#custom-msr-list) e dos
+[controles de CPU](https://docs.kernel.org/admin-guide/cgroup-v2.html#cpu-interface-files).
+Ver [séries e inventário de capacidade](evidence/performance-vps-capacity-20261112.json).
+
+Próximas ações operacionais: publicar a correção em staging, repetir os cenários
+com cache apenas de respostas e comparar novamente CPU/cota; coordenar a janela
+com outros builds/deploys da VPS; pedir ao provedor a verificação de capacidade e
+agendamento das vCPUs. Reavaliar cotas com a carga já otimizada e completar a série
+de 24 h/sete dias. A comparação mensal segue sem aceite, e o carregamento no
+navegador ainda precisa ser medido. Nenhum limite, serviço, cron, backup ou
+configuração persistente da VPS foi alterado por esta continuação.
+
+Texto preparado para o operador enviar ao provedor, sem envio automático:
+
+> Na VPS com quatro vCPUs KVM, observamos CPU steal mediano de 9,68% e 16,33%,
+> com picos de 52,91% e 51,47%, em 12/11/2026, 16:44:32–16:45:20 UTC e
+> 16:50:02–16:50:50 UTC. Não geramos carga HTTP de teste nessas janelas. Na segunda,
+> a API principal usou apenas 0,751 segundo de CPU e não atingiu sua cota. Solicitamos
+> verificar disponibilidade/agendamento das vCPUs físicas e eventual limitação no
+> host. Podemos fornecer a série amostrada a cada segundo.
+
 O pipeline separa referências e relatórios/decisões do mês, e carrega o custo antes
 dos metadados de cards/detalhe. Seus tempos aparecem nas etapas `labor.sources.*`,
 `cards.sources.*` e `detail.sources.*`; continuam dentro da duração HTTP. Não há

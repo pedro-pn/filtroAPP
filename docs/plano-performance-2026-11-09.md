@@ -20,7 +20,8 @@ Alterações de banco passam por migrations Prisma. A execução de infraestrutu
 publicação segue a operação manual prevista na constitution. O usuário autorizou
 implementar o código exclusivamente no ambiente local e adiou qualquer mudança
 nos backups. A tarefa T02 está fora da rodada atual; não bloqueia as melhorias de
-aplicação. Nenhuma operação de produção ou staging integra esta implementação.
+aplicação. A implementação continua local; medições posteriores em produção e
+staging foram autorizadas separadamente e estão registradas nas evidências.
 Nenhuma limpeza de histórico nem redução do objetivo de recuperação dos documentos
 está autorizada por este plano.
 
@@ -299,6 +300,75 @@ não depender de reverter ou apagar dados para reverter o código.
 - [ ] T10 Sondagens vazias agregadas e retenção exclusiva de JobRun com preview/lotes validadas localmente; política de 90 dias aprovada em 11/11; aplicação manual e medição publicadas pendentes.
 - [x] T11 Gates de tamanho, paridade, consultas, navegador e padrões de novos módulos integrados ao CI, verificados localmente.
 - [ ] T12 Comparação em produção, 24 h e sete dias, e aceite registrado.
+
+### Atualização de homologação — 12/11/2026
+
+Após a correção de admissão do snapshot mensal (`3c2b887e`), uma comparação
+autorizada usou a mesma imagem de staging em um HTTP temporário: jobs desativados
+nesse processo, pool oito, 1,5 CPU e 2 GiB. O backend original e seus jobs
+continuaram ativos. As configurações persistentes não foram modificadas.
+
+Base e cache somente de respostas tiveram cem leituras aquecidas por rota,
+concorrência dois e limite de duas requisições por segundo. O p95 do cliente
+HTTP interno foi de 2.201,5 → 1.173,5 ms em cards, 2.536,1 → 851,6 ms no detalhe,
+351,6 → 103,8 ms no grupo e 3.329,9 → 1.964,6 ms no resumo do ponto. Houve 350
+hits em 400 leituras na fase de respostas. O CPU steal mediano também caiu entre
+as fases, de 18,0% para 11,0%; não se atribui todo o ganho ao cache.
+
+A fase mensal foi interrompida em 366 leituras por CPU steal sustentado acima
+de 50%, com pico de 74,3%. Seu p95 de aceite permanece indisponível. Foram
+observadas 16 recusas de snapshot antes do codec, sem encode/decode mensal.
+As 1.166 respostas medidas foram 200 e mantiveram o mesmo JSON canônico por rota.
+Isso cobre somente o administrador dedicado e os mesmos projeto/grupo, sem
+gravações de negócio ou teste de invalidação entre sessões nessa rodada.
+
+Um perfil separado de um resumo do ponto após expiração do cache atribuiu 27,3%
+das amostras próprias a `addDate`/`classifyActualWorkforceDays`, que recriam datas
+ao percorrer o intervalo completo de cada colaborador. A próxima implementação
+local deve reutilizar a preparação de calendário por cálculo e comprovar paridade
+das listas de dias, conflitos e valores financeiros, inclusive em históricos longos.
+
+Permanecem pendentes: investigar a capacidade da VPS/CPU steal; repetir a comparação
+mensal em condições estáveis; cobrir outros perfis, recortes, frio e pós-gravação;
+validar navegador/LCP e observar produção por 24 h/sete dias. As metas aquecidas
+observadas nesse administrador e a fração sem fila no trecho medido não encerram
+T01/T06/T07/T12. A retenção continua manual e backups seguem adiados.
+Ver [evidência completa](evidence/performance-staging-controlled-20261112.json) e
+[condições operacionais](PERFORMANCE_OPERACAO.md).
+
+### Continuação local de T06/T07 e diagnóstico de T12 — 12/11
+
+A preparação do calendário de dias realizados agora é reutilizada uma vez por
+cálculo mensal, mantendo jornadas/conflitos e resultados próprios de cada
+colaborador. A preparação é adiada para evitar trabalho em listas vazias. Não há
+compartilhamento entre requisições nem corte de dados. A etapa numérica
+`labor.workforce.days` permite acompanhar esse trecho após a publicação.
+
+Em cinco pares sintéticos alternados, Node 22.23.2 com 1,5 CPU/2 GiB, a
+classificação de 200 colaboradores no intervalo 2010–2026 caiu de 1.662,60 para
+76,44 ms; o cálculo mensal completo da fixture de 21 colaboradores caiu de
+201,62 para 98,40 ms (51,2%). Os resultados financeiros completos foram iguais.
+Esses tempos excluem boot/aquecimento/serialização e não são p95 HTTP nem ganho
+percentual do app. As 24 comparações HTTP com a fonte anterior cobriram dois
+perfis, quatro rotas e três estados, incluindo alterações de ponto, ausência e
+calendário com a candidata ativa. Passaram 2.923 testes de backend (54 ignorados),
+o grupo adicional de 21 verificações com PostgreSQL/HTTP, 23 testes focados em
+Node 22 e arquitetura. Ver [evidência](evidence/performance-workforce-calendar-20261112.json).
+
+Na VPS, a investigação somente leitura identificou quatro vCPUs e 43 containers.
+Em duas janelas curtas sem carga sintética, o CPU steal mediano ficou em
+9,68%/16,33%, com picos acima de 51%; a segunda manteve steal alto com a API quase
+ociosa e sem throttling próprio. Na primeira janela, a API atingiu sua cota de
+1,5 CPU em 40/144 períodos ativos. As duas restrições são distintas; não se
+atribui toda a lentidão ao cálculo nem a um serviço vizinho específico. As
+[evidências de capacidade](evidence/performance-vps-capacity-20261112.json) e o
+texto para verificação pelo provedor estão no roteiro operacional.
+
+Restam publicar/testar esta correção em staging; comparar o cache de respostas
+com demais perfis/recortes e navegador; investigar a disponibilidade de CPU com
+o provedor e completar a observação de 24 h/sete dias. A camada mensal segue
+sem aceite de latência. Não houve mudança de código/configuração em servidor,
+aplicação de retenção ou alteração de backups nesta continuação.
 
 ## Entregas locais e próximos incrementos
 

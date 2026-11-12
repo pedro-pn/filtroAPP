@@ -58,24 +58,43 @@ function addDate(date) {
   return next.toISOString().slice(0, 10);
 }
 
-export function classifyActualWorkforceDays({ startDate, endDate, workedDates = [], conflicts = [] }) {
-  const worked = new Set(workedDates);
-  const absenceRanges = conflicts.filter(item => item.code === 'WORK_DURING_ABSENCE');
-  const holidayDates = new Set(conflicts.filter(item => item.code === 'WORK_ON_HOLIDAY').map(item => item.startDate));
-  const result = { workedDuringAbsence: [], workedOnHoliday: [], absence: [], holiday: [], residualDaysOff: [] };
+function buildActualWorkforceCalendar(startDate, endDate) {
+  const calendar = [];
   for (let date = startDate; date <= endDate; date = addDate(date)) {
-    const isAbsence = absenceRanges.some(item => date >= item.startDate && date <= item.endDate);
-    const isHoliday = holidayDates.has(date);
-    if (worked.has(date)) {
-      if (isAbsence) result.workedDuringAbsence.push(date);
-      if (isHoliday) result.workedOnHoliday.push(date);
-      continue;
-    }
     const day = new Date(`${date}T00:00:00.000Z`).getUTCDay();
-    if (day === 0 || day === 6) continue;
-    if (isAbsence) result.absence.push(date);
-    else if (isHoliday) result.holiday.push(date);
-    else result.residualDaysOff.push(date);
+    calendar.push({ date, isWeekday: day !== 0 && day !== 6 });
   }
-  return result;
+  return calendar;
+}
+
+// One calculation owns this calendar; only immutable date strings are reused.
+// Worked dates, conflicts and output arrays remain specific to each call. Lazy
+// preparation avoids walking the period for an empty roster.
+export function createActualWorkforceDayClassifier({ startDate, endDate }) {
+  let calendar;
+  return ({ workedDates = [], conflicts = [] } = {}) => {
+    const worked = new Set(workedDates);
+    const absenceRanges = conflicts.filter(item => item.code === 'WORK_DURING_ABSENCE');
+    const holidayDates = new Set(conflicts.filter(item => item.code === 'WORK_ON_HOLIDAY').map(item => item.startDate));
+    const result = { workedDuringAbsence: [], workedOnHoliday: [], absence: [], holiday: [], residualDaysOff: [] };
+    calendar ??= buildActualWorkforceCalendar(startDate, endDate);
+    for (const { date, isWeekday } of calendar) {
+      const isAbsence = absenceRanges.some(item => date >= item.startDate && date <= item.endDate);
+      const isHoliday = holidayDates.has(date);
+      if (worked.has(date)) {
+        if (isAbsence) result.workedDuringAbsence.push(date);
+        if (isHoliday) result.workedOnHoliday.push(date);
+        continue;
+      }
+      if (!isWeekday) continue;
+      if (isAbsence) result.absence.push(date);
+      else if (isHoliday) result.holiday.push(date);
+      else result.residualDaysOff.push(date);
+    }
+    return result;
+  };
+}
+
+export function classifyActualWorkforceDays({ startDate, endDate, workedDates = [], conflicts = [] }) {
+  return createActualWorkforceDayClassifier({ startDate, endDate })({ workedDates, conflicts });
 }

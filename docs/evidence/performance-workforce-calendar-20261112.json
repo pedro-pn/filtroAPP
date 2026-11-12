@@ -1,0 +1,986 @@
+{
+  "schemaVersion": 1,
+  "recordedAtUtc": "2026-11-12T17:01:33.270642+00:00",
+  "branch": "fix/page-loading-performance",
+  "worktree": "/home/relat/apps/filtroAPP-performance",
+  "baselineCommit": "3c2b887ebd629ffae423075ae4e566dbad69726d",
+  "candidate": "uncommitted local source; hashes below",
+  "changes": [
+    "One lazy UTC calendar per monthly calculation, reused by all collaborators.",
+    "Worked dates, absences, holidays and output arrays remain independent per collaborator/call.",
+    "Existing single-collaborator API retained. No cross-request calendar cache or truncation of history/results.",
+    "New numeric labor.workforce.days stage measures annotation and classification inside the monthly calculation."
+  ],
+  "validation": {
+    "backend": {
+      "node": "v24.15.0",
+      "tests": 2977,
+      "pass": 2923,
+      "skipped": 54,
+      "fail": 0,
+      "database": "dedicated local PostgreSQL performance_unit_test"
+    },
+    "focused": {
+      "pass": 96,
+      "fail": 0
+    },
+    "postgresHttpGroup": {
+      "pass": 21,
+      "fail": 0,
+      "includesUnitHelperTests": true,
+      "files": [
+        "workforce-actual-conflicts.test.js",
+        "acompanhamento-labor-performance.integration.test.js",
+        "monthly-snapshot-admission.integration.test.js",
+        "derived-read-cache.integration.test.js",
+        "http-performance-benchmark.test.js",
+        "http-performance.integration.test.js",
+        "auth-page-performance.integration.test.js"
+      ]
+    },
+    "node22": {
+      "runtime": "v22.23.2",
+      "pass": 23,
+      "fail": 0,
+      "containerCpuLimit": 1.5,
+      "containerMemoryLimitBytes": 2147483648,
+      "files": [
+        "workforce-actual-conflicts.test.js",
+        "acompanhamento-effective-labor-cost.test.js"
+      ]
+    },
+    "architectureCheck": "pass",
+    "diffCheck": "pass",
+    "setupIssuesResolved": [
+      "Initial focused test launch lacked DATABASE_URL; rerun with explicit test configuration passed.",
+      "Initial broad run used an unavailable dummy database; stopped and rerun against a separately migrated disposable database; all tests passed.",
+      "Initial archived baseline lacked Prisma schema metadata; added the schema from the baseline commit before successful HTTP comparisons."
+    ]
+  },
+  "benchmarks": {
+    "calendarNode24": {
+      "recordedAtUtc": "2026-11-12T16:54:30.190Z",
+      "baselineCommit": "3c2b887ebd629ffae423075ae4e566dbad69726d",
+      "node": "v24.15.0",
+      "rounds": 5,
+      "collaborators": 200,
+      "coldHttp": false,
+      "scenarios": [
+        {
+          "startDate": "2026-09-01",
+          "endDate": "2026-09-30",
+          "samples": [
+            {
+              "round": 0,
+              "baseline": {
+                "elapsedMs": 6.946148000000051,
+                "cpuMs": 16.981,
+                "resultSha256": "cad9a5e27ad1882897bdfa1e631b5c32b026aaf3b27a4427b3ddad7f5e2e7d86",
+                "classifiedDates": 2999
+              },
+              "candidate": {
+                "elapsedMs": 1.3889629999999897,
+                "cpuMs": 1.352,
+                "resultSha256": "cad9a5e27ad1882897bdfa1e631b5c32b026aaf3b27a4427b3ddad7f5e2e7d86",
+                "classifiedDates": 2999
+              }
+            },
+            {
+              "round": 1,
+              "candidate": {
+                "elapsedMs": 1.3546420000000126,
+                "cpuMs": 1.324,
+                "resultSha256": "cad9a5e27ad1882897bdfa1e631b5c32b026aaf3b27a4427b3ddad7f5e2e7d86",
+                "classifiedDates": 2999
+              },
+              "baseline": {
+                "elapsedMs": 6.603322999999989,
+                "cpuMs": 17.101,
+                "resultSha256": "cad9a5e27ad1882897bdfa1e631b5c32b026aaf3b27a4427b3ddad7f5e2e7d86",
+                "classifiedDates": 2999
+              }
+            },
+            {
+              "round": 2,
+              "baseline": {
+                "elapsedMs": 6.747627000000023,
+                "cpuMs": 17.151,
+                "resultSha256": "cad9a5e27ad1882897bdfa1e631b5c32b026aaf3b27a4427b3ddad7f5e2e7d86",
+                "classifiedDates": 2999
+              },
+              "candidate": {
+                "elapsedMs": 1.804002999999966,
+                "cpuMs": 1.768,
+                "resultSha256": "cad9a5e27ad1882897bdfa1e631b5c32b026aaf3b27a4427b3ddad7f5e2e7d86",
+                "classifiedDates": 2999
+              }
+            },
+            {
+              "round": 3,
+              "candidate": {
+                "elapsedMs": 2.0894030000000043,
+                "cpuMs": 2.045,
+                "resultSha256": "cad9a5e27ad1882897bdfa1e631b5c32b026aaf3b27a4427b3ddad7f5e2e7d86",
+                "classifiedDates": 2999
+              },
+              "baseline": {
+                "elapsedMs": 9.026222999999959,
+                "cpuMs": 22.404,
+                "resultSha256": "cad9a5e27ad1882897bdfa1e631b5c32b026aaf3b27a4427b3ddad7f5e2e7d86",
+                "classifiedDates": 2999
+              }
+            },
+            {
+              "round": 4,
+              "baseline": {
+                "elapsedMs": 7.944826000000035,
+                "cpuMs": 18.877,
+                "resultSha256": "cad9a5e27ad1882897bdfa1e631b5c32b026aaf3b27a4427b3ddad7f5e2e7d86",
+                "classifiedDates": 2999
+              },
+              "candidate": {
+                "elapsedMs": 1.3463920000000371,
+                "cpuMs": 1.313,
+                "resultSha256": "cad9a5e27ad1882897bdfa1e631b5c32b026aaf3b27a4427b3ddad7f5e2e7d86",
+                "classifiedDates": 2999
+              }
+            }
+          ],
+          "baselineMedianMs": 6.946148000000051,
+          "candidateMedianMs": 1.3889629999999897,
+          "allOutputsEqual": true
+        },
+        {
+          "startDate": "2010-01-01",
+          "endDate": "2026-09-30",
+          "samples": [
+            {
+              "round": 0,
+              "baseline": {
+                "elapsedMs": 1477.926196,
+                "cpuMs": 1453.647,
+                "resultSha256": "b2ae640e9432737b057a57e65784f52345192ff6e01f5f5d6ec092f214d31e67",
+                "classifiedDates": 872399
+              },
+              "candidate": {
+                "elapsedMs": 78.14070000000038,
+                "cpuMs": 101.659,
+                "resultSha256": "b2ae640e9432737b057a57e65784f52345192ff6e01f5f5d6ec092f214d31e67",
+                "classifiedDates": 872399
+              }
+            },
+            {
+              "round": 1,
+              "candidate": {
+                "elapsedMs": 74.03837000000021,
+                "cpuMs": 96.923,
+                "resultSha256": "b2ae640e9432737b057a57e65784f52345192ff6e01f5f5d6ec092f214d31e67",
+                "classifiedDates": 872399
+              },
+              "baseline": {
+                "elapsedMs": 1507.8454059999995,
+                "cpuMs": 1495.219,
+                "resultSha256": "b2ae640e9432737b057a57e65784f52345192ff6e01f5f5d6ec092f214d31e67",
+                "classifiedDates": 872399
+              }
+            },
+            {
+              "round": 2,
+              "baseline": {
+                "elapsedMs": 1443.025925,
+                "cpuMs": 1420.334,
+                "resultSha256": "b2ae640e9432737b057a57e65784f52345192ff6e01f5f5d6ec092f214d31e67",
+                "classifiedDates": 872399
+              },
+              "candidate": {
+                "elapsedMs": 72.82268899999963,
+                "cpuMs": 94.486,
+                "resultSha256": "b2ae640e9432737b057a57e65784f52345192ff6e01f5f5d6ec092f214d31e67",
+                "classifiedDates": 872399
+              }
+            },
+            {
+              "round": 3,
+              "candidate": {
+                "elapsedMs": 69.8331849999995,
+                "cpuMs": 92.623,
+                "resultSha256": "b2ae640e9432737b057a57e65784f52345192ff6e01f5f5d6ec092f214d31e67",
+                "classifiedDates": 872399
+              },
+              "baseline": {
+                "elapsedMs": 1420.7990099999997,
+                "cpuMs": 1401.548,
+                "resultSha256": "b2ae640e9432737b057a57e65784f52345192ff6e01f5f5d6ec092f214d31e67",
+                "classifiedDates": 872399
+              }
+            },
+            {
+              "round": 4,
+              "baseline": {
+                "elapsedMs": 1397.2187080000003,
+                "cpuMs": 1378.664,
+                "resultSha256": "b2ae640e9432737b057a57e65784f52345192ff6e01f5f5d6ec092f214d31e67",
+                "classifiedDates": 872399
+              },
+              "candidate": {
+                "elapsedMs": 70.72290299999986,
+                "cpuMs": 93.937,
+                "resultSha256": "b2ae640e9432737b057a57e65784f52345192ff6e01f5f5d6ec092f214d31e67",
+                "classifiedDates": 872399
+              }
+            }
+          ],
+          "baselineMedianMs": 1443.025925,
+          "candidateMedianMs": 72.82268899999963,
+          "allOutputsEqual": true
+        }
+      ]
+    },
+    "monthlyNode24": {
+      "environment": "local synthetic PostgreSQL",
+      "node": "v24.15.0",
+      "baselineCommit": "3c2b887ebd629ffae423075ae4e566dbad69726d",
+      "rounds": 5,
+      "mode": "warm calculation; imports/boot/prior read excluded",
+      "periodStart": "2010-01-01",
+      "periodEnd": "2026-09-30",
+      "samples": [
+        {
+          "round": 0,
+          "baseline": {
+            "durationMs": 199.62773000000004,
+            "cpuTotalMs": 195.736,
+            "resultSha256": "96648d2f6761b007e52b98dc485bc3cf058288248ae2dfe1ec9a26e180891c61",
+            "collaborators": 21,
+            "initialization": {
+              "serviceImportMs": 198.919781,
+              "priorReadMs": 409.362802
+            }
+          },
+          "candidate": {
+            "durationMs": 55.52320299999997,
+            "cpuTotalMs": 81.062,
+            "resultSha256": "96648d2f6761b007e52b98dc485bc3cf058288248ae2dfe1ec9a26e180891c61",
+            "collaborators": 21,
+            "initialization": {
+              "serviceImportMs": 192.324611,
+              "priorReadMs": 279.90811099999996
+            }
+          },
+          "completeFinancialResultEqual": true
+        },
+        {
+          "round": 1,
+          "candidate": {
+            "durationMs": 49.860139000000004,
+            "cpuTotalMs": 68.377,
+            "resultSha256": "96648d2f6761b007e52b98dc485bc3cf058288248ae2dfe1ec9a26e180891c61",
+            "collaborators": 21,
+            "initialization": {
+              "serviceImportMs": 204.940642,
+              "priorReadMs": 261.248702
+            }
+          },
+          "baseline": {
+            "durationMs": 182.44198199999994,
+            "cpuTotalMs": 180.884,
+            "resultSha256": "96648d2f6761b007e52b98dc485bc3cf058288248ae2dfe1ec9a26e180891c61",
+            "collaborators": 21,
+            "initialization": {
+              "serviceImportMs": 194.284931,
+              "priorReadMs": 429.29647
+            }
+          },
+          "completeFinancialResultEqual": true
+        },
+        {
+          "round": 2,
+          "baseline": {
+            "durationMs": 182.78479200000004,
+            "cpuTotalMs": 180.27,
+            "resultSha256": "96648d2f6761b007e52b98dc485bc3cf058288248ae2dfe1ec9a26e180891c61",
+            "collaborators": 21,
+            "initialization": {
+              "serviceImportMs": 185.323389,
+              "priorReadMs": 392.58367000000004
+            }
+          },
+          "candidate": {
+            "durationMs": 47.58672999999999,
+            "cpuTotalMs": 64.372,
+            "resultSha256": "96648d2f6761b007e52b98dc485bc3cf058288248ae2dfe1ec9a26e180891c61",
+            "collaborators": 21,
+            "initialization": {
+              "serviceImportMs": 183.636992,
+              "priorReadMs": 259.134079
+            }
+          },
+          "completeFinancialResultEqual": true
+        },
+        {
+          "round": 3,
+          "candidate": {
+            "durationMs": 46.88442299999997,
+            "cpuTotalMs": 61.17,
+            "resultSha256": "96648d2f6761b007e52b98dc485bc3cf058288248ae2dfe1ec9a26e180891c61",
+            "collaborators": 21,
+            "initialization": {
+              "serviceImportMs": 184.1594,
+              "priorReadMs": 240.52127400000003
+            }
+          },
+          "baseline": {
+            "durationMs": 178.50258299999996,
+            "cpuTotalMs": 178.152,
+            "resultSha256": "96648d2f6761b007e52b98dc485bc3cf058288248ae2dfe1ec9a26e180891c61",
+            "collaborators": 21,
+            "initialization": {
+              "serviceImportMs": 182.61116399999997,
+              "priorReadMs": 385.70469
+            }
+          },
+          "completeFinancialResultEqual": true
+        },
+        {
+          "round": 4,
+          "baseline": {
+            "durationMs": 182.40556600000002,
+            "cpuTotalMs": 181.153,
+            "resultSha256": "96648d2f6761b007e52b98dc485bc3cf058288248ae2dfe1ec9a26e180891c61",
+            "collaborators": 21,
+            "initialization": {
+              "serviceImportMs": 196.401151,
+              "priorReadMs": 383.78082500000005
+            }
+          },
+          "candidate": {
+            "durationMs": 50.47024000000005,
+            "cpuTotalMs": 63.129,
+            "resultSha256": "96648d2f6761b007e52b98dc485bc3cf058288248ae2dfe1ec9a26e180891c61",
+            "collaborators": 21,
+            "initialization": {
+              "serviceImportMs": 190.083664,
+              "priorReadMs": 250.701642
+            }
+          },
+          "completeFinancialResultEqual": true
+        }
+      ],
+      "complete": true,
+      "baselineMedianMs": 182.44198199999994,
+      "candidateMedianMs": 49.860139000000004,
+      "observedReductionFraction": 0.7267068771484843,
+      "fixtureRemainingCounts": {
+        "imports": 0,
+        "people": 0
+      }
+    },
+    "calendarNode22": {
+      "recordedAtUtc": "2026-11-12T16:59:10.190Z",
+      "baselineCommit": "3c2b887ebd629ffae423075ae4e566dbad69726d",
+      "node": "v22.23.2",
+      "rounds": 5,
+      "collaborators": 200,
+      "coldHttp": false,
+      "scenarios": [
+        {
+          "startDate": "2026-09-01",
+          "endDate": "2026-09-30",
+          "samples": [
+            {
+              "round": 0,
+              "baseline": {
+                "elapsedMs": 9.946409000000017,
+                "cpuMs": 25.223,
+                "resultSha256": "cad9a5e27ad1882897bdfa1e631b5c32b026aaf3b27a4427b3ddad7f5e2e7d86",
+                "classifiedDates": 2999
+              },
+              "candidate": {
+                "elapsedMs": 2.755249000000049,
+                "cpuMs": 7.477,
+                "resultSha256": "cad9a5e27ad1882897bdfa1e631b5c32b026aaf3b27a4427b3ddad7f5e2e7d86",
+                "classifiedDates": 2999
+              }
+            },
+            {
+              "round": 1,
+              "candidate": {
+                "elapsedMs": 2.634496000000013,
+                "cpuMs": 2.771,
+                "resultSha256": "cad9a5e27ad1882897bdfa1e631b5c32b026aaf3b27a4427b3ddad7f5e2e7d86",
+                "classifiedDates": 2999
+              },
+              "baseline": {
+                "elapsedMs": 9.30846299999996,
+                "cpuMs": 23.963,
+                "resultSha256": "cad9a5e27ad1882897bdfa1e631b5c32b026aaf3b27a4427b3ddad7f5e2e7d86",
+                "classifiedDates": 2999
+              }
+            },
+            {
+              "round": 2,
+              "baseline": {
+                "elapsedMs": 8.074305000000095,
+                "cpuMs": 18.381,
+                "resultSha256": "cad9a5e27ad1882897bdfa1e631b5c32b026aaf3b27a4427b3ddad7f5e2e7d86",
+                "classifiedDates": 2999
+              },
+              "candidate": {
+                "elapsedMs": 2.0919150000000855,
+                "cpuMs": 2.032,
+                "resultSha256": "cad9a5e27ad1882897bdfa1e631b5c32b026aaf3b27a4427b3ddad7f5e2e7d86",
+                "classifiedDates": 2999
+              }
+            },
+            {
+              "round": 3,
+              "candidate": {
+                "elapsedMs": 1.4564949999999044,
+                "cpuMs": 1.413,
+                "resultSha256": "cad9a5e27ad1882897bdfa1e631b5c32b026aaf3b27a4427b3ddad7f5e2e7d86",
+                "classifiedDates": 2999
+              },
+              "baseline": {
+                "elapsedMs": 15.391730999999936,
+                "cpuMs": 36.573,
+                "resultSha256": "cad9a5e27ad1882897bdfa1e631b5c32b026aaf3b27a4427b3ddad7f5e2e7d86",
+                "classifiedDates": 2999
+              }
+            },
+            {
+              "round": 4,
+              "baseline": {
+                "elapsedMs": 62.08094700000004,
+                "cpuMs": 15.955,
+                "resultSha256": "cad9a5e27ad1882897bdfa1e631b5c32b026aaf3b27a4427b3ddad7f5e2e7d86",
+                "classifiedDates": 2999
+              },
+              "candidate": {
+                "elapsedMs": 1.7491840000000138,
+                "cpuMs": 8.048,
+                "resultSha256": "cad9a5e27ad1882897bdfa1e631b5c32b026aaf3b27a4427b3ddad7f5e2e7d86",
+                "classifiedDates": 2999
+              }
+            }
+          ],
+          "baselineMedianMs": 9.946409000000017,
+          "candidateMedianMs": 2.0919150000000855,
+          "allOutputsEqual": true
+        },
+        {
+          "startDate": "2010-01-01",
+          "endDate": "2026-09-30",
+          "samples": [
+            {
+              "round": 0,
+              "baseline": {
+                "elapsedMs": 1662.5993310000003,
+                "cpuMs": 1642.766,
+                "resultSha256": "b2ae640e9432737b057a57e65784f52345192ff6e01f5f5d6ec092f214d31e67",
+                "classifiedDates": 872399
+              },
+              "candidate": {
+                "elapsedMs": 86.40743900000052,
+                "cpuMs": 100.539,
+                "resultSha256": "b2ae640e9432737b057a57e65784f52345192ff6e01f5f5d6ec092f214d31e67",
+                "classifiedDates": 872399
+              }
+            },
+            {
+              "round": 1,
+              "candidate": {
+                "elapsedMs": 75.05640299999959,
+                "cpuMs": 94.952,
+                "resultSha256": "b2ae640e9432737b057a57e65784f52345192ff6e01f5f5d6ec092f214d31e67",
+                "classifiedDates": 872399
+              },
+              "baseline": {
+                "elapsedMs": 1623.806692,
+                "cpuMs": 1599.683,
+                "resultSha256": "b2ae640e9432737b057a57e65784f52345192ff6e01f5f5d6ec092f214d31e67",
+                "classifiedDates": 872399
+              }
+            },
+            {
+              "round": 2,
+              "baseline": {
+                "elapsedMs": 1569.7096929999998,
+                "cpuMs": 1599.949,
+                "resultSha256": "b2ae640e9432737b057a57e65784f52345192ff6e01f5f5d6ec092f214d31e67",
+                "classifiedDates": 872399
+              },
+              "candidate": {
+                "elapsedMs": 70.33801399999993,
+                "cpuMs": 87.052,
+                "resultSha256": "b2ae640e9432737b057a57e65784f52345192ff6e01f5f5d6ec092f214d31e67",
+                "classifiedDates": 872399
+              }
+            },
+            {
+              "round": 3,
+              "candidate": {
+                "elapsedMs": 76.44343500000105,
+                "cpuMs": 90.956,
+                "resultSha256": "b2ae640e9432737b057a57e65784f52345192ff6e01f5f5d6ec092f214d31e67",
+                "classifiedDates": 872399
+              },
+              "baseline": {
+                "elapsedMs": 1730.7339940000002,
+                "cpuMs": 1707.354,
+                "resultSha256": "b2ae640e9432737b057a57e65784f52345192ff6e01f5f5d6ec092f214d31e67",
+                "classifiedDates": 872399
+              }
+            },
+            {
+              "round": 4,
+              "baseline": {
+                "elapsedMs": 1696.688204,
+                "cpuMs": 1728.578,
+                "resultSha256": "b2ae640e9432737b057a57e65784f52345192ff6e01f5f5d6ec092f214d31e67",
+                "classifiedDates": 872399
+              },
+              "candidate": {
+                "elapsedMs": 90.72543100000075,
+                "cpuMs": 107.12,
+                "resultSha256": "b2ae640e9432737b057a57e65784f52345192ff6e01f5f5d6ec092f214d31e67",
+                "classifiedDates": 872399
+              }
+            }
+          ],
+          "baselineMedianMs": 1662.5993310000003,
+          "candidateMedianMs": 76.44343500000105,
+          "allOutputsEqual": true
+        }
+      ]
+    },
+    "monthlyNode22": {
+      "environment": "local synthetic PostgreSQL",
+      "node": "v22.23.2",
+      "baselineCommit": "3c2b887ebd629ffae423075ae4e566dbad69726d",
+      "rounds": 5,
+      "mode": "warm calculation; imports/boot/prior read excluded",
+      "periodStart": "2010-01-01",
+      "periodEnd": "2026-09-30",
+      "samples": [
+        {
+          "round": 0,
+          "baseline": {
+            "durationMs": 198.70599099999993,
+            "cpuTotalMs": 203.433,
+            "resultSha256": "c1823e1ea2c4f061ce60048194d91e1ebfc78229fae168aebade5733d1eb9281",
+            "collaborators": 21,
+            "initialization": {
+              "serviceImportMs": 187.7054,
+              "priorReadMs": 619.658862
+            }
+          },
+          "candidate": {
+            "durationMs": 111.11623200000008,
+            "cpuTotalMs": 155.644,
+            "resultSha256": "c1823e1ea2c4f061ce60048194d91e1ebfc78229fae168aebade5733d1eb9281",
+            "collaborators": 21,
+            "initialization": {
+              "serviceImportMs": 185.035005,
+              "priorReadMs": 444.245563
+            }
+          },
+          "completeFinancialResultEqual": true
+        },
+        {
+          "round": 1,
+          "candidate": {
+            "durationMs": 97.82312000000002,
+            "cpuTotalMs": 124.654,
+            "resultSha256": "c1823e1ea2c4f061ce60048194d91e1ebfc78229fae168aebade5733d1eb9281",
+            "collaborators": 21,
+            "initialization": {
+              "serviceImportMs": 215.73213299999998,
+              "priorReadMs": 537.057043
+            }
+          },
+          "baseline": {
+            "durationMs": 204.68480499999987,
+            "cpuTotalMs": 198.744,
+            "resultSha256": "c1823e1ea2c4f061ce60048194d91e1ebfc78229fae168aebade5733d1eb9281",
+            "collaborators": 21,
+            "initialization": {
+              "serviceImportMs": 182.11397300000002,
+              "priorReadMs": 603.216145
+            }
+          },
+          "completeFinancialResultEqual": true
+        },
+        {
+          "round": 2,
+          "baseline": {
+            "durationMs": 199.046965,
+            "cpuTotalMs": 202.068,
+            "resultSha256": "c1823e1ea2c4f061ce60048194d91e1ebfc78229fae168aebade5733d1eb9281",
+            "collaborators": 21,
+            "initialization": {
+              "serviceImportMs": 182.918061,
+              "priorReadMs": 620.749168
+            }
+          },
+          "candidate": {
+            "durationMs": 97.42886399999998,
+            "cpuTotalMs": 128.428,
+            "resultSha256": "c1823e1ea2c4f061ce60048194d91e1ebfc78229fae168aebade5733d1eb9281",
+            "collaborators": 21,
+            "initialization": {
+              "serviceImportMs": 181.96333299999998,
+              "priorReadMs": 435.28303099999994
+            }
+          },
+          "completeFinancialResultEqual": true
+        },
+        {
+          "round": 3,
+          "candidate": {
+            "durationMs": 112.46166499999993,
+            "cpuTotalMs": 132.215,
+            "resultSha256": "c1823e1ea2c4f061ce60048194d91e1ebfc78229fae168aebade5733d1eb9281",
+            "collaborators": 21,
+            "initialization": {
+              "serviceImportMs": 182.740838,
+              "priorReadMs": 432.682166
+            }
+          },
+          "baseline": {
+            "durationMs": 201.61658699999998,
+            "cpuTotalMs": 205.469,
+            "resultSha256": "c1823e1ea2c4f061ce60048194d91e1ebfc78229fae168aebade5733d1eb9281",
+            "collaborators": 21,
+            "initialization": {
+              "serviceImportMs": 220.919249,
+              "priorReadMs": 658.924141
+            }
+          },
+          "completeFinancialResultEqual": true
+        },
+        {
+          "round": 4,
+          "baseline": {
+            "durationMs": 202.36404299999992,
+            "cpuTotalMs": 204.298,
+            "resultSha256": "c1823e1ea2c4f061ce60048194d91e1ebfc78229fae168aebade5733d1eb9281",
+            "collaborators": 21,
+            "initialization": {
+              "serviceImportMs": 188.349454,
+              "priorReadMs": 653.084866
+            }
+          },
+          "candidate": {
+            "durationMs": 98.39875599999993,
+            "cpuTotalMs": 116.621,
+            "resultSha256": "c1823e1ea2c4f061ce60048194d91e1ebfc78229fae168aebade5733d1eb9281",
+            "collaborators": 21,
+            "initialization": {
+              "serviceImportMs": 182.60657200000003,
+              "priorReadMs": 402.30397199999993
+            }
+          },
+          "completeFinancialResultEqual": true
+        }
+      ],
+      "complete": true,
+      "baselineMedianMs": 201.61658699999998,
+      "candidateMedianMs": 98.39875599999993,
+      "observedReductionFraction": 0.5119510876354636,
+      "fixtureRemainingCounts": {
+        "imports": 0,
+        "people": 0
+      }
+    },
+    "httpParity": {
+      "environment": "local PostgreSQL synthetic fixture",
+      "baselineCommit": "3c2b887ebd629ffae423075ae4e566dbad69726d",
+      "profileNames": [
+        "admin",
+        "viewer"
+      ],
+      "httpBodiesEqual": true,
+      "periodStart": "2010-01-01",
+      "periodEnd": "2026-09-30",
+      "samples": [
+        {
+          "phase": "initial",
+          "profile": "admin",
+          "route": "cards",
+          "status": 200,
+          "canonicalBodySha256": "2313afc450f0f24b1a8d4cd294471a975e8865fb146bfb80c983632d431a5931",
+          "referenceMs": 2147.2724830000006,
+          "candidateMs": 1536.0312279999998,
+          "workforceStageMs": 161.37
+        },
+        {
+          "phase": "initial",
+          "profile": "admin",
+          "route": "project",
+          "status": 200,
+          "canonicalBodySha256": "25a3052ba11e09676be3fc8a83082b81e2563325ad331a0070b674393f7f8368",
+          "referenceMs": 396.70046300000104,
+          "candidateMs": 390.42551899999853,
+          "workforceStageMs": null
+        },
+        {
+          "phase": "initial",
+          "profile": "admin",
+          "route": "group",
+          "status": 200,
+          "canonicalBodySha256": "30eab85546cc9321e11f17328199cbe31c188a29044ea49ac3b4b197e7f11aaf",
+          "referenceMs": 295.73293399999966,
+          "candidateMs": 191.07257299999947,
+          "workforceStageMs": null
+        },
+        {
+          "phase": "initial",
+          "profile": "admin",
+          "route": "point_summary",
+          "status": 200,
+          "canonicalBodySha256": "be625672b5bbf6470c7f2659d996d0996a49178776088cc1d84e90d52067e970",
+          "referenceMs": 512.3200969999998,
+          "candidateMs": 294.032267999999,
+          "workforceStageMs": 135.01
+        },
+        {
+          "phase": "initial",
+          "profile": "viewer",
+          "route": "cards",
+          "status": 200,
+          "canonicalBodySha256": "e9081951403f0bccf10cc616d262fd2b9f5ccc31d2b6747bd522475202c04265",
+          "referenceMs": 992.0341219999991,
+          "candidateMs": 720.6289320000033,
+          "workforceStageMs": 69.5
+        },
+        {
+          "phase": "initial",
+          "profile": "viewer",
+          "route": "project",
+          "status": 200,
+          "canonicalBodySha256": "616f1dec1f45ba4d766680a41dba0fd8a65616e666fba2f05f35eee08697bfd9",
+          "referenceMs": 234.36131500000192,
+          "candidateMs": 220.25504100000035,
+          "workforceStageMs": null
+        },
+        {
+          "phase": "initial",
+          "profile": "viewer",
+          "route": "group",
+          "status": 200,
+          "canonicalBodySha256": "46fe835e29bd62164b571cd0c77bd9c1e0e21bf8b95dd37d0b04a0097de8711a",
+          "referenceMs": 157.67898200000127,
+          "candidateMs": 226.10880199999883,
+          "workforceStageMs": null
+        },
+        {
+          "phase": "initial",
+          "profile": "viewer",
+          "route": "point_summary",
+          "status": 200,
+          "canonicalBodySha256": "be625672b5bbf6470c7f2659d996d0996a49178776088cc1d84e90d52067e970",
+          "referenceMs": 886.8300579999996,
+          "candidateMs": 248.30538399999932,
+          "workforceStageMs": 42.87
+        },
+        {
+          "phase": "worker-write",
+          "profile": "admin",
+          "route": "cards",
+          "status": 200,
+          "canonicalBodySha256": "6096b6e6c6c511d066a31792ad9f5d10b0754d60a3a8574b279de91b84b300ec",
+          "referenceMs": 1732.7271330000003,
+          "candidateMs": 373.298143,
+          "workforceStageMs": 60.63
+        },
+        {
+          "phase": "worker-write",
+          "profile": "admin",
+          "route": "project",
+          "status": 200,
+          "canonicalBodySha256": "a2214a5cca2d0bb4afcd4665dc260a4a64ad71c1ad017d4a946356ac034175dd",
+          "referenceMs": 278.8312029999979,
+          "candidateMs": 135.8389279999974,
+          "workforceStageMs": null
+        },
+        {
+          "phase": "worker-write",
+          "profile": "admin",
+          "route": "group",
+          "status": 200,
+          "canonicalBodySha256": "b89553732d3c76894104b8deac4029d239a7ae045814da344259a4f3dd92f6c5",
+          "referenceMs": 196.3695570000018,
+          "candidateMs": 148.09858000000168,
+          "workforceStageMs": null
+        },
+        {
+          "phase": "worker-write",
+          "profile": "admin",
+          "route": "point_summary",
+          "status": 200,
+          "canonicalBodySha256": "e90826f3fa58b3b68154d2c0e5e4fce3360467212783eda7e8920e09851c4180",
+          "referenceMs": 711.8609230000002,
+          "candidateMs": 146.83469400000104,
+          "workforceStageMs": 46.52
+        },
+        {
+          "phase": "worker-write",
+          "profile": "viewer",
+          "route": "cards",
+          "status": 200,
+          "canonicalBodySha256": "02c8050f8b1c6f76777088d03df8034dd4ce353ecbf221759f46766e0df3e4c0",
+          "referenceMs": 1337.2064890000001,
+          "candidateMs": 273.40780200000154,
+          "workforceStageMs": 35.65
+        },
+        {
+          "phase": "worker-write",
+          "profile": "viewer",
+          "route": "project",
+          "status": 200,
+          "canonicalBodySha256": "c8008b473d009618229a5399a0ccc57d32cbdca638b366ad850e6c17b643fb17",
+          "referenceMs": 220.7758180000019,
+          "candidateMs": 112.29781599999842,
+          "workforceStageMs": null
+        },
+        {
+          "phase": "worker-write",
+          "profile": "viewer",
+          "route": "group",
+          "status": 200,
+          "canonicalBodySha256": "f8eddc8a6b9b449b1617f1481490d9ffb341a2351745d35eeaa13d7facbdd28d",
+          "referenceMs": 166.16780199999994,
+          "candidateMs": 127.25875499999893,
+          "workforceStageMs": null
+        },
+        {
+          "phase": "worker-write",
+          "profile": "viewer",
+          "route": "point_summary",
+          "status": 200,
+          "canonicalBodySha256": "e90826f3fa58b3b68154d2c0e5e4fce3360467212783eda7e8920e09851c4180",
+          "referenceMs": 489.5443889999988,
+          "candidateMs": 205.16323600000032,
+          "workforceStageMs": 82.86
+        },
+        {
+          "phase": "calendar-absence-write",
+          "profile": "admin",
+          "route": "cards",
+          "status": 200,
+          "canonicalBodySha256": "6096b6e6c6c511d066a31792ad9f5d10b0754d60a3a8574b279de91b84b300ec",
+          "referenceMs": 1296.4892299999992,
+          "candidateMs": 253.3865730000034,
+          "workforceStageMs": 53.34
+        },
+        {
+          "phase": "calendar-absence-write",
+          "profile": "admin",
+          "route": "project",
+          "status": 200,
+          "canonicalBodySha256": "a2214a5cca2d0bb4afcd4665dc260a4a64ad71c1ad017d4a946356ac034175dd",
+          "referenceMs": 174.6291280000005,
+          "candidateMs": 107.64379899999767,
+          "workforceStageMs": null
+        },
+        {
+          "phase": "calendar-absence-write",
+          "profile": "admin",
+          "route": "group",
+          "status": 200,
+          "canonicalBodySha256": "b89553732d3c76894104b8deac4029d239a7ae045814da344259a4f3dd92f6c5",
+          "referenceMs": 205.9671060000037,
+          "candidateMs": 115.38085100000171,
+          "workforceStageMs": null
+        },
+        {
+          "phase": "calendar-absence-write",
+          "profile": "admin",
+          "route": "point_summary",
+          "status": 200,
+          "canonicalBodySha256": "e90826f3fa58b3b68154d2c0e5e4fce3360467212783eda7e8920e09851c4180",
+          "referenceMs": 574.2768759999963,
+          "candidateMs": 113.1793170000019,
+          "workforceStageMs": 35.2
+        },
+        {
+          "phase": "calendar-absence-write",
+          "profile": "viewer",
+          "route": "cards",
+          "status": 200,
+          "canonicalBodySha256": "02c8050f8b1c6f76777088d03df8034dd4ce353ecbf221759f46766e0df3e4c0",
+          "referenceMs": 703.2935240000006,
+          "candidateMs": 177.44870400000218,
+          "workforceStageMs": 44.46
+        },
+        {
+          "phase": "calendar-absence-write",
+          "profile": "viewer",
+          "route": "project",
+          "status": 200,
+          "canonicalBodySha256": "c8008b473d009618229a5399a0ccc57d32cbdca638b366ad850e6c17b643fb17",
+          "referenceMs": 165.765582,
+          "candidateMs": 115.06620000000112,
+          "workforceStageMs": null
+        },
+        {
+          "phase": "calendar-absence-write",
+          "profile": "viewer",
+          "route": "group",
+          "status": 200,
+          "canonicalBodySha256": "f8eddc8a6b9b449b1617f1481490d9ffb341a2351745d35eeaa13d7facbdd28d",
+          "referenceMs": 163.94039099999645,
+          "candidateMs": 102.38368400000036,
+          "workforceStageMs": null
+        },
+        {
+          "phase": "calendar-absence-write",
+          "profile": "viewer",
+          "route": "point_summary",
+          "status": 200,
+          "canonicalBodySha256": "e90826f3fa58b3b68154d2c0e5e4fce3360467212783eda7e8920e09851c4180",
+          "referenceMs": 388.73337800000445,
+          "candidateMs": 98.60775200000353,
+          "workforceStageMs": 32.92
+        }
+      ],
+      "complete": true,
+      "fixtureRemainingCounts": {
+        "projects": 0,
+        "collaborators": 0,
+        "imports": 0
+      }
+    }
+  },
+  "limitations": [
+    "All changed application code ran locally only. No staging/production deployment or persistent environment changes.",
+    "Node 22 results ran in a local 1.5-CPU/2-GiB container; Node 24 results ran on the local host. Runtime comparisons are confounded by the differing resource setup.",
+    "Synthetic calculation fixtures and five alternating baseline/candidate pairs; not HTTP p95, LCP or an estimate of percentage improvement for the app.",
+    "Calendar benchmark uses 200 collaborators; full monthly calculation uses the 21-collaborator, 120-report fixture and an import interval from 2010-01-01 through 2026-09-30.",
+    "Full monthly benchmark excludes boot, imports, prior warmup read, output serialization and client rendering.",
+    "HTTP comparison covers 24 full candidate responses against the original source: two profiles, four routes and three data states. Latencies have fewer than 100 observations per scenario and provide no p95 acceptance.",
+    "No reduction of returned historical days, permissions or financial fields. Monthly snapshot admission limits remain unchanged.",
+    "Shared-host CPU steal and 24-hour/seven-day acceptance remain operational work."
+  ],
+  "sourceSha256": {
+    "backend/src/lib/workforce/actual-conflicts.js": "037d4f60103ab5e44596dedcedee05f87c2329a88bf03295834004e053ef2789",
+    "backend/src/lib/acompanhamento/labor-cost.js": "f4252bbb295a3c10267b163e04b7c83279554308b1fcda0c2913a8d4db486dff",
+    "backend/test/workforce-actual-conflicts.test.js": "a231b16370c5eb388a417977b37f207203369756d7ede7df6234404aa898e5fe"
+  },
+  "captureSha256": {
+    "calendarNode24": "c0453bc5e56bbbed31936f9881707a322b62ef3b77ae8380bb30fc9f39b293c5",
+    "monthlyNode24": "e8803354eb702d74d50bf3b104631d25b8abfd86eedbc330fda62d307020c07c",
+    "calendarNode22": "55b4a5525f9e9364126c79ed968185f8349cf103c11ba4c5959dcc419cd6868a",
+    "monthlyNode22": "754b3c5fc19980de7af8b05ad60f0a63c0cdd70140a542f7905f06924d85074f",
+    "httpParity": "6a6c3d204c4a42ca5d1bcd08fea4104e0a8345eda686ecca6ac6dd4c119c40ff"
+  },
+  "productionChanges": false,
+  "stagingChanges": false,
+  "backupChanges": false,
+  "retentionApplied": false,
+  "cleanup": {
+    "allSyntheticFixturesRemoved": true,
+    "disposablePostgresRemovalPending": false,
+    "disposablePostgresAndAnonymousVolumeRemoved": true
+  }
+}
