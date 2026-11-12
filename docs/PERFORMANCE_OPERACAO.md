@@ -1,7 +1,7 @@
 # Operação e aceite das melhorias de performance
 
-Este roteiro prepara a publicação manual da branch `fix/page-loading-performance`.
-Não registra uma publicação realizada. Backups permanecem adiados pelo usuário;
+Este roteiro orienta a publicação manual da branch `fix/page-loading-performance`.
+As seções datadas registram as publicações e medições confirmadas. Backups permanecem adiados pelo usuário;
 não alterar cron, volumes, retenção ou configuração de backup neste trabalho.
 Seguir também [PRODUCTION.md](../deploy/PRODUCTION.md) e o planejamento
 [de performance](plano-performance-2026-11-09.md).
@@ -236,6 +236,56 @@ Texto preparado para o operador enviar ao provedor, sem envio automático:
 > a API principal usou apenas 0,751 segundo de CPU e não atingiu sua cota. Solicitamos
 > verificar disponibilidade/agendamento das vCPUs físicas e eventual limitação no
 > host. Podemos fornecer a série amostrada a cada segundo.
+
+### Validação publicada em staging — `46092546`, 12/11
+
+O backend publicado em staging foi conferido pelo commit, imagem e hashes de quatro
+fontes, com Node 22.23.5. As 280 leituras medidas entre tentativas de carga e
+verificação funcional retornaram 200 e mantiveram um único JSON canônico por rota.
+O ensaio funcional cobriu base, somente mensal e somente respostas, em cards,
+projeto, grupo e resumo do ponto. As verificações sem sessão retornaram 401.
+O administrador dedicado também navegou por projetos e custo/hora via HTTPS,
+com APIs 200 e sem erros de JavaScript ou rede na janela observada. Isso não
+substitui o aceite de outros perfis, gravações e atualização entre sessões.
+
+As duas tentativas de carga foram interrompidas por cinco amostras consecutivas
+de CPU steal ≥50%: 18 leituras a até duas requisições/s, com pico de 66,83%, e
+250 leituras a até uma requisição/s, com pico de 78,99%. Nenhuma rota/configuração
+concluiu cem amostras; **não há p95 nem aceite de latência**. Uma verificação 401
+intencional terminou seu registro na borda da segunda janela; o coletor a
+contabilizou como evento extra. Os 250 clientes e seus 250 eventos autenticados
+foram 200. A evidência conserva esse alerta de coleta, separado de erro da API.
+Sem carga sintética, a mediana de steal ainda ficou em 13,33%; a API de produção
+usou 0,719 segundo de CPU durante os trinta segundos de observação.
+
+No login público, cinco navegações com o perfil móvel original observaram LCP de
+5.220/5.236/5.188/5.192/5.192 ms: mediana **5.192 ms**, acima da meta de 2.500 ms.
+Não houve erro de JavaScript ou recurso nessa coleta. O viewport foi 390×844,
+banda 200.000 B/s, latência 150 ms, CPU 4× e cache desativado.
+
+A investigação confirmou uma diferença na entrega: staging não configurava os
+tipos gzip nem a política de cache de assets de produção. Os arquivos principais
+de JS e CSS chegaram sem `Content-Encoding` ou `Cache-Control`, com 399.992 e
+282.002 bytes. A correção em `deploy/nginx/staging.conf` alinha gzip, assets e HTML
+à configuração de produção. Em Nginx 1.27 isolado localmente, JS/CSS/MJS foram
+comprimidos e descomprimidos integralmente; os assets receberam a política de
+cache e HTML/rota SPA receberam `no-cache`. A redução do payload sintético desse
+teste não estima ganho no bundle ou no LCP do app.
+
+**A correção do Nginx precisa de uma nova publicação em staging.** Depois de
+atualizar o arquivo pelo processo manual, recriar somente esse serviço para
+atualizar também o bind mount:
+
+```bash
+docker compose --env-file backend/.env.staging -f docker-compose.staging.yml up -d --no-deps --force-recreate nginx
+```
+
+Conferir `Content-Encoding: gzip` com negociação de gzip nos assets, a política
+de cache e repetir as cinco navegações. Retomar as coortes comparáveis com cem
+amostras por rota/perfil quando a disponibilidade de CPU permitir. A configuração
+publicada e os serviços existentes não foram alterados durante os testes; APIs
+temporárias e navegador foram encerrados e as sessões revogadas. Backups e
+retenção permaneceram inalterados. Ver [evidência e limites](evidence/performance-staging-calendar-validation-20261112.json).
 
 O pipeline separa referências e relatórios/decisões do mês, e carrega o custo antes
 dos metadados de cards/detalhe. Seus tempos aparecem nas etapas `labor.sources.*`,

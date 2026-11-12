@@ -370,6 +370,25 @@ o provedor e completar a observação de 24 h/sete dias. A camada mensal segue
 sem aceite de latência. Não houve mudança de código/configuração em servidor,
 aplicação de retenção ou alteração de backups nesta continuação.
 
+### Reteste de staging após `46092546` — 12/11
+
+A publicação foi confirmada pelo código em execução. Passaram a paridade das
+280 leituras medidas, as quatro rotas nas três configurações e a navegação HTTPS
+do administrador em projetos e custo/hora. Os acessos sem sessão foram bloqueados.
+As coortes a duas/uma requisição por segundo pararam em 18/250 leituras por CPU
+steal sustentado, com pico de 78,99%; nenhuma rota/configuração atingiu cem
+amostras. O p95 de aceite continua indisponível.
+
+O login emulado móvel teve LCP mediano de 5.192 ms em cinco navegações. Staging
+entregava JS/CSS sem gzip ou política de cache, diferentemente de produção. A
+configuração de staging foi corrigida localmente e validada em HTTP com Nginx
+isolado, incluindo integridade do conteúdo e cache de HTML/SPA/assets. Esse ajuste
+precisa ser publicado para repetir o LCP. A disponibilidade de CPU, os outros
+perfis, a invalidação por gravação e a observação de 24 h/sete dias continuam
+pendentes. Nenhuma configuração publicada, backup ou retenção foi alterada pelos
+testes. Ver [evidência](evidence/performance-staging-calendar-validation-20261112.json)
+e [procedimento de atualização do Nginx](PERFORMANCE_OPERACAO.md).
+
 ## Entregas locais e próximos incrementos
 
 | Tarefa | Entrega nesta rodada | Trabalho restante |
