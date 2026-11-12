@@ -272,8 +272,8 @@ comprimidos e descomprimidos integralmente; os assets receberam a política de
 cache e HTML/rota SPA receberam `no-cache`. A redução do payload sintético desse
 teste não estima ganho no bundle ou no LCP do app.
 
-**A correção do Nginx precisa de uma nova publicação em staging.** Depois de
-atualizar o arquivo pelo processo manual, recriar somente esse serviço para
+**A nova publicação do Nginx foi confirmada no reteste abaixo.** Nas próximas
+atualizações do arquivo pelo processo manual, recriar somente esse serviço para
 atualizar também o bind mount:
 
 ```bash
@@ -286,6 +286,198 @@ amostras por rota/perfil quando a disponibilidade de CPU permitir. A configuraç
 publicada e os serviços existentes não foram alterados durante os testes; APIs
 temporárias e navegador foram encerrados e as sessões revogadas. Backups e
 retenção permaneceram inalterados. Ver [evidência e limites](evidence/performance-staging-calendar-validation-20261112.json).
+
+### Reteste da entrega estática — `fd05b29d`, 12/11
+
+O checkout e o hash da configuração em execução foram conferidos. O Nginx foi
+recriado pelo operador às 17:47:32 UTC; o backend permaneceu no processo iniciado
+às 17:13:48 UTC. Os headers públicos confirmaram gzip e `Vary: Accept-Encoding`,
+cache de assets e `no-cache` para HTML/rota SPA.
+
+Repetindo o mesmo script, Chromium 157 e perfil móvel anterior, as cinco amostras
+de LCP foram **2.028/2.036/2.056/2.044/2.052 ms**. A mediana caiu de 5.192 para
+**2.044 ms**, atendendo à meta de 2.500 ms do login em staging. A mediana dos bytes
+transferidos pelos recursos caiu de 930.886 para 313.566 B, com cache do navegador
+desativado. Não houve erro de JavaScript, recurso ou status HTTP nessa coleta.
+
+Essa observação não encerra o p95 das APIs nem o aceite em produção. Na janela
+de trinta segundos, sem carga sintética de API, o CPU steal mediano permaneceu
+em 16,39%, com máximo de 50,37%; nenhuma amostra ficou abaixo de 5%. A investigação
+da disponibilidade de CPU e as coortes de cem requisições por rota/perfil continuam
+pendentes. O teste não alterou configuração/serviços em servidor, backups,
+retenção ou registros de negócio, e o navegador foi encerrado.
+Ver [evidência do reteste](evidence/performance-staging-static-delivery-20261112.json).
+
+### Avaliação de CPU e p95 concluída — 12/11, 18h12–18h32 UTC
+
+A avaliação completou **500 respostas 200**, cem por caso, sem erro ou descarte.
+O cliente executou fora da VPS, pelo HTTPS público de staging, solicitando gzip.
+A carga foi de no máximo uma requisição a cada dois segundos, concorrência um,
+com uma conexão HTTP/1.1 nova por chamada. Uma leitura inicial por caso ficou
+fora da coorte, sem limpar cache ou páginas do banco. O mecanismo que pausaria
+novos envios em picos sustentados de steal não chegou a ser acionado. Os corpos
+mantiveram um único hash de JSON canônico por caso, e as sessões foram encerradas.
+
+| Caso | Respostas | p95 do cliente | Meta do plano |
+| --- | ---: | ---: | ---: |
+| Cards | 100 | 2.225,98 ms | <2.000 ms — não atingida |
+| Detalhe do projeto selecionado no grupo | 100 | 773,63 ms | <1.500 ms — atingida nesta coorte |
+| Detalhe do projeto de referência 5719 | 100 | 1.556,20 ms | <1.500 ms — ligeiramente acima |
+| Detalhe de grupo | 100 | 481,82 ms | Comparação fria pareada pendente |
+| Resumo do ponto | 100 | 3.532,74 ms | Sem limiar próprio de p95 no plano |
+
+O p95 agora está disponível para esses casos e esse administrador. A coleta é
+uma observação sob carga leve, com o mensal ligado e respostas/referências/avanço
+desligados. Não encerra concorrência, outros perfis, invalidação por gravação ou
+aceite de produção. Conexões novas incluem handshake/rede; o navegador costuma
+reaproveitar conexões, o que importa especialmente para os 56 ms acima da meta
+no projeto 5719. Não há comparação causal entre coortes com cargas distintas.
+
+Durante as quatro rotas intercaladas, o steal mediano foi **22,60%**, com máximo
+de **79,15%**. Sem carga sintética de API, as janelas anteriores/posteriores tiveram
+medianas de 13,35%/17,90%, máximos de 67,27%/57,58% e host ocioso em medianas de
+52,71%/59,61%. Na janela posterior, a compactação de backup observada inicialmente
+já não constava entre os containers em execução. Os dados sustentam investigar
+disponibilidade/agendamento de vCPU com o provedor, sem atribuir todo o problema
+ao backup ou a um vizinho específico. Steal representa espera reportada pelo
+hipervisor; quotas locais são uma restrição separada. Ver documentação de
+[KVM](https://docs.kernel.org/virt/kvm/x86/msr.html#custom-msr-list) e de
+[cgroup v2](https://docs.kernel.org/admin-guide/cgroup-v2.html).
+
+Também há uma diferença relevante para o aceite: staging não limita CPU/RAM da
+API e usa o default de jobs no mesmo processo. Produção limita a API a 1,5 CPU e
+2 GiB e separa o worker. O cgroup da API de staging chegou a **2.359.222.272 B
+(2,20 GiB)** na coleta, e a leitura posterior caiu para cerca de 0,99 GiB. Não
+houve incremento de OOM. Esses totais dependem do orçamento de heap e do processo;
+a equivalência com o limite de produção ainda precisa ser testada.
+
+As estatísticas SQL históricas foram separadas: os maiores acumulados incluem
+`COPY` de backup, e os doze comandos acompanhados não tiveram novas chamadas no
+intervalo posterior comparado. Eles não foram usados para atribuir a latência
+atual a uma consulta de página. Produção ainda usa a fonte anterior do calendário
+e cache principal desligado; seus dados naturais ficaram separados dos testes da
+versão atual em staging. A extensão de estatísticas do staging não está carregada
+na inicialização; nenhuma configuração de PostgreSQL foi alterada para a coleta.
+
+Próximas ações, em ordem:
+
+1. Encaminhar ao provedor as séries UTC para verificar disponibilidade/agendamento
+   de vCPU e eventual limitação no host. Dados do guest não identificam sozinhos
+   a causa física.
+2. Alinhar staging com os limites, pools e worker de produção; contemplar o ciclo
+   de parada/início do worker na sincronização de staging, preservando geração de
+   backup, retenção e histórico. Revalidar memória e latência com orçamentos iguais.
+3. Comparar somente o cache de respostas com a mesma carga, escopo e protocolo de
+   conexão; com CPU estável, perfilar os misses de cards/ponto antes de escolher
+   outra otimização de cálculo. Preservar os campos e valores financeiros.
+4. Completar concorrência, visualizador/divisões, pós-gravação e observação de
+   produção por 24 h/sete dias após publicação manual.
+
+Nenhum serviço existente, limite, flag, agendamento, backup, retenção ou registro
+de negócio foi alterado pela avaliação. Ver [amostras e diagnóstico completos](evidence/performance-api-capacity-assessment-20261112.json).
+
+### Verificação com a Hostinger e alinhamento local — 12/11
+
+O usuário confirmou o plano **KVM 4**. A tabela oficial informa quatro vCPUs e
+16 GB de RAM. A Hostinger documenta créditos de CPU e limitações temporárias que
+podem aparecer como steal no guest; isso acrescenta uma hipótese além da disputa
+por CPU física. A documentação consultada em 12/11 apresenta valores divergentes
+para a restrição. Não deduzir seu estado ou percentual pelo plano ou por `top`.
+Fontes: [recursos por plano](https://www.hostinger.com/support/6976044-parameters-and-limits-of-hosting-plans-in-hostinger/),
+[limite de CPU](https://www.hostinger.com/support/6899741-what-is-the-cpu-use-limit-for-vps-at-hostinger/) e
+[créditos de CPU](https://www.hostinger.com/support/how-cpu-credits-work-on-hostinger-vps/).
+
+Os apps de todos os usuários da mesma VPS compartilham suas quatro vCPUs, mesmo
+quando usam daemons Docker rootless separados. A disputa interna aparece como
+consumo de CPU e espera no escalonador do guest; ela pode causar lentidão sem ser
+contabilizada diretamente como steal. Há também uma contribuição indireta possível:
+o consumo somado dos apps pode esgotar os créditos da VPS e provocar a restrição
+que a Hostinger informa aparecer como steal. A coleta identificou atividade de
+outros apps, mas não consultou saldo/histórico de créditos. Portanto, o steal
+medido não prova que a causa seja outro cliente no nó físico; investigar consumo
+total da VPS, restrições do contrato e disponibilidade do nó em conjunto.
+
+No hPanel, abrir a VPS e consultar **Backups & Monitoring → Server Usage**
+(ou o equivalente em português). Conferir os gráficos e avisos de limitação nos
+horários abaixo. Se o saldo de créditos e o histórico de restrições não estiverem
+visíveis, pedir esses dados ao suporte. Não é necessário alterar a VPS nem usar
+a remoção semanal de limitações para obter o diagnóstico.
+
+Texto sugerido para o suporte, ainda não enviado:
+
+> Tenho uma VPS KVM 4 com quatro vCPUs e 16 GB de RAM, com lentidão nas aplicações.
+> Em 12/11/2026, entre 18:05:57 e 18:07:02 UTC (15:05:57–15:07:02 de Brasília),
+> medimos CPU steal mediano de 13,35%, máximo de 67,27% e idle mediano de 52,71%.
+> Entre 18:30:54 e 18:31:59 UTC (15:30:54–15:31:59 de Brasília), sem carga sintética
+> de API e sem o container de compactação inicialmente observado em execução,
+> o steal mediano foi 17,90%, máximo de 57,58%, com idle mediano de 59,61%.
+> Podem verificar o saldo/histórico dos créditos e se havia alguma limitação de CPU
+> aplicada à VPS nesses horários, informando motivo, início/fim e capacidade
+> efetivamente liberada? Qual baseline e regra de limitação valem para meu contrato?
+> A documentação apresenta percentuais diferentes. Se não havia restrição,
+> verifiquem a disponibilidade/agendamento de CPU no nó físico e se é necessário
+> rebalancear ou migrar a VPS. Preciso distinguir limite da minha VPS de contenção
+> no nó. Por favor, informem o diagnóstico e os horários para repetirmos a medição.
+
+A configuração **local** de staging passou a usar os mesmos limites, pools,
+parâmetros de PostgreSQL e healthchecks de produção, com worker separado e jobs
+desligados na API. O sync para API/worker/Nginx antes da troca do banco e só os
+reinicia após migrations e sanitização; falhas interrompem o fluxo antes do comando
+de reinício. A
+geração de backups, arquivos restaurados, sanitização, retenção e cron não mudaram.
+Ver [publicação manual e verificação de memória](../deploy/STAGING.md#paridade-de-recursos-com-produção).
+
+Validação local: 33 testes de contratos/sincronização/saúde aprovados, renderização
+e interpolação do Compose válidas, sintaxe Bash válida e teste Docker isolado de
+TLS, proxy, allowlist e saúde do Nginx aprovado. O staging existente não foi
+recriado. O pico anterior de 2,20 GiB continua exigindo reavaliação com o orçamento
+de 2 GiB publicado; a mudança de configuração não fecha o aceite de memória.
+
+### Comparação controlada do cache de respostas — 12/11, 19h36–19h44 UTC
+
+Uma API temporária usou a imagem publicada de staging (`fd05b29d`, mesmas fontes
+do cálculo), pool oito, 1,5 CPU/2 GiB e jobs internos desligados. Foram **800
+respostas 200**, cem por rota/modo, concorrência dois e envio limitado a duas
+requisições/s. Primeiro o cache principal ficou desligado; depois apenas o cache
+de respostas ficou ligado, mantendo mensal/referências/avanço desligados. Os
+caches TTL legados permaneceram nos dois modos. Cada processo teve três voltas
+de aquecimento excluídas. IDs numéricos exclusivos correlacionaram exatamente
+800 respostas com 800 eventos, sem incorporar aquecimento, 401 ou profiling.
+
+| Caso | p95 do cliente: sem cache novo | p95 do cliente: somente respostas |
+| --- | ---: | ---: |
+| Cards | 1.672,71 ms | 1.023,92 ms |
+| Projeto selecionado | 1.385,80 ms | 522,49 ms |
+| Grupo | 167,51 ms | 122,10 ms |
+| Resumo do ponto | 2.214,31 ms | 1.523,58 ms |
+
+Houve **353 hits e 47 misses** de resposta. Cada caso conservou um único hash de
+JSON canônico entre os dois modos. A memória amostrada da API chegou a **0,97 GiB
+sem cache novo** e **0,88 GiB com respostas**, sem eventos de OOM. As sessões
+terminaram com logout 204 e os containers temporários foram removidos.
+
+É um ensaio HTTP sem compressão na rede Docker, com conexões novas: não passa por
+Nginx, TLS ou navegador e não substitui a série anterior de HTTPS público. A base
+de staging continuou sem limite, e sua API publicada continuou executando jobs.
+A ordem foi fixa, com host compartilhado: o steal mediano foi 11,50% na referência
+e 15,03% com respostas, máximos de 71,94%/50,52%. Não atribuir toda a diferença de
+latência ao cache nem encerrar o aceite da nova topologia ou de produção.
+
+O miss do ponto continua relevante. Seus onze recálculos medidos tiveram mediana
+de **1.520,22 ms no servidor**, contra 16,47 ms nos 89 hits. Uma chamada adicional
+após expiração do TTL, excluída da coorte, levou **4.230,61 ms**. O perfil exploratório
+de 1.328 amostras teve 15,89% de self samples em GC; o cálculo mensal, a fusão dos
+períodos e a classificação de horas continuam aparecendo. Esse único perfil, sob
+steal variável, não justifica ainda uma reescrita do cálculo. Os contadores SQL
+adicionais observam `Pool.query`, incluindo aquisição/esperas no processo, e não
+representam o tempo de execução no PostgreSQL nem cobrem `Client.query` direto.
+
+Próximo gate: publicar manualmente a paridade de staging e repetir memória,
+concorrência, perfis e atualização após gravações; comparar respostas como flag
+isolado. Com disponibilidade de CPU esclarecida, repetir os perfis dos misses de
+cards/ponto antes de escolher uma otimização do cálculo. Nenhum flag ou serviço
+existente foi alterado; backups e retenção permanecem inalterados.
+Ver [amostras, correlação e perfil](evidence/performance-staging-response-comparison-20261112.json).
 
 O pipeline separa referências e relatórios/decisões do mês, e carrega o custo antes
 dos metadados de cards/detalhe. Seus tempos aparecem nas etapas `labor.sources.*`,

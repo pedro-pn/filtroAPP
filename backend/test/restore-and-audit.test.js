@@ -75,7 +75,10 @@ function runSyncWithFakeDocker(options = {}) {
   const dockerScript = options.dockerScript || `#!/usr/bin/env bash
 echo "$@" >> "${dockerLog}"
 if [[ "$*" == *"ps --quiet --status running"* ]]; then
-  exit 1
+  ${options.stagingWasUp ? 'echo running-staging; exit 0' : 'exit 1'}
+fi
+if [[ "$*" == *"stop backend worker nginx"* ]]; then
+  ${options.failStop ? 'exit 43' : 'exit 0'}
 fi
 if [[ "$*" == *"up -d postgres"* ]]; then
   ${options.switchLatestOnPostgresUp ? `ln -sfn "${snapshotB}" "${latest}"` : ':'}
@@ -89,7 +92,12 @@ if [[ "$*" == *"psql -v ON_ERROR_STOP=1"* && "$*" == *" -d filtrovali_restore_"*
   ${options.failRestore ? 'exit 42' : 'exit 0'}
 fi
 if [[ "$*" == *"run --rm --no-deps backend sh -c npx prisma migrate deploy"* ]]; then
-  exit 0
+  ${options.failMigration ? 'exit 44' : 'exit 0'}
+fi
+if [[ "$*" == *"psql -v ON_ERROR_STOP=1"* && "$*" == *" -d filtrovali" ]]; then
+  cat > /dev/null
+  echo "TEST: staging scrub" >> "${dockerLog}"
+  ${options.failSanitize ? 'exit 45' : 'exit 0'}
 fi
 exit 0
 `;
@@ -363,7 +371,7 @@ test('staging sync sanitizes production credentials and tokens before starting s
   const script = fs.readFileSync(new URL('../../deploy/sync-staging.sh', import.meta.url), 'utf8');
   const migrationIndex = script.indexOf('npx prisma migrate deploy');
   const sanitizeIndex = script.lastIndexOf('sanitize_staging_database');
-  const startIndex = script.indexOf('docker compose -f "$STAGING_COMPOSE_FILE" up -d --force-recreate backend nginx');
+  const startIndex = script.indexOf('docker compose -f "$STAGING_COMPOSE_FILE" up -d --force-recreate backend worker nginx');
 
   assert.match(script, /STAGING_ADMIN_PASSWORD/);
   assert.match(script, /RESTORE_REPORTS="\$\{RESTORE_REPORTS:-false\}"/);
@@ -404,8 +412,45 @@ test('staging sync aborts before migrations or service start when dump restore f
   assert.match(dockerCalls, /psql -v ON_ERROR_STOP=1/);
   assert.match(dockerCalls, /-d filtrovali_restore_/);
   assert.doesNotMatch(dockerCalls, /npx prisma migrate deploy/);
-  assert.doesNotMatch(dockerCalls, /up -d --force-recreate backend nginx/);
+  assert.doesNotMatch(dockerCalls, /up -d --force-recreate/);
   assert.doesNotMatch(dockerCalls, /relatorios\.tar\.gz -C \/to/);
+});
+
+test('running staging stops all writers before restore and rebuilds/restarts the worker after scrub', () => {
+  const { result, dockerCalls } = runSyncWithFakeDocker({
+    stagingWasUp: true,
+    env: { BUILD_SERVICES: 'true' }
+  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const calls = dockerCalls.split('\n');
+  const stop = calls.findIndex(call => call.endsWith('stop backend worker nginx'));
+  const restore = calls.findIndex(call => call.includes('CREATE DATABASE'));
+  const build = calls.findIndex(call => call.endsWith('build backend worker nginx'));
+  const migration = calls.findIndex(call => call.includes('npx prisma migrate deploy'));
+  const scrub = calls.indexOf('TEST: staging scrub');
+  const start = calls.findIndex(call => call.endsWith('up -d --force-recreate backend worker nginx'));
+  assert.ok(stop >= 0 && stop < restore, 'API and worker must stop before the first database mutation');
+  assert.ok(restore < build && build < migration && migration < scrub && scrub < start,
+    'all images must be rebuilt, migrated and scrubbed before any writer restarts');
+});
+
+for (const failure of ['failStop', 'failRestore', 'failMigration', 'failSanitize']) {
+  test(`running staging never restarts API/worker when ${failure} occurs`, () => {
+    const { result, dockerCalls } = runSyncWithFakeDocker({ stagingWasUp: true, [failure]: true });
+    assert.notEqual(result.status, 0);
+    assert.match(dockerCalls, /stop backend worker nginx/);
+    assert.doesNotMatch(dockerCalls, /up -d --force-recreate/);
+    if (failure === 'failStop') assert.doesNotMatch(dockerCalls, /CREATE DATABASE/);
+  });
+}
+
+test('offline staging stays offline after a successful sync without starting the worker', () => {
+  const { result, dockerCalls } = runSyncWithFakeDocker();
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(dockerCalls, /up -d postgres/);
+  assert.match(dockerCalls, /TEST: staging scrub/);
+  assert.match(dockerCalls, /compose -f docker-compose.staging.yml down/);
+  assert.doesNotMatch(dockerCalls, /up -d --force-recreate/);
 });
 
 test('staging sync uses the resolved backup directory and never extracts production report files', () => {

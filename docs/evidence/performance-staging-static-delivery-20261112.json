@@ -1,0 +1,475 @@
+{
+  "schemaVersion": 1,
+  "recordedAtUtc": "2026-11-12T17:51:19.541385+00:00",
+  "environment": "staging HTTPS",
+  "deployedCheckoutCommit": "fd05b29decbf6de28c669f0a97c71c058be81f5f",
+  "nginxImageId": "sha256:371ddb926decf4ff314b031e202ad4ac6d3399fe222868920cffb2a656ed6264",
+  "nginxStartedAtUtc": "2026-11-12T17:47:32.534807194Z",
+  "backendStartedAtUtc": "2026-11-12T17:13:48.615041397Z",
+  "runtimeConfigurationSha256": "be115b131574b541873ff772e9376b07b4213d17fd8220bbb0536e21f7779dd8",
+  "localConfigurationSha256": "be115b131574b541873ff772e9376b07b4213d17fd8220bbb0536e21f7779dd8",
+  "summary": {
+    "sameBrowserAndClientProfile": true,
+    "navigationsBefore": 5,
+    "navigationsAfter": 5,
+    "lcpMedianBeforeMs": 5192,
+    "lcpMedianAfterMs": 2044,
+    "observedLcpReductionFraction": 0.6063174114021572,
+    "lcpTargetMs": 2500,
+    "stagingLoginMedianTargetMet": true,
+    "resourceTransferMedianBeforeBytes": 930886,
+    "resourceTransferMedianAfterBytes": 313566,
+    "browserJavascriptErrors": 0,
+    "browserRequestFailures": 0,
+    "gzipAndCacheHeadersValidated": true,
+    "hostStealMedianPercent": 16.393223318968403,
+    "hostStealMaxPercent": 50.3690036900369,
+    "hostStealBelowFiveFraction": 0.0,
+    "apiP95AcceptanceComplete": false,
+    "productionLoginAcceptanceMeasured": false
+  },
+  "limitations": [
+    "Five emulated mobile navigations with reused connections; local Chromium and fixed viewport/network/CPU settings, not real-user data.",
+    "LCP captured as the last candidate one second after network idle. The login criterion uses median of five navigations, not HTTP p95.",
+    "Sequential before/after observations with natural changes in host load; no isolated causal estimate of the complete app performance improvement.",
+    "No authenticated flows or API load cohort repeated: backend image/start time remained unchanged, and prior functional checks apply to that source.",
+    "CPU host observation covers thirty seconds during public browser probes, not a 24-hour or seven-day series. No synthetic API load was generated.",
+    "Only staging login target was observed; production and API p95 acceptance remain pending."
+  ],
+  "testHarnessSha256": "f37c3c51f1d2b17674c466d88e2f0300f233feee69e1f6af74b38bc4191bdb77",
+  "captureSha256": {
+    "before": "299eba3bab92c300dec6f2bf540f2c17d7a9ec916acb83616b002ec713acfe20",
+    "after": "f3c9b894a6eec61f66b82d37779df1817fb4c7c07142c841bcba334cbf6733a0",
+    "headers": "698fa4d8139478fb284578a10e17d0770545d883dad8cec1dc6d269587bd184a",
+    "host": "3c21d84141526192001b96bc74f6eeea9781b28bbb018db56d41bf9289227671",
+    "resources": "4a7a2b45690e97152e1e2459b549934b3b10c3fd5d702f1c6712fb138e9c449b"
+  },
+  "captures": {
+    "before": {
+      "surface": "staging HTTPS public login",
+      "browser": "157.0.8103.50",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cacheDisabled": true,
+      "bandwidthBytesPerSecond": 200000,
+      "latencyMs": 150,
+      "cpuThrottlingRate": 4,
+      "capture": "last LCP candidate after network idle plus 1000 ms",
+      "samples": [
+        {
+          "navigation": 1,
+          "status": 200,
+          "lcpMs": 5220,
+          "supported": true,
+          "domContentLoadedMs": 4601,
+          "resourceTransferBytes": 930886
+        },
+        {
+          "navigation": 2,
+          "status": 200,
+          "lcpMs": 5236,
+          "supported": true,
+          "domContentLoadedMs": 4589.100000008941,
+          "resourceTransferBytes": 930886
+        },
+        {
+          "navigation": 3,
+          "status": 200,
+          "lcpMs": 5188,
+          "supported": true,
+          "domContentLoadedMs": 4578.100000008941,
+          "resourceTransferBytes": 930886
+        },
+        {
+          "navigation": 4,
+          "status": 200,
+          "lcpMs": 5192,
+          "supported": true,
+          "domContentLoadedMs": 4581.600000008941,
+          "resourceTransferBytes": 930886
+        },
+        {
+          "navigation": 5,
+          "status": 200,
+          "lcpMs": 5192,
+          "supported": true,
+          "domContentLoadedMs": 4573.79999999702,
+          "resourceTransferBytes": 930886
+        }
+      ],
+      "errors": {
+        "javascript": 0,
+        "failedRequests": 0,
+        "responseStatusCounts": {}
+      }
+    },
+    "after": {
+      "surface": "staging HTTPS public login",
+      "browser": "157.0.8103.50",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cacheDisabled": true,
+      "bandwidthBytesPerSecond": 200000,
+      "latencyMs": 150,
+      "cpuThrottlingRate": 4,
+      "capture": "last LCP candidate after network idle plus 1000 ms",
+      "samples": [
+        {
+          "navigation": 1,
+          "status": 200,
+          "lcpMs": 2028,
+          "supported": true,
+          "domContentLoadedMs": 1525.2999999970198,
+          "resourceTransferBytes": 313566
+        },
+        {
+          "navigation": 2,
+          "status": 200,
+          "lcpMs": 2036,
+          "supported": true,
+          "domContentLoadedMs": 1530.0999999940395,
+          "resourceTransferBytes": 313566
+        },
+        {
+          "navigation": 3,
+          "status": 200,
+          "lcpMs": 2056,
+          "supported": true,
+          "domContentLoadedMs": 1535.5,
+          "resourceTransferBytes": 313566
+        },
+        {
+          "navigation": 4,
+          "status": 200,
+          "lcpMs": 2044,
+          "supported": true,
+          "domContentLoadedMs": 1519.7999999970198,
+          "resourceTransferBytes": 313566
+        },
+        {
+          "navigation": 5,
+          "status": 200,
+          "lcpMs": 2052,
+          "supported": true,
+          "domContentLoadedMs": 1527.699999988079,
+          "resourceTransferBytes": 313566
+        }
+      ],
+      "errors": {
+        "javascript": 0,
+        "failedRequests": 0,
+        "responseStatusCounts": {}
+      }
+    },
+    "headers": {
+      "atUtc": "2026-11-12T17:47:49.499143+00:00",
+      "origin": "https://filtrostaging.filtrovali.com.br",
+      "assets": [
+        {
+          "path": "/index.html",
+          "status": 200,
+          "contentType": "text/html",
+          "contentEncoding": "gzip",
+          "contentLength": null,
+          "cacheControl": "no-cache",
+          "vary": "Accept-Encoding",
+          "environment": "staging"
+        },
+        {
+          "path": "/login",
+          "status": 200,
+          "contentType": "text/html",
+          "contentEncoding": "gzip",
+          "contentLength": null,
+          "cacheControl": "no-cache",
+          "vary": "Accept-Encoding",
+          "environment": "staging"
+        },
+        {
+          "path": "/assets/index-ALmSY3bh.js",
+          "status": 200,
+          "contentType": "application/javascript",
+          "contentEncoding": "gzip",
+          "contentLength": null,
+          "cacheControl": "public, max-age=31536000, immutable",
+          "vary": "Accept-Encoding",
+          "environment": "staging"
+        },
+        {
+          "path": "/assets/index-DdXQen0I.css",
+          "status": 200,
+          "contentType": "text/css",
+          "contentEncoding": "gzip",
+          "contentLength": null,
+          "cacheControl": "public, max-age=31536000, immutable",
+          "vary": "Accept-Encoding",
+          "environment": "staging"
+        }
+      ]
+    },
+    "host": {
+      "startedAtUtc": "2026-11-12T17:48:33.478931+00:00",
+      "syntheticApiLoadGenerated": false,
+      "samples": [
+        {
+          "atUtc": "2026-11-12T17:48:34.479458+00:00",
+          "stealPercent": 12.669683257918551,
+          "idlePercent": 78.50678733031674,
+          "userSystemPercent": 8.371040723981901
+        },
+        {
+          "atUtc": "2026-11-12T17:48:35.479996+00:00",
+          "stealPercent": 16.778523489932887,
+          "idlePercent": 68.0089485458613,
+          "userSystemPercent": 14.5413870246085
+        },
+        {
+          "atUtc": "2026-11-12T17:48:36.485577+00:00",
+          "stealPercent": 26.359832635983263,
+          "idlePercent": 62.55230125523013,
+          "userSystemPercent": 10.878661087866108
+        },
+        {
+          "atUtc": "2026-11-12T17:48:37.486004+00:00",
+          "stealPercent": 14.864864864864865,
+          "idlePercent": 75.90090090090091,
+          "userSystemPercent": 8.108108108108109
+        },
+        {
+          "atUtc": "2026-11-12T17:48:38.486455+00:00",
+          "stealPercent": 14.780600461893764,
+          "idlePercent": 49.65357967667436,
+          "userSystemPercent": 35.33487297921478
+        },
+        {
+          "atUtc": "2026-11-12T17:48:39.487427+00:00",
+          "stealPercent": 21.689497716894977,
+          "idlePercent": 32.64840182648402,
+          "userSystemPercent": 44.97716894977169
+        },
+        {
+          "atUtc": "2026-11-12T17:48:40.487808+00:00",
+          "stealPercent": 18.577981651376145,
+          "idlePercent": 35.77981651376147,
+          "userSystemPercent": 44.26605504587156
+        },
+        {
+          "atUtc": "2026-11-12T17:48:41.489173+00:00",
+          "stealPercent": 13.073394495412844,
+          "idlePercent": 62.84403669724771,
+          "userSystemPercent": 23.853211009174313
+        },
+        {
+          "atUtc": "2026-11-12T17:48:42.489611+00:00",
+          "stealPercent": 7.363420427553444,
+          "idlePercent": 88.36104513064133,
+          "userSystemPercent": 4.275534441805226
+        },
+        {
+          "atUtc": "2026-11-12T17:48:43.492570+00:00",
+          "stealPercent": 14.63963963963964,
+          "idlePercent": 70.04504504504504,
+          "userSystemPercent": 14.63963963963964
+        },
+        {
+          "atUtc": "2026-11-12T17:48:44.493246+00:00",
+          "stealPercent": 11.389521640091116,
+          "idlePercent": 77.90432801822324,
+          "userSystemPercent": 10.478359908883826
+        },
+        {
+          "atUtc": "2026-11-12T17:48:45.493717+00:00",
+          "stealPercent": 16.88888888888889,
+          "idlePercent": 77.55555555555556,
+          "userSystemPercent": 5.333333333333333
+        },
+        {
+          "atUtc": "2026-11-12T17:48:46.494242+00:00",
+          "stealPercent": 6.839622641509434,
+          "idlePercent": 89.85849056603773,
+          "userSystemPercent": 3.0660377358490565
+        },
+        {
+          "atUtc": "2026-11-12T17:48:47.494715+00:00",
+          "stealPercent": 17.89709172259508,
+          "idlePercent": 60.17897091722595,
+          "userSystemPercent": 21.700223713646533
+        },
+        {
+          "atUtc": "2026-11-12T17:48:48.495410+00:00",
+          "stealPercent": 11.389521640091116,
+          "idlePercent": 80.41002277904327,
+          "userSystemPercent": 7.972665148063781
+        },
+        {
+          "atUtc": "2026-11-12T17:48:49.495847+00:00",
+          "stealPercent": 16.593886462882097,
+          "idlePercent": 77.29257641921397,
+          "userSystemPercent": 5.895196506550218
+        },
+        {
+          "atUtc": "2026-11-12T17:48:50.496257+00:00",
+          "stealPercent": 33.190578158458244,
+          "idlePercent": 55.6745182012848,
+          "userSystemPercent": 10.920770877944326
+        },
+        {
+          "atUtc": "2026-11-12T17:48:51.496702+00:00",
+          "stealPercent": 34.221311475409834,
+          "idlePercent": 52.868852459016395,
+          "userSystemPercent": 11.885245901639344
+        },
+        {
+          "atUtc": "2026-11-12T17:48:52.497070+00:00",
+          "stealPercent": 7.345971563981043,
+          "idlePercent": 87.67772511848341,
+          "userSystemPercent": 4.028436018957346
+        },
+        {
+          "atUtc": "2026-11-12T17:48:53.498583+00:00",
+          "stealPercent": 13.48314606741573,
+          "idlePercent": 81.34831460674157,
+          "userSystemPercent": 4.943820224719101
+        },
+        {
+          "atUtc": "2026-11-12T17:48:54.502161+00:00",
+          "stealPercent": 21.019108280254777,
+          "idlePercent": 69.85138004246285,
+          "userSystemPercent": 8.492569002123142
+        },
+        {
+          "atUtc": "2026-11-12T17:48:55.503868+00:00",
+          "stealPercent": 15.70796460176991,
+          "idlePercent": 74.11504424778761,
+          "userSystemPercent": 9.955752212389381
+        },
+        {
+          "atUtc": "2026-11-12T17:48:56.504369+00:00",
+          "stealPercent": 31.910569105691057,
+          "idlePercent": 47.96747967479675,
+          "userSystemPercent": 19.10569105691057
+        },
+        {
+          "atUtc": "2026-11-12T17:48:57.504894+00:00",
+          "stealPercent": 16.192560175054705,
+          "idlePercent": 75.49234135667396,
+          "userSystemPercent": 8.096280087527353
+        },
+        {
+          "atUtc": "2026-11-12T17:48:58.505453+00:00",
+          "stealPercent": 8.19672131147541,
+          "idlePercent": 81.73302107728337,
+          "userSystemPercent": 10.070257611241217
+        },
+        {
+          "atUtc": "2026-11-12T17:48:59.505942+00:00",
+          "stealPercent": 13.839285714285714,
+          "idlePercent": 78.79464285714286,
+          "userSystemPercent": 6.473214285714286
+        },
+        {
+          "atUtc": "2026-11-12T17:49:00.506798+00:00",
+          "stealPercent": 34.72803347280335,
+          "idlePercent": 47.48953974895397,
+          "userSystemPercent": 13.389121338912133
+        },
+        {
+          "atUtc": "2026-11-12T17:49:01.508481+00:00",
+          "stealPercent": 46.73267326732673,
+          "idlePercent": 35.445544554455445,
+          "userSystemPercent": 16.237623762376238
+        },
+        {
+          "atUtc": "2026-11-12T17:49:02.510869+00:00",
+          "stealPercent": 50.3690036900369,
+          "idlePercent": 40.22140221402214,
+          "userSystemPercent": 9.040590405904059
+        },
+        {
+          "atUtc": "2026-11-12T17:49:03.511378+00:00",
+          "stealPercent": 25.155925155925157,
+          "idlePercent": 63.40956340956341,
+          "userSystemPercent": 11.226611226611226
+        }
+      ],
+      "endedAtUtc": "2026-11-12T17:49:03.511402+00:00"
+    },
+    "resources": {
+      "resources": [
+        {
+          "path": "/assets/index-ALmSY3bh.js",
+          "transferBytes": 128287,
+          "encodedBytes": 127987,
+          "decodedBytes": 399992,
+          "durationMs": 1279.6000000089407
+        },
+        {
+          "path": "/assets/index-DdXQen0I.css",
+          "transferBytes": 47943,
+          "encodedBytes": 47643,
+          "decodedBytes": 282002,
+          "durationMs": 864.5
+        },
+        {
+          "path": "/assets/inter-latin-wght-normal-Dx4kXJAl.woff2",
+          "transferBytes": 48556,
+          "encodedBytes": 48256,
+          "decodedBytes": 48256,
+          "durationMs": 394.29999999701977
+        },
+        {
+          "path": "/assets/ds-DFvP1-bD.js",
+          "transferBytes": 10251,
+          "encodedBytes": 9951,
+          "decodedBytes": 33287,
+          "durationMs": 491
+        },
+        {
+          "path": "/assets/icons-cRo2iyF0.css",
+          "transferBytes": 3891,
+          "encodedBytes": 3591,
+          "decodedBytes": 26083,
+          "durationMs": 381.1000000089407
+        },
+        {
+          "path": "/assets/ds-CJ56ddbB.css",
+          "transferBytes": 3765,
+          "encodedBytes": 3465,
+          "decodedBytes": 25894,
+          "durationMs": 388
+        },
+        {
+          "path": "/assets/login-dJPhQj0q.webp",
+          "transferBytes": 24126,
+          "encodedBytes": 23826,
+          "decodedBytes": 23826,
+          "durationMs": 270.5
+        },
+        {
+          "path": "/assets/icons-D3a8WZAM.js",
+          "transferBytes": 5648,
+          "encodedBytes": 5348,
+          "decodedBytes": 14063,
+          "durationMs": 418
+        }
+      ]
+    }
+  },
+  "changesPerformedByRetest": {
+    "serverConfigurationChanged": false,
+    "serverServicesRestarted": false,
+    "businessRecordsEdited": false,
+    "credentialsUsed": false,
+    "backupsChanged": false,
+    "retentionApplied": false
+  },
+  "cleanup": {
+    "browserClosed": true,
+    "sessionDataDeletionChecked": true,
+    "credentialsUsed": false
+  }
+}

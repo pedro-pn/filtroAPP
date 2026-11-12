@@ -288,7 +288,7 @@ não depender de reverter ou apagar dados para reverter o código.
 
 ## Checklist de execução
 
-- [ ] T01 Coleta HTTP, marcas de conteúdo útil e ensaio HTTP autenticado/concorrente implementados localmente; janela publicada pendente.
+- [ ] T01 Coleta HTTP e conteúdo útil implementados; p95 observacional de 500 leituras em staging coletado; concorrência/outros perfis e janela de produção pendentes.
 - [ ] T02 Adiada pelo usuário: estratégia de backup e recuperação.
 - [ ] T03 Healthchecks de Nginx/progresso do worker implementados localmente; série publicada pendente.
 - [x] T04 Consultas do Gestor por necessidade da aba, verificadas localmente.
@@ -296,7 +296,7 @@ não depender de reverter ou apagar dados para reverter o código.
 - [ ] T06 Implementação local: projeções, grupos em lote, cards verificados, catálogos entre leituras verificadas, snapshot mensal e revisão estável; pool aquecido aprovado localmente, meta global com frio/refresh e aceite publicado pendentes.
 - [ ] T07 Parcial: fontes compartilhadas, catálogos em lote, intervalos por período, calendário antecipado e conciliação sem motor de custos; meta fria geral e aceite HTTP pendentes.
 - [ ] T08 Seções/modais e painéis do Gestor carregados sob demanda localmente; aceite publicado pendente.
-- [ ] T09 Imagens otimizadas e CSS exclusivo da administração extraído; aceite LCP publicado pendente.
+- [ ] T09 Imagens otimizadas e CSS exclusivo da administração extraído; login de staging atingiu LCP mediano de 2.044 ms no perfil emulado; aceite em produção pendente.
 - [ ] T10 Sondagens vazias agregadas e retenção exclusiva de JobRun com preview/lotes validadas localmente; política de 90 dias aprovada em 11/11; aplicação manual e medição publicadas pendentes.
 - [x] T11 Gates de tamanho, paridade, consultas, navegador e padrões de novos módulos integrados ao CI, verificados localmente.
 - [ ] T12 Comparação em produção, 24 h e sete dias, e aceite registrado.
@@ -388,6 +388,73 @@ perfis, a invalidação por gravação e a observação de 24 h/sete dias contin
 pendentes. Nenhuma configuração publicada, backup ou retenção foi alterada pelos
 testes. Ver [evidência](evidence/performance-staging-calendar-validation-20261112.json)
 e [procedimento de atualização do Nginx](PERFORMANCE_OPERACAO.md).
+
+O operador publicou `fd05b29d` e recriou o Nginx. No reteste com o mesmo Chromium,
+script e perfil móvel, o login observou LCP mediano de **2.044 ms**, ante 5.192 ms,
+em cinco navegações sem cache do navegador. Gzip e políticas de cache foram
+conferidos nos headers; os recursos transferidos caíram de 930.886 para 313.566 B,
+sem erros observados. A meta de 2.500 ms foi atingida **em staging**. O CPU steal
+mediano de 16,39% no host ainda impede encerrar a meta de infraestrutura; p95 das
+APIs, demais perfis e observação/aceite de produção permanecem pendentes.
+Ver [evidência da entrega estática](evidence/performance-staging-static-delivery-20261112.json).
+
+### Avaliação pendente de CPU/APIs concluída — 12/11
+
+Foram coletadas **500 respostas 200**, sem descarte, com cem amostras por caso no
+HTTPS público de staging: cards, projeto do grupo, grupo, resumo do ponto e o
+projeto de referência 5719. A carga foi de 0,5 requisição/s, concorrência um,
+administrador e conexões HTTP/1.1 novas. O p95 foi **2.225,98 ms em cards**,
+**773,63 ms no projeto selecionado**, **1.556,20 ms no projeto 5719**,
+**481,82 ms no grupo** e **3.532,74 ms no ponto**. Assim, cards e o projeto de
+referência ficaram acima das metas nessa coorte; a diferença de 56 ms no 5719
+deve considerar o protocolo de conexão e a variação do host. Não há aceite global
+de concorrência/perfis ou de produção a partir desse ensaio leve.
+
+O steal mediano durante as quatro rotas foi 22,60%, chegando a 79,15%. Mesmo sem
+carga sintética de API e com a compactação inicialmente observada já ausente, a
+janela posterior manteve mediana de 17,90%. A disponibilidade de CPU permanece
+pendente com o provedor. O staging usa API sem limites de CPU/RAM e jobs no mesmo
+processo, enquanto produção usa 1,5 CPU/2 GiB e worker separado. O cgroup de staging
+atingiu 2,20 GiB no ensaio; a paridade operacional deve preceder o aceite de memória.
+
+Os próximos passos são verificar vCPU com o provedor; alinhar staging/worker e
+orçamentos sem alterar backups; comparar somente cache de respostas com protocolo
+e carga equivalentes; com CPU estável, perfilar os misses de cards/ponto. Outros
+perfis, concorrência, pós-gravação e observação de 24 h/sete dias continuam em T12.
+Os acumulados SQL de backup foram separados das consultas de navegação e nenhuma
+configuração ou dado de negócio foi alterado. Ver [evidência](evidence/performance-api-capacity-assessment-20261112.json)
+e [roteiro operacional](PERFORMANCE_OPERACAO.md).
+
+### Paridade operacional preparada localmente — 12/11
+
+Com o plano KVM 4 confirmado pelo usuário, o roteiro operacional passou a incluir
+as perguntas e os horários UTC/Brasília para a Hostinger verificar créditos,
+restrições efetivas e disponibilidade de CPU no nó. A documentação oficial tem
+percentuais divergentes; o estado da VPS deve ser confirmado pelo suporte/hPanel.
+Nenhuma mensagem foi enviada ao provedor.
+
+O Compose de staging agora define os mesmos orçamentos, pools, parâmetros de
+PostgreSQL e healthchecks de produção. O worker foi separado, com pool dois,
+0,75 CPU/1,5 GiB; a API usa pool oito, 1,5 CPU/2 GiB e jobs internos desligados.
+A sincronização de staging para também o worker antes da restauração, builda
+sua imagem e só reinicia os serviços após migrations e sanitização. Foram
+validados os caminhos de sucesso, ambiente parado e falhas na parada, restore,
+migration e sanitização. Os 33 testes focados, a validação do Compose/Bash e o
+ensaio Docker do proxy passaram. Publicação e reavaliação da memória/latência
+permanecem manuais; nenhuma configuração publicada foi alterada nesta etapa.
+
+Também foi concluída uma comparação em APIs temporárias, mesmas fontes, pool oito,
+1,5 CPU/2 GiB e jobs desligados: **800 respostas 200**, cem por rota/modo, com
+paridade integral dos quatro JSONs. Somente respostas teve 353 hits/47 misses,
+p95 de cards **1.672,71 → 1.023,92 ms**, projeto **1.385,80 → 522,49 ms**, grupo
+**167,51 → 122,10 ms** e ponto **2.214,31 → 1.523,58 ms**. A memória amostrada
+ficou abaixo de 1 GiB nos dois modos, sem OOM. A rede foi HTTP Docker, sem
+TLS/Nginx/browser; os limites do banco de staging ainda não foram aplicados.
+Steal mediano de 11,50%/15,03% e ordem fixa impedem uma atribuição causal completa.
+Um miss adicional do ponto após expiração levou 4.230,61 ms e o perfil apontou GC
+e trabalho no cálculo mensal; uma nova otimização exige repetição sob CPU estável.
+T12 permanece aberto para a topologia publicada, concorrência, outros perfis,
+pós-gravação e produção. Ver [evidência](evidence/performance-staging-response-comparison-20261112.json).
 
 ## Entregas locais e próximos incrementos
 
