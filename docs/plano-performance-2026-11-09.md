@@ -488,6 +488,63 @@ de respostas isoladas na nova topologia, recálculo do ponto, concorrência,
 outros perfis/divisões e séries de 24 h/sete dias. Backups/retenção inalterados.
 Ver [evidência](evidence/performance-staging-postdeploy-345f4892-20261112.json).
 
+### Correção do contador validada em staging — 12/11, `44d279a5`
+
+A versão publicada e as fontes de API/worker foram conferidas. A repetição das
+mesmas seis rotas produziu **600 respostas 200**, cem por caso, concorrência um,
+até uma requisição/s e cache novo desligado. O contador conservou o mesmo JSON da
+referência: mediana **999,21 → 138,67 ms**, p95 **2.065,25 → 288,81 ms**. A consulta
+mensal da integração removida não teve novas chamadas durante a coorte. Cinco
+pares dos métodos publicados, em transação somente leitura, mantiveram o resultado
+com 22/três consultas. O aceite do contador está concluído nesse escopo.
+
+O p95 foi 389,73 ms nos cards, 476,37 ms no dashboard, 995,07 ms no grupo,
+**1.539,20 ms no projeto** e **2.894,67 ms no ponto**. O detalhe ficou ligeiramente
+acima de 1,5 s; seus piores eventos gastaram 1.519–3.315 ms na fonte de mão de obra,
+sem fila observada nesses pedidos. O recálculo mensal/cache legado de 60 s continua
+como alvo, sem evidência para ampliar o pool. Steal mediano de 12,36% e pico de
+77,94% mantêm a investigação de infraestrutura; diferenças de latência entre
+janelas não são atribuídas integralmente à correção.
+
+Os quatro serviços ficaram saudáveis, sem reinícios/OOM ou erros observados,
+com pico da API de 0,61 GiB e 98,34% de 781 observações ativas sem fila. Nenhum
+flag, fonte publicada, serviço, backup ou retenção foi alterado no reteste. A
+próxima etapa de T12 é comparar respostas isoladas na topologia atual; permanecem
+os recálculos, concorrência/perfis/divisões e as séries de produção de 24 h/sete
+dias. O corpo do dashboard diferiu entre janelas, com fontes verificadas e
+inalteradas; não se afirma paridade integral das seis rotas a partir dos hashes.
+Ver [evidência do reteste](evidence/performance-staging-pendency-validation-44d279a5-20261112.json).
+
+### Respostas isoladas comparadas e Redis avaliado — 12/11, `44d279a5`
+
+A comparação ABBA na imagem publicada concluiu **1.200 respostas 200**, cem por
+rota/modo, com concorrência máxima dois. Somente master/respostas foram habilitados
+nas APIs descartáveis; mensal/referências/avanço ficaram desligados. Os corpos
+completos das seis rotas coincidiram entre os modos durante a janela testada.
+
+O p95 do projeto caiu de **1.381,46 para 320,94 ms**, grupo de **735,03 para
+229,84 ms** e ponto de **4.844,40 para 2.508,71 ms**. Nos cards, o p95 subiu de
+405,02 para 499,33 ms, embora a mediana tenha melhorado. A CPU da API temporária
+passou de **277,78 para 74,78 s** por 600 leituras; o steal e a carga da VPS
+variaram. O transporte HTTP privado não inclui TLS/Nginx/navegador e não deve
+ser comparado em valores absolutos ao reteste HTTPS anterior. Não há aceite frio
+ou de escritas/outros perfis a partir dessa comparação.
+
+O ensaio local de Redis teve **4.800 medições sintéticas** e foi mais lento que
+a memória do processo no caminho de acerto com conversões equivalentes. A decisão
+é **não adicionar Redis agora**: há um processo HTTP, e os misses/objetos grandes
+continuam exigindo cálculo/codificação. Reconsiderar com réplicas HTTP ou reuso
+entre processos comprovado. O estudo detalha custos, limites e condições do piloto.
+
+O comparativo de respostas fica concluído nesse escopo de T12. Permanecem a
+homologação HTTPS/interface de respostas isoladas, perfis/divisões/escritas,
+recálculos de ponto/detalhe, capacidade da VPS e observações de 24 h/sete dias.
+As APIs publicadas continuaram saudáveis e com todos os flags de cache novo
+desligados. Não houve deploy, mudança de backup ou aplicação de retenção.
+Ver [estudo e próximos incrementos](ESTUDO_REDIS_PERFORMANCE_2026-11-12.md),
+[evidência ABBA](evidence/performance-staging-response-abba-44d279a5-20261112.json)
+e [ensaio Redis](evidence/performance-redis-component-study-44d279a5-20261112.json).
+
 | Tarefa | Entrega nesta rodada | Trabalho restante |
 | --- | --- | --- |
 | T01 | Coleta HTTP opt-in, marcas de conteúdo útil e benchmark HTTP local com sessões reais, concorrência e amostragem do pool; cache e refresh separados | Janela completa de HTTP/conteúdo útil após publicação |

@@ -8,6 +8,63 @@ Seguir também [PRODUCTION.md](../deploy/PRODUCTION.md) e o planejamento
 
 ## Publicação e cache de leitura
 
+### Deploy das correções após o reteste de 12/11
+
+A continuação posterior à main `2c400da4` pode ser publicada com o cache novo
+desligado. Inclui o contador numérico de pendências, reuso do calendário dentro
+do cálculo, correções de compartilhamento/admissão do cache e sua telemetria.
+O reuso do calendário e o contador não dependem de habilitar o cache. O alinhamento
+de recursos/worker e da entrega estática altera somente o Compose de staging;
+o Compose de produção permanece igual ao dessa main.
+
+**Não há nova migration, segredo, dependência Redis ou variável obrigatória nessa
+continuação.** O start normal continua executando `prisma migrate deploy`; se o
+servidor estiver em uma versão mais antiga, ele aplica também as migrations
+anteriores ainda pendentes. A migration de revisão já pertence à main e não
+precisa de comando manual adicional para este upgrade.
+
+Para o primeiro deploy das correções, manter em `backend/.env.production`:
+
+```dotenv
+ACOMPANHAMENTO_READ_CACHE_ENABLED=false
+```
+
+É recomendável registrar também os subcontroles abaixo como `false`, evitando
+ligar camadas ainda sem aceite quando o principal for habilitado futuramente.
+Não são obrigatórios enquanto o principal permanecer desligado; os defaults
+dos subcontroles são `true` por compatibilidade.
+
+```dotenv
+ACOMPANHAMENTO_RESPONSE_CACHE_ENABLED=false
+ACOMPANHAMENTO_MONTHLY_CACHE_ENABLED=false
+ACOMPANHAMENTO_REFERENCE_CACHE_ENABLED=false
+ACOMPANHAMENTO_PROGRESS_CACHE_ENABLED=false
+```
+
+Após o merge, na raiz do checkout de produção, atualizar a main e usar o processo
+normal de build/recriação. Não executar esses comandos na worktree local:
+
+```bash
+git switch main
+git pull --ff-only origin main
+docker compose --env-file backend/.env.production -f docker-compose.prod.yml up -d --build backend worker nginx
+docker compose --env-file backend/.env.production -f docker-compose.prod.yml ps
+```
+
+Recriar backend **e worker** publica os mesmos módulos de cálculo nos dois
+processos. Não usar somente `restart` para aplicar nova imagem/ambiente. Conferir
+saúde dos serviços e navegar por cards, projeto, grupo, ponto e pendências.
+Não executar sync de staging, scripts de retenção ou mudanças de backup nesse
+deploy. A coleta HTTP existente pode permanecer como está; se a janela anterior
+terminou, o novo processo inicia uma nova janela quando a coleta está habilitada.
+
+A homologação de somente respostas, com escritas e outros perfis/divisões pela
+interface/HTTPS, permanece separada da publicação dessas correções. O estudo
+ABBA favoreceu essa camada, mas não substitui esse aceite nem os testes de
+produção. Ver [comparação e decisão sobre Redis](ESTUDO_REDIS_PERFORMANCE_2026-11-12.md).
+
+### Requisitos para habilitar o cache
+
 1. Validar CI, migrations e os contratos em homologação pelo processo existente.
 2. Aplicar todas as migrations antes de habilitar o cache. A migration
    `20261110230000_performance_read_revision` cria marcadores por conexão escritora
@@ -547,6 +604,93 @@ de backup/retenção. Ver [evidência completa](evidence/performance-staging-pos
 Próximo gate: publicar manualmente essa correção e repetir o contador/entrada do
 módulo; depois comparar somente respostas na topologia atual e concluir os testes
 concorrentes, demais perfis/divisões e observação de produção de 24 h/sete dias.
+
+### Contador validado na versão publicada — 12/11, `44d279a5`
+
+API e worker publicados às 20h32 UTC tiveram os arquivos conferidos contra o
+commit `44d279a5`. Os quatro serviços permaneceram saudáveis, com os limites e
+pools anteriores, sem reinício ou OOM. Todos os flags do cache novo continuaram
+desligados. Nenhuma configuração ou imagem foi alterada durante a avaliação.
+
+Entre **20h35min52s e 20h47min20s UTC**, a mesma sequência de seis rotas respondeu
+**600 vezes com 200**, cem por caso, concorrência um e no máximo uma requisição/s.
+HTTPS, conexões novas, gzip solicitado, administrador e aquecimento seguiram a
+rodada de referência. Não houve pausa por CPU nesta coleta. A sessão terminou
+com logout 204.
+
+| Caso | p95 anterior | p95 em `44d279a5` |
+| --- | ---: | ---: |
+| Contagem de pendências | 2.065,25 ms | **288,81 ms** |
+| Cards | 1.818,64 ms | 389,73 ms |
+| Dashboard | 510,32 ms | 476,37 ms |
+| Grupo | 401,40 ms | 995,07 ms |
+| Projeto selecionado | 621,30 ms | **1.539,20 ms** |
+| Resumo do ponto | 4.042,21 ms | 2.894,67 ms |
+
+O contador manteve o mesmo JSON canônico da referência e reduziu a mediana de
+999,21 para 138,67 ms. A consulta mensal removida teve **zero novas chamadas**
+na janela das estatísticas SQL, coletada antes dos diagnósticos adicionais. Cinco
+pares sobre os métodos já publicados, em transação Repeatable Read / Read Only,
+mantiveram contagens iguais: 22 consultas na visão completa e três no contador,
+com medianas de 846,25/17,01 ms nesse trecho. Esse diagnóstico não mede o endpoint
+inteiro. A primeira passagem pelo contador levou 1.672,19 ms, fora da coorte:
+o cálculo inicial dos dias sem alocação continua necessário.
+
+Os logs acumulados tiveram **98,34%** de 781 observações ativas sem fila. O pico
+de memória da API ao fim da coorte foi 659.841.024 B (0,61 GiB), dentro de 2 GiB.
+As leituras observadas e os registros não mostraram erro HTTP, falha operacional,
+reinício ou OOM. O worker permaneceu saudável e com progresso.
+
+O detalhe ficou 39 ms acima da meta de 1,5 s no cliente. Nos cinco eventos mais
+lentos, `detail.sources.labor` consumiu 1.519–3.315 ms, sem pico de fila observado
+nesses pedidos. A fonte chama o cálculo mensal através do cache legado de 60 s.
+O recálculo da mão de obra permanece como alvo, junto do ponto; aumentar o pool
+não é uma conclusão sustentada por esses eventos. Rede/TLS e a fórmula/escopo dos
+percentis do relatório do servidor também diferem da série do cliente.
+
+O steal mediano foi **12,36%**, com máximo de 77,94%, contra 18,60% na referência.
+A carga e os flags foram preservados, mas os horários, CPU e atividades externas
+diferiram. Não atribuir todas as variações de latência ao contador. Cinco corpos,
+incluindo contador, cards, detalhe, grupo e ponto, coincidiram com a referência;
+o hash do dashboard mudou entre janelas. Suas fontes foram conferidas, iguais nos
+dois commits e no container; não há payload anterior para atribuir a mudança campo
+a campo. Não há alegação de paridade financeira integral das seis rotas entre
+publicações com base apenas nesses hashes.
+
+**A correção do contador está validada no escopo testado.** Permanecem a comparação
+isolada do cache de respostas, recálculos de ponto/detalhe, CPU com o provedor,
+concorrência, outros perfis/divisões e observação de produção por 24 h/sete dias.
+Sem nova mudança de código, publicação, retenção ou backup nesta rodada.
+Ver [evidência do reteste](evidence/performance-staging-pendency-validation-44d279a5-20261112.json).
+
+### Comparação ABBA de respostas e decisão sobre Redis — 12/11, `44d279a5`
+
+O comparativo posterior concluiu **1.200 respostas 200** em APIs descartáveis,
+na ordem sem cache/respostas/respostas/sem cache. Foram cem leituras por rota/modo,
+concorrência máxima dois e até duas requisições/s. Só master/respostas foram
+habilitados nesses processos; mensal/referências/avanço continuaram desligados.
+O corpo completo das seis rotas foi igual entre os modos dentro dessa janela.
+
+O p95 do projeto passou de 1.381,46 para 320,94 ms, grupo de 735,03 para 229,84 ms
+e ponto de 4.844,40 para 2.508,71 ms. Nos cards, subiu de 405,02 para 499,33 ms.
+O custo de CPU da API caiu 73,08% na coorte, com variação de steal entre rodadas.
+São tempos de HTTP privado sem compressão/TLS/Nginx/browser, não substituem o
+aceite pela interface nem devem ser comparados diretamente ao HTTPS anterior.
+
+**Redis não é recomendado agora para a topologia com um processo HTTP.** O ensaio
+de componentes local, com 4.800 medições sintéticas, foi mais lento que o cache
+atual no caminho equivalente de acerto. Compartilhamento entre futuras réplicas
+pode justificar outro estudo; os recálculos e objetos grandes exigem correções
+independentes. Nenhum Redis foi integrado ao app.
+
+Os processos descartáveis foram removidos; os serviços publicados conservaram
+imagens, horários de início e saúde. Todos os flags novos permanecem desligados
+no staging publicado. Backups/retenção inalterados. O próximo gate é homologar
+somente respostas pela interface/HTTPS, incluindo outros perfis/divisões e
+atualização após escritas, além de observar expirações/recálculos e CPU.
+Ver [estudo completo](ESTUDO_REDIS_PERFORMANCE_2026-11-12.md),
+[evidência ABBA](evidence/performance-staging-response-abba-44d279a5-20261112.json)
+e [ensaio Redis](evidence/performance-redis-component-study-44d279a5-20261112.json).
 
 O pipeline separa referências e relatórios/decisões do mês, e carrega o custo antes
 dos metadados de cards/detalhe. Seus tempos aparecem nas etapas `labor.sources.*`,
