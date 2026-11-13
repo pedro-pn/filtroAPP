@@ -12,10 +12,6 @@ const syncOmiePurchases = args => {
   let clock = 0;
   return runSync({ requestDelayMs: 0, wait: async ms => { clock += ms; }, now: () => clock, ...args });
 };
-const missing = id => Object.assign(new Error('Título excluído'), { status: 500, body: {
-  faultcode: 'SOAP-ENV:Client-105', faultstring: `ERROR: Lançamento não cadastrado para o Código [${id}] !`
-} });
-
 test('PostgreSQL: primeira execução corrige legado, alterações e exclusões; falhas são atômicas', {
   skip: !process.env.OMIE_SYNC_TEST_DATABASE_URL, timeout: 90_000
 }, async t => {
@@ -84,11 +80,6 @@ test('PostgreSQL: primeira execução corrige legado, alterações e exclusões;
   ];
   let unstable = true;
   const call = async (_path, method, params) => {
-    if (method === 'ConsultarContaPagar') {
-      const row = live.find(row => row.codigo_lancamento_omie === params.codigo_lancamento_omie);
-      if (!row) throw missing(params.codigo_lancamento_omie);
-      return row;
-    }
     assert.equal(method, 'ListarContasPagar');
     assert.ok(!Object.keys(params).some(key => key.startsWith('filtrar_')));
     const offset = (params.pagina - 1) * 5;
@@ -150,7 +141,6 @@ test('PostgreSQL: primeira execução corrige legado, alterações e exclusões;
   const waitForOlder = new Promise(resolve => { olderStarted = resolve; });
   const olderResponse = new Promise(resolve => { releaseOlder = resolve; });
   const older = syncOmiePurchases({ db, call: async (...args) => {
-    if (args[1] === 'ConsultarContaPagar') return call(...args);
     olderStarted(); return olderResponse;
   } });
   await waitForOlder;
@@ -170,14 +160,34 @@ test('PostgreSQL: primeira execução corrige legado, alterações e exclusões;
   await db.omiePurchase.create({ data: cached(50) });
   const stamp = (await db.omiePurchase.findUnique({ where: { omieId: '50' } })).syncedAt;
   await syncOmiePurchases({ db, call: async (...args) => {
-    if (args[1] === 'ConsultarContaPagar') {
+    if (args[1] === 'ListarContasPagar') {
       await db.omiePurchase.update({ where: { omieId: '50' }, data: {
         valor: 987, syncedAt: new Date(stamp.getTime() + 1000)
       } });
-      throw missing(50);
     }
     return call(...args);
   } });
   assert.equal(Number((await db.omiePurchase.findUnique({ where: { omieId: '50' } })).valor), 987,
     'confirmação antiga não exclui um registro atualizado durante a leitura');
+
+  await db.omiePurchase.create({ data: cached(1005) });
+  const gapId = (await db.omiePurchase.findUnique({ where: { omieId: '1005' } })).id;
+  const listed = Array.from({ length: 201 }, (_, i) => title((i + 1) * 10));
+  const recovered = [...listed, title(1005, { valor_documento: 321 })]
+    .sort((a, b) => a.codigo_lancamento_omie - b.codigo_lancamento_omie);
+  const gapResult = await syncOmiePurchases({ db, call: async (_path, method, params) => {
+    assert.equal(method, 'ListarContasPagar', 'não consultar códigos apagados');
+    const entries = params.registros_por_pagina === 100 ? listed : recovered;
+    const offset = (params.pagina - 1) * params.registros_por_pagina;
+    const rows = entries.slice(offset, offset + params.registros_por_pagina);
+    return { pagina: params.pagina, registros: rows.length, total_de_registros: entries.length,
+      total_de_paginas: Math.ceil(entries.length / params.registros_por_pagina), conta_pagar_cadastro: rows };
+  } });
+  const gap = await db.omiePurchase.findUnique({ where: { omieId: '1005' } });
+  assert.equal(gap.id, gapId);
+  assert.equal(Number(gap.valor), 321);
+  assert.equal(gapResult.written, 202);
+  const latestRun = await db.integrationSyncRun.findFirst({ where: { status: 'SUCCESS' }, orderBy: { startedAt: 'desc' } });
+  assert.equal(latestRun.summary.recoveredMissing, 1);
+  assert.equal(latestRun.summary.overlapPagesRead, 1);
 });

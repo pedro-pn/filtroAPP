@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { isSedeCostCenterCode } from '../acompanhamento/sede-cost-centers.js';
-import { createOmiePurchaseReader, isMissingOmiePage, isPurchaseNotFound } from './purchase-reader.js';
+import { createOmiePurchaseReader, isMissingOmiePage } from './purchase-reader.js';
+import { createPurchaseCoverage, resolvePurchaseGaps } from './purchase-coverage.js';
 
 const text = value => value == null ? null : String(value).trim() || null;
 const validId = value => /^\d+$/.test(String(value)) && Number.isSafeInteger(Number(value)) && Number(value) > 0;
@@ -53,20 +54,21 @@ function pageInfo(response, page) {
       : pageCount === 0 || (rows.length === 0 ? page <= pageCount : pageCount < page))) {
     throw new Error(`Paginação incompleta de ListarContasPagar na página ${page}; versão anterior preservada.`);
   }
-  return { count, pageCount, rows };
+  return { count, pageCount, rows, page };
 }
 
 export async function readPurchaseSnapshot({ call, linked, categoryNames, existing, requestDelayMs, wait, now }) {
   const { read, stats } = createOmiePurchaseReader({ call, requestDelayMs, wait, now });
-  const seen = new Set();
+  const coverage = createPurchaseCoverage();
+  const seen = coverage.seen;
   const current = new Map();
   const summary = { pagesRead: 0, paginationChanges: 0, duplicateRows: 0, canceledIgnored: 0,
-    verifiedMissing: 0, recoveredMissing: 0, sourceTotalStart: null, sourceTotalEnd: null };
+    verifiedMissing: 0, recoveredMissing: 0, overlapPagesRead: 0, sourceTotalStart: null, sourceTotalEnd: null };
   let pages = 1;
   let previousPages = null;
-  for (let page = 1; page <= pages; page++) {
+  const loadPage = async (page, size) => {
     const params = {
-      pagina: page, registros_por_pagina: 100, apenas_importado_api: 'N',
+      pagina: page, registros_por_pagina: size, apenas_importado_api: 'N',
       ordenar_por: 'CODIGO', ordem_descrescente: 'N'
     };
     let info;
@@ -80,53 +82,41 @@ export async function readPurchaseSnapshot({ call, linked, categoryNames, existi
       if (latest.pageCount >= page) throw error;
       info = latest;
     }
-    const { count, pageCount, rows } = info;
+    return info;
+  };
+  const consume = (info, overlap = false) => {
+    for (const row of info.rows) {
+      const data = purchase(row, linked, categoryNames);
+      const id = String(row.codigo_lancamento_omie);
+      if (!overlap && seen.has(id)) summary.duplicateRows++;
+      if (data) current.set(id, data);
+      else {
+        current.delete(id);
+        if (!overlap && canceled(row.status_titulo)) summary.canceledIgnored++;
+      }
+    }
+    coverage.observe(info);
+  };
+  for (let page = 1; page <= pages; page++) {
+    const info = await loadPage(page, 100);
+    const { count, pageCount } = info;
     if (previousPages !== null && (summary.sourceTotalEnd !== count || previousPages !== pageCount)) summary.paginationChanges++;
     summary.sourceTotalStart ??= count;
     summary.sourceTotalEnd = count;
     summary.pagesRead++;
     pages = pageCount;
     previousPages = pageCount;
-    for (const row of rows) {
-      const data = purchase(row, linked, categoryNames);
-      const id = String(row.codigo_lancamento_omie);
-      if (seen.has(id)) summary.duplicateRows++;
-      seen.add(id);
-      if (data) current.set(id, data);
-      else {
-        current.delete(id);
-        if (canceled(row.status_titulo)) summary.canceledIgnored++;
-      }
-    }
+    consume(info);
     if (page === 1 || page % 25 === 0 || page >= pages) {
       console.log(`[omie-sync] compras: página ${page}/${pages}, ${seen.size} IDs lidos.`);
     }
   }
-  // Sem indícios de movimentação, uma contagem divergente ainda é uma resposta
-  // incompleta. Com movimentação, ausências serão verificadas uma a uma abaixo.
+  // Sem indícios de movimentação, uma contagem divergente continua inválida.
   if (!summary.paginationChanges && !summary.duplicateRows && seen.size !== summary.sourceTotalEnd) {
     throw new Error('Contagem incompleta de ListarContasPagar; versão anterior preservada.');
   }
-  const removals = [];
-  for (const cached of existing) {
-    if (current.has(cached.omieId)) continue;
-    if (!validId(cached.omieId)) throw new Error('ID local inválido para confirmação Omie; versão anterior preservada.');
-    summary.verifiedMissing++;
-    try {
-      const row = await read('ConsultarContaPagar', { codigo_lancamento_omie: Number(cached.omieId) });
-      if (String(row?.codigo_lancamento_omie) !== cached.omieId) {
-        throw new Error('Consulta Omie retornou título diferente; versão anterior preservada.');
-      }
-      const data = purchase(row, linked, categoryNames);
-      if (data) { current.set(cached.omieId, data); summary.recoveredMissing++; }
-      else removals.push(cached);
-    } catch (error) {
-      if (!isPurchaseNotFound(error, cached.omieId)) throw error;
-      removals.push(cached);
-    }
-    if (summary.verifiedMissing % 25 === 0) {
-      console.log(`[omie-sync] compras: ${summary.verifiedMissing} ausentes conferidos individualmente.`);
-    }
-  }
+  const removals = await resolvePurchaseGaps({ existing, current, coverage, total: summary.sourceTotalEnd,
+    loadPage, consume, summary });
+  console.log(`[omie-sync] compras: ${summary.verifiedMissing} ausentes conferidos por listagens, ${summary.overlapPagesRead} páginas sobrepostas.`);
   return { purchases: [...current.values()], removals, read: seen.size, summary: { ...summary, ...stats } };
 }
