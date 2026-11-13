@@ -1,83 +1,7 @@
-import { randomUUID } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { isSedeCostCenterCode, SEDE_OMIE_CODES } from '../acompanhamento/sede-cost-centers.js';
 import { projectChannelWhere } from '../projects/distribution.js';
-
-const text = value => value == null ? null : String(value).trim() || null;
-const canceled = value => /CANCELAD[OA]|CANCELLED|CANCELED|^C$/i.test(text(value) ?? '');
-const validId = value => /^\d+$/.test(String(value)) && Number.isSafeInteger(Number(value)) && Number(value) > 0;
-
-function parseDate(value) {
-  if (!value) return null;
-  const match = String(value).match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  const iso = match && `${match[3]}-${match[2]}-${match[1]}`;
-  const date = iso && new Date(`${iso}T00:00:00.000Z`);
-  if (!date || Number.isNaN(+date) || !date.toISOString().startsWith(iso)) {
-    throw new Error('Data inválida no histórico de compras Omie; versão anterior preservada.');
-  }
-  return date;
-}
-
-// Exclusões não aparecem na janela de alterações. Leia sem filtros de data,
-// projeto ou status, inclusive títulos antigos, pagos e de projetos inativos.
-async function readSnapshot(call, linked, categoryNames) {
-  let pages = 1;
-  let total = null;
-  let read = 0;
-  let canceledIgnored = 0;
-  const seen = new Set();
-  const purchases = [];
-  for (let page = 1; page <= pages; page++) {
-    const response = await call('/financas/contapagar/', 'ListarContasPagar', {
-      pagina: page, registros_por_pagina: 50, apenas_importado_api: 'N',
-      ordenar_por: 'CODIGO', ordem_descrescente: 'N'
-    });
-    const pageCount = Number(response.total_de_paginas);
-    const recordCount = Number(response.total_de_registros);
-    const rows = response.conta_pagar_cadastro;
-    if (Number(response.pagina) !== page || !Number.isInteger(pageCount) || pageCount < 0
-      || !Number.isInteger(recordCount) || recordCount < 0 || !Array.isArray(rows)
-      || Number(response.registros) !== rows.length
-      || (recordCount === 0 ? pageCount > 1 || rows.length !== 0 : pageCount < page || rows.length === 0)
-      || (total !== null && (recordCount !== total || pageCount !== pages))) {
-      throw new Error('Paginação incompleta ou alterada de ListarContasPagar; versão anterior preservada.');
-    }
-    pages = pageCount;
-    total = recordCount;
-    for (const row of rows) {
-      if (!validId(row.codigo_lancamento_omie) || seen.has(String(row.codigo_lancamento_omie))) {
-        throw new Error('Identificador inválido ou repetido de ListarContasPagar; versão anterior preservada.');
-      }
-      const omieId = String(row.codigo_lancamento_omie);
-      seen.add(omieId);
-      read++;
-      const codigoProjeto = text(row.codigo_projeto);
-      const project = linked.get(codigoProjeto);
-      if (!project) continue;
-      if (canceled(row.status_titulo)) { canceledIgnored++; continue; }
-      if (row.valor_documento == null || row.valor_documento === '' || !Number.isFinite(Number(row.valor_documento))) {
-        throw new Error('Valor inválido no histórico de compras Omie; versão anterior preservada.');
-      }
-      const categoriaCodigo = text(row.codigo_categoria);
-      purchases.push({
-        id: randomUUID(), omieId, codigoProjeto, projectId: project.projectId ?? null,
-        osNumber: project.osNumber ?? null, valor: Number(row.valor_documento),
-        statusTitulo: text(row.status_titulo), categoriaCodigo,
-        categoriaDescricao: categoryNames.get(categoriaCodigo) ?? null,
-        fornecedorCodigo: text(row.codigo_cliente_fornecedor),
-        numeroDocumento: text(row.numero_documento), numeroDocumentoFiscal: text(row.numero_documento_fiscal),
-        origem: text(row.id_origem), dataEmissao: parseDate(row.data_emissao),
-        dataVencimento: parseDate(row.data_vencimento), dataPrevisao: parseDate(row.data_previsao),
-        linkStatus: project.projectId ? 'LINKED' : isSedeCostCenterCode(project.osNumber ?? codigoProjeto) ? 'SEDE' : 'UNMATCHED',
-        rawPayload: row
-      });
-    }
-  }
-  if (read !== total) {
-    throw new Error('Contagem incompleta de ListarContasPagar; versão anterior preservada.');
-  }
-  return { purchases, read, pages, canceledIgnored };
-}
+import { readPurchaseSnapshot } from './purchase-snapshot.js';
 
 async function writeBatch(tx, rows, syncedAt) {
   const payload = JSON.stringify(rows.map(row => ({ ...row, syncedAt })));
@@ -105,13 +29,16 @@ async function writeBatch(tx, rows, syncedAt) {
       "rawPayload"=EXCLUDED."rawPayload","syncedAt"=EXCLUDED."syncedAt"`);
 }
 
-export async function syncOmiePurchases({ triggeredBy = 'SCRIPT', sinceDays = null, db = null, call = null } = {}) {
+export async function syncOmiePurchases({ triggeredBy = 'SCRIPT', sinceDays = null, db = null, call = null, requestDelayMs = 100 } = {}) {
   db ??= (await import('../prisma.js')).default;
   call ??= (await import('./client.js')).omieCall;
   const run = await db.integrationSyncRun.create({
     data: { integration: 'OMIE', scope: 'purchases', status: 'RUNNING', triggeredBy }
   });
   try {
+    if (!Number.isInteger(requestDelayMs) || requestDelayMs < 0 || requestDelayMs > 10_000) {
+      throw new Error('Pausa entre consultas Omie deve ser um inteiro de 0 a 10000 ms.');
+    }
     const [categories, projects] = await Promise.all([
       db.omieCategory.findMany({ select: { codigo: true, descricao: true } }),
       db.omieProject.findMany({
@@ -126,14 +53,22 @@ export async function syncOmiePurchases({ triggeredBy = 'SCRIPT', sinceDays = nu
     for (const codigo of SEDE_OMIE_CODES) {
       if (!linked.has(codigo)) linked.set(codigo, { codigo, osNumber: codigo, projectId: null });
     }
-    const { purchases, read, pages, canceledIgnored } = await readSnapshot(call, linked,
-      new Map(categories.map(category => [category.codigo, category.descricao])));
     const codes = [...linked.keys()];
+    const existing = await db.omiePurchase.findMany({ where: {
+      AND: [
+        { OR: [{ codigoProjeto: { in: codes } }, { project: { is: projectChannelWhere('omie') } }] },
+        { OR: [{ projectId: null }, { project: { is: projectChannelWhere('omie') } }] }
+      ]
+    }, select: { id: true, omieId: true, syncedAt: true } });
+    const { purchases, removals, read, summary: readSummary } = await readPurchaseSnapshot({
+      call, linked, categoryNames: new Map(categories.map(category => [category.codigo, category.descricao])),
+      existing, requestDelayMs
+    });
     const tracked = [...linked.values()];
     const projectsCount = tracked.filter(project => project.projectId).length;
     const sedeCenters = tracked.filter(project => !project.projectId && isSedeCostCenterCode(project.osNumber ?? project.codigo)).length;
     const summary = { mode: 'FULL_SNAPSHOT', incremental: false, requestedSinceDays: sinceDays,
-      linkedProjects: projectsCount, sedeCenters, pagesRead: pages, canceledIgnored };
+      linkedProjects: projectsCount, sedeCenters, ...readSummary };
     // Só publique após validar TODAS as páginas. Exclusões, alterações e os
     // marcadores são atômicos; uma falha no banco desfaz também a limpeza.
     return await db.$transaction(async tx => {
@@ -146,19 +81,11 @@ export async function syncOmiePurchases({ triggeredBy = 'SCRIPT', sinceDays = nu
       const finishedAt = new Date();
       let deleted = 0;
       if (!newerRun) {
-        const existing = await tx.omiePurchase.findMany({ where: {
-          AND: [
-            { OR: [{ codigoProjeto: { in: codes } }, { project: { is: projectChannelWhere('omie') } }] },
-            { OR: [{ projectId: null }, { project: { is: projectChannelWhere('omie') } }] }
-          ]
-        }, select: { id: true, omieId: true } });
-        const currentIds = new Set(purchases.map(row => row.omieId));
-        const obsolete = existing.filter(row => !currentIds.has(row.omieId));
-        // Mantém cada DELETE abaixo do limite de parâmetros do PostgreSQL,
-        // mesmo na primeira limpeza de um espelho com milhares de títulos.
-        for (let offset = 0; offset < obsolete.length; offset += 500) {
+        // Só exclua ausências confirmadas na API. O timestamp impede apagar um
+        // registro atualizado por outra execução enquanto consultávamos o Omie.
+        for (let offset = 0; offset < removals.length; offset += 500) {
           const result = await tx.omiePurchase.deleteMany({ where: {
-            id: { in: obsolete.slice(offset, offset + 500).map(row => row.id) }
+            OR: removals.slice(offset, offset + 500).map(row => ({ id: row.id, syncedAt: row.syncedAt }))
           } });
           deleted += result.count;
         }
