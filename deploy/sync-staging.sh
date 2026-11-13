@@ -4,7 +4,7 @@
 # Comportamento:
 #   - Se o ambiente de homologação estiver PARADO: sobe o banco, aplica o snapshot,
 #     roda migrations e desliga tudo ao final.
-#   - Se o ambiente de homologação estiver RODANDO: para o backend e nginx,
+#   - Se o ambiente de homologação estiver RODANDO: para backend, worker e nginx,
 #     aplica o snapshot, roda migrations e sobe tudo novamente.
 #
 # Uso no crontab (03:00 diário):
@@ -612,8 +612,8 @@ fi
 # ---------------------------------------------------------------------------
 
 if [ "$STAGING_WAS_UP" = "true" ]; then
-  log "parando backend e nginx para aplicar o snapshot"
-  docker compose -f "$STAGING_COMPOSE_FILE" stop backend nginx
+  log "parando backend, worker e nginx para aplicar o snapshot"
+  docker compose -f "$STAGING_COMPOSE_FILE" stop backend worker nginx
 else
   log "subindo apenas o postgres de homologação"
   docker compose -f "$STAGING_COMPOSE_FILE" up -d postgres
@@ -686,10 +686,10 @@ fi
 # ---------------------------------------------------------------------------
 
 if [ "$BUILD_SERVICES" = "true" ]; then
-  log "buildando backend e nginx de homologação"
-  docker compose -f "$STAGING_COMPOSE_FILE" build backend nginx
+  log "buildando backend, worker e nginx de homologação"
+  docker compose -f "$STAGING_COMPOSE_FILE" build backend worker nginx
 else
-  log "build de backend/nginx desativado (BUILD_SERVICES=false)"
+  log "build de backend/worker/nginx desativado (BUILD_SERVICES=false)"
 fi
 
 log "aplicando migrations pendentes"
@@ -705,8 +705,8 @@ sanitize_staging_database
 # ---------------------------------------------------------------------------
 
 if [ "$STAGING_WAS_UP" = "true" ]; then
-  log "subindo backend e nginx com o banco atualizado"
-  docker compose -f "$STAGING_COMPOSE_FILE" up -d --force-recreate backend nginx
+  log "subindo backend, worker e nginx com o banco atualizado"
+  docker compose -f "$STAGING_COMPOSE_FILE" up -d --force-recreate backend worker nginx
   log "homologação atualizada e RODANDO"
 else
   log "desligando ambiente de homologação"

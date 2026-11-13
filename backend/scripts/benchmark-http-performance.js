@@ -8,13 +8,18 @@ import { performance } from 'node:perf_hooks';
 import { seedHttpPerformanceFixture } from './fixtures/http-performance.js';
 import { assertLocalPerformanceDatabase, mapConcurrent, summarizeHttpSamples } from './lib/http-performance-report.js';
 
-export async function startHttpPerformanceServer({ poolLimit, directory, sourceRoot, readCacheEnabled }) {
+export async function startHttpPerformanceServer({ poolLimit, directory, sourceRoot, readCacheEnabled, readCacheLayers }) {
   assertLocalPerformanceDatabase(process.env.DATABASE_URL);
+  const layerEnvironment = readCacheLayers ? Object.fromEntries(Object.entries({
+    responses: 'ACOMPANHAMENTO_RESPONSE_CACHE_ENABLED', monthly: 'ACOMPANHAMENTO_MONTHLY_CACHE_ENABLED',
+    references: 'ACOMPANHAMENTO_REFERENCE_CACHE_ENABLED', progress: 'ACOMPANHAMENTO_PROGRESS_CACHE_ENABLED'
+  }).map(([layer, variable]) => [variable, String(readCacheLayers[layer] ?? false)])) : {};
   const child = fork(fileURLToPath(new URL('./fixtures/http-performance-server.js', import.meta.url)), [sourceRoot], {
     stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
     env: { ...process.env, NODE_ENV: 'test', DATABASE_CONNECTION_LIMIT: String(poolLimit),
       HTTP_PERFORMANCE_ENABLED: 'true', HTTP_PERFORMANCE_WINDOW_MS: '900000', HTTP_PERFORMANCE_SAMPLE_MS: '10',
       ACOMPANHAMENTO_READ_CACHE_ENABLED: String(readCacheEnabled),
+      ...layerEnvironment,
       BACKGROUND_JOBS_IN_API: 'false', ERROR_TRACKING_WEBHOOK_URL: '',
       ASSETS_DIR: path.join(directory, 'assets'), REPORTS_DIR: path.join(directory, 'reports') }
   });

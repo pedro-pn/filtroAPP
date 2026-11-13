@@ -84,6 +84,8 @@ export function createRequestMetrics({
         durationMs, responseBytes: Number(res.getHeader('content-length')) || 0,
         dbPool, activePool, poolWaitingMax: trace.poolWaitingMax,
         eventLoopDelayMaxMs: Math.round(trace.eventLoopDelayMaxMs * 100) / 100,
+        ...(trace.caches ? { caches: Object.fromEntries(Object.entries(trace.caches).map(([name, values]) =>
+          [name, Object.fromEntries(Object.entries(values).map(([field, value]) => [field, Math.round(value * 100) / 100]))])) } : {}),
         stages: Object.fromEntries(Object.entries(trace.stages).map(([name, ms]) => [name, Math.round(ms * 100) / 100]))
       });
     };

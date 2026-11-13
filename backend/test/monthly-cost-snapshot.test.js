@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { serialize, deserialize } from 'node:v8';
 import { readMonthlyCostSnapshot } from '../src/lib/acompanhamento/monthly-cost-snapshot.js';
-import { clearDerivedReadCaches, createDerivedReadCache } from '../src/lib/operations/derived-read-cache.js';
+import { clearDerivedReadCaches, createDerivedReadCache, withDerivedReadVersion } from '../src/lib/operations/derived-read-cache.js';
+import { withRequestPerformance } from '../src/lib/operations/request-performance.js';
 import { withProjectAccess, withProjectChannel } from '../src/lib/projects/access-scope.js';
 import { requestSourceContext } from '../src/lib/operations/request-sources.js';
 
@@ -125,4 +126,36 @@ test('typed-array views returned by a binary decoder cannot mutate another reade
   assert.deepEqual([...second.buffer], [1, 2]); assert.deepEqual([...second.bytes], [3, 4]);
   assert.deepEqual([...third.buffer], [1, 2]); assert.deepEqual([...third.bytes], [3, 4]);
   assert.equal(calls, 1);
+});
+
+test('large monthly results bypass encoding/copying and each request owns its complete unchanged graph', async t => {
+  clearDerivedReadCaches(); t.after(clearDerivedReadCaches);
+  let calls = 0;
+  const trace = { stages: {} };
+  const load = options => {
+    assert.deepEqual(options, { includeIgnoredNames: true });
+    calls++;
+    const value = snapshot(.1 + .2);
+    value.rates[0].longHistory = 'x'.repeat(32 * 1024 * 1024);
+    return value;
+  };
+  const read = includeIgnoredNames => readContext(() => withDerivedReadVersion('large-v1', () =>
+    readMonthlyCostSnapshot(null, { includeIgnoredNames }, load)));
+  const [left, right] = await withRequestPerformance(trace, () => Promise.all([read(false), read(true)]));
+  assert.equal(calls, 2, 'A rejected snapshot is neither copied nor shared across requests');
+  assert.equal(left.rates[0].longHistory.length, 32 * 1024 * 1024);
+  assert.equal(left.rates[0], left.byCollaboratorId.get('c'));
+  assert.equal(Object.hasOwn(left, 'ignoredExternalEmployees'), false);
+  assert.deepEqual(right.ignoredExternalEmployees, [{ externalName: 'Pessoa ignorada' }]);
+  left.rates[0].total = 99; left.periodStart.setUTCFullYear(1900);
+  assert.equal(right.rates[0].total, .1 + .2); assert.equal(right.periodStart.getUTCFullYear(), 2026);
+  const counters = trace.caches.monthly;
+  assert.equal(counters.admissionRejected, 1);
+  assert.equal(counters.bypassed, 2);
+  assert.equal(counters.miss, 2);
+  assert.equal(counters.shared, undefined);
+  for (const field of ['encodedBytes', 'encodeMs', 'decodeMs', 'loadFailed']) assert.equal(counters[field], undefined);
+  assert.ok(counters.admissionMs >= 0);
+  assert.equal((await read(false)).rates[0].total, .1 + .2);
+  assert.equal(calls, 3, 'Large results are not retained for later requests');
 });

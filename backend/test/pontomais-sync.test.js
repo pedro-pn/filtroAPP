@@ -470,8 +470,8 @@ function createFakeDb({ running = false, automationState = null } = {}) {
         Object.assign(run, data);
         return run;
       },
-      async findMany() {
-        return [...state.runs].reverse();
+      async findMany({ where } = {}) {
+        return [...state.runs].reverse().filter(run => !where?.status || run.status === where.status);
       }
     },
     pontoSyncState: {
@@ -1053,6 +1053,62 @@ test('auditoria e pendências usam projeção segura e ocultam itens já vincula
     ambiguousDays: [],
     missingProjects: { projectTags: [], ambiguousDays: [] }
   });
+});
+
+test('contador de colaboradores preserva histórico, deduplica IDs e acompanha vínculos e ignorados', async () => {
+  const { db, state } = createFakeDb();
+  const run = (id, employees, status = 'SUCCEEDED') => ({
+    id, status, periodStart: new Date('2025-01-01T00:00:00Z'),
+    periodEnd: new Date('2025-01-31T00:00:00Z'),
+    pendingCount: 999,
+    summary: { pending: { employees: employees.map(externalEmployeeId => ({ externalEmployeeId })) } }
+  });
+  state.runs.push(run('old', [101, 'historical', 'ignored', 'linked']));
+  state.runs.push(run('recent', ['101', 'new']));
+  state.runs.push(run('failed', ['failed-only'], 'FAILED'));
+  state.runs.push(run('running', ['running-only'], 'RUNNING'));
+  state.runs.push({ ...run('empty', []), summary: null });
+  state.externalLinks.push({ externalEmployeeId: 'linked', collaboratorId: 'collaborator-1' });
+  state.externalEmployees.push({ externalEmployeeId: 'ignored', ignoredAt: new Date() });
+  const service = createPontoMaisSyncService({ db, configured: () => true });
+  const compare = async expected => {
+    assert.equal(await service.getPendingEmployeeCount(), expected);
+    assert.equal(await service.getPendingEmployeeCount(), (await service.getPending()).employees.length);
+  };
+  await compare(3);
+  state.externalLinks.push({ externalEmployeeId: '101', collaboratorId: 'collaborator-1' });
+  await compare(2);
+  state.externalEmployees[0].ignoredAt = null;
+  await compare(3);
+  state.externalLinks = [];
+  await compare(5);
+});
+
+test('contador não consulta períodos, relatórios ou alocações, nem percorre pendências de dias', async () => {
+  const { db, state } = createFakeDb();
+  state.runs.push({ status: 'SUCCEEDED', summary: { pending: {
+    employees: [{ externalEmployeeId: '101' }],
+    get ambiguousDays() { throw new Error('day pendencies must not be projected'); },
+    get projectTags() { throw new Error('project pendencies must not be projected'); }
+  } } });
+  for (const model of ['pontoPeriodSummary', 'project', 'report', 'pontoProjectTagAlias',
+    'pontoDayProjectOverride', 'efetivoMissionAllocation', 'efetivoMissionPlan']) {
+    db[model] = new Proxy({}, { get() { throw new Error(`unnecessary ${model} read`); } });
+  }
+  const service = createPontoMaisSyncService({ db });
+  assert.equal(await service.getPendingEmployeeCount(), 1);
+  db.pontoExternalEmployeeLink.findMany = async () => { throw new Error('database unavailable'); };
+  await assert.rejects(service.getPendingEmployeeCount(), /database unavailable/);
+});
+
+test('contador vazio dispensa consulta a vínculos e diretório de colaboradores', async () => {
+  const { db, state } = createFakeDb();
+  db.pontoExternalEmployeeLink.findMany = async () => { throw new Error('unexpected link read'); };
+  db.pontoExternalEmployee.findMany = async () => { throw new Error('unexpected directory read'); };
+  const service = createPontoMaisSyncService({ db });
+  assert.equal(await service.getPendingEmployeeCount(), 0);
+  state.runs.push({ status: 'SUCCEEDED', summary: { pending: { employees: [] } } });
+  assert.equal(await service.getPendingEmployeeCount(), 0);
 });
 
 test('pendências históricas permanecem visíveis entre lotes e dia ambíguo respeita o lote mais novo', async () => {

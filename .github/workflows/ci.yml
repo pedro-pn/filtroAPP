@@ -331,6 +331,8 @@ jobs:
           test/verified-cost-sources.integration.test.js test/project-presentation-copy.integration.test.js
           test/acompanhamento-operational-sources.integration.test.js
           test/acompanhamento-source-batches.integration.test.js
+          test/cache-layer-controls.integration.test.js
+          test/monthly-snapshot-admission.integration.test.js
           test/verified-progress-sources.integration.test.js
           test/job-run-volume.integration.test.js
           test/crm-opportunities.integration.test.js

@@ -129,15 +129,19 @@ function resultFromRun(run, extra = {}) {
   };
 }
 
+function pendingEmployeeProjection(summary) {
+  return (summary?.pending?.employees || []).map(item => ({
+    externalEmployeeId: String(item.externalEmployeeId),
+    registrationNumber: item.registrationNumber ? String(item.registrationNumber) : null,
+    externalName: String(item.externalName || ''),
+    reason: String(item.reason || 'NO_UNIQUE_MATCH')
+  }));
+}
+
 function safePendingProjection(summary) {
   const pending = summary?.pending || {};
   return {
-    employees: (pending.employees || []).map(item => ({
-      externalEmployeeId: String(item.externalEmployeeId),
-      registrationNumber: item.registrationNumber ? String(item.registrationNumber) : null,
-      externalName: String(item.externalName || ''),
-      reason: String(item.reason || 'NO_UNIQUE_MATCH')
-    })),
+    employees: pendingEmployeeProjection(summary),
     projectTags: (pending.projectTags || []).map(item => ({
       rawTag: String(item.rawTag || ''),
       normalizedTag: normalizeProjectTag(item.normalizedTag || item.rawTag),
@@ -759,6 +763,32 @@ export function createPontoMaisSyncService({
     return runs.map(safeRunProjection);
   }
 
+  async function getPendingEmployeeCount() {
+    // The navigation badge only needs unlinked employees. Preserve candidates
+    // from every successful historical run, without loading monthly periods,
+    // reports or allocations used by the full pendency view.
+    const runs = await db.pontoSyncRun.findMany({
+      where: { status: 'SUCCEEDED' },
+      select: { summary: true }
+    });
+    const ids = [...new Set(runs.flatMap(run => (
+      pendingEmployeeProjection(run.summary).map(item => item.externalEmployeeId)
+    )))];
+    if (!ids.length) return 0;
+    const [links, ignored] = await Promise.all([
+      db.pontoExternalEmployeeLink.findMany({
+        where: { externalEmployeeId: { in: ids } },
+        select: { externalEmployeeId: true }
+      }),
+      db.pontoExternalEmployee.findMany({
+        where: { externalEmployeeId: { in: ids }, ignoredAt: { not: null } },
+        select: { externalEmployeeId: true }
+      })
+    ]);
+    const hidden = new Set([...links, ...ignored].map(item => String(item.externalEmployeeId)));
+    return ids.filter(id => !hidden.has(id)).length;
+  }
+
   async function getPending() {
     const runs = await db.pontoSyncRun.findMany({
       where: { status: 'SUCCEEDED' },
@@ -1230,6 +1260,7 @@ export function createPontoMaisSyncService({
     getIntegrationStatus,
     listSyncRuns,
     getPending,
+    getPendingEmployeeCount,
     listExternalEmployees,
     setExternalEmployeeIgnored,
     linkExternalEmployee,
@@ -1247,6 +1278,7 @@ export const runPontoMaisSync = input => defaultService.runSync(input);
 export const getPontoMaisIntegrationStatus = () => defaultService.getIntegrationStatus();
 export const listPontoMaisSyncRuns = input => defaultService.listSyncRuns(input);
 export const getPontoMaisPending = () => defaultService.getPending();
+export const getPontoMaisPendingEmployeeCount = () => defaultService.getPendingEmployeeCount();
 export const listPontoMaisExternalEmployees = () => defaultService.listExternalEmployees();
 export const setPontoMaisExternalEmployeeIgnored = input => defaultService.setExternalEmployeeIgnored(input);
 export const linkPontoMaisExternalEmployee = input => defaultService.linkExternalEmployee(input);

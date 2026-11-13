@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { createDerivedReadCache, currentDerivedReadVersion, clearDerivedReadCaches, databaseReadVersion } from '../src/lib/operations/derived-read-cache.js';
 
 test('derived responses share work per version/variant and give each caller an independent DTO', async () => {
@@ -30,6 +31,88 @@ test('new revisions cannot reuse an old pending read and failures are retried', 
   assert.deepEqual(await cache.get('failed', 'project', () => ({ value: 3 })), { value: 3 });
 });
 
+test('a slow pending calculation stays shared and its TTL starts after completion', async () => {
+  let now = 0, calls = 0;
+  const releases = [];
+  const cache = createDerivedReadCache({ ttlMs: 15000, now: () => now });
+  const loader = () => { calls++; return new Promise(resolve => releases.push(resolve)); };
+  const first = cache.get('revision', 'cards', loader);
+  await Promise.resolve();
+  now = 15001;
+  const second = cache.get('revision', 'cards', loader);
+  await Promise.resolve();
+  now = 30000;
+  for (const release of releases) release({ rows: [{ total: 10 }] });
+  const [left, right] = await Promise.all([first, second]);
+  assert.equal(calls, 1, 'Passing the TTL cannot duplicate work that is still running');
+  left.rows[0].total = 99;
+  assert.equal(right.rows[0].total, 10);
+  now = 44999;
+  assert.equal((await cache.get('revision', 'cards', () => assert.fail('result is still fresh'))).rows[0].total, 10);
+  now = 45000;
+  assert.deepEqual(await cache.get('revision', 'cards', () => ({ fresh: true })), { fresh: true });
+});
+
+test('completed LRU pressure cannot discard another key that is still loading', async () => {
+  const cache = createDerivedReadCache({ maxEntries: 1, maxPendingEntries: 2 });
+  const releases = [], calls = new Map();
+  const loader = key => () => {
+    calls.set(key, (calls.get(key) || 0) + 1);
+    return new Promise(resolve => releases.push(() => resolve({ key })));
+  };
+  const first = cache.get('v', 'pending-a', loader('a'));
+  await Promise.resolve();
+  const second = cache.get('v', 'pending-b', loader('b'));
+  await Promise.resolve();
+  releases[0](); await first;
+  await cache.get('v', 'completed-c', () => ({ key: 'c' }));
+  const joined = cache.get('v', 'pending-b', loader('b'));
+  await Promise.resolve();
+  for (const release of releases) release();
+  assert.deepEqual(await second, await joined);
+  assert.equal(calls.get('b'), 1);
+  assert.equal(cache.stats().entries, 1);
+});
+
+test('pending admission is bounded without queuing new keys or losing admitted work', async () => {
+  const cache = createDerivedReadCache({ maxPendingEntries: 1 });
+  let release, calls = 0;
+  const slow = cache.get('v', 'slow', () => { calls++; return new Promise(resolve => { release = resolve; }); });
+  await Promise.resolve();
+  const shared = cache.get('v', 'slow', () => assert.fail('admitted work must remain shared'));
+  assert.equal(cache.stats().pendingEntries, 1);
+  const fast = await cache.get('v', 'other', () => ({ nested: { total: 3 } }));
+  assert.deepEqual(fast, { nested: { total: 3 } });
+  assert.equal(cache.stats().pendingEntries, 1);
+  assert.equal(cache.stats().entries, 0, 'Bypassed keys are not admitted later');
+  await assert.rejects(cache.get('v', 'failed', () => { throw new Error('unavailable'); }), /unavailable/);
+  release({ rows: [1] });
+  const [left, right] = await Promise.all([slow, shared]);
+  left.rows.push(2); assert.deepEqual(right.rows, [1]);
+  assert.equal(calls, 1);
+  assert.equal(cache.stats().pendingEntries, 0);
+  assert.throws(() => createDerivedReadCache({ maxPendingEntries: 0 }), /Limites/);
+});
+
+test('clearing pending work cannot let an old completion replace or remove a newer calculation', async () => {
+  const cache = createDerivedReadCache();
+  let releaseOld, releaseNew;
+  const old = cache.get('v', 'key', () => new Promise(resolve => { releaseOld = resolve; }));
+  await Promise.resolve();
+  cache.clear();
+  const fresh = cache.get('v', 'key', () => new Promise(resolve => { releaseNew = resolve; }));
+  await Promise.resolve();
+  releaseOld({ value: 'old' });
+  assert.deepEqual(await old, { value: 'old' });
+  assert.equal(cache.stats().pendingEntries, 1);
+  assert.equal(cache.stats().entries, 0);
+  const joined = cache.get('v', 'key', () => assert.fail('new work must remain pending'));
+  releaseNew({ value: 'new' });
+  assert.deepEqual(await fresh, { value: 'new' });
+  assert.deepEqual(await joined, { value: 'new' });
+  assert.deepEqual(await cache.get('v', 'key', () => assert.fail('new result must remain cached')), { value: 'new' });
+});
+
 test('derived response storage respects bytes, entry count, expiry and explicit invalidation', async () => {
   let now = 0, calls = 0;
   const cache = createDerivedReadCache({ ttlMs: 10, maxEntries: 2, maxBytes: 24, maxEntryBytes: 20, now: () => now });
@@ -41,7 +124,7 @@ test('derived response storage respects bytes, entry count, expiry and explicit 
   const huge = () => { calls++; return { long: 'x'.repeat(100) }; };
   await cache.get('v', 'huge', huge); await cache.get('v', 'huge', huge);
   assert.equal(calls, 6, 'Oversized responses are returned but not retained');
-  clearDerivedReadCaches(); assert.deepEqual(cache.stats(), { entries: 0, bytes: 0 });
+  clearDerivedReadCaches(); assert.deepEqual(cache.stats(), { entries: 0, bytes: 0, pendingEntries: 0 });
   assert.throws(() => createDerivedReadCache({ maxEntries: 0 }), /Limites/);
 });
 
@@ -56,4 +139,79 @@ test('database revisions include active writers and server/database identity and
   }
   row = {};
   await assert.rejects(databaseReadVersion(database), /revisão/);
+});
+
+test('rejected owned snapshots skip codecs and pending followers load in their own context', async () => {
+  const owners = new AsyncLocalStorage();
+  let encodeCalls = 0, decodeCalls = 0, release, started, source;
+  const ready = new Promise(resolve => { started = resolve; });
+  const cache = createDerivedReadCache({ admitOwnedValue: () => false,
+    encode: value => { encodeCalls++; return JSON.stringify(value); },
+    decode: value => { decodeCalls++; return JSON.parse(value); } });
+  const payload = () => {
+    assert.equal(currentDerivedReadVersion(), 'v');
+    const row = { owner: owners.getStore(), amount: .1 + .2 };
+    return { rows: [row], byId: new Map([['p', row]]), date: new Date('2026-09-01') };
+  };
+  const first = owners.run('first', () => cache.get('v', 'key', async () => {
+    started(); await new Promise(resolve => { release = resolve; }); source = payload(); return source;
+  }));
+  await ready;
+  const second = owners.run('second', () => cache.get('v', 'key', payload));
+  release();
+  const [left, right] = await Promise.all([first, second]);
+  assert.equal(left, source, 'Only the original loader owner receives its unshared value');
+  assert.equal(left.rows[0].owner, 'first'); assert.equal(right.rows[0].owner, 'second');
+  assert.equal(right.byId.get('p'), right.rows[0]);
+  left.rows[0].amount = 99; left.date.setUTCFullYear(1900);
+  assert.equal(right.rows[0].amount, .1 + .2); assert.equal(right.date.getUTCFullYear(), 2026);
+  assert.equal(encodeCalls, 0); assert.equal(decodeCalls, 0);
+  assert.deepEqual(cache.stats(), { entries: 0, bytes: 0, pendingEntries: 0 });
+});
+
+test('the actual encoded bound still applies when an admission estimate allows a larger value', async () => {
+  let reads = 0, encoded = 0, now = 0;
+  const cache = createDerivedReadCache({ maxEntryBytes: 64, now: () => now,
+    admitOwnedValue: (_value, limit) => { assert.equal(limit, 64); return true; },
+    encode: () => { encoded++; return Buffer.alloc(100); }, decode: () => assert.fail('oversized result must not be copied') });
+  const load = () => ({ value: ++reads, date: new Date('2026-09-01') });
+  assert.equal((await cache.get('v', 'key', load)).value, 1);
+  assert.equal((await cache.get('v', 'key', load)).value, 2);
+  assert.equal(encoded, 1, 'A successful oversized read records only a bypass marker');
+  now = 15001;
+  assert.equal((await cache.get('v', 'key', load)).value, 3);
+  assert.equal(encoded, 2, 'The marker expires and admission is reconsidered');
+  assert.deepEqual(cache.stats(), { entries: 0, bytes: 0, pendingEntries: 0 });
+});
+
+test('rejected-admission markers are bounded, revision-specific, cleared and never retain values or failures', async () => {
+  let checks = 0, loads = 0;
+  const cache = createDerivedReadCache({ maxEntries: 2, admitOwnedValue: () => { checks++; return false; } });
+  const load = () => ({ value: ++loads });
+  await cache.get('v1', 'a', load); await cache.get('v1', 'b', load);
+  assert.equal((await cache.get('v1', 'a', load)).value, 3);
+  assert.equal(checks, 2);
+  await cache.get('v1', 'c', load); await cache.get('v1', 'b', load);
+  assert.equal(checks, 4, 'LRU marker storage is bounded by maxEntries');
+  await cache.get('v2', 'a', load); assert.equal(checks, 5);
+  cache.clear();
+  await cache.get('v2', 'a', load); assert.equal(checks, 6);
+  await assert.rejects(cache.get('v2', 'failed', () => { throw new Error('unavailable'); }), /unavailable/);
+  await cache.get('v2', 'failed', load); assert.equal(checks, 7);
+  assert.deepEqual(cache.stats(), { entries: 0, bytes: 0, pendingEntries: 0 });
+});
+
+test('owned snapshots at the pending limit or cleared during loading skip admission and codecs', async () => {
+  let release;
+  const cache = createDerivedReadCache({ maxPendingEntries: 1,
+    admitOwnedValue: () => assert.fail('neither cleared nor unadmitted work needs an estimate'),
+    encode: () => assert.fail('unadmitted work must not be encoded') });
+  const value = { date: new Date('2026-09-01') };
+  const pending = cache.get('v', 'pending', () => new Promise(resolve => { release = resolve; }));
+  await Promise.resolve();
+  assert.equal(await cache.get('v', 'other', () => value), value);
+  await assert.rejects(cache.get('v', 'failed', () => { throw new Error('fallback failed'); }), /fallback failed/);
+  cache.clear(); release(value);
+  assert.equal(await pending, value);
+  assert.deepEqual(cache.stats(), { entries: 0, bytes: 0, pendingEntries: 0 });
 });

@@ -1,7 +1,7 @@
 # Homologação
 
 Ambiente de validação entre desenvolvimento e produção. Roda a mesma stack de prod
-(Postgres + backend + Nginx) com snapshot de produção sanitizado diariamente,
+(Postgres + backend + worker + Nginx) com snapshot de produção sanitizado diariamente,
 e-mails para clientes bloqueados e acesso restrito por IP.
 
 ## Arquivos do ambiente
@@ -100,7 +100,7 @@ Para observabilidade operacional, crie o diretório de status no host:
 mkdir -p /root/backups/filtrovali-staging/status
 ```
 
-O `docker-compose.staging.yml` monta esse diretório em `/ops-status:ro` no backend
+O `docker-compose.staging.yml` monta esse diretório em `/ops-status:ro` no backend e worker
 por padrão. Para usar outro caminho no host, defina `STAGING_OPERATIONS_STATUS_DIR`
 no env-file usado pelo Compose.
 
@@ -264,7 +264,7 @@ FILTROAPP_DIR="$PWD" python3 ../infra-proxy/test-filtroapp-https.py
 
 O script `deploy/sync-staging.sh` aplica o último snapshot de backup de prod ao banco
 de homologação, aplica migrations, substitui o volume de relatórios por artefatos
-sintéticos e executa um scrub obrigatório antes de subir backend/Nginx. Esse scrub:
+sintéticos e executa um scrub obrigatório antes de subir backend/worker/Nginx. Esse scrub:
 
 - apaga sessões, tokens de reset/e-mail e tokens de preferência de notificação;
 - invalida senhas de usuários restaurados de produção;
@@ -278,8 +278,13 @@ Se `STAGING_ADMIN_PASSWORD` ou `STAGING_ADMIN_PASSWORD_HASH` não estiver config
 o sync falha fechado e não publica o banco restaurado no app. Ele detecta se o
 ambiente está rodando ou parado e age de acordo:
 
-- **Ambiente parado**: sobe o banco, aplica o snapshot, builda backend/Nginx, roda migrations, cria arquivos mockados, sanitiza o banco, desliga tudo.
-- **Ambiente rodando**: para backend e Nginx, aplica o snapshot, builda backend/Nginx, roda migrations, cria arquivos mockados, sanitiza o banco, recria os serviços.
+- **Ambiente parado**: sobe o banco, aplica o snapshot, builda backend/worker/Nginx, roda migrations, cria arquivos mockados, sanitiza o banco, desliga tudo.
+- **Ambiente rodando**: para backend, worker e Nginx, aplica o snapshot, builda backend/worker/Nginx, roda migrations, cria arquivos mockados, sanitiza o banco, recria os serviços.
+
+API e worker ficam parados durante a substituição do banco. Uma falha na parada,
+restauração, migration ou sanitização interrompe o fluxo sem reiniciar esses
+serviços. Não iniciar o worker manualmente antes de resolver a falha e concluir
+a sanitização.
 
 O diretório apontado por `latest` é resolvido uma vez no início da execução. Banco e
 backup metadata sempre vêm desse mesmo diretório, mesmo que o backup de produção
@@ -287,7 +292,7 @@ atualize o symlink durante o sync. O dump `.gz` é validado antes de qualquer mu
 restaurado primeiro em um banco temporário com `ON_ERROR_STOP`; o banco de staging só é
 trocado após o restore completo retornar sucesso.
 
-O build é feito por padrão para garantir que migrations, backend e bundle React do Nginx
+O build é feito por padrão para garantir que migrations, backend, worker e bundle React do Nginx
 usem o código atual do branch. Para pular o build em um caso excepcional:
 
 ```bash
@@ -328,6 +333,54 @@ Mesmas variáveis do script de backup:
 ```
 
 ## Subida e parada manuais
+
+### Paridade de recursos com produção
+
+O Compose separa os jobs da API (`BACKGROUND_JOBS_IN_API=false`) e usa os mesmos
+limites, pools, parâmetros de PostgreSQL e healthchecks do Compose de produção:
+
+| Serviço | Limite de CPU | Limite de RAM | Pool |
+| --- | ---: | ---: | ---: |
+| API | 1,5 | 2 GiB | 8 |
+| Worker | 0,75 | 1,5 GiB | 2 |
+| PostgreSQL | 1,25 | 2 GiB | — |
+| Nginx | 0,25 | 256 MiB | — |
+
+São tetos por container, não reservas nem garantia de CPU disponível no host.
+Staging e produção ainda disputam os recursos da mesma VPS com os demais apps.
+`BACKEND_DATABASE_CONNECTION_LIMIT` e `WORKER_DATABASE_CONNECTION_LIMIT` alteram
+os pools; a variável genérica antiga `DATABASE_CONNECTION_LIMIT` do env-file é
+sobrescrita pelo Compose. Manter os defaults para a comparação. A API e o worker
+usam `.env.staging`, relatórios de staging e `SEND_CLIENT_EMAILS=false` explícito.
+
+Para migrar uma instalação que ainda roda jobs dentro da API, após atualizar o
+checkout e conferir os segredos e flags existentes, **rode no servidor**:
+
+```bash
+docker compose --env-file backend/.env.staging -f docker-compose.staging.yml config -q
+docker compose --env-file backend/.env.staging -f docker-compose.staging.yml build backend worker nginx
+# Interrompe staging durante a troca da API e do banco; preserva os volumes.
+docker compose --env-file backend/.env.staging -f docker-compose.staging.yml stop backend worker nginx
+docker compose --env-file backend/.env.staging -f docker-compose.staging.yml up -d --wait postgres
+docker compose --env-file backend/.env.staging -f docker-compose.staging.yml run --rm --no-deps backend sh -c "npx prisma migrate deploy"
+docker compose --env-file backend/.env.staging -f docker-compose.staging.yml up -d --wait --wait-timeout 180 backend worker nginx
+docker compose --env-file backend/.env.staging -f docker-compose.staging.yml ps
+```
+
+Execute a próxima linha apenas se a anterior passar. O PostgreSQL será recriado
+com seus parâmetros e `pg_stat_statements` pré-carregado. Esse fluxo de publicação
+não precisa de seed nem de sincronização/restauração do banco. O worker inicia
+somente após banco e API saudáveis. Para rollback, retornar o Compose e as imagens
+juntos, parando o worker antes de reativar uma API antiga com jobs internos.
+
+Antes do aceite, repetir a navegação e a medição com os limites aplicados; observar
+memória, OOM, reinícios, progresso dos jobs e fila do pool. A API de staging sem
+limite chegou a 2,20 GiB em 12/11; a coleta local de configuração não comprova que
+o conjunto real ficará dentro de 2 GiB. Não ampliar o orçamento para fazer o teste
+passar. Confirmar `pg_stat_statements` consultável e `/health` saudável; a saúde do
+Nginx é verificada separadamente em `/nginx-health`, preservando a allowlist.
+
+### Operação rotineira
 
 ```bash
 # Subir

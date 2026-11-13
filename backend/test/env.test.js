@@ -59,6 +59,24 @@ test('loadEnv permite configurar o limite de páginas das assinaturas', () => {
   assert.equal(env.assinaturasMaxPages, 250);
 });
 
+test('cache layer controls preserve legacy defaults and accept individual opt-outs', () => {
+  const fields = {
+    ACOMPANHAMENTO_RESPONSE_CACHE_ENABLED: 'acompanhamentoResponseCacheEnabled',
+    ACOMPANHAMENTO_MONTHLY_CACHE_ENABLED: 'acompanhamentoMonthlyCacheEnabled',
+    ACOMPANHAMENTO_REFERENCE_CACHE_ENABLED: 'acompanhamentoReferenceCacheEnabled',
+    ACOMPANHAMENTO_PROGRESS_CACHE_ENABLED: 'acompanhamentoProgressCacheEnabled'
+  };
+  const defaults = loadEnv({ DATABASE_URL: databaseUrl });
+  assert.equal(defaults.acompanhamentoReadCacheEnabled, false);
+  for (const [variable, field] of Object.entries(fields)) {
+    assert.equal(defaults[field], true);
+    const configured = loadEnv({ DATABASE_URL: databaseUrl, ACOMPANHAMENTO_READ_CACHE_ENABLED: 'true', [variable]: 'false' });
+    assert.equal(configured[field], false);
+    assert.equal(configured.acompanhamentoReadCacheEnabled, true);
+    assert.throws(() => loadEnv({ DATABASE_URL: databaseUrl, [variable]: 'invalid' }), new RegExp(variable));
+  }
+});
+
 test('loadEnv selects and parses Microsoft OAuth2 application authentication', () => {
   const env = loadEnv({
     DATABASE_URL: databaseUrl,

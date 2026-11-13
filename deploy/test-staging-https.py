@@ -137,6 +137,10 @@ req.end();
                 return response
 
             eventually(lambda: expect_status(allowed, 200, "/health"))
+            assert docker("exec", nginx, "wget", "-q", "-O", "-",
+                          "http://127.0.0.1/nginx-health") == "ok"
+            health = expect_status(allowed, 200, "/nginx-health")
+            assert health["body"] == "ok\n", health
             for path in ["/api", "/api/check", "/uploads/check", "/relatorios/check",
                          "/certificados-calibracao/check", "/health", "/assets/missing-test-asset"]:
                 response = expect_status(allowed, 200, path, headers={
@@ -152,7 +156,7 @@ req.end();
             expect_status(allowed, 200)
             print("PASS: trusted TLS, SPA, all upstream routes, client IP and HTTPS headers", flush=True)
 
-            for path in ["/", "/health", "/api/check"]:
+            for path in ["/", "/health", "/nginx-health", "/api/check"]:
                 expect_status(blocked, 403, path)
                 expect_status(blocked, 403, path, headers={"X-Forwarded-For": "127.0.0.1"})
                 expect_status(blocked, 403, path, tls=False, direct=True, headers={

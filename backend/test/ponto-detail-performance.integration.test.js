@@ -262,4 +262,63 @@ test('PostgreSQL + HTTP: point projections and batched group sources preserve co
   assert.equal((await request('?view=unknown')).status, 400);
   await fixture.workerWrite();
   assert.equal((await request('?view=reconciliation')).body.unmatched.length, metadata.unmatched.length + 1);
+
+  await t.test('navigation counts preserve the full legacy contract without loading integration allocation data', async child => {
+    const { getPontoMaisPending } = await import('../src/lib/pontomais/sync.js');
+    const { getUnallocatedDays } = await import('../src/lib/acompanhamento/allocation-audit.js');
+    const prefix = fixture.prefix + '-badge-';
+    const employee = key => prefix + key;
+    const directoryIds = ['old', 'new', 'linked', 'ignored'].map(employee);
+    child.after(async () => {
+      await database.pontoSyncRun.deleteMany({ where: { id: { startsWith: prefix } } });
+      await database.pontoExternalEmployeeLink.deleteMany({ where: { externalEmployeeId: { in: directoryIds } } });
+      await database.pontoExternalEmployee.deleteMany({ where: { externalEmployeeId: { in: directoryIds } } });
+    });
+    const run = (id, keys, status = 'SUCCEEDED') => ({
+      id: prefix + id, status, periodStart: new Date('2025-01-01'), periodEnd: new Date('2025-01-31'),
+      completedAt: new Date('2025-02-01'), pendingCount: 999,
+      summary: { pending: { employees: keys.map(key => ({ externalEmployeeId: employee(key), externalName: 'Synthetic' })) } }
+    });
+    await database.pontoSyncRun.createMany({ data: [
+      run('old-run', ['old', 'linked', 'ignored']), run('recent-run', ['old', 'new']),
+      run('failed-run', ['failed-only'], 'FAILED')
+    ] });
+    await database.pontoExternalEmployee.createMany({ data: directoryIds.map(externalEmployeeId => ({
+      externalEmployeeId, externalName: 'Synthetic', ignoredAt: externalEmployeeId === employee('ignored') ? new Date() : null
+    })) });
+    await database.pontoExternalEmployeeLink.create({ data: { externalEmployeeId: employee('linked'),
+      externalName: 'Synthetic', collaboratorId: fixture.prefix + '-person-0' } });
+    const legacy = await getPontoMaisPending();
+    const unallocated = await getUnallocatedDays();
+    const countsEndpoint = 'http://127.0.0.1:' + server.address().port + '/api/acompanhamento/ponto/pendencias/contagem';
+    const countsRequest = async (token = fixture.sessions.admin[0]) => {
+      const response = await fetch(countsEndpoint, { headers: token ? { authorization: 'Bearer ' + token } : {} });
+      return { status: response.status, body: await response.json() };
+    };
+    assert.equal((await countsRequest(null)).status, 401);
+    assert.equal((await countsRequest(fixture.sessions.viewer[0])).status, 403);
+    assert.equal((await countsRequest(fixture.sessions.blocked[0])).status, 403);
+    const expected = {
+      unallocatedDays: unallocated.counts.actionableDays,
+      unallocatedBlocks: unallocated.actionable.length,
+      unallocatedHours: unallocated.counts.actionableHours,
+      conflictDays: unallocated.counts.conflictDays,
+      unlinkedEmployees: legacy.employees.length,
+      total: unallocated.counts.actionableDays + legacy.employees.length
+    };
+    assert.equal(expected.unlinkedEmployees, 2);
+    assert.deepEqual(await countsRequest(), { status: 200, body: expected });
+    const originals = [database.pontoPeriodSummary.findMany, database.report.findMany];
+    database.pontoPeriodSummary.findMany = database.report.findMany = () => { throw new Error('Badge must not reload monthly integration/allocation data'); };
+    try {
+      assert.deepEqual(await countsRequest(), { status: 200, body: expected });
+      await database.pontoExternalEmployee.update({ where: { externalEmployeeId: employee('ignored') }, data: { ignoredAt: null } });
+      assert.deepEqual((await countsRequest()).body, { ...expected, unlinkedEmployees: 3, total: expected.total + 1 });
+      await database.pontoExternalEmployeeLink.create({ data: { externalEmployeeId: employee('new'),
+        externalName: 'Synthetic', collaboratorId: fixture.prefix + '-person-0' } });
+      assert.deepEqual((await countsRequest()).body, expected);
+    } finally {
+      [database.pontoPeriodSummary.findMany, database.report.findMany] = originals;
+    }
+  });
 });

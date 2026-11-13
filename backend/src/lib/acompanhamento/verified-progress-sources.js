@@ -7,6 +7,7 @@ import { createDerivedReadCache, currentDerivedReadVersion } from '../operations
 const clients = new WeakMap();
 let nextClient = 0;
 const snapshots = createDerivedReadCache({ ttlMs: Math.min(env.dashboardCacheTtlMs, 15000),
+  cacheName: 'progress',
   maxEntries: 8, maxBytes: 8 * 1024 * 1024, maxEntryBytes: 2 * 1024 * 1024,
   encode: serialize, decode: deserialize });
 
@@ -15,7 +16,7 @@ const snapshots = createDerivedReadCache({ ttlMs: Math.min(env.dashboardCacheTtl
 // batches through the original protected reader. No unverified/worker sharing.
 export function readVerifiedProgressSources(database, projectIds, applyCorrections, loader) {
   const version = currentDerivedReadVersion();
-  if (!version || !hasRequestSourceContext()) return loader(projectIds);
+  if (!env.acompanhamentoProgressCacheEnabled || !version || !hasRequestSourceContext()) return loader(projectIds);
   if (!clients.has(database)) clients.set(database, ++nextClient);
   const client = clients.get(database), scope = projectAccessCacheKey();
   const ids = [...new Set(projectIds)];

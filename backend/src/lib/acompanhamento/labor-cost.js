@@ -43,7 +43,7 @@ import { getAnnualCollaboratorCosts } from './settings.js';
 import { buildProjectTagResolver, isPontoTravelTag } from '../pontomais/normalize.js';
 import { checkWorkforceAvailability } from '../collaborators/availability-service.js';
 import { collaboratorRoleAtDate, collaboratorRoleSegments } from '../collaborators/job-role-history.js';
-import { annotateActualRowsWithWorkforceConflicts, classifyActualWorkforceDays } from '../workforce/actual-conflicts.js';
+import { annotateActualRowsWithWorkforceConflicts, createActualWorkforceDayClassifier } from '../workforce/actual-conflicts.js';
 import { allocationPeriods } from '../efetivo/planning/allocation-period.js';
 import { loadConfirmedReviewDays } from '../efetivo/allocation-review/confirmed-days.js';
 import { SEDE_OMIE_CODES, SEDE_OPERATIONAL_CODES } from './sede-cost-centers.js';
@@ -2316,16 +2316,20 @@ async function computeCollaboratorRatesUncached(importId, { includeIgnoredNames 
     rates.push(entry);
     byCollaboratorId.set(period.collaboratorId, entry);
   }
-  const annotatedRates = annotateActualRowsWithWorkforceConflicts(rates, actualAvailability.conflicts).map(entry => ({
-    ...entry,
-    workforceCalendarRevision: actualAvailability.calendarRevision,
-    workforceDays: classifyActualWorkforceDays({
+  const annotatedRates = measureRequestStage('labor.workforce.days', () => {
+    const classifyDays = createActualWorkforceDayClassifier({
       startDate: dateKeyUTC(pontoScope.periodStart),
-      endDate: dateKeyUTC(pontoScope.periodEnd),
-      workedDates: entry.workedDates,
-      conflicts: actualAvailability.conflicts.filter(conflict => conflict.collaboratorId === entry.collaboratorId)
-    })
-  }));
+      endDate: dateKeyUTC(pontoScope.periodEnd)
+    });
+    return annotateActualRowsWithWorkforceConflicts(rates, actualAvailability.conflicts).map(entry => ({
+      ...entry,
+      workforceCalendarRevision: actualAvailability.calendarRevision,
+      workforceDays: classifyDays({
+        workedDates: entry.workedDates,
+        conflicts: actualAvailability.conflicts.filter(conflict => conflict.collaboratorId === entry.collaboratorId)
+      })
+    }));
+  });
   const annotatedByCollaboratorId = new Map(annotatedRates.map(entry => [entry.collaboratorId, entry]));
   return {
     pontoImport: pontoScope.pontoImport,

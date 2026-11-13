@@ -36,6 +36,28 @@ test('overlapping verified reads load each missing project once in batches and o
   assert.equal(batches.length, 2);
 });
 
+test('overlapping pages share pending projects beyond the completed cache capacity', async t => {
+  clean(t);
+  const client = {}, ids = Array.from({ length: 24 }, (_, index) => 'project-' + index), batches = [];
+  let start, release;
+  const started = new Promise(resolve => { start = resolve; });
+  const gate = new Promise(resolve => { release = resolve; });
+  const loader = async selected => {
+    batches.push(selected); start(); await gate;
+    return new Map(selected.map(id => [id, [{ value: id }]]));
+  };
+  const first = read('v-large', () => readVerifiedProgressSources(client, ids, true, loader));
+  await started;
+  const second = read('v-large', () => readVerifiedProgressSources(client, ids.slice(0, 12), true, loader));
+  release();
+  const [cards, detail] = await Promise.all([first, second]);
+  assert.deepEqual(batches, [ids], 'The completed eight-entry LRU cannot drop pending projects');
+  assert.deepEqual([...cards.keys()], ids);
+  assert.deepEqual([...detail.keys()], ids.slice(0, 12));
+  cards.get(ids[0])[0].value = 'mutated';
+  assert.equal(detail.get(ids[0])[0].value, ids[0]);
+});
+
 test('client, scope, channel, correction mode and source revision isolate progress sources', async t => {
   clean(t);
   const client = {}, other = {};

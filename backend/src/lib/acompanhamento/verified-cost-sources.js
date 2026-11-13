@@ -11,12 +11,13 @@ import { hasRequestSourceContext } from '../operations/request-sources.js';
 const clients = new WeakMap();
 let nextClient = 0;
 const snapshots = createDerivedReadCache({ ttlMs: Math.min(env.dashboardCacheTtlMs, 15000),
+  cacheName: 'references',
   maxEntries: 16, maxBytes: 4 * 1024 * 1024, maxEntryBytes: 1024 * 1024,
   encode: serialize, decode: deserialize });
 
 export function readVerifiedCostSource(database, key, loader) {
   const version = currentDerivedReadVersion();
-  if (!version || !hasRequestSourceContext()) return loader();
+  if (!env.acompanhamentoReferenceCacheEnabled || !version || !hasRequestSourceContext()) return loader();
   if (!clients.has(database)) clients.set(database, ++nextClient);
   return snapshots.get(version, [clients.get(database), projectAccessCacheKey(), key], loader);
 }
