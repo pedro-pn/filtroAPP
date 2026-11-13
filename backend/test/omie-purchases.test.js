@@ -178,12 +178,14 @@ test('página final removida durante a leitura exige uma nova confirmação do f
   await syncOmiePurchases({ db, call: async (_path, _method, { pagina }) => {
     if (pagina === 2) throw Object.assign(new Error('Página não existe mais'), { status: 400 });
     firstPageCalls++;
-    return response([title()], { total_de_paginas: firstPageCalls === 1 ? 2 : 1,
+    return response([title({ codigo_lancamento_omie: firstPageCalls === 1 ? 1 : 2 })], { total_de_paginas: firstPageCalls === 1 ? 2 : 1,
       total_de_registros: firstPageCalls === 1 ? 2 : 1 });
   } });
   assert.equal(firstPageCalls, 2);
   assert.equal(events.at(-1).args.data.summary.paginationChanges, 1);
   assert.equal(events.at(-1).type, 'SUCCESS');
+  assert.ok(events.find(event => event.type === 'batch').rows.some(row => row.omieId === '2'),
+    'a nova consulta também importa os títulos válidos que acabou de encontrar');
 });
 
 for (const [name, consult] of [

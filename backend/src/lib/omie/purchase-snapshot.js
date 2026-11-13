@@ -101,7 +101,7 @@ export async function readPurchaseSnapshot({ call, linked, categoryNames, existi
       // Só aceite o fim antecipado quando uma nova consulta válida o comprova.
       const latest = pageInfo(await read('ListarContasPagar', { ...params, pagina: 1 }), 1);
       if (latest.pageCount >= page) throw error;
-      info = { ...latest, rows: [] };
+      info = latest;
     }
     const { count, pageCount, rows } = info;
     if (previousPages !== null && (summary.sourceTotalEnd !== count || previousPages !== pageCount)) summary.paginationChanges++;
