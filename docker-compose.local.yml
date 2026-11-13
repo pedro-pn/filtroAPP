@@ -29,6 +29,7 @@ services:
       - backend/.env.docker.local
     environment:
       ASSINATURAS_MAX_PDF_MB: "200"
+      ASSINATURAS_MAX_PAGES: "500"
     depends_on:
       postgres:
         condition: service_healthy

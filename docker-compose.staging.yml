@@ -55,6 +55,7 @@ services:
     environment:
       BACKGROUND_JOBS_IN_API: "false"
       ASSINATURAS_MAX_PDF_MB: "200"
+      ASSINATURAS_MAX_PAGES: "500"
       APP_ENV: staging
       SEND_CLIENT_EMAILS: "false"
       COMERCIALAPP_ALLOW_STAGING_HTTP: ${COMERCIALAPP_ALLOW_STAGING_HTTP:-false}
@@ -90,6 +91,7 @@ services:
     environment:
       BACKGROUND_JOBS_IN_API: "false"
       ASSINATURAS_MAX_PDF_MB: "200"
+      ASSINATURAS_MAX_PAGES: "500"
       APP_ENV: staging
       SEND_CLIENT_EMAILS: "false"
       COMERCIALAPP_ALLOW_STAGING_HTTP: ${COMERCIALAPP_ALLOW_STAGING_HTTP:-false}
