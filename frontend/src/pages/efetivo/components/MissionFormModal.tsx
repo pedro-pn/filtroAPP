@@ -3,7 +3,7 @@ import { Controller, useForm, useWatch } from 'react-hook-form';
 import { useEffect, useRef, useState } from 'react';
 import { z } from 'zod';
 
-import type { MissionInput, PendingMissionProject, PlanningCoordinator, PlanningJobRole, PlanningMission } from '../../../api/efetivoPlanning';
+import type { MissionAllocation, MissionInput, PendingMissionProject, PlanningCoordinator, PlanningJobRole, PlanningMission } from '../../../api/efetivoPlanning';
 import { Alert, Button, Field, Input, Select } from '../../../components/ui/ds';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { Modal } from '../../../components/ui/Modal';
@@ -81,6 +81,21 @@ function initialValues(mission: PlanningMission | null, project: PendingMissionP
   };
 }
 
+function confirmEmploymentPayload(payload: MissionInput, allocations: MissionAllocation[]): MissionInput {
+  const selected = allocations.filter(allocation => payload.collaboratorIds.includes(allocation.collaboratorId));
+  return {
+    ...payload,
+    confirmedPreAdmissionCollaboratorIds: [...new Set([
+      ...(payload.confirmedPreAdmissionCollaboratorIds || []),
+      ...selected.filter(allocation => allocation.collaborator?.rhStatus === 'PRE_ADMISSION').map(allocation => allocation.collaboratorId)
+    ])],
+    confirmedInactiveCollaboratorIds: [...new Set([
+      ...(payload.confirmedInactiveCollaboratorIds || []),
+      ...selected.filter(allocation => allocation.collaborator?.isActive === false).map(allocation => allocation.collaboratorId)
+    ])]
+  };
+}
+
 export function MissionFormModal({ open, mission, project, planId, roles, rolesLoading, coordinators, coordinatorsLoading, saving, onClose, onSubmit }: {
   open: boolean;
   mission: PlanningMission | null;
@@ -95,6 +110,7 @@ export function MissionFormModal({ open, mission, project, planId, roles, rolesL
   onSubmit: (payload: MissionInput) => void;
 }) {
   const [confirmedMissionOverlapCollaboratorIds, setConfirmedMissionOverlapCollaboratorIds] = useState<string[]>([]);
+  const [confirmedPreAdmissionCollaboratorIds, setConfirmedPreAdmissionCollaboratorIds] = useState<string[]>([]);
   const [confirmedInactiveCollaboratorIds, setConfirmedInactiveCollaboratorIds] = useState<string[]>([]);
   const [pendingInactiveSubmission, setPendingInactiveSubmission] = useState<MissionInput | null>(null);
   const individualPeriodBoundsRef = useRef({ startDate: '', endDate: '' });
@@ -106,6 +122,7 @@ export function MissionFormModal({ open, mission, project, planId, roles, rolesL
     const values = initialValues(mission, project, planId);
     reset(values);
     setConfirmedInactiveCollaboratorIds([]);
+    setConfirmedPreAdmissionCollaboratorIds([]);
     setPendingInactiveSubmission(null);
     individualPeriodBoundsRef.current = {
       startDate: values.mobilizationDate,
@@ -135,11 +152,11 @@ export function MissionFormModal({ open, mission, project, planId, roles, rolesL
     || invalidAllocationPeriod?.message
     || invalidAllocationPeriod?.mobilizationDate?.message
     || invalidAllocationPeriod?.demobilizationDate?.message;
-  const inactiveAllocations = (mission?.allocations || []).filter(allocation => allocation.collaborator?.isActive === false);
+  const inactiveAllocations = (mission?.allocations || []).filter(allocation => allocation.collaborator?.isActive === false || allocation.collaborator?.rhStatus === 'PRE_ADMISSION');
   const submit = (values: FormValues) => {
-    const payload: MissionInput = { ...values, returnDate: values.returnDate || null, planId, confirmedMissionOverlapCollaboratorIds, confirmedInactiveCollaboratorIds };
+    const payload: MissionInput = { ...values, returnDate: values.returnDate || null, planId, confirmedMissionOverlapCollaboratorIds, confirmedInactiveCollaboratorIds, confirmedPreAdmissionCollaboratorIds };
     if (inactiveAllocations.some(allocation => values.collaboratorIds.includes(allocation.collaboratorId)
-      && !confirmedInactiveCollaboratorIds.includes(allocation.collaboratorId))) {
+      && !(allocation.collaborator?.rhStatus === 'PRE_ADMISSION' ? confirmedPreAdmissionCollaboratorIds : confirmedInactiveCollaboratorIds).includes(allocation.collaboratorId))) {
       setPendingInactiveSubmission(payload);
     } else onSubmit(payload);
   };
@@ -186,7 +203,7 @@ export function MissionFormModal({ open, mission, project, planId, roles, rolesL
               </Field>
             </div>
           </fieldset>
-          <Controller name="collaboratorIds" control={control} render={({ field }) => <MissionTeamSelector mission={mission} planId={planId} roles={roles} selectedIds={field.value} allocationPeriods={allocationPeriods || []} startDate={teamStartDate || ''} endDate={teamEndDate} loading={rolesLoading} disabled={saving} error={errors.collaboratorIds?.message || allocationPeriodError} onAllocationPeriodsChange={periods => setValue('allocationPeriods', periods, { shouldDirty: true, shouldValidate: true })} onChange={(ids, confirmedIds, inactiveIds) => {
+          <Controller name="collaboratorIds" control={control} render={({ field }) => <MissionTeamSelector mission={mission} planId={planId} roles={roles} selectedIds={field.value} allocationPeriods={allocationPeriods || []} startDate={teamStartDate || ''} endDate={teamEndDate} loading={rolesLoading} disabled={saving} error={errors.collaboratorIds?.message || allocationPeriodError} onAllocationPeriodsChange={periods => setValue('allocationPeriods', periods, { shouldDirty: true, shouldValidate: true })} onChange={(ids, confirmedIds, inactiveIds, _selected, preAdmissionIds) => {
             const periodsById = new Map((allocationPeriods || []).map(period => [period.collaboratorId, period]));
             const nextPeriods = ids.map(collaboratorId => periodsById.get(collaboratorId) || {
               collaboratorId,
@@ -197,19 +214,17 @@ export function MissionFormModal({ open, mission, project, planId, roles, rolesL
             setValue('allocationPeriods', nextPeriods, { shouldDirty: true, shouldValidate: true });
             setConfirmedMissionOverlapCollaboratorIds(confirmedIds);
             setConfirmedInactiveCollaboratorIds(inactiveIds);
+            setConfirmedPreAdmissionCollaboratorIds(preAdmissionIds);
           }} />} />
       </form>
     </Modal>
-    <ConfirmDialog appearance="design-system" open={Boolean(pendingInactiveSubmission)} title="Registrar histórico de colaboradores inativos?"
-      description="A equipe contém colaboradores inativos. Confirme o registro das datas de mobilização e desmobilização para manter o histórico da missão."
+    <ConfirmDialog appearance="design-system" open={Boolean(pendingInactiveSubmission)} title="Confirmar condição dos colaboradores?"
+      description="A equipe contém colaboradores inativos ou em pré-admissão, ainda sem ativação pelo RH. Confirme a mobilização nessas condições."
       highlight={inactiveAllocations.filter(allocation => pendingInactiveSubmission?.collaboratorIds.includes(allocation.collaboratorId)).map(allocation => allocation.collaborator?.name).join(', ')}
       confirmLabel="Confirmar e salvar" confirmDisabled={saving} danger={false}
       onConfirm={() => {
         if (!pendingInactiveSubmission) return;
-        onSubmit({ ...pendingInactiveSubmission, confirmedInactiveCollaboratorIds: [...new Set([
-          ...(pendingInactiveSubmission.confirmedInactiveCollaboratorIds || []),
-          ...inactiveAllocations.filter(allocation => pendingInactiveSubmission.collaboratorIds.includes(allocation.collaboratorId)).map(allocation => allocation.collaboratorId)
-        ])] });
+        onSubmit(confirmEmploymentPayload(pendingInactiveSubmission, inactiveAllocations));
         setPendingInactiveSubmission(null);
       }} onCancel={() => setPendingInactiveSubmission(null)} />
     </>
@@ -272,12 +287,12 @@ export function InitialTeamAvailabilityModal({ open, mission, project, planId, r
   if (!open) return null;
 
   const identity = mission?.project || project;
-  const inactiveAllocations = (mission?.allocations || []).filter(allocation => allocation.collaborator?.isActive === false);
+  const inactiveAllocations = (mission?.allocations || []).filter(allocation => allocation.collaborator?.isActive === false || allocation.collaborator?.rhStatus === 'PRE_ADMISSION');
   const datesValid = Boolean(mobilizationDate && executionStartDate && executionEndDate
     && mobilizationDate <= executionStartDate && executionStartDate <= executionEndDate);
   const showDateForm = !datesConfirmed || !datesValid;
 
-  const trySubmit = (ids: string[], periods: typeof allocationPeriods, confirmedOverlapIds: string[], confirmedInactiveIds: string[]) => {
+  const trySubmit = (ids: string[], periods: typeof allocationPeriods, confirmedOverlapIds: string[], confirmedInactiveIds: string[], confirmedPreAdmissionIds: string[]) => {
     const synchronizedPeriods = synchronizeMissionAllocationPeriods(
       ids,
       periods,
@@ -296,9 +311,10 @@ export function InitialTeamAvailabilityModal({ open, mission, project, planId, r
       allocationPeriods: synchronizedPeriods,
       planId,
       confirmedMissionOverlapCollaboratorIds: confirmedOverlapIds,
-      confirmedInactiveCollaboratorIds: confirmedInactiveIds
+      confirmedInactiveCollaboratorIds: confirmedInactiveIds,
+      confirmedPreAdmissionCollaboratorIds: confirmedPreAdmissionIds
     };
-    if (inactiveAllocations.some(allocation => ids.includes(allocation.collaboratorId) && !confirmedInactiveIds.includes(allocation.collaboratorId))) {
+    if (inactiveAllocations.some(allocation => ids.includes(allocation.collaboratorId) && !(allocation.collaborator?.rhStatus === 'PRE_ADMISSION' ? confirmedPreAdmissionIds : confirmedInactiveIds).includes(allocation.collaboratorId))) {
       setPendingInactiveSubmission(payload);
       return;
     }
@@ -337,7 +353,7 @@ export function InitialTeamAvailabilityModal({ open, mission, project, planId, r
           minSelected={1}
           onCancel={onClose}
           onAllocationPeriodsChange={setAllocationPeriods}
-          onChange={(ids, confirmedOverlapIds, confirmedInactiveIds) => {
+          onChange={(ids, confirmedOverlapIds, confirmedInactiveIds, _selected, preAdmissionIds) => {
             const nextPeriods = synchronizeMissionAllocationPeriods(
               ids,
               allocationPeriods,
@@ -346,20 +362,17 @@ export function InitialTeamAvailabilityModal({ open, mission, project, planId, r
             );
             setCollaboratorIds(ids);
             setAllocationPeriods(nextPeriods);
-            trySubmit(ids, nextPeriods, confirmedOverlapIds, confirmedInactiveIds);
+            trySubmit(ids, nextPeriods, confirmedOverlapIds, confirmedInactiveIds, preAdmissionIds);
           }}
         />
       )}
-      <ConfirmDialog appearance="design-system" open={Boolean(pendingInactiveSubmission)} title="Registrar histórico de colaboradores inativos?"
-        description="A equipe contém colaboradores inativos. Confirme o registro das datas de mobilização e desmobilização para manter o histórico da missão."
+      <ConfirmDialog appearance="design-system" open={Boolean(pendingInactiveSubmission)} title="Confirmar condição dos colaboradores?"
+        description="A equipe contém colaboradores inativos ou em pré-admissão, ainda sem ativação pelo RH. Confirme a mobilização nessas condições."
         highlight={inactiveAllocations.filter(allocation => pendingInactiveSubmission?.collaboratorIds.includes(allocation.collaboratorId)).map(allocation => allocation.collaborator?.name).join(', ')}
         confirmLabel="Confirmar e salvar" confirmDisabled={saving} danger={false}
         onConfirm={() => {
           if (!pendingInactiveSubmission) return;
-          onSubmit({ ...pendingInactiveSubmission, confirmedInactiveCollaboratorIds: [...new Set([
-            ...(pendingInactiveSubmission.confirmedInactiveCollaboratorIds || []),
-            ...inactiveAllocations.filter(allocation => pendingInactiveSubmission.collaboratorIds.includes(allocation.collaboratorId)).map(allocation => allocation.collaboratorId)
-          ])] });
+          onSubmit(confirmEmploymentPayload(pendingInactiveSubmission, inactiveAllocations));
           setPendingInactiveSubmission(null);
         }} onCancel={() => setPendingInactiveSubmission(null)} />
     </>

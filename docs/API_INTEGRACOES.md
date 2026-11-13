@@ -1,5 +1,7 @@
 # API de integrações
 
+A recepção de RH do Conecta está documentada em [RH — Conecta → FiltroAPP](INTEGRACAO_CONECTA_RH.md), incluindo pré-admissão e datas provisórias.
+
 A exportação da conferência diária para o Conecta está disponível em
 `GET /api/integracoes/v1/efetivo/conferencia/alocacoes`, com o escopo
 `efetivo.conferencia.read`. Consulte o [contrato e exemplos](INTEGRACAO_CONECTA_ALOCACOES.md)

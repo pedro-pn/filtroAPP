@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 
 import asyncHandler from '../lib/async-handler.js';
+import { getConectaCompliance } from '../lib/conecta-rh/service.js';
 import { requireEfetivoManager, requireEfetivoViewer } from '../lib/efetivo/access.js';
 import {
   deleteHoliday,
@@ -166,6 +167,14 @@ router.get('/availability', requireEfetivoViewer, asyncHandler(async (req, res) 
 
 router.get('/collaborators', requireEfetivoViewer, asyncHandler(async (req, res) => {
   res.json(await listPlanningCollaborators(collaboratorListQuerySchema.parse(req.query)));
+}));
+
+router.get('/collaborators/:collaboratorId/rh', requireEfetivoViewer, asyncHandler(async (req, res) => {
+  const id = idSchema.parse(req.params.collaboratorId);
+  const date = dateOnlySchema.parse(req.query.date);
+  const items = await getConectaCompliance(prisma, id, date);
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(items.map(({ id, category, typeCode, title, status, issuedOn, expiresOn, hasNoExpiry }) => ({ id, category, typeCode, title, status, issuedOn, expiresOn, hasNoExpiry })));
 }));
 
 router.post('/collaborators', requireEfetivoManager, asyncHandler(async (req, res) => {

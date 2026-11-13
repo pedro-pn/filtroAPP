@@ -5,6 +5,9 @@ const pick = (row, fields) => Object.fromEntries(fields.map(field => [field, row
 // Projeções explícitas, lidas antes do rollback, sem identificadores alocados
 // provisoriamente. Também representam corretamente replays e versões antigas.
 export async function projectWritePreview(tx, operationId, result) {
+  if (operationId === 'rh.conecta.events.post') {
+    return pick(result, ['status', 'reasonCode']);
+  }
   if (operationId === 'logistics.unloadings.create') {
     return pick(result, ['romaneioId', 'tipo', 'confirmadaEm', 'confirmadaPorEmail']);
   }

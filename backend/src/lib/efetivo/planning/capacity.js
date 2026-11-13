@@ -13,7 +13,7 @@ export function isCollaboratorActiveOn(collaborator, value) {
   const date = parseDateKey(value);
   const admission = collaborator.admissionDate ? parseDateKey(collaborator.admissionDate) : null;
   const termination = collaborator.terminationDate ? parseDateKey(collaborator.terminationDate) : null;
-  if (admission && date < admission) return false;
+  if (collaborator.rhStatus !== 'PRE_ADMISSION' && admission && date < admission) return false;
   if (termination && date > termination) return false;
   return collaborator.isActive !== false || Boolean(termination && date <= termination);
 }

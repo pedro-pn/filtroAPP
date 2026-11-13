@@ -141,7 +141,7 @@ export function buildMissionAvailabilityColumns(
 
     const admissionDate = collaborator.admissionDate ? dateKey(collaborator.admissionDate) : null;
     const terminationDate = collaborator.terminationDate ? dateKey(collaborator.terminationDate) : null;
-    const employedThroughout = periods.every(period => (!admissionDate || admissionDate <= period.startDate)
+    const employedThroughout = periods.every(period => (collaborator.rhStatus === 'PRE_ADMISSION' || !admissionDate || admissionDate <= period.startDate)
       && (!terminationDate || terminationDate >= period.endDate)
       && (collaborator.isActive || Boolean(terminationDate && terminationDate >= period.endDate)));
     if (employedThroughout) columns.AVAILABLE.push({ collaborator, status: 'AVAILABLE', mission: null, absence: null });

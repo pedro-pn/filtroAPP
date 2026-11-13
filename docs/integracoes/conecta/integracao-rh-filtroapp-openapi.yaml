@@ -1,0 +1,264 @@
+openapi: 3.1.0
+info:
+  title: Conecta — API de leitura de RH para o FiltroAPP
+  version: "1.0"
+  description: >
+    Feed, snapshot, consulta individual e evidências dos fatos de RH publicados pelo Conecta.
+    Ver docs/integracao-rh-filtroapp.md para semântica, adequações ao contrato e operação.
+servers:
+  - url: /api/integracoes/filtroapp/v1
+security:
+  - bearer: []
+paths:
+  /changes:
+    get:
+      summary: Feed incremental de envelopes
+      parameters:
+        - $ref: "#/components/parameters/companyId"
+        - $ref: "#/components/parameters/cursor"
+        - $ref: "#/components/parameters/limit"
+      responses:
+        "200":
+          description: Página do feed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, nextCursor, hasMore, generatedAt]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Envelope" } }
+                  nextCursor: { type: string }
+                  hasMore: { type: boolean }
+                  generatedAt: { type: string, format: date-time }
+        "400": { $ref: "#/components/responses/Erro" }
+        "401": { $ref: "#/components/responses/Erro" }
+        "403": { $ref: "#/components/responses/Erro" }
+        "410":
+          description: CURSOR_EXPIRED — cursor mais antigo que a retenção de 90 dias
+          content: { application/json: { schema: { $ref: "#/components/schemas/Erro" } } }
+  /snapshots:
+    post:
+      summary: Inicia um snapshot consistente
+      parameters:
+        - $ref: "#/components/parameters/companyId"
+      responses:
+        "201":
+          description: Snapshot criado; expira em 24 horas
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [snapshotId, watermarkCursor, expiresAt]
+                properties:
+                  snapshotId: { type: string, format: uuid }
+                  watermarkCursor: { type: string }
+                  expiresAt: { type: string, format: date-time }
+        "401": { $ref: "#/components/responses/Erro" }
+        "403": { $ref: "#/components/responses/Erro" }
+  /snapshots/{snapshotId}/{recurso}:
+    get:
+      summary: Página de um snapshot
+      parameters:
+        - { name: snapshotId, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: "#/components/parameters/recurso"
+        - $ref: "#/components/parameters/companyId"
+        - $ref: "#/components/parameters/cursor"
+        - $ref: "#/components/parameters/limit"
+      responses:
+        "200":
+          description: Página
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, nextCursor, hasMore, snapshotId, watermarkCursor]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Envelope" } }
+                  nextCursor: { type: [string, "null"] }
+                  hasMore: { type: boolean }
+                  snapshotId: { type: string, format: uuid }
+                  watermarkCursor: { type: string }
+        "403":
+          description: job-role-salaries sem o escopo rh.salarios.leitura
+          content: { application/json: { schema: { $ref: "#/components/schemas/Erro" } } }
+        "404": { $ref: "#/components/responses/Erro" }
+        "410":
+          description: SNAPSHOT_EXPIRED
+          content: { application/json: { schema: { $ref: "#/components/schemas/Erro" } } }
+  /{recurso}/{id}:
+    get:
+      summary: Estado atual versionado de um agregado
+      parameters:
+        - $ref: "#/components/parameters/recurso"
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: "#/components/parameters/companyId"
+      responses:
+        "200":
+          description: Último envelope publicado
+          content: { application/json: { schema: { $ref: "#/components/schemas/Envelope" } } }
+        "403": { $ref: "#/components/responses/Erro" }
+        "404": { $ref: "#/components/responses/Erro" }
+  /evidence/{id}:
+    get:
+      summary: Link curto para baixar a evidência de um item de conformidade
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: version, in: query, required: true, schema: { type: string, format: uuid } }
+        - $ref: "#/components/parameters/companyId"
+      responses:
+        "200":
+          description: Link assinado, válido por 5 minutos
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, version, url, expiresAt]
+                properties:
+                  id: { type: string, format: uuid }
+                  version: { type: string, format: uuid }
+                  url: { type: string, format: uri }
+                  expiresAt: { type: string, format: date-time }
+        "404":
+          description: Sem evidência, inexistente, ou ASO/toxicológico (sempre)
+          content: { application/json: { schema: { $ref: "#/components/schemas/Erro" } } }
+        "410":
+          description: EVIDENCE_REVOKED ou EVIDENCE_SUPERSEDED
+          content: { application/json: { schema: { $ref: "#/components/schemas/Erro" } } }
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer }
+  parameters:
+    companyId:
+      name: companyId
+      in: query
+      required: true
+      schema: { type: string, format: uuid }
+    cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Opaco e assinado; use exatamente o nextCursor recebido.
+      schema: { type: string }
+    limit:
+      name: limit
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+    recurso:
+      name: recurso
+      in: path
+      required: true
+      schema:
+        type: string
+        enum: [job-roles, job-role-salaries, employments, role-changes, compliance]
+  responses:
+    Erro:
+      description: Erro
+      content: { application/json: { schema: { $ref: "#/components/schemas/Erro" } } }
+  schemas:
+    Erro:
+      type: object
+      required: [error, requestId]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+        requestId: { type: string, format: uuid }
+    Envelope:
+      type: object
+      required: [schemaVersion, eventId, companyId, eventType, aggregateType, aggregateId, revision, occurredAt, data]
+      properties:
+        schemaVersion: { const: "1.0" }
+        eventId: { type: string, format: uuid }
+        companyId: { type: string, format: uuid }
+        eventType:
+          enum: [job_role.upserted, job_role_salary.upserted, employment.upserted, role_change.upserted, compliance.upserted]
+        aggregateType: { enum: [job_role, job_role_salary, employment, role_change, compliance] }
+        aggregateId: { type: string, format: uuid }
+        revision: { type: integer, minimum: 1 }
+        occurredAt: { type: string, format: date-time }
+        data:
+          oneOf:
+            - $ref: "#/components/schemas/JobRole"
+            - $ref: "#/components/schemas/JobRoleSalary"
+            - $ref: "#/components/schemas/Employment"
+            - $ref: "#/components/schemas/RoleChange"
+            - $ref: "#/components/schemas/Compliance"
+    JobRole:
+      type: object
+      required: [id, name, isActive, isOperational, cbo]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        isActive: { type: boolean }
+        isOperational: { type: boolean }
+        cbo: { type: [string, "null"] }
+    JobRoleSalary:
+      type: object
+      required: [id, jobRoleId, amount, currency, basis, effectiveDate, status, supersedesId]
+      properties:
+        id: { type: string, format: uuid }
+        jobRoleId: { type: string, format: uuid }
+        amount: { type: string, pattern: "^[0-9]+\\.[0-9]{2}$" }
+        currency: { const: BRL }
+        basis: { const: MONTHLY }
+        effectiveDate: { type: string, format: date }
+        status: { enum: [ACTIVE, CANCELLED] }
+        supersedesId: { type: [string, "null"], format: uuid }
+    Employment:
+      type: object
+      required: [personId, employmentId, name, cpf, registrationNumber, email, isOperational, admissionDate, terminationDate, status, currentJobRoleId]
+      properties:
+        personId: { type: string, format: uuid }
+        employmentId: { type: string, format: uuid }
+        name: { type: string }
+        cpf: { type: [string, "null"], pattern: "^[0-9]{11}$" }
+        registrationNumber: { type: [string, "null"] }
+        email: { type: [string, "null"] }
+        isOperational: { type: boolean }
+        admissionDate: { type: [string, "null"], format: date }
+        terminationDate: { type: [string, "null"], format: date }
+        status:
+          enum: [PRE_ADMISSION, ACTIVE, TERMINATED, CANCELLED]
+          description: PRE_ADMISSION = contratado que ainda não foi ativado no RH; mobilizável, com aviso.
+        currentJobRoleId: { type: [string, "null"], format: uuid }
+    RoleChange:
+      type: object
+      required: [id, personId, employmentId, jobRoleId, effectiveDate, status, supersedesId]
+      properties:
+        id: { type: string, format: uuid }
+        personId: { type: string, format: uuid }
+        employmentId: { type: string, format: uuid }
+        jobRoleId: { type: string, format: uuid }
+        effectiveDate: { type: string, format: date }
+        status: { enum: [ACTIVE, CANCELLED] }
+        supersedesId: { type: [string, "null"], format: uuid }
+    Compliance:
+      type: object
+      required: [id, personId, employmentId, category, typeCode, title, status, issuedOn, expiresOn, hasNoExpiry, evidence]
+      properties:
+        id: { type: string, format: uuid }
+        personId: { type: string, format: uuid }
+        employmentId: { type: "null" }
+        category: { enum: [DOCUMENT, EXAM, TRAINING, CERTIFICATE] }
+        typeCode: { type: string }
+        title: { type: string }
+        status: { enum: [VALID, EXPIRED, REVOKED, PENDING, UNKNOWN] }
+        issuedOn: { type: [string, "null"], format: date }
+        expiresOn: { type: [string, "null"], format: date }
+        hasNoExpiry: { type: boolean }
+        evidence:
+          oneOf:
+            - type: "null"
+            - type: object
+              required: [id, version, contentType, fileName, authenticatedDownloadPath, expiresAt]
+              properties:
+                id: { type: string, format: uuid }
+                version: { type: string, format: uuid }
+                contentType: { type: string }
+                fileName: { type: string }
+                authenticatedDownloadPath: { type: string }
+                expiresAt: { type: "null" }

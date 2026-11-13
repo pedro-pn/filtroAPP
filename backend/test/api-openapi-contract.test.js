@@ -115,6 +115,11 @@ test('all administrative, quality and operational operations have unique IDs and
       assert.equal(route?.methods.post, true, `Rota de escrita ausente: ${path}`);
       continue;
     }
+    if (['receiveConectaRhEvent', 'getConectaRhReceipt'].includes(operation.operationId)) {
+      const routes = await readFile(new URL('../src/routes/integrations/v1/conecta-rh.js', import.meta.url), 'utf8');
+      assert.ok(routes.includes(operation.operationId === 'receiveConectaRhEvent' ? "router.post('/eventos'" : "router.get('/recebimentos/:id'"));
+      continue;
+    }
     const handler = handlers[operation.operationId];
     assert.ok(handler, `Handler não mapeado: ${operation.operationId}`);
     const [routeSource, method, path] = handler;

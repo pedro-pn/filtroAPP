@@ -40,6 +40,7 @@ export function clearProjectDerivedCaches() {
 }
 
 export function clearCollaboratorDerivedCaches() {
+  if (isApiWriteSimulation()) return;
   collaboratorsCache.clear();
   clearProjectDerivedCaches();
 }

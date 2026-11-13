@@ -61,7 +61,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
   minSelected?: number;
   singleSelection?: boolean;
   excludedIds?: string[];
-  onChange: (value: string[], confirmedMissionOverlapCollaboratorIds: string[], confirmedInactiveCollaboratorIds: string[], selectedCollaborators: PlanningCollaborator[]) => void;
+  onChange: (value: string[], confirmedMissionOverlapCollaboratorIds: string[], confirmedInactiveCollaboratorIds: string[], selectedCollaborators: PlanningCollaborator[], confirmedPreAdmissionCollaboratorIds: string[]) => void;
   onAllocationPeriodsChange: (value: AllocationPeriodDraft[]) => void;
   onCancel?: () => void;
 }) {
@@ -70,6 +70,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [activityFilter, setActivityFilter] = useState<CollaboratorActivityFilter>('ACTIVE');
+  const [preAdmissionConfirmationIds, setPreAdmissionConfirmationIds] = useState<string[]>([]);
   const [inactiveConfirmationIds, setInactiveConfirmationIds] = useState<string[]>([]);
   const [draftIds, setDraftIds] = useState<string[]>(selectedIds);
   const [overlapConfirmationIds, setOverlapConfirmationIds] = useState<string[]>([]);
@@ -113,6 +114,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
         admissionDate: null,
         terminationDate: null,
         isActive: collaborator.isActive ?? true,
+        rhStatus: collaborator.rhStatus,
         status: 'OUTSIDE_EMPLOYMENT' as const,
         plannedUtilization90d: null,
         vacationAlert: null
@@ -146,6 +148,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
     && (activityFilter === 'ACTIVE' || collaborator.isActive !== false));
   const inactivePeople = filterMissionTeamCollaborators(filterCollaboratorsByActivity(options, 'INACTIVE'), search)
     .filter(person => !roleFilter || person.jobRoleId === roleFilter);
+  const preAdmissionDraftIds = options.filter(person => person.rhStatus === 'PRE_ADMISSION' && draftIds.includes(person.id)).map(person => person.id);
   const inactiveDraftIds = options.filter(person => person.isActive === false && draftIds.includes(person.id)).map(person => person.id);
   const blockedDraftIds = new Set([
     ...columns.ON_VACATION.map(entry => entry.collaborator.id),
@@ -159,21 +162,23 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
       && otherMission.scheduleStatus === 'CONFIRMED'
       && otherMission.allocations.some(allocation => allocation.collaboratorId === id
         && periodsByCollaboratorId.get(id)?.some(period => allocationOverlapsPeriod(allocation, otherMission, period.startDate, period.endDate)))));
-  const applyTeam = (confirmedIds: string[] = [], confirmedInactiveIds: string[] = []) => {
+  const applyTeam = (confirmedIds: string[] = [], confirmedInactiveIds: string[] = [], confirmedPreAdmissionIds: string[] = []) => {
     if (disabled || !validPeriod || queryLoading || queryError || draftIds.length < minSelected || blockedDraftIds.size || editingPeriod) return;
     onChange(draftIds, [...new Set([
       ...existingConfirmedOverlapIds.filter(id => draftIds.includes(id)),
       ...confirmedIds
-    ])], confirmedInactiveIds, options.filter(item => draftIds.includes(item.id)));
+    ])], confirmedInactiveIds, options.filter(item => draftIds.includes(item.id)), confirmedPreAdmissionIds);
     setOverlapConfirmationIds([]);
     setInactiveConfirmationIds([]);
+    setPreAdmissionConfirmationIds([]);
     setOpen(false);
   };
   const requestApplyTeam = () => {
     if (disabled || !validPeriod || queryLoading || queryError || draftIds.length < minSelected || blockedDraftIds.size || editingPeriod) return;
-    if (overlappingDraftIds.length || inactiveDraftIds.length) {
+    if (overlappingDraftIds.length || inactiveDraftIds.length || preAdmissionDraftIds.length) {
       setOverlapConfirmationIds(overlappingDraftIds);
       setInactiveConfirmationIds(inactiveDraftIds);
+      setPreAdmissionConfirmationIds(preAdmissionDraftIds);
       return;
     }
     applyTeam();
@@ -288,7 +293,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
                             return <Card padding="sm" selected={selected} className="efetivo-team-choice-card" data-collaborator-id={entry.collaborator.id} key={entry.collaborator.id}>
                               <label className="efetivo-team-choice">
                                 <input type="checkbox" checked={selected} disabled={disabled || (!selectable && !selected)} onChange={event => setDraftIds(current => toggleDraft(current, entry.collaborator.id, event.target.checked))} />
-                                <span className="efetivo-team-choice-person"><i aria-hidden="true">{initials(entry.collaborator.name)}</i><span><strong>{entry.collaborator.name}</strong><small>{entry.collaborator.role || 'Cargo não informado'}</small></span></span>
+                                <span className="efetivo-team-choice-person"><i aria-hidden="true">{initials(entry.collaborator.name)}</i><span><strong>{entry.collaborator.name}</strong>{entry.collaborator.rhStatus === 'PRE_ADMISSION' ? <Badge>Pré-admissão</Badge> : null}<small>{entry.collaborator.role || 'Cargo não informado'}</small></span></span>
                               </label>
                               {entry.mission ? <p className="efetivo-team-help">{entry.mission.project.code} · {entry.mission.project.name}<br />Mobilização em {displayDateOnly(entry.mission.mobilizationDate)}</p> : null}
                               {hasMissionOverlap ? <p className="efetivo-team-warning">Exige confirmação de sobreposição.</p> : null}
@@ -307,15 +312,15 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
         </div>
       </Modal>, document.body)}
       <ConfirmDialog appearance="design-system"
-        open={overlapConfirmationIds.length > 0 || inactiveConfirmationIds.length > 0}
-        title={inactiveConfirmationIds.length ? 'Confirmar colaboradores inativos?' : 'Confirmar colaborador em mais de uma missão?'}
-        description={[inactiveConfirmationIds.length ? 'A equipe inclui colaboradores inativos. Confirme a inclusão para registrar o histórico de mobilização e desmobilização.' : '', overlapConfirmationIds.length ? 'Há colaboradores em outra missão no período. A sobreposição também será confirmada.' : ''].filter(Boolean).join(' ')}
-        highlight={[...new Set([...inactiveConfirmationIds, ...overlapConfirmationIds])].map(id => options.find(item => item.id === id)?.name).filter(Boolean).join(', ')}
-        confirmLabel={inactiveConfirmationIds.length ? 'Confirmar inclusão' : 'Confirmar sobreposição'}
+        open={overlapConfirmationIds.length > 0 || inactiveConfirmationIds.length > 0 || preAdmissionConfirmationIds.length > 0}
+        title={preAdmissionConfirmationIds.length ? 'Mobilizar colaborador em pré-admissão?' : inactiveConfirmationIds.length ? 'Confirmar colaboradores inativos?' : 'Confirmar colaborador em mais de uma missão?'}
+        description={[preAdmissionConfirmationIds.length ? 'Há colaboradores em pré-admissão, ainda sem ativação pelo RH no Conecta. Confirme que deseja mobilizá-los nessa condição.' : '', inactiveConfirmationIds.length ? 'A equipe inclui colaboradores inativos. Confirme a inclusão para registrar o histórico de mobilização e desmobilização.' : '', overlapConfirmationIds.length ? 'Há colaboradores em outra missão no período. A sobreposição também será confirmada.' : ''].filter(Boolean).join(' ')}
+        highlight={[...new Set([...preAdmissionConfirmationIds, ...inactiveConfirmationIds, ...overlapConfirmationIds])].map(id => options.find(item => item.id === id)?.name).filter(Boolean).join(', ')}
+        confirmLabel={preAdmissionConfirmationIds.length ? 'Confirmar mobilização' : inactiveConfirmationIds.length ? 'Confirmar inclusão' : 'Confirmar sobreposição'}
         confirmDisabled={disabled || !validPeriod || queryLoading || queryError}
         danger={false}
-        onConfirm={() => applyTeam(overlapConfirmationIds, inactiveConfirmationIds)}
-        onCancel={() => { setOverlapConfirmationIds([]); setInactiveConfirmationIds([]); }}
+        onConfirm={() => applyTeam(overlapConfirmationIds, inactiveConfirmationIds, preAdmissionConfirmationIds)}
+        onCancel={() => { setOverlapConfirmationIds([]); setInactiveConfirmationIds([]); setPreAdmissionConfirmationIds([]); }}
       />
     </>
   );

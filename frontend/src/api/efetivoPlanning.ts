@@ -91,7 +91,7 @@ export interface MissionAllocation {
   demobilizationDate: DateOnly | null;
   allowMissionOverlap: boolean;
   cycles?: MobilizationCycle[];
-  collaborator?: { id: string; name: string; isActive?: boolean; role: string; jobRoleId: string | null };
+  collaborator?: { id: string; name: string; isActive?: boolean; rhStatus?: 'PRE_ADMISSION' | 'ACTIVE' | 'TERMINATED' | 'CANCELLED' | null; role: string; jobRoleId: string | null };
   jobRole?: { id: string; name: string };
 }
 
@@ -172,6 +172,7 @@ export interface MissionInput {
   }>;
   confirmedMissionOverlapCollaboratorIds?: string[];
   confirmedInactiveCollaboratorIds?: string[];
+  confirmedPreAdmissionCollaboratorIds?: string[];
 }
 
 export interface ContinuousStayAlert {
@@ -250,6 +251,8 @@ export interface PlanningCollaborator {
   admissionDate: DateOnly | null;
   terminationDate: DateOnly | null;
   isActive: boolean;
+  rhStatus?: 'PRE_ADMISSION' | 'ACTIVE' | 'TERMINATED' | 'CANCELLED' | null;
+  admissionDateProvisional?: boolean;
   status: CollaboratorPlanningStatus;
   plannedUtilization90d: number | null;
   vacationAlert: VacationAlert | null;
@@ -387,28 +390,28 @@ export async function deletePlanningMission(id: string) {
 export async function listEligibleCollaborators(missionId: string, jobRoleId: string, period: { mobilizationDate?: DateOnly; demobilizationDate?: DateOnly; includeInactive?: boolean } = {}) {
   return (await apiClient.get<EligibleMissionCollaborator[]>(`${base}/missions/${encodeURIComponent(missionId)}/eligible-collaborators`, { params: { jobRoleId, ...period } })).data;
 }
-export async function addMissionAllocation(missionId: string, payload: { collaboratorId: string; jobRoleId: string; mobilizationDate?: DateOnly; demobilizationDate?: DateOnly; allowMissionOverlap?: boolean; allowInactiveCollaborator?: boolean }) {
+export async function addMissionAllocation(missionId: string, payload: { collaboratorId: string; jobRoleId: string; mobilizationDate?: DateOnly; demobilizationDate?: DateOnly; allowMissionOverlap?: boolean; allowPreAdmissionCollaborator?: boolean; allowInactiveCollaborator?: boolean }) {
   return (await apiClient.post<MissionAllocation>(`${base}/missions/${encodeURIComponent(missionId)}/allocations`, payload)).data;
 }
-export async function updateMissionAllocationPeriod(missionId: string, allocationId: string, payload: { mobilizationDate: DateOnly; demobilizationDate: DateOnly; allowMissionOverlap?: boolean; allowInactiveCollaborator?: boolean }) {
+export async function updateMissionAllocationPeriod(missionId: string, allocationId: string, payload: { mobilizationDate: DateOnly; demobilizationDate: DateOnly; allowMissionOverlap?: boolean; allowPreAdmissionCollaborator?: boolean; allowInactiveCollaborator?: boolean }) {
   return (await apiClient.patch<MissionAllocation>(`${base}/missions/${encodeURIComponent(missionId)}/allocations/${encodeURIComponent(allocationId)}`, payload)).data;
 }
 export async function removeMissionAllocation(missionId: string, allocationId: string) {
   await apiClient.delete(`${base}/missions/${encodeURIComponent(missionId)}/allocations/${encodeURIComponent(allocationId)}`);
 }
-export async function createMissionCycle(missionId: string, payload: { mobilizationDate: DateOnly; demobilizationDate?: DateOnly | null; allowInactiveCollaborator?: boolean }) {
+export async function createMissionCycle(missionId: string, payload: { mobilizationDate: DateOnly; demobilizationDate?: DateOnly | null; allowPreAdmissionCollaborator?: boolean; allowInactiveCollaborator?: boolean }) {
   return (await apiClient.post<MobilizationCycle>(`${base}/missions/${encodeURIComponent(missionId)}/cycles`, payload)).data;
 }
-export async function updateMissionCycle(missionId: string, cycleId: string, payload: { mobilizationDate: DateOnly; demobilizationDate?: DateOnly | null; allowInactiveCollaborator?: boolean }) {
+export async function updateMissionCycle(missionId: string, cycleId: string, payload: { mobilizationDate: DateOnly; demobilizationDate?: DateOnly | null; allowPreAdmissionCollaborator?: boolean; allowInactiveCollaborator?: boolean }) {
   return (await apiClient.patch<MobilizationCycle>(`${base}/missions/${encodeURIComponent(missionId)}/cycles/${encodeURIComponent(cycleId)}`, payload)).data;
 }
 export async function initializeMissionAllocationCycles(missionId: string, allocationId: string) {
   return (await apiClient.post<MobilizationCycle[]>(`${base}/missions/${encodeURIComponent(missionId)}/allocations/${encodeURIComponent(allocationId)}/cycles/inherit`)).data;
 }
-export async function createMissionAllocationCycle(missionId: string, allocationId: string, payload: { mobilizationDate: DateOnly; demobilizationDate?: DateOnly | null; allowInactiveCollaborator?: boolean }) {
+export async function createMissionAllocationCycle(missionId: string, allocationId: string, payload: { mobilizationDate: DateOnly; demobilizationDate?: DateOnly | null; allowPreAdmissionCollaborator?: boolean; allowInactiveCollaborator?: boolean }) {
   return (await apiClient.post<MobilizationCycle>(`${base}/missions/${encodeURIComponent(missionId)}/allocations/${encodeURIComponent(allocationId)}/cycles`, payload)).data;
 }
-export async function updateMissionAllocationCycle(missionId: string, allocationId: string, cycleId: string, payload: { mobilizationDate: DateOnly; demobilizationDate?: DateOnly | null; allowInactiveCollaborator?: boolean }) {
+export async function updateMissionAllocationCycle(missionId: string, allocationId: string, cycleId: string, payload: { mobilizationDate: DateOnly; demobilizationDate?: DateOnly | null; allowPreAdmissionCollaborator?: boolean; allowInactiveCollaborator?: boolean }) {
   return (await apiClient.patch<MobilizationCycle>(`${base}/missions/${encodeURIComponent(missionId)}/allocations/${encodeURIComponent(allocationId)}/cycles/${encodeURIComponent(cycleId)}`, payload)).data;
 }
 export async function deleteMissionAllocationCycle(missionId: string, allocationId: string, cycleId: string) {
@@ -490,4 +493,19 @@ export async function listNotificationEmailSettings() {
 }
 export async function updateNotificationEmailSetting(purpose: string, email: string) {
   return (await apiClient.patch<Pick<NotificationEmailSetting, 'email' | 'updatedAt' | 'updatedByUserId'>>(`${base}/admin/notification-emails`, { purpose, email })).data;
+}
+
+export interface RhComplianceItem {
+  id: string;
+  category: string;
+  typeCode: string;
+  title: string;
+  status: string;
+  issuedOn: DateOnly | null;
+  expiresOn: DateOnly | null;
+  hasNoExpiry: boolean;
+}
+
+export async function getPlanningRhCompliance(collaboratorId: string, date: DateOnly) {
+  return (await apiClient.get<RhComplianceItem[]>(`${base}/collaborators/${encodeURIComponent(collaboratorId)}/rh`, { params: { date } })).data;
 }

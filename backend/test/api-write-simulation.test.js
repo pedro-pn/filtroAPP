@@ -9,6 +9,7 @@ import { createApiToken } from '../src/lib/api-credentials/token.js';
 import { createApiTokenAuthenticator, createApiSimulationPreferenceResolver } from '../src/middleware/api-token-auth.js';
 import { apiRequestContext, integrationApiBoundary, integrationApiErrorHandler } from '../src/middleware/api-request-context.js';
 import { createIntegrationQualityRouter } from '../src/routes/integrations/v1/qualidade.js';
+import { createConectaRhRouter } from '../src/routes/integrations/v1/conecta-rh.js';
 import { createOperationalRouter } from '../src/routes/integrations/v1/operational.js';
 import { executePlaygroundOperation } from '../src/lib/api-credentials/playground.js';
 import { updateCredentialWriteMode, rotateCredential, createCredential } from '../src/lib/api-credentials/service.js';
@@ -19,7 +20,7 @@ import { integrationWriteSimulationFailures } from '../../scripts/check-integrat
 import fs from 'node:fs/promises';
 
 const key = 'synthetic-api-simulation-hmac-key-at-least-32';
-const envConfig = { apiTokenGlobalMaxPageSize: 500, apiTokenHashKeys: { 1: key }, apiTokenActiveKeyVersion: 1,
+const envConfig = { conectaRhCompanyId: '00000000-0000-4000-8000-000000000001', apiTokenGlobalMaxPageSize: 500, apiTokenHashKeys: { 1: key }, apiTokenActiveKeyVersion: 1,
   crmPlanningEnvironment: 'sandbox', crmPlanningTenantId: 'filtrovali' };
 
 test('simulação das escritas: HTTP, Prisma e rollback de todas as tabelas PostgreSQL', { timeout: 120_000 }, async t => {
@@ -49,6 +50,7 @@ test('simulação das escritas: HTTP, Prisma e rollback de todas as tabelas Post
     integrationApiBoundary({ allowedOrigins: ['https://example.test'] }), express.json());
   app.use(createApiTokenAuthenticator({ prismaClient: prisma, envConfig }));
   app.use('/api/integracoes/v1/qualidade', createIntegrationQualityRouter({ prismaClient: prisma, envConfig }));
+  app.use('/api/integracoes/v1/rh/conecta', createConectaRhRouter({ prismaClient: prisma, envConfig }));
   app.use('/api/integracoes/v1', createOperationalRouter({ prismaClient: prisma, envConfig }));
   const errors = [];
   app.use((error, req, res, next) => { errors.push(error); next(error); });
@@ -124,7 +126,7 @@ test('simulação das escritas: HTTP, Prisma e rollback de todas as tabelas Post
     await assertSimulated(id, path, body, { ...options, auth: simulated });
     const before = await snapshot();
     const real = await request(path, body, options);
-    assert.equal(real.status, 201, JSON.stringify(real)); assert.equal(real.header, null); assert.equal('simulated' in real.body, false);
+    assert.equal(real.status, id === 'rh.conecta.events.post' ? 202 : 201, JSON.stringify(real)); assert.equal(real.header, null); assert.equal('simulated' in real.body, false);
     assert.notDeepEqual(await snapshot(), before, `${id}: LIVE persiste`);
     if (id === 'quality.records.create') assert.equal(real.body.number, result.body.would.previewNumber, 'simulação não consome número');
     await assertSimulated(id, path, body, { ...options, prefer: 'validate-only' });

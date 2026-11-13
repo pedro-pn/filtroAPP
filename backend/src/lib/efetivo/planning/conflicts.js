@@ -13,7 +13,7 @@ export function collaboratorIsEmployedForPeriod(collaborator, period, { allowIna
   const admission = collaborator.admissionDate ? parseDateKey(collaborator.admissionDate) : null;
   const termination = collaborator.terminationDate ? parseDateKey(collaborator.terminationDate) : null;
   return (collaborator.isActive !== false || allowInactiveCollaborator)
-    && (!admission || admission <= parseDateKey(period.startDate))
+    && (collaborator.rhStatus === 'PRE_ADMISSION' || !admission || admission <= parseDateKey(period.startDate))
     && (!termination || termination >= parseDateKey(period.endDate));
 }
 
@@ -26,9 +26,14 @@ export function collectAllocationConflicts({
   ignoredMissionId = null,
   allowMissionOverlap = false,
   allowInactiveCollaborator = false,
+  allowPreAdmissionCollaborator = false,
   requireCandidateMissionOverlapConfirmation = false
 }) {
   const conflicts = [];
+  if (collaborator.rhStatus === 'PRE_ADMISSION' && !allowPreAdmissionCollaborator) {
+    conflicts.push(conflictDescriptor({ collaborator, ...period, sourceType: 'EMPLOYMENT', sourceId: collaborator.id,
+      code: 'PRE_ADMISSION_CONFIRMATION_REQUIRED', entityPath: `/efetivo?section=colaboradores&colaborador=${collaborator.id}` }));
+  }
   if (!collaboratorIsEmployedForPeriod(collaborator, period, { allowInactiveCollaborator })) {
     conflicts.push(conflictDescriptor({
       collaborator,

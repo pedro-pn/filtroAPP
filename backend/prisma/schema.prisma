@@ -579,6 +579,10 @@ model Collaborator {
   registrationNumber             String?
   admissionDate                  DateTime?
   terminationDate                DateTime?
+  rhStatus                       String?
+  rhEmploymentId                 String?
+  rhFirstReceivedAt              DateTime?
+  admissionDateProvisional       Boolean                          @default(false)
   signatureImage                 String?
   signatureNoticeAcceptedAt      DateTime?
   signatureNoticeVersion         String?
@@ -607,8 +611,63 @@ model Collaborator {
   allocationReviewRows           AllocationReviewRow[]
   allocationReviewDays           AllocationReviewDay[]
   allocationReviewAbsenceAlerts  AllocationReviewAbsenceAlert[]
+  conectaPerson                  ConectaRhPerson?
 
   @@index([jobRoleId])
+}
+
+// Estado de origem separado das projeções locais: preserva vínculos, revisões e datas desconhecidas.
+model ConectaRhAggregate {
+  id                String             @id @default(cuid())
+  companyId         String
+  aggregateType     String
+  externalId        String
+  revision          Int
+  data              Json
+  occurredAt        DateTime
+  firstReceivedAt   DateTime           @default(now())
+  lastAttemptAt     DateTime?
+  localId           String?
+  status            String             @default("PENDING")
+  reasonCode        String?
+  receipts          ConectaRhReceipt[]
+
+  @@unique([companyId, aggregateType, externalId])
+  @@index([companyId, aggregateType, status])
+}
+
+model ConectaRhReceipt {
+  id             String             @id @default(cuid())
+  companyId      String
+  eventId        String
+  aggregateId    String
+  revision       Int
+  payloadHash    String
+  versionHash    String
+  status         String
+  reasonCode     String?
+  receivedAt     DateTime           @default(now())
+  aggregate      ConectaRhAggregate @relation(fields: [aggregateId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, eventId])
+  @@index([aggregateId, revision])
+  @@index([companyId, status])
+}
+
+model ConectaRhPerson {
+  id             String       @id @default(cuid())
+  companyId      String
+  personId       String
+  collaboratorId String       @unique
+  collaborator   Collaborator @relation(fields: [collaboratorId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, personId])
+}
+
+model ConectaRhSyncState {
+  companyId String   @id
+  cursor    String?
+  updatedAt DateTime @updatedAt
 }
 
 model CollaboratorJobRoleHistory {

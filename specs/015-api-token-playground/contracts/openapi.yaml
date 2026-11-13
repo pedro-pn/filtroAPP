@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: FiltroApp - Administração e API de Integrações
-  version: "1.14.0"
+  version: "1.15.0"
   description: >-
     Contrato da gestão administrativa de credenciais, consultas externas e escrita
     contratada do CRM Prisma no Efetivo. Tokens de integração e sessões humanas
@@ -5634,6 +5634,143 @@ paths:
           $ref: "#/components/responses/RateLimited"
 
 
+  /integracoes/v1/rh/conecta/eventos:
+    post:
+      tags:
+        - IntegrationOperational
+      operationId: receiveConectaRhEvent
+      summary: Receber evento de RH do Conecta
+      description: Exige acesso ALL. Idempotency-Key igual ao eventId. Revisões não podem reutilizar conteúdo diferente.
+        PENDING aguarda dependência ou conciliação; statusUrl informa o resultado. Salário exige escopo adicional. Datas
+        provisórias não ativam o vínculo.
+      security:
+        - IntegrationToken: []
+      x-required-scopes:
+        - rh.conecta.eventos.write
+      x-optional-scopes:
+        - rh.conecta.salarios.write
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/PreferValidateOnly"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConectaRhEnvelope"
+      responses:
+        "200":
+          description: Simulação com rollback
+          headers: &a1
+            Preference-Applied:
+              $ref: "#/components/headers/PreferenceApplied"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimulatedWriteResult"
+        "202":
+          description: Evento persistido; consulte statusUrl. Duplicatas mantêm receiptId e receivedAt.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConectaRhReceipt"
+        "400":
+          description: Erro de recepção. error.code identifica a causa.
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConectaRhErro"
+        "401": &a2
+          description: Erro de recepção. error.code identifica a causa.
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConectaRhErro"
+        "403": &a3
+          description: Erro de recepção. error.code identifica a causa.
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConectaRhErro"
+        "409":
+          description: Erro de recepção. error.code identifica a causa.
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConectaRhErro"
+        "413":
+          description: Erro de recepção. error.code identifica a causa.
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConectaRhErro"
+        "422":
+          description: Erro de recepção. error.code identifica a causa.
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConectaRhErro"
+        "429": &a4
+          description: Erro de recepção. error.code identifica a causa.
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConectaRhErro"
+        "500":
+          description: Erro de recepção. error.code identifica a causa.
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConectaRhErro"
+        "503": &a5
+          description: Erro de recepção. error.code identifica a causa.
+          headers: *a1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConectaRhErro"
+  /integracoes/v1/rh/conecta/recebimentos/{id}:
+    get:
+      tags:
+        - IntegrationOperational
+      operationId: getConectaRhReceipt
+      summary: Consultar aplicação do evento de RH
+      security:
+        - IntegrationToken: []
+      x-required-scopes:
+        - rh.conecta.eventos.write
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Estado atual do recebimento
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConectaRhReceipt"
+        "401": *a2
+        "403": *a3
+        "404":
+          description: Recebimento inexistente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConectaRhErro"
+        "429": *a4
+        "503": *a5
+
 components:
   securitySchemes:
     AdminSession:
@@ -7245,3 +7382,336 @@ components:
             - SIMULATE
           default: LIVE
           description: SIMULATE sempre executa escritas com rollback, mesmo sem Prefer.
+
+    ConectaRhErro:
+      type: object
+      required:
+        - error
+        - requestId
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+        requestId:
+          type: string
+          format: uuid
+    ConectaRhEnvelope:
+      type: object
+      required:
+        - schemaVersion
+        - eventId
+        - companyId
+        - eventType
+        - aggregateType
+        - aggregateId
+        - revision
+        - occurredAt
+        - data
+      properties:
+        schemaVersion:
+          const: "1.0"
+        eventId:
+          type: string
+          format: uuid
+        companyId:
+          type: string
+          format: uuid
+        eventType:
+          enum:
+            - job_role.upserted
+            - job_role_salary.upserted
+            - employment.upserted
+            - role_change.upserted
+            - compliance.upserted
+        aggregateType:
+          enum:
+            - job_role
+            - job_role_salary
+            - employment
+            - role_change
+            - compliance
+        aggregateId:
+          type: string
+          format: uuid
+        revision:
+          type: integer
+          minimum: 1
+        occurredAt:
+          type: string
+          format: date-time
+        data:
+          oneOf:
+            - $ref: "#/components/schemas/ConectaRhJobRole"
+            - $ref: "#/components/schemas/ConectaRhJobRoleSalary"
+            - $ref: "#/components/schemas/ConectaRhEmployment"
+            - $ref: "#/components/schemas/ConectaRhRoleChange"
+            - $ref: "#/components/schemas/ConectaRhCompliance"
+    ConectaRhJobRole:
+      type: object
+      required:
+        - id
+        - name
+        - isActive
+        - isOperational
+        - cbo
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        isActive:
+          type: boolean
+        isOperational:
+          type: boolean
+        cbo:
+          type:
+            - string
+            - "null"
+    ConectaRhJobRoleSalary:
+      type: object
+      required:
+        - id
+        - jobRoleId
+        - amount
+        - currency
+        - basis
+        - effectiveDate
+        - status
+        - supersedesId
+      properties:
+        id:
+          type: string
+          format: uuid
+        jobRoleId:
+          type: string
+          format: uuid
+        amount:
+          type: string
+          pattern: ^[0-9]+\.[0-9]{2}$
+        currency:
+          const: BRL
+        basis:
+          const: MONTHLY
+        effectiveDate:
+          type: string
+          format: date
+        status:
+          enum:
+            - ACTIVE
+            - CANCELLED
+        supersedesId:
+          type:
+            - string
+            - "null"
+          format: uuid
+    ConectaRhEmployment:
+      type: object
+      required:
+        - personId
+        - employmentId
+        - name
+        - cpf
+        - registrationNumber
+        - email
+        - isOperational
+        - admissionDate
+        - terminationDate
+        - status
+        - currentJobRoleId
+      properties:
+        personId:
+          type: string
+          format: uuid
+        employmentId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        cpf:
+          type:
+            - string
+            - "null"
+          pattern: ^[0-9]{11}$
+        registrationNumber:
+          type:
+            - string
+            - "null"
+        email:
+          type:
+            - string
+            - "null"
+        isOperational:
+          type: boolean
+        admissionDate:
+          type:
+            - string
+            - "null"
+          format: date
+        terminationDate:
+          type:
+            - string
+            - "null"
+          format: date
+        status:
+          enum:
+            - PRE_ADMISSION
+            - ACTIVE
+            - TERMINATED
+            - CANCELLED
+          description: PRE_ADMISSION = contratado que ainda não foi ativado no RH; mobilizável, com aviso.
+        currentJobRoleId:
+          type:
+            - string
+            - "null"
+          format: uuid
+    ConectaRhRoleChange:
+      type: object
+      required:
+        - id
+        - personId
+        - employmentId
+        - jobRoleId
+        - effectiveDate
+        - status
+        - supersedesId
+      properties:
+        id:
+          type: string
+          format: uuid
+        personId:
+          type: string
+          format: uuid
+        employmentId:
+          type: string
+          format: uuid
+        jobRoleId:
+          type: string
+          format: uuid
+        effectiveDate:
+          type:
+            - string
+            - "null"
+          format: date
+          description: Se ausente na pré-admissão, usa a admissão informada ou a data do primeiro recebimento do vínculo, no
+            calendário America/Sao_Paulo.
+        status:
+          enum:
+            - ACTIVE
+            - CANCELLED
+        supersedesId:
+          type:
+            - string
+            - "null"
+          format: uuid
+    ConectaRhCompliance:
+      type: object
+      required:
+        - id
+        - personId
+        - employmentId
+        - category
+        - typeCode
+        - title
+        - status
+        - issuedOn
+        - expiresOn
+        - hasNoExpiry
+        - evidence
+      properties:
+        id:
+          type: string
+          format: uuid
+        personId:
+          type: string
+          format: uuid
+        employmentId:
+          type: "null"
+        category:
+          enum:
+            - DOCUMENT
+            - EXAM
+            - TRAINING
+            - CERTIFICATE
+        typeCode:
+          type: string
+        title:
+          type: string
+        status:
+          enum:
+            - VALID
+            - EXPIRED
+            - REVOKED
+            - PENDING
+            - UNKNOWN
+        issuedOn:
+          type:
+            - string
+            - "null"
+          format: date
+        expiresOn:
+          type:
+            - string
+            - "null"
+          format: date
+        hasNoExpiry:
+          type: boolean
+        evidence:
+          oneOf:
+            - type: "null"
+            - type: object
+              required:
+                - id
+                - version
+                - contentType
+                - fileName
+                - authenticatedDownloadPath
+                - expiresAt
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                version:
+                  type: string
+                  format: uuid
+                contentType:
+                  type: string
+                fileName:
+                  type: string
+                authenticatedDownloadPath:
+                  type: string
+                expiresAt:
+                  type: "null"
+    ConectaRhReceipt:
+      type: object
+      required:
+        - receiptId
+        - statusUrl
+        - status
+        - receivedAt
+        - requestId
+      properties:
+        receiptId:
+          type: string
+        statusUrl:
+          type: string
+        status:
+          enum:
+            - PENDING
+            - APPLIED
+            - SUPERSEDED
+            - FAILED
+        reasonCode:
+          type: string
+        receivedAt:
+          type: string
+          format: date-time
+        requestId:
+          type: string

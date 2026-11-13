@@ -109,6 +109,7 @@ export const missionUpdateInputSchema = z.object({
     'Cada colaborador deve possuir somente um período individual.'
   ),
   confirmedMissionOverlapCollaboratorIds: z.array(idSchema).max(500).optional().default([]),
+  confirmedPreAdmissionCollaboratorIds: z.array(idSchema).max(500).optional().default([]),
   confirmedInactiveCollaboratorIds: z.array(idSchema).max(500).optional().default([])
 }).superRefine((value, context) => {
   const collaboratorIds = new Set(value.collaboratorIds);
@@ -144,6 +145,7 @@ export const allocationInputSchema = z.object({
   mobilizationDate: dateOnlySchema.optional(),
   demobilizationDate: dateOnlySchema.optional(),
   allowMissionOverlap: z.boolean().optional().default(false),
+  allowPreAdmissionCollaborator: z.boolean().optional().default(false),
   allowInactiveCollaborator: z.boolean().optional().default(false)
 }).refine(value => !value.mobilizationDate || !value.demobilizationDate || value.demobilizationDate >= value.mobilizationDate, {
   path: ['demobilizationDate'],
@@ -154,6 +156,7 @@ export const allocationPeriodInputSchema = z.object({
   mobilizationDate: dateOnlySchema,
   demobilizationDate: dateOnlySchema,
   allowMissionOverlap: z.boolean().optional().default(false),
+  allowPreAdmissionCollaborator: z.boolean().optional().default(false),
   allowInactiveCollaborator: z.boolean().optional().default(false)
 }).refine(value => value.demobilizationDate >= value.mobilizationDate, {
   path: ['demobilizationDate'],
@@ -163,6 +166,7 @@ export const allocationPeriodInputSchema = z.object({
 export const mobilizationCycleInputSchema = z.object({
   mobilizationDate: dateOnlySchema,
   demobilizationDate: dateOnlySchema.nullable().optional(),
+  allowPreAdmissionCollaborator: z.boolean().optional().default(false),
   allowInactiveCollaborator: z.boolean().optional().default(false)
 }).refine(value => !value.demobilizationDate || value.demobilizationDate >= value.mobilizationDate, {
   path: ['demobilizationDate'],
