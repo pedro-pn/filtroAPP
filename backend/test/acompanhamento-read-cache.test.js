@@ -57,3 +57,16 @@ test('response-only caching still verifies every request, isolates users and ref
   assert.equal(calls, 3, 'Verification failure must not run the loader or return an old DTO');
   assert.equal(revisions, 5);
 });
+
+test('object readers still receive independent DTOs when response storage keeps serialized JSON', async t => {
+  clean(t);
+  const database = { $queryRaw: async () => [{ revision: 'v', server: 's', database: 'object-response-test' }] };
+  const reader = createAcompanhamentoReader({ database, config: config({ acompanhamentoResponseCacheEnabled: true }) });
+  let calls = 0;
+  const read = () => request(() => reader(req, 'mutable-consumer', () => {
+    calls++; return { rows: [{ total: 10 }] };
+  }));
+  const first = await read(); first.rows[0].total = 99; first.rows.push({ total: 20 });
+  assert.deepEqual(await read(), { rows: [{ total: 10 }] });
+  assert.equal(calls, 1);
+});

@@ -34,7 +34,7 @@ import { getMissionGroupRomaneios, getProjectRomaneios } from '../../lib/acompan
 import { groupProjectCards } from '../../lib/acompanhamento/project-card-groups.js';
 import { groupDashboardRows } from '../../lib/acompanhamento/dashboard-groups.js';
 import { getProjectDetail } from '../../lib/acompanhamento/project-detail.js';
-import { readAcompanhamentoResponse } from '../../lib/acompanhamento/read-cache.js';
+import { sendAcompanhamentoResponse } from '../../lib/acompanhamento/read-cache.js';
 import { getProjectInvoices, getMissionGroupInvoices } from '../../lib/acompanhamento/project-invoices.js';
 import { createProjectManagementNote, listProjectManagementNotes, PROJECT_MANAGEMENT_NOTE_MAX_LENGTH } from '../../lib/acompanhamento/project-notes.js';
 import { deleteWeeklyProgressTarget, listWeeklyProgressTargets, saveWeeklyProgressTarget, weeklyTargetWorkdays, weeklyTargetsNeedAttendance } from '../../lib/acompanhamento/weekly-progress-targets.js';
@@ -433,7 +433,7 @@ router.get(
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
     const includeAdminOnlyCategories = req.auth?.user?.accountType === 'ADMIN';
-    const result = await readAcompanhamentoResponse(req, ['project-cards', includeAdminOnlyCategories,
+    return sendAcompanhamentoResponse(req, res, ['project-cards', includeAdminOnlyCategories,
       canViewProjectFinancials(req.auth.user)], async () => {
       const [cards, groups, copies, opportunities] = await Promise.all([listProjectCards({ includeAdminOnlyCategories }), loadActiveMissionGroups(), listPresentationCopies(), listCrmOpportunityCards()]);
       const presentationCards = copies.map(copy => presentationPayload(copy, 'card', includeAdminOnlyCategories));
@@ -441,7 +441,6 @@ router.get(
       return projectFinancialsForUser([...groupProjectCards(cards, groups), ...presentationCards,
         ...opportunities.filter(opportunity => !convertedIds.has(opportunity.id))], req.auth.user);
     });
-    res.json(result);
   })
 );
 
@@ -632,7 +631,7 @@ router.get(
     try {
       const includeCollaboratorCosts = canViewAcompanhamentoLaborCosts(req.auth?.user);
       const includeAdminOnlyCategories = req.auth?.user?.accountType === 'ADMIN';
-      const detail = await readAcompanhamentoResponse(req, ['mission-detail', req.params.groupId, query.data,
+      return await sendAcompanhamentoResponse(req, res, ['mission-detail', req.params.groupId, query.data,
         includeCollaboratorCosts, includeAdminOnlyCategories, canViewProjectFinancials(req.auth.user)],
         async () => projectFinancialsForUser(await getMissionGroupDetail(req.params.groupId, {
           progressMode: query.data.progress,
@@ -640,7 +639,6 @@ router.get(
           includeCollaboratorCosts,
           includeAdminOnlyCategories
         }), req.auth.user));
-      res.json(detail);
     } catch (error) {
       return missionGroupErrorResponse(error, res);
     }
@@ -1052,7 +1050,7 @@ router.get(
       if (divisionKey && !division) return res.status(404).json({ error: 'Divisão não encontrada.' });
       const includeCollaboratorCosts = canViewAcompanhamentoLaborCosts(req.auth?.user);
       const includeAdminOnlyCategories = req.auth?.user?.accountType === 'ADMIN';
-      const detail = await readAcompanhamentoResponse(req, ['project-detail', req.params.projectId, query.data,
+      return await sendAcompanhamentoResponse(req, res, ['project-detail', req.params.projectId, query.data,
         includeCollaboratorCosts, includeAdminOnlyCategories, canViewProjectFinancials(req.auth.user)],
         async () => projectFinancialsForUser(await getProjectDetail(req.params.projectId, {
           progressMode: query.data.progress,
@@ -1061,7 +1059,6 @@ router.get(
           includeAdminOnlyCategories,
           division
         }), req.auth.user));
-      res.json(detail);
     } catch (error) {
       res.status(error.status || 404).json({ error: error.message });
     }

@@ -545,6 +545,55 @@ Ver [estudo e próximos incrementos](ESTUDO_REDIS_PERFORMANCE_2026-11-12.md),
 [evidência ABBA](evidence/performance-staging-response-abba-44d279a5-20261112.json)
 e [ensaio Redis](evidence/performance-redis-component-study-44d279a5-20261112.json).
 
+### Continuação local após produção — 13/11, base `1b46fa52`
+
+O usuário informou a publicação anterior em produção e aumentou o espaçamento
+dos backups. Esta continuação permaneceu na worktree, atualizada com a main
+remota por fast-forward; não acessou nem alterou produção, backup ou retenção.
+
+As duas frentes de código do estudo de Redis receberam implementação local:
+o caminho financeiro/resumo omite anotações de workforce que não utiliza quando
+não pede snapshot mensal; a leitura completa e os snapshots compartilhados mantêm
+essas anotações. O motor de custo, horas, folgas financeiras, meses, cargos,
+rateios e trilhas permanece igual. O HTTP de respostas em cache também passa a
+enviar o JSON imutável pronto, com fallback para opções próprias do Express.
+As fontes do ponto ganharam ordem determinística por criação/ID, corrigindo
+divergências de posição após UPDATE.
+
+No histórico esparso sintético, o recálculo passou de **82,68 para 52,34 ms**
+aquecido e de **342,78 para 269,04 ms** em novo processo. No mês isolado, o ganho
+aquecido foi 7,91%. O cenário denso de 36 meses variou perto de zero e ficou
+2,01% mais lento no novo processo; não há ganho geral comprovado para todo volume.
+São cinco pares por modo, sem p95 de aceite. O experimento de reuso de trilhas
+com regressão no aquecido foi retirado e está preservado na evidência.
+
+O HTTP local concluiu **1.600 respostas 200**, cem por rota/perfil/versão, todas
+hits, com igualdade dos campos após normalizar somente a ordem do roster do
+resumo. O envio do DTO de ponto de 323.726 B passou de mediana 2,11–2,13 para
+0,51 ms. Não inclui TLS/proxy/browser nem mede expiração. Passaram **3.004 testes
+do backend** (53 ignorados) e **30 da bateria Node 22/PostgreSQL/HTTP/snapshots**,
+sem falhas finais. Não há nova variável, migration ou Redis.
+
+Permanecem o aceite de staging/produção, os recálculos fora desses cenários,
+perfis/divisões/escritas, métricas reais de navegador e as séries de 24 h/sete dias.
+Esta entrega não encerra os aceites publicados de T06/T07/T12. Ver
+[implementação e limites](OTIMIZACOES_RECALCULO_JSON_2026-11-13.md) e
+[evidência](evidence/performance-recalc-json-20261113.json).
+
+**Complemento local de 13/11:** os leitores financeiros/resumo sem snapshot mensal
+também omitem do SQL `CollaboratorAbsence`, `WorkforceHoliday` e
+`WorkforceCalendarState`. Identidades, histórico de cargos e ignorados continuam
+carregados nas duas consultas de pacotes; não se trata de duas viagens a menos
+ao banco. O cache de referências agora separa as variantes completa/reduzida,
+mantendo o padrão completo e o snapshot mensal compartilhado completos. A
+comparação financeira com ausências e cargos reais da fixture PostgreSQL passou,
+assim como **39 verificações Node 22/PostgreSQL/HTTP/caches**, sem ignorados ou
+falhas. A bateria final do backend aprovou **3.009 testes** (53 ignorados), sem
+falhas. Os planos SQL confirmam a remoção das três fontes na variante reduzida;
+os números de latência da primeira rodada permanecem históricos e não representam
+um benchmark desse complemento. Ver
+[evidência das fontes condicionais](evidence/performance-workforce-source-projection-20261113.json).
+
 | Tarefa | Entrega nesta rodada | Trabalho restante |
 | --- | --- | --- |
 | T01 | Coleta HTTP opt-in, marcas de conteúdo útil e benchmark HTTP local com sessões reais, concorrência e amostragem do pool; cache e refresh separados | Janela completa de HTTP/conteúdo útil após publicação |

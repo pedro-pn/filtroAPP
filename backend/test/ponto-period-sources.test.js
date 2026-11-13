@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { Prisma } from '@prisma/client';
 import { withPontoImportDates, loadMonthlyPontoSources } from '../src/lib/acompanhamento/ponto-period-sources.js';
 const range = { startDate: '2026-09-01', endDate: '2026-09-30' };
 
@@ -24,7 +25,8 @@ test('monthly identities bind only selected people and retain parent order and U
   const original = structuredClone(periods);
   const database = {
     pontoPeriodSummary: { findMany: async args => {
-      assert.deepEqual(args, { where: { importId: { in: ['i2','i1'] }, collaboratorId: { not: null } } });
+      assert.deepEqual(args, { where: { importId: { in: ['i2','i1'] }, collaboratorId: { not: null } },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
       return periods;
     } },
     $queryRaw: async (sql, ids) => {
@@ -49,4 +51,25 @@ test('empty periods skip identity SQL and identity failures reject the read', as
   assert.deepEqual(await loadMonthlyPontoSources(database, [], range), { periods: [], absences: [] });
   database.pontoPeriodSummary.findMany = async () => [{ collaboratorId: 'c1' }];
   await assert.rejects(loadMonthlyPontoSources(database, ['i1'], range), /identity unavailable/);
+});
+
+test('financial identities retain selected people and role dates without querying or decoding absences', async () => {
+  const periods = [{ id: 'period', importId: 'import', collaboratorId: "c'1", workedMinutes: 480 }];
+  const row = { collaborators: [{ id: "c'1", name: 'Sintética', jobRoleId: 'role', jobRoleHistory: [
+    { jobRoleId: 'older-role', effectiveDate: '2026-09-01' }
+  ] }] };
+  Object.defineProperty(row, 'absences', { get: () => assert.fail('A reduced read must not decode absence data') });
+  const database = { pontoPeriodSummary: { findMany: async () => periods }, $queryRaw: async (strings, ...values) => {
+    const query = Prisma.sql(strings, ...values);
+    assert.doesNotMatch(query.text, /CollaboratorAbsence/);
+    assert.match(query.text, /CollaboratorJobRoleHistory/);
+    assert.ok(!query.text.includes("c'1"));
+    assert.deepEqual(query.values, [["c'1"]]);
+    return [row];
+  } };
+  const result = await loadMonthlyPontoSources(database, ['import'], { ...range, includeWorkforceDetails: false });
+  assert.deepEqual(result.absences, []);
+  assert.equal(result.periods[0].workedMinutes, 480);
+  assert.equal(result.periods[0].collaborator.id, "c'1");
+  assert.equal(result.periods[0].collaborator.jobRoleHistory[0].effectiveDate.toISOString(), '2026-09-01T00:00:00.000Z');
 });

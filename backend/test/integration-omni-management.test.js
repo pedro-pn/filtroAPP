@@ -161,7 +161,8 @@ test('B6: HTTP, paridade com painel, privacidade e gatilhos transacionais em Pos
       daytimeCount: 2, daytimeWorkedMinutes: 480, collaborators: { create: collaborators.slice(0, day === week ? 2 : 1)
         .map(c => ({ collaboratorId: c.id, roleNameSnapshot: role.name })) }
     } });
-    const imp = await prisma.pontoImport.create({ data: { fileName: 'PRIVATE.xlsx', contentHash: 'synthetic', periodStart: new Date(week), periodEnd: new Date('2026-10-11') } });
+    const imp = await prisma.pontoImport.create({ data: { fileName: 'PRIVATE.xlsx', contentHash: 'synthetic',
+      createdAt: new Date('2026-10-12T08:00:00Z'), periodStart: new Date(week), periodEnd: new Date('2026-10-11') } });
     const days = [
       { date: week, workedMinutes: 480, he70Minutes: 60, he100Minutes: 30, nightMinutes: 120, tags: ['Etiqueta'] },
       { date: '2026-10-05', workedMinutes: 60, tags: ['Etiqueta'] }
@@ -179,7 +180,10 @@ test('B6: HTTP, paridade com painel, privacidade e gatilhos transacionais em Pos
     assert.equal(row.projectId, p1.id); assert.equal(row.pessoas, 2); assert.equal(row.minutosNormais, 960);
     assert.equal(row.minutosExtra70, 120); assert.equal(row.minutosExtra100, 60); assert.equal(row.minutosNoturnos, 240);
     assert.equal(JSON.stringify(row).includes('PRIVATE'), false); assert.equal('collaboratorId' in row, false);
-    const newer = await prisma.pontoImport.create({ data: { fileName: 'PRIVATE2.xlsx', contentHash: 'new', periodStart: new Date(week), periodEnd: new Date(week) } });
+    // Exercise newer-import precedence without relying on database clock ticks
+    // (CURRENT_TIMESTAMP can be identical inside the disposable transaction).
+    const newer = await prisma.pontoImport.create({ data: { fileName: 'PRIVATE2.xlsx', contentHash: 'new',
+      createdAt: new Date('2026-10-12T08:00:01Z'), periodStart: new Date(week), periodEnd: new Date(week) } });
     await prisma.pontoPeriodSummary.create({ data: { importId: newer.id, collaboratorId: collaborators[0].id, rawName: 'PRIVATE_NAME', normalizedName: 'PRIVATE_NAME',
       periodStart: newer.periodStart, periodEnd: newer.periodEnd, monthly: { schemaVersion: 2, months: { '2026-09': { days: [{ ...days[0], workedMinutes: 240 }] } } } } });
     assert.equal((await request(`/ponto/projetos/semanas?weekStart=${week}`)).body.items[0].minutosNormais, 720);

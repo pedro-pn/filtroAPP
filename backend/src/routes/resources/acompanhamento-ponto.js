@@ -20,7 +20,7 @@ import asyncHandler from '../../lib/async-handler.js';
 import { importPonto, linkPontoName } from '../../lib/acompanhamento/ponto-import.js';
 import { computeCollaboratorRates, getPontoImportScope } from '../../lib/acompanhamento/labor-cost.js';
 import { summarizePontoRate } from '../../lib/acompanhamento/ponto-responses.js';
-import { readAcompanhamentoResponse } from '../../lib/acompanhamento/read-cache.js';
+import { sendAcompanhamentoResponse } from '../../lib/acompanhamento/read-cache.js';
 import {
   getPontoMaisPending,
   getPontoMaisPendingEmployeeCount,
@@ -559,10 +559,10 @@ router.get(
   asyncHandler(async (req, res) => {
     const view = collaboratorViewSchema.safeParse(req.query.view);
     if (!view.success) return res.status(400).json({ error: 'Opção de leitura inválida.' });
-    const response = await readAcompanhamentoResponse(req, ['ponto-collaborators', view.data], async () => {
+    return sendAcompanhamentoResponse(req, res, ['ponto-collaborators', view.data], async () => {
       const { pontoImport, pontoImports = [], periodStart, periodEnd, fileName, rates = [], ignoredExternalEmployees: preloadedIgnoredEmployees } = view.data === 'reconciliation'
         ? await getPontoImportScope() ?? {}
-        : await computeCollaboratorRates(null, { includeIgnoredNames: true });
+        : await computeCollaboratorRates(null, { includeIgnoredNames: true, includeWorkforceDetails: view.data !== 'summary' });
       const xlsxImportIds = pontoImports
         .filter(item => item.source !== 'PONTOMAIS_API')
         .map(item => item.id);
@@ -595,7 +595,6 @@ router.get(
         unmatched: currentUnmatchedPontoNames(unmatchedPeriods).filter(item => !ignoredNames.has(item.normalizedName))
       };
     });
-    res.json(response);
   })
 );
 
