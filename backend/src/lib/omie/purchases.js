@@ -29,7 +29,8 @@ async function writeBatch(tx, rows, syncedAt) {
       "rawPayload"=EXCLUDED."rawPayload","syncedAt"=EXCLUDED."syncedAt"`);
 }
 
-export async function syncOmiePurchases({ triggeredBy = 'SCRIPT', sinceDays = null, db = null, call = null, requestDelayMs = 100 } = {}) {
+export async function syncOmiePurchases({ triggeredBy = 'SCRIPT', sinceDays = null, db = null, call = null,
+  requestDelayMs = 100, wait, now } = {}) {
   db ??= (await import('../prisma.js')).default;
   call ??= (await import('./client.js')).omieCall;
   const run = await db.integrationSyncRun.create({
@@ -62,7 +63,7 @@ export async function syncOmiePurchases({ triggeredBy = 'SCRIPT', sinceDays = nu
     }, select: { id: true, omieId: true, syncedAt: true } });
     const { purchases, removals, read, summary: readSummary } = await readPurchaseSnapshot({
       call, linked, categoryNames: new Map(categories.map(category => [category.codigo, category.descricao])),
-      existing, requestDelayMs
+      existing, requestDelayMs, wait, now
     });
     const tracked = [...linked.values()];
     const projectsCount = tracked.filter(project => project.projectId).length;

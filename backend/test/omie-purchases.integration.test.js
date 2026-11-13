@@ -8,7 +8,10 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { syncOmiePurchases as runSync } from '../src/lib/omie/purchases.js';
 
-const syncOmiePurchases = args => runSync({ requestDelayMs: 0, ...args });
+const syncOmiePurchases = args => {
+  let clock = 0;
+  return runSync({ requestDelayMs: 0, wait: async ms => { clock += ms; }, now: () => clock, ...args });
+};
 const missing = id => Object.assign(new Error('Título excluído'), { status: 500, body: {
   faultcode: 'SOAP-ENV:Client-105', faultstring: `ERROR: Lançamento não cadastrado para o Código [${id}] !`
 } });
