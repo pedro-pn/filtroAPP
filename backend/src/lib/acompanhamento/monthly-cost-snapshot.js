@@ -17,9 +17,11 @@ export async function readMonthlyCostSnapshot(importId, options, loader) {
   const version = currentDerivedReadVersion();
   if (!env.acompanhamentoMonthlyCacheEnabled || !version || !hasRequestSourceContext()) return loader(options);
   // Cost projection and point listing use exactly the same calculation. Load
-  // ignored names once too, then remove that optional metadata for cost readers.
+  // ignored names and workforce annotations once too. A shared snapshot must
+  // remain complete even when a financial reader can omit annotations on its
+  // uncached path. Remove ignored names for cost readers after decoding.
   const result = await snapshots.get(version, [projectAccessCacheKey(), importId || null],
-    () => loader({ includeIgnoredNames: true }));
+    () => loader({ includeIgnoredNames: true, includeWorkforceDetails: true }));
   if (options.includeIgnoredNames) return result;
   const { ignoredExternalEmployees: _ignored, ...costs } = result;
   return costs;

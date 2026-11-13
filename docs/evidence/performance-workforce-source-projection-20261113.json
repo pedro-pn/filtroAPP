@@ -1,0 +1,184 @@
+{
+  "capturedAt": "2026-11-13T18:57:00.235Z",
+  "runtime": "v22.23.2",
+  "database": "disposable PostgreSQL 16; loopback only",
+  "fixture": {
+    "collaborators": 21,
+    "reports": 63,
+    "services": 122,
+    "selectedAbsences": 5,
+    "deletedAbsences": 1,
+    "outOfRangeAbsences": 1,
+    "manualHolidays": 1,
+    "roleHistoryRows": 1,
+    "ignoredEmployees": 1
+  },
+  "scope": "Current-source full versus reduced source packets, not a latency benchmark or comparison against HEAD. Monthly snapshot and all derived caches disabled. Packet byte counts are JSON encodings of raw decoded SQL packets; parent PontoPeriodSummary read is unchanged and excluded.",
+  "complete": {
+    "rawStatements": 2,
+    "decodedRawPacketJsonBytes": 5484,
+    "statements": [
+      {
+        "marker": "labor.period-collaborators",
+        "sqlHash": "249886e6de23e3f1fa52f1903268be42395513fe885266d6ddb773327b4b154f",
+        "parameterCount": 3,
+        "decodedPacketJsonBytes": 5195,
+        "workforceTableReferences": [
+          "CollaboratorAbsence"
+        ],
+        "relations": [
+          {
+            "table": "Collaborator",
+            "scan": "Seq Scan",
+            "loops": 1,
+            "rows": 21
+          },
+          {
+            "table": "CollaboratorJobRoleHistory",
+            "scan": "Seq Scan",
+            "loops": 21,
+            "rows": 0
+          },
+          {
+            "table": "CollaboratorAbsence",
+            "scan": "Seq Scan",
+            "loops": 1,
+            "rows": 5
+          }
+        ]
+      },
+      {
+        "marker": "labor.period-reference-rows",
+        "sqlHash": "b96cbc33d5979809c2924d1bdb207ea204e4e2f2b848f29b1af72f17beca5b84",
+        "parameterCount": 3,
+        "decodedPacketJsonBytes": 289,
+        "workforceTableReferences": [
+          "WorkforceHoliday",
+          "WorkforceCalendarState"
+        ],
+        "relations": [
+          {
+            "table": "PontoExternalEmployee",
+            "scan": "Seq Scan",
+            "loops": 1,
+            "rows": 1
+          },
+          {
+            "table": "WorkforceHoliday",
+            "scan": "Seq Scan",
+            "loops": 1,
+            "rows": 1
+          },
+          {
+            "table": "WorkforceCalendarState",
+            "scan": "Seq Scan",
+            "loops": 1,
+            "rows": 1
+          }
+        ]
+      }
+    ]
+  },
+  "reduced": {
+    "rawStatements": 2,
+    "decodedRawPacketJsonBytes": 4329,
+    "statements": [
+      {
+        "marker": "labor.period-collaborators",
+        "sqlHash": "e86a9076836867f6a2ba13c867ceaf14c2c1a5875acd61004d1a47ee6943d3d2",
+        "parameterCount": 1,
+        "decodedPacketJsonBytes": 4191,
+        "workforceTableReferences": [],
+        "relations": [
+          {
+            "table": "Collaborator",
+            "scan": "Seq Scan",
+            "loops": 1,
+            "rows": 21
+          },
+          {
+            "table": "CollaboratorJobRoleHistory",
+            "scan": "Seq Scan",
+            "loops": 21,
+            "rows": 0
+          }
+        ]
+      },
+      {
+        "marker": "labor.period-reference-rows",
+        "sqlHash": "77aab3a140cc40e0d0d37e84b3f27d489df83face37cb23a86b28b2c27e125ea",
+        "parameterCount": 1,
+        "decodedPacketJsonBytes": 138,
+        "workforceTableReferences": [],
+        "relations": [
+          {
+            "table": "PontoExternalEmployee",
+            "scan": "Seq Scan",
+            "loops": 1,
+            "rows": 1
+          }
+        ]
+      }
+    ]
+  },
+  "parity": {
+    "periodRowsAndRoleHistory": true,
+    "ignoredEmployees": true,
+    "allFinancialFieldsDatesMapsAndAllocations": true,
+    "comparison": "Only workforceDays, workforceConflicts and workforceCalendarRevision removed from full result before deep equality; no value/date/order normalization.",
+    "completeCalendarAndAbsenceConflictsRetained": true,
+    "reducedWorkforceSourcesAbsentFromSqlAndPlans": true
+  },
+  "limits": [
+    "Synthetic local data only.",
+    "Top-level SQL statement count remains unchanged.",
+    "EXPLAIN executed after each packet; no end-to-end performance claim.",
+    "Shared monthly snapshot deliberately remains complete; reduced-source gain applies only without that snapshot."
+  ],
+  "databaseVersion": "16.14",
+  "branch": "fix/page-loading-performance",
+  "baseCommit": "1b46fa52c9626a61b4d712412cf905e093990b77",
+  "sourceSha256": {
+    "backend/src/lib/acompanhamento/labor-cost.js": "3c8a1db26d6f18d6774e4c8d31b6bfa3ed53f18a4aebe4ba5d1cdd9af3ea7594",
+    "backend/src/lib/acompanhamento/labor-period-reference-sources.js": "581c0ff053623b20d200cdc266d33bb43dfe0429779b9dac561081dfbdf29efb",
+    "backend/src/lib/acompanhamento/ponto-period-sources.js": "e2614eb5dce36b27f6cf0df96bac9f07f738921912d16ebdac28c66658fe5632",
+    "backend/src/lib/acompanhamento/monthly-cost-snapshot.js": "1e67dae5857f124305f31e1570dc9e22290d3dbbb1e60cb347a9acad953cecda",
+    "backend/test/acompanhamento-labor-performance.integration.test.js": "ed3aa85369653688fa142c9f3fafbe1f61f77ddea6d930fb021ad13189e80000",
+    "backend/test/acompanhamento-effective-labor-cost.test.js": "ea34f63eba2c1202e4b2b6e3375822854dd162498a3cfb77d3deb17ce970ad7d",
+    "backend/test/labor-period-reference-sources.test.js": "ea9e0a8b4bf1e67a2b10786fae8da889bade956cf2fc21da3c91aaa0fa7629d8",
+    "backend/test/ponto-period-sources.test.js": "586c7bdf907bac3ea9988994a336df06a83e8503f29960275ee292e222a663d3"
+  },
+  "validation": {
+    "focusedUnit": {
+      "tests": 39,
+      "pass": 39,
+      "fail": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "logSha256": "6e076a9803cdf1bdfbdff4a23205f660833b12959fec5213de4ffbe4c898e88a"
+    },
+    "node22PostgresHttpCaches": {
+      "tests": 39,
+      "pass": 39,
+      "fail": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "logSha256": "05f827f443f6a76493461c52a5344465131f8910e53fe97f917ee60b43003e1e"
+    },
+    "fullBackendNode24": {
+      "tests": 3062,
+      "pass": 3009,
+      "fail": 0,
+      "skipped": 53,
+      "cancelled": 0,
+      "logSha256": "c016fe6006fe99023a94dfbf236281232080e79bfa72c83cf8578269368bc09c"
+    },
+    "architecture": "npm run architecture:check; passed"
+  },
+  "delivery": "Local working-tree changes only. No commit, push, staging/production deployment, environment, backup, schedule or retention change in this continuation.",
+  "cleanup": {
+    "ownDisposablePostgresContainerAndAnonymousVolumeRemoved": true,
+    "otherLocalServicesAltered": false,
+    "completedAt": "2026-11-13T18:59:13.443796+00:00"
+  }
+}
