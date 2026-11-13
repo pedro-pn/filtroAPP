@@ -12,6 +12,8 @@ interface ChecklistItemsEditorProps {
   placeholder?: string;
   itemLabel?: string;
   addLabel?: string;
+  maxLength?: number;
+  maxItems?: number;
 }
 
 function EditorButton({ appearance, variant, className, children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -48,7 +50,9 @@ export function ChecklistItemsEditor({
   emptyText = 'Nenhum ponto cadastrado.',
   placeholder = 'Ponto de checagem',
   itemLabel = 'Ponto de checagem',
-  addLabel = 'Adicionar ponto'
+  addLabel = 'Adicionar ponto',
+  maxLength = 300,
+  maxItems = 100
 }: ChecklistItemsEditorProps) {
   return (
     <div className="checklist-items-editor">
@@ -60,7 +64,7 @@ export function ChecklistItemsEditor({
             <input
               type="text"
               value={item}
-              maxLength={300}
+              maxLength={maxLength}
               disabled={disabled}
               placeholder={placeholder}
               aria-label={`${itemLabel} ${index + 1}`}
@@ -71,7 +75,7 @@ export function ChecklistItemsEditor({
             <div className="checklist-item-editor-actions">
               <EditorButton
                 appearance={appearance} variant="secondary" className="checklist-item-editor-action"
-                aria-label="Mover ponto para cima"
+                aria-label={`Mover ${itemLabel.toLowerCase()} ${index + 1} para cima`}
                 title="Mover para cima"
                 disabled={disabled || index === 0}
                 onClick={() => onChange(move(value, index, -1))}
@@ -80,7 +84,7 @@ export function ChecklistItemsEditor({
               </EditorButton>
               <EditorButton
                 appearance={appearance} variant="secondary" className="checklist-item-editor-action"
-                aria-label="Mover ponto para baixo"
+                aria-label={`Mover ${itemLabel.toLowerCase()} ${index + 1} para baixo`}
                 title="Mover para baixo"
                 disabled={disabled || index === value.length - 1}
                 onClick={() => onChange(move(value, index, 1))}
@@ -89,7 +93,7 @@ export function ChecklistItemsEditor({
               </EditorButton>
               <RemoveIconButton
                 className="checklist-item-editor-action"
-                label={`Remover ponto ${index + 1}`}
+                label={`Remover ${itemLabel.toLowerCase()} ${index + 1}`}
                 disabled={disabled}
                 onClick={() =>
                   onChange(
@@ -103,7 +107,7 @@ export function ChecklistItemsEditor({
       ))}
       <EditorButton
         appearance={appearance} variant="secondary" className="checklist-item-editor-add"
-        disabled={disabled || value.length >= 100}
+        disabled={disabled || value.length >= maxItems}
         onClick={() => onChange([...value, ''])}
       >
         {addLabel}

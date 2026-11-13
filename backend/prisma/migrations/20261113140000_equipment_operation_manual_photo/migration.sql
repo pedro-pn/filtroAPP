@@ -1,0 +1,1 @@
+ALTER TYPE "EquipmentAttachmentKind" ADD VALUE 'OPERATION_MANUAL_PHOTO';

@@ -14,10 +14,11 @@ interface Props {
   onEdit: () => void;
   onRemove: () => void;
   onOpenTechnical?: () => void;
+  onOpenManual?: () => void;
   onOpenMaintenanceHistory?: () => void;
 }
 
-export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onOpenTechnical, onOpenMaintenanceHistory }: Props) {
+export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onOpenTechnical, onOpenManual, onOpenMaintenanceHistory }: Props) {
   const cardRef = useRef<HTMLElement | null>(null);
   const techInput = useRef<HTMLInputElement>(null);
   const certInput = useRef<HTMLInputElement>(null);
@@ -26,6 +27,8 @@ export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onO
   const status = calibrationStatus(item);
   const { canTech, canCert, currentDoc, isUploading, uploadDoc } = useEquipmentDocumentUpload(item, category, isManager);
   const droppable = canTech || canCert;
+  // Atalho de download do Manual de Operação (só quando a categoria o habilita e já há PDF).
+  const manualDoc = category.operationManualEnabled ? item.operationManual || null : null;
 
   function handleFile(kind: EquipmentDocumentKind, event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -98,7 +101,7 @@ export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onO
           </>
         )}
       </dl>
-      {(item.calibrationCertificate || currentDoc) && (
+      {(item.calibrationCertificate || currentDoc || manualDoc) && (
         <div className="equip-doc-list">
           {item.calibrationCertificate && (
             <div className="equip-doc">
@@ -112,6 +115,14 @@ export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onO
             <div className="equip-doc">
               <span className="equip-doc-title">Dados técnicos</span>
               <a className="fv-button fv-button--secondary fv-button--sm equip-doc-link" href={currentDoc.publicUrl} target="_blank" rel="noreferrer" aria-label={`Abrir dados técnicos de ${item.code}`} data-equip-technical-doc-link>
+                Abrir PDF
+              </a>
+            </div>
+          )}
+          {manualDoc && (
+            <div className="equip-doc">
+              <span className="equip-doc-title">Manual de operação{item.operationManualOutdated ? ' (desatualizado)' : ''}</span>
+              <a className="fv-button fv-button--secondary fv-button--sm equip-doc-link" href={manualDoc.publicUrl} target="_blank" rel="noreferrer" aria-label={`Abrir manual de operação de ${item.code}`} data-equip-manual-doc-link>
                 Abrir PDF
               </a>
             </div>
@@ -134,7 +145,7 @@ export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onO
           )}
         </div>
       )}
-      {(isManager || (category.technicalDocEnabled && onOpenTechnical) || onOpenMaintenanceHistory) && (
+      {(isManager || (category.technicalDocEnabled && onOpenTechnical) || (category.operationManualEnabled && onOpenManual) || onOpenMaintenanceHistory) && (
         <div className="report-card-actions">
           {onOpenMaintenanceHistory ? (
             <Button variant="secondary" size="sm" multiline className="equip-maintenance-action" onClick={onOpenMaintenanceHistory}>
@@ -145,6 +156,11 @@ export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onO
             <Button variant="secondary" size="sm" multiline className="equip-technical-action" onClick={onOpenTechnical} title={isManager ? 'Editar dados técnicos' : 'Ver dados técnicos'} data-equip-technical-button>
               {isManager ? 'Dados' : 'Ver dados'}
               {item.technicalRevision > 0 ? ' ●' : ''}
+            </Button>
+          )}
+          {category.operationManualEnabled && onOpenManual && (
+            <Button variant="secondary" size="sm" multiline className="equip-manual-action" onClick={onOpenManual} title={isManager ? 'Editar manual de operação' : 'Ver manual de operação'} data-equip-manual-button>
+              Manual{item.operationManual ? ' ●' : ''}
             </Button>
           )}
           {isManager && (
