@@ -164,7 +164,7 @@ function ensureContentType(zip, extension, mimeType) {
   zip.updateFile('[Content_Types].xml', Buffer.from(new XMLSerializer().serializeToString(doc), 'utf8'));
 }
 
-function addImageRel(zip, relsDoc, asset) {
+export function addImageRel(zip, relsDoc, asset) {
   const relId = nextRelId(relsDoc);
   const mediaName = `tech-${Date.now()}-${randomUUID().slice(0, 8)}.${asset.extension}`;
   zip.addFile(`word/media/${mediaName}`, asset.bytes);
@@ -177,7 +177,7 @@ function addImageRel(zip, relsDoc, asset) {
   return relId;
 }
 
-function inlineImageXml(relId, cx, cy, name) {
+export function inlineImageXml(relId, cx, cy, name) {
   const n = safeText(name || 'Foto');
   return `<w:r xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:docPr id="6010" name="${n}"/><wp:cNvGraphicFramePr/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="0" name="${n}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${relId}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
 }

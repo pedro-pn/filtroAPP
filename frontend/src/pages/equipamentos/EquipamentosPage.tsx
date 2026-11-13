@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router';
 import { driver } from 'driver.js';
 import type { DriveStep } from 'driver.js';
 
-import type { CompanyEquipment, EquipmentCategory, EquipmentCategoryPayload, EquipmentPayload, ImageUpload } from '../../api/equipamentos';
+import type { CompanyEquipment, EquipmentCategory, EquipmentCategoryPayload, EquipmentPayload, ImageUpload, OperationStepPayload } from '../../api/equipamentos';
 import { useAuth } from '../../auth/AuthContext';
 import { useToast } from '../../components/ui/ToastContext';
 import { Button } from '../../components/ui/ds';
@@ -18,6 +18,7 @@ import { EquipmentCategorySection } from './EquipmentCategorySection';
 import { EquipmentDashboard } from './EquipmentDashboard';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { EquipmentFormModal } from './EquipmentFormModal';
+import { OperationManualModal } from './OperationManualModal';
 import { TechnicalDataModal } from './TechnicalDataModal';
 import { TechnicalStandardsManager } from './TechnicalStandardsManager';
 import { NotificationsConfig } from './NotificationsConfig';
@@ -147,6 +148,7 @@ export function EquipamentosPage() {
     category: EquipmentCategory;
     item: CompanyEquipment;
   } | null>(null);
+  const [manualTarget, setManualTarget] = useState<{ categoryId: string; itemId: string } | null>(null);
   const [categoryForm, setCategoryForm] = useState<{
     open: boolean;
     category: EquipmentCategory | null;
@@ -435,6 +437,35 @@ export function EquipamentosPage() {
     );
   }
 
+  const manualItem = manualTarget ? equipment.find(item => item.id === manualTarget.itemId) || null : null;
+  const manualCategory = manualTarget ? categories.find(category => category.id === manualTarget.categoryId) || null : null;
+
+  function handleManualSave(steps: OperationStepPayload[]) {
+    if (!manualItem) return;
+    mutations.saveManual.mutate(
+      { id: manualItem.id, steps },
+      {
+        onSuccess: result => {
+          if (result.pdfError) {
+            showToast(result.pdfError, 'error');
+            return;
+          }
+          showToast('Manual de operação salvo e PDF gerado.', 'success');
+          setManualTarget(null);
+        },
+        onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível salvar o manual.', 'error')
+      }
+    );
+  }
+
+  function handleManualRegenerate() {
+    if (!manualItem) return;
+    mutations.regenerateManual.mutate(manualItem.id, {
+      onSuccess: () => showToast('PDF do manual atualizado.', 'success'),
+      onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível gerar o PDF.', 'error')
+    });
+  }
+
   function handleCategorySubmit(payload: EquipmentCategoryPayload) {
     const close = () => setCategoryForm({ open: false, category: null });
     const onError = (error: unknown) => showToast(error instanceof Error ? error.message : 'Não foi possível salvar.', 'error');
@@ -584,6 +615,7 @@ export function EquipamentosPage() {
                       const category = categories.find(category => category.id === item.categoryId);
                       if (category) setTechnicalForm({ category, item });
                     }}
+                    onOpenManual={item => setManualTarget({ categoryId: item.categoryId, itemId: item.id })}
                     onOpenMaintenanceHistory={item => {
                       const next = new URLSearchParams(searchParams);
                       next.set('equipamento', item.id);
@@ -614,6 +646,7 @@ export function EquipamentosPage() {
                     onEdit={item => setEquipmentForm({ category: activeCategory, item })}
                     onRemove={handleRemoveEquipment}
                     onOpenTechnical={item => setTechnicalForm({ category: activeCategory, item })}
+                    onOpenManual={item => setManualTarget({ categoryId: activeCategory.id, itemId: item.id })}
                     onOpenMaintenanceHistory={item => {
                       const next = new URLSearchParams(searchParams);
                       next.set('equipamento', item.id);
@@ -648,6 +681,19 @@ export function EquipamentosPage() {
       {equipmentForm && <EquipmentFormModal open category={equipmentForm.category} equipment={equipmentForm.item} saving={savingEquipment} isManager={isManager} onClose={() => setEquipmentForm(null)} onSubmit={handleEquipmentSubmit} />}
 
       {technicalForm && <TechnicalDataModal open category={technicalForm.category} equipment={technicalForm.item} unitsCatalog={unitsCatalogQuery.data || []} saving={mutations.updateEquipment.isPending} isManager={isManager} onClose={() => setTechnicalForm(null)} onSubmit={handleTechnicalSubmit} />}
+
+      {manualItem && manualCategory && (
+        <OperationManualModal
+          open
+          category={manualCategory}
+          equipment={manualItem}
+          isManager={isManager}
+          saving={mutations.saveManual.isPending || mutations.regenerateManual.isPending}
+          onClose={() => setManualTarget(null)}
+          onSave={handleManualSave}
+          onRegenerate={handleManualRegenerate}
+        />
+      )}
 
       {categoryForm.open && <CategoryFormModal open category={categoryForm.category} saving={savingCategory} technicalStandards={standardsQuery.data || []} standardsLoading={standardsQuery.isLoading} standardsError={standardsQuery.isError} onRetryStandards={() => { void standardsQuery.refetch(); }} onClose={() => setCategoryForm({ open: false, category: null })} onSubmit={handleCategorySubmit} />}
 

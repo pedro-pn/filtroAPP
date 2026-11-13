@@ -11,7 +11,7 @@ interface EquipmentCategorySectionProps extends EquipmentTableActions {
   onAdd: () => void;
 }
 
-export function EquipmentCategorySection({ category, items, total, isManager, onAdd, onEdit, onRemove, onOpenTechnical, onOpenMaintenanceHistory }: EquipmentCategorySectionProps) {
+export function EquipmentCategorySection({ category, items, total, isManager, onAdd, onEdit, onRemove, onOpenTechnical, onOpenManual, onOpenMaintenanceHistory }: EquipmentCategorySectionProps) {
   const compact = useListingMobileViewport('xl');
 
   return (
@@ -37,12 +37,13 @@ export function EquipmentCategorySection({ category, items, total, isManager, on
               onEdit={() => onEdit(item)}
               onRemove={() => onRemove(item)}
               onOpenTechnical={() => onOpenTechnical(item)}
+              onOpenManual={() => onOpenManual(item)}
               onOpenMaintenanceHistory={() => onOpenMaintenanceHistory(item)}
             />
           ))}
         </div>
       ) : (
-        <EquipmentTable categories={[category]} items={items} isManager={isManager} onEdit={onEdit} onRemove={onRemove} onOpenTechnical={onOpenTechnical} onOpenMaintenanceHistory={onOpenMaintenanceHistory} />
+        <EquipmentTable categories={[category]} items={items} isManager={isManager} onEdit={onEdit} onRemove={onRemove} onOpenTechnical={onOpenTechnical} onOpenManual={onOpenManual} onOpenMaintenanceHistory={onOpenMaintenanceHistory} />
       )}
     </section>
   );

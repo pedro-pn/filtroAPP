@@ -361,3 +361,60 @@
     justify-self: end;
   }
 }
+
+/* Manual de Operação: lista de passos em modo leitura */
+.equip-operation-steps {
+  margin: 0;
+  padding-left: 1.4rem;
+  display: grid;
+  gap: 0.5rem;
+}
+.equip-operation-steps li {
+  line-height: 1.45;
+}
+
+/* Manual de Operação: separa os cards do corpo do modal */
+.fv-ds .equip-operation-body {
+  display: grid;
+  gap: var(--space-4, 1rem);
+  margin-top: var(--space-4, 1rem);
+}
+
+/* Manual de Operação: passo com texto longo, botão de câmera e painel de fotos */
+.operation-step-row .operation-step-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  resize: vertical;
+  line-height: 1.4;
+}
+.operation-step-row .operation-step-camera {
+  position: relative;
+  width: auto;
+  min-width: 30px;
+  gap: 4px;
+  padding: 0 8px;
+}
+.operation-step-row .operation-step-camera-count {
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+.operation-step-row .operation-step-photos {
+  display: grid;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);
+}
+.equip-operation-steps__photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+.equip-operation-steps__photos img {
+  height: 4.5rem;
+  width: auto;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--line);
+  object-fit: cover;
+}

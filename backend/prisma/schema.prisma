@@ -2614,6 +2614,8 @@ model EquipmentCategory {
   technicalStandardId     String?
   checklistEnabled        Boolean                                @default(false)
   checklistItems          Json                                   @default("[]") // pontos de checagem herdados pelos equipamentos da categoria
+  operationManualEnabled  Boolean                                @default(false) // liga o botão "Manual" (Manual de Operação) nos equipamentos da categoria
+  operationSteps          Json                                   @default("[]") // Manual de Operação: passos-modelo herdados pelos equipamentos da categoria
   checklistDisplayMode    String                                 @default("AUTO") // AUTO | TAG | NAME para <<nomeoutag>>
   technicalDocEnabled     Boolean                                @default(false) // liga a aba "Dados Técnicos" (datasheet estruturado + geração DOCX→PDF)
   technicalTemplateId     String? // DOCX modelo da categoria (Etapa F); null = usa o modelo genérico
@@ -2645,6 +2647,9 @@ model CompanyEquipment {
   technicalData              Json                  @default("{}") // valores do datasheet, keyed por technicalSchema.key
   technicalFieldOverrides    Json                  @default("{}") // inclusão/exclusão de campos optionalPerEquipment, keyed por key -> bool
   checklistItems             Json? // null = herda da categoria; array = override integral
+  operationSteps             Json? // Manual de Operação: null = herda da categoria; array = passos próprios
+  operationRevision          Int                   @default(0)
+  operationUpdatedAt         DateTime?
   technicalRevision          Int                   @default(0)
   technicalUpdatedAt         DateTime?
   hasCalibration             Boolean               @default(false)
@@ -2671,6 +2676,8 @@ enum EquipmentAttachmentKind {
   TECHNICAL_TEMPLATE
   TECHNICAL_DOC_GENERATED
   TECHNICAL_PHOTO
+  OPERATION_MANUAL_GENERATED
+  OPERATION_MANUAL_PHOTO
 }
 
 // Destinatários das notificações de calibração do módulo Equipamentos: contas

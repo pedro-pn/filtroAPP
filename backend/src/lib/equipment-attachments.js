@@ -34,7 +34,11 @@ export const EquipmentAttachmentKinds = {
   // Datasheet gerado automaticamente a partir dos Dados Técnicos (Etapa D).
   TECHNICAL_DOC_GENERATED: 'TECHNICAL_DOC_GENERATED',
   // Fotos dos Dados Técnicos (opcionais, várias por equipamento).
-  TECHNICAL_PHOTO: 'TECHNICAL_PHOTO'
+  TECHNICAL_PHOTO: 'TECHNICAL_PHOTO',
+  // Manual de Operação gerado a partir dos passos (equipamento ou modelo da categoria).
+  OPERATION_MANUAL_GENERATED: 'OPERATION_MANUAL_GENERATED',
+  // Fotos anexadas aos passos do Manual de Operação (referenciadas por id em operationSteps).
+  OPERATION_MANUAL_PHOTO: 'OPERATION_MANUAL_PHOTO'
 };
 
 const KIND_FOLDER = {
@@ -42,7 +46,9 @@ const KIND_FOLDER = {
   CALIBRATION_CERTIFICATE: 'Certificados de Calibração',
   TECHNICAL_DOC: 'Documentação Técnica',
   TECHNICAL_DOC_GENERATED: 'Datasheets Gerados',
-  TECHNICAL_PHOTO: 'Fotos Dados Técnicos'
+  TECHNICAL_PHOTO: 'Fotos Dados Técnicos',
+  OPERATION_MANUAL_GENERATED: 'Manuais de Operação',
+  OPERATION_MANUAL_PHOTO: 'Fotos Manual de Operação'
 };
 
 export function publicEquipmentAttachmentUrl(token) {
@@ -92,6 +98,11 @@ export function withCurrentAttachments(item) {
     .filter(att => att.kind === EquipmentAttachmentKinds.TECHNICAL_PHOTO)
     .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
     .map(serializeEquipmentAttachment);
+  const operationManual = latest(EquipmentAttachmentKinds.OPERATION_MANUAL_GENERATED);
+  const operationManualOutdated = Boolean(
+    operationManual && rest.operationUpdatedAt &&
+    new Date(rest.operationUpdatedAt) > new Date(operationManual.createdAt)
+  );
   return {
     ...rest,
     calibrationCertificate: serializeEquipmentAttachment(calibrationCertificate),
@@ -102,7 +113,13 @@ export function withCurrentAttachments(item) {
     technicalDocArchive: archive,
     documents: attachments.filter(att => att.kind === EquipmentAttachmentKinds.DOCUMENT)
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).map(serializeEquipmentAttachment),
-    technicalPhotos: photos
+    technicalPhotos: photos,
+    operationPhotos: attachments
+      .filter(att => att.kind === EquipmentAttachmentKinds.OPERATION_MANUAL_PHOTO)
+      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+      .map(serializeEquipmentAttachment),
+    operationManual: serializeEquipmentAttachment(operationManual),
+    operationManualOutdated
   };
 }
 
@@ -178,12 +195,12 @@ function parseImageUpload(upload) {
 }
 
 // Cria uma foto dos Dados Técnicos (anexo TECHNICAL_PHOTO). Várias por equipamento.
-export async function createEquipmentPhoto(client, { equipmentId, upload }) {
+export async function createEquipmentPhoto(client, { equipmentId, upload, kind = EquipmentAttachmentKinds.TECHNICAL_PHOTO }) {
   const parsed = parseImageUpload(upload);
   if (!parsed) return null;
   const publicToken = randomUUID();
   const storagePath = await writeAttachmentFile({
-    kind: EquipmentAttachmentKinds.TECHNICAL_PHOTO,
+    kind,
     token: publicToken,
     fileName: parsed.fileName,
     bytes: parsed.bytes,
@@ -192,7 +209,7 @@ export async function createEquipmentPhoto(client, { equipmentId, upload }) {
   return client.equipmentAttachment.create({
     data: {
       equipmentId,
-      kind: EquipmentAttachmentKinds.TECHNICAL_PHOTO,
+      kind,
       fileName: parsed.fileName,
       mimeType: parsed.mimeType,
       storagePath,
@@ -309,6 +326,20 @@ export async function resolveEquipmentPhotoAssets(client, equipmentId) {
   return assets;
 }
 
+// Fotos dos passos do Manual de Operação como Map(id -> asset) para embutir no DOCX.
+export async function resolveOperationPhotoAssets(client, equipmentId) {
+  const rows = await client.equipmentAttachment.findMany({
+    where: { equipmentId, kind: EquipmentAttachmentKinds.OPERATION_MANUAL_PHOTO }
+  });
+  const assets = new Map();
+  for (const row of rows) {
+    // eslint-disable-next-line no-await-in-loop
+    const asset = await readStoredImageAsset(row.storagePath);
+    if (asset && asset.width && asset.height) assets.set(row.id, { ...asset, label: row.fileName });
+  }
+  return assets;
+}
+
 export async function resolvePublicEquipmentAttachment(token) {
   const publicToken = String(token || '').trim();
   if (!publicToken) return null;
@@ -330,6 +361,9 @@ export async function resolvePublicEquipmentAttachment(token) {
 //  - Certificado de calibração: "Certificado de calibração - [código] - [serial quando houver] - [nome]"
 export function equipmentAttachmentFileName(attachment) {
   if (attachment?.kind === EquipmentAttachmentKinds.DOCUMENT) return attachment.fileName;
+  if (attachment?.kind === EquipmentAttachmentKinds.OPERATION_MANUAL_GENERATED && attachment.fileName) {
+    return String(attachment.fileName);
+  }
   // Datasheets arquivados já guardam um nome com a revisão ("… - Rev N.pdf");
   // preserva esse nome (snapshot da revisão) para o download.
   if (

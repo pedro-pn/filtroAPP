@@ -14,10 +14,12 @@ import {
   listNotificationRecipients,
   listRdoSlots,
   listUnitsCatalog,
+  regenerateOperationManual,
   removeEquipamento,
   removeEquipmentCategory,
   removeTechnicalStandard,
   removeNotificationRecipient,
+  saveOperationManual,
   setNotificationRecipientActive,
   updateEquipamento,
   updateEquipmentCategory,
@@ -27,6 +29,7 @@ import {
   type EquipmentCategoryPayload,
   type EquipmentPayload,
   type NotificationConfig,
+  type OperationStepPayload,
   type TechnicalStandardPayload
 } from '../api/equipamentos';
 import { queryKeys } from './queryKeys';
@@ -146,6 +149,15 @@ export function useEquipamentoMutations() {
     onSuccess: invalidateAll
   });
 
+  const saveManual = useMutation({
+    mutationFn: ({ id, steps }: { id: string; steps: OperationStepPayload[] }) => saveOperationManual(id, steps),
+    onSuccess: invalidateAll
+  });
+  const regenerateManual = useMutation({
+    mutationFn: (id: string) => regenerateOperationManual(id),
+    onSuccess: invalidateAll
+  });
+
   const updateSlot = useMutation({
     mutationFn: ({ slotKey, categoryIds, secondaryCategoryIds }: { slotKey: string; categoryIds: string[]; secondaryCategoryIds?: string[] }) => updateRdoSlot(slotKey, categoryIds, secondaryCategoryIds),
     onSuccess: () => Promise.all([
@@ -154,5 +166,5 @@ export function useEquipamentoMutations() {
     ])
   });
 
-  return { createCategory, updateCategory, removeCategory, createStandard, updateStandard, removeStandard, createEquipment, updateEquipment, removeEquipment, generateDatasheet, updateSlot };
+  return { createCategory, updateCategory, removeCategory, createStandard, updateStandard, removeStandard, createEquipment, updateEquipment, removeEquipment, generateDatasheet, saveManual, regenerateManual, updateSlot };
 }
