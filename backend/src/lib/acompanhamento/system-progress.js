@@ -1,5 +1,6 @@
 import { MECHANICAL_MEASURES } from '../../../../shared/modules/mechanical-measurement.js';
 import { resolveProjectSystem, systemNameKey } from './project-systems.js';
+import { dateInDivision } from './tracking-divisions.js';
 
 const round = (value, places = 2) => Math.round(value * 10 ** places) / 10 ** places;
 const METRICS = { ...Object.fromEntries(Object.entries(MECHANICAL_MEASURES).map(([type, config]) => [type, [config.metric, config.unit]])), TUBULACAO: ['tubulacaoM', 'M'], OLEO: ['oleoL', 'L'], SISTEMA: ['sistemasUn', 'UN'], MANGOTE: ['mangotesUn', 'UN'] };
@@ -44,6 +45,33 @@ const equipmentKey = name => {
   return ug ? `ug:${Number(ug[1])}` : key;
 };
 
+function divisionScope(key) {
+  try {
+    const [kind, scopeName, equipment] = JSON.parse(key);
+    return ['SCOPE', 'EQUIPMENT'].includes(kind) ? { kind, scopeName, equipment } : null;
+  } catch { return null; }
+}
+
+export const hasScopeDivisions = divisions => divisions.some(division => divisionScope(division.key));
+
+function sameScope(attribution, scope) {
+  return systemNameKey(attribution.scopeName) === systemNameKey(scope.scopeName)
+    && (scope.kind === 'SCOPE' || equipmentKey(attribution.equipment) === equipmentKey(scope.equipment));
+}
+
+function divisionAttributionResolver(divisions) {
+  const scopes = divisions.flatMap(division => {
+    const scope = divisionScope(division.key);
+    return scope ? [{ ...scope, division }] : [];
+  });
+  return measurement => {
+    if (measurement.reportType !== 'RDO' || measurement.systemType !== 'TUBULACAO'
+      || !Object.hasOwn(measurement, 'scopeName') || !equipmentKey(measurement.equipment) || !measurement.reportDate) return null;
+    const scope = scopes.find(scope => sameScope(measurement, scope) && dateInDivision(measurement.reportDate, scope.division));
+    return scope ? { scopeName: scope.scopeName, equipment: measurement.equipment } : null;
+  };
+}
+
 function scopeAttribution(rows, measurement) {
   const equipment = equipmentKey(measurement.equipment);
   if (!equipment) return null;
@@ -84,7 +112,8 @@ function groupPlannedSystems(plannedServices, normalizeServiceType) {
 
 // O cadastro e a associação de uma medição não mudam entre os pontos da mesma
 // curva. Este contexto pertence a um cálculo, nunca a um cache entre requisições.
-export function createSystemProgressContext(referencePlannedServices, normalizeServiceType) {
+export function createSystemProgressContext(referencePlannedServices, normalizeServiceType, { trackingDivisions = [] } = {}) {
+  const resolveDivision = divisionAttributionResolver(trackingDivisions);
   const registry = [...new Map(referencePlannedServices.flatMap(service => service.systems ?? [])
     .filter(row => row.projectSystem).map(row => [row.projectSystem.id, row.projectSystem])).values()];
   const referenceRows = new Map();
@@ -108,10 +137,15 @@ export function createSystemProgressContext(referencePlannedServices, normalizeS
       if (resolutions.has(measurement)) return resolutions.get(measurement);
       const allRows = referenceRows.get(type) ?? [];
       const match = resolveProjectSystem(registry, { ...measurement, serviceType: type });
-      const candidates = match ? allRows.filter(row => row.projectSystemId === match.id && row.systemType === measurement.systemType) : [];
+      // Dentro da janela da divisão, escopo e UG do RDO prevalecem sobre
+      // vínculos antigos e sobre bitolas cadastradas em outra obra.
+      const division = resolveDivision(measurement);
+      const candidates = match ? allRows.filter(row => row.projectSystemId === match.id && row.systemType === measurement.systemType
+        && (!division || (systemNameKey(row.scopeName) === systemNameKey(division.scopeName)
+          && equipmentKey(row.projectSystem?.equipment) === equipmentKey(division.equipment)))) : [];
       const target = candidates.find(row => rowBitola(row) && rowBitola(row) === measurement.bitola)
         ?? candidates.find(row => !rowBitola(row));
-      const result = { match, target, attribution: target ? null : scopeAttribution(allRows, measurement) };
+      const result = { match, target, division, attribution: target ? null : division ?? scopeAttribution(allRows, measurement) };
       resolutions.set(measurement, result);
       return result;
     }
@@ -119,10 +153,23 @@ export function createSystemProgressContext(referencePlannedServices, normalizeS
 }
 
 export function buildSystemProgress(plannedServices, realizedByType, normalizeServiceType, {
-  includeUnmatched = true, referencePlannedServices = plannedServices, systemContext
+  includeUnmatched = true, referencePlannedServices = plannedServices, systemContext, trackingDivisions = [], divisionKey
 } = {}) {
-  const context = systemContext ?? createSystemProgressContext(referencePlannedServices, normalizeServiceType);
+  const context = systemContext ?? createSystemProgressContext(referencePlannedServices, normalizeServiceType, { trackingDivisions });
   const grouped = context.groupsFor(plannedServices), pending = new Map();
+  const selection = divisionScope(divisionKey);
+  const includesDivision = attribution => selection ? sameScope(attribution, selection)
+    : referencePlannedServices === plannedServices || plannedServices.some(planned =>
+      systemNameKey(planned.scopeName) === systemNameKey(attribution.scopeName)
+      && planned.systems?.some(row => equipmentKey(row.projectSystem?.equipment) === equipmentKey(attribution.equipment)));
+  // Uma medição identificada na divisão continua visível mesmo sem meta
+  // cadastrada para o serviço. Não inventa quantidade prevista nem peso.
+  for (const [type, realized] of realizedByType) {
+    if (!grouped.has(type) && realized.measurements?.some(measurement => {
+      const { division } = context.resolve(type, measurement);
+      return division && includesDivision(division);
+    })) grouped.set(type, { serviceType: type, weight: 0, rows: new Map() });
+  }
   const addPending = (type, measurement, match, attributedScope) => {
     const key = JSON.stringify([type, measurement.equipment, measurement.system, measurement.systemType, measurement.bitola, measurement.projectSystemId || null, match?.id || null, measurement.scopeName, attributedScope]);
     if (!pending.has(key)) pending.set(key, {
@@ -141,21 +188,27 @@ export function buildSystemProgress(plannedServices, realizedByType, normalizeSe
     const realized = realizedByType.get(service.serviceType) ?? {};
     const legacyMetrics = new Set(rows.filter(row => !row.projectSystemId).map(row => row.systemType));
     for (const row of rows.filter(row => !row.projectSystemId)) {
-      row.realizedQty = realized[METRICS[row.systemType]?.[0]] ?? 0;
+      const measurements = (realized.measurements ?? []).filter(measurement => measurement.systemType === row.systemType);
+      row.realizedQty = measurements.some(measurement => context.resolve(service.serviceType, measurement).division)
+        ? measurements.reduce((sum, measurement) => {
+          const { division } = context.resolve(service.serviceType, measurement);
+          return sum + (!division || includesDivision(division) ? measurement.quantity : 0);
+        }, 0)
+        : realized[METRICS[row.systemType]?.[0]] ?? 0;
     }
     for (const measurement of realized.measurements ?? []) {
       if (legacyMetrics.has(measurement.systemType)) continue;
-      const { match, target, attribution } = context.resolve(service.serviceType, measurement);
+      const { match, target, attribution, division } = context.resolve(service.serviceType, measurement);
       if (target) {
         const bucket = service.rows.get(rowKey(target));
         if (bucket) bucket.realizedQty += measurement.quantity;
         continue;
       }
-      const belongsHere = attribution && plannedServices.some(planned =>
+      const belongsHere = attribution && (division ? includesDivision(division) : plannedServices.some(planned =>
         (normalizeServiceType(planned.serviceType) ?? planned.serviceType) === service.serviceType
         && systemNameKey(planned.scopeName) === systemNameKey(attribution.scopeName)
         && planned.systems?.some(row => row.systemType === measurement.systemType
-          && equipmentKey(row.projectSystem?.equipment) === equipmentKey(attribution.equipment)));
+          && equipmentKey(row.projectSystem?.equipment) === equipmentKey(attribution.equipment))));
       if (attribution && !belongsHere) continue;
       if (belongsHere) attributed.push({ systemType: measurement.systemType, realizedQty: measurement.quantity });
       addPending(service.serviceType, measurement, match, attribution);
