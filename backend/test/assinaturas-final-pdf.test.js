@@ -226,16 +226,16 @@ test('job recupera documentos já presos em pendência depois da revogação e c
   assert.equal(state.audits.filter(event => event.action === 'DOCUMENTO_CONCLUIDO').length, 1);
 });
 
-test('builder assina a página 100 e preserva o documento completo com evidências', async () => {
+test('builder assina a página 500 e preserva o documento completo com evidências', async () => {
   const pdf = await PDFDocument.create();
-  for (let index = 0; index < 100; index += 1) pdf.addPage([612, 792]);
+  for (let index = 0; index < 500; index += 1) pdf.addPage([612, 792]);
   const sourceBytes = Buffer.from(await pdf.save());
   const snapshot = {
-    id: 'document-100-pages',
+    id: 'document-500-pages',
     title: 'Contrato extenso',
     originalFileName: 'contrato.pdf',
     requesterNameSnapshot: 'Pedro Paulo',
-    validationCode: 'validation-code-100-pages',
+    validationCode: 'validation-code-500-pages',
     sourceDocumentHash: createHash('sha256').update(sourceBytes).digest('hex'),
     signers: [{
       id: 'signer-1',
@@ -245,15 +245,15 @@ test('builder assina a página 100 e preserva o documento completo com evidênci
       signedAt: new Date('2026-08-28T12:00:00.000Z')
     }],
     fields: [{
-      signerId: 'signer-1', pageNumber: 100, x: 0.1, y: 0.2, width: 0.3, height: 0.1
+      signerId: 'signer-1', pageNumber: 500, x: 0.1, y: 0.2, width: 0.3, height: 0.1
     }]
   };
 
   const finalPdf = await PDFDocument.load(await buildFinalPdfBytes(snapshot, sourceBytes));
 
-  assert.equal(finalPdf.getPageCount(), 101);
-  assert.match(pageContent(finalPdf, finalPdf.getPage(99)), /\/Image-[^\s]+ Do/);
-  assert.ok(finalPdf.getPage(100).node.Annots()?.size() >= 1);
+  assert.equal(finalPdf.getPageCount(), 501);
+  assert.match(pageContent(finalPdf, finalPdf.getPage(499)), /\/Image-[^\s]+ Do/);
+  assert.ok(finalPdf.getPage(500).node.Annots()?.size() >= 1);
 });
 
 test('código de validação é aleatório, único e resolve somente documento concluído', async () => {

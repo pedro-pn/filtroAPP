@@ -35,7 +35,7 @@ test('loadEnv parses defaults from a minimal valid environment', () => {
   assert.equal(env.pontomaisApiToken, '');
   assert.equal(env.assinaturasMaxPdfMb, 200);
   assert.equal(env.projectDocumentMaxMb, 20);
-  assert.equal(env.assinaturasMaxPages, 100);
+  assert.equal(env.assinaturasMaxPages, 500);
   assert.equal(env.assinaturasMaxSigners, 20);
   assert.equal(env.assinaturasTokenMaxDays, 90);
   assert.equal(env.assinaturasDeletedRetentionDays, 90);
