@@ -37,9 +37,11 @@ Os salários alimentam parâmetros do cargo na vigência recebida, preservando o
 
 ## Preparação e homologação
 
+O [roteiro de homologação](HOMOLOGACAO_CONECTA_RH.md) detalha as 12 etapas, os testes nas telas e os resultados esperados.
+
 1. Publicar a migration `20261113100000_conecta_rh` e os processos API/worker da mesma versão.
 2. Configurar `CONECTA_RH_COMPANY_ID` com o UUID real da empresa, informado pelo Conecta.
-3. Conceder os escopos de eventos e, se desejado, de salário à credencial técnica usada pelo Conecta. Uma credencial `SIMULATE` não serve para ativar o envio real.
+3. Criar uma credencial técnica de RH com os escopos de eventos e, se desejado, de salário, ou rotacionar a credencial existente para ampliar os privilégios. Uma credencial `SIMULATE` não serve para ativar o envio real.
 4. Para carga inicial e recuperação automática, configurar no backend `CONECTA_RH_API_URL` com a URL completa terminada em `/api/integracoes/filtroapp/v1` e `CONECTA_RH_READ_TOKEN` com o token de leitura emitido pelo Conecta. Não incluir segredos no frontend.
 5. O worker executa `conecta-rh` a cada cinco minutos. Sem credencial de leitura, apenas reavalia as dependências dos eventos recebidos. Com a credencial, conclui todos os recursos do snapshot antes de gravar o watermark e depois consome o feed. Salários podem ser omitidos por falta de escopo. Cursores expirados iniciam outro snapshot; ausência em snapshot não exclui registros.
 6. Homologar pré-admissão sem data, data prevista futura, ativação, desistência, desligamento, recontratação, troca de cargo, correção de salário e revogação de conformidade. Verificar a consulta de status pelo Conecta antes de ligar o envio automático.
