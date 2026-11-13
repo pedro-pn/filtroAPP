@@ -5,11 +5,14 @@ import { syncOmiePurchases as runSync } from '../src/lib/omie/purchases.js';
 const missing = id => Object.assign(new Error('Título excluído'), { status: 500, body: {
   faultcode: 'SOAP-ENV:Client-105', faultstring: `ERROR: Lançamento não cadastrado para o Código [${id}] !`
 } });
-const syncOmiePurchases = ({ call, consult, ...args }) => runSync({ requestDelayMs: 0, ...args,
+const syncOmiePurchases = ({ call, consult, ...args }) => {
+  let clock = 0;
+  return runSync({ requestDelayMs: 0, wait: async ms => { clock += ms; }, now: () => clock, ...args,
   call: (path, method, params) => method === 'ConsultarContaPagar'
     ? consult ? consult(params.codigo_lancamento_omie) : Promise.reject(missing(params.codigo_lancamento_omie))
     : call(path, method, params)
-});
+  });
+};
 
 const title = (extra = {}) => ({ codigo_lancamento_omie: 1, codigo_projeto: 100,
   valor_documento: 500, codigo_categoria: '2.07.97', status_titulo: 'PAGO',
@@ -56,7 +59,7 @@ test('reconcilia o histórico completo em toda execução, mesmo com sinceDays e
   }
   assert.equal(calls.length, 2);
   assert.ok(calls.every(({ method, params }) => method === 'ListarContasPagar'
-    && params.apenas_importado_api === 'N' && params.ordenar_por === 'CODIGO'
+    && params.registros_por_pagina === 100 && params.apenas_importado_api === 'N' && params.ordenar_por === 'CODIGO'
     && !Object.keys(params).some(key => key.startsWith('filtrar_'))));
   const row = events.find(event => event.type === 'batch').rows[0];
   assert.equal(row.omieId, '1');
@@ -171,6 +174,48 @@ test('retry de falha transitória é limitado e não sobrepõe chamadas', async 
   assert.equal(peak, 1);
   assert.equal(events.at(-1).type, 'SUCCESS');
 });
+
+test('REDUNDANT aguarda o prazo do Omie e continua da mesma página sem publicar antes', async () => {
+  const { db, events } = database();
+  const pages = [], waits = [];
+  let clock = 0, failed = false;
+  const result = await syncOmiePurchases({ db, now: () => clock,
+    wait: async ms => {
+      assert.equal(events.length, 0, 'espera da API não ocupa a transação de publicação');
+      waits.push(ms); clock += ms;
+    }, call: async (_path, _method, { pagina }) => {
+      pages.push(pagina);
+      if (pagina === 2 && !failed) {
+        failed = true;
+        throw Object.assign(new Error('REDUNDANT'), { status: 500, body: {
+          faultstring: 'Consumo redundante detectado. Aguarde 59 segundos para tentar novamente (REDUNDANT).'
+        } });
+      }
+      assert.ok(pagina !== 2 || clock >= 61_000);
+      return response([title({ codigo_lancamento_omie: pagina })], {
+        pagina, total_de_paginas: 2, total_de_registros: 2
+      });
+    } });
+  assert.deepEqual(pages, [1, 2, 2]);
+  assert.deepEqual(waits, [61_000]);
+  assert.equal(result.written, 2);
+  assert.equal(events.at(-1).args.data.summary.retries, 1);
+  assert.equal(events.at(-1).args.data.summary.cooldownWaitMs, 61_000);
+});
+
+for (const status of [403, 503]) {
+  test(`falha HTTP ${status} persistente não reinicia a primeira página nem abre sondagens`, async () => {
+    const { db, events } = database();
+    const pages = [];
+    await assert.rejects(syncOmiePurchases({ db, call: async (_path, _method, { pagina }) => {
+      pages.push(pagina);
+      if (pagina === 2) throw Object.assign(new Error('Falha persistente'), { status });
+      return response([title()], { total_de_paginas: 2, total_de_registros: 2 });
+    } }));
+    assert.deepEqual(pages, status === 503 ? [1, 2, 2, 2] : [1, 2]);
+    assert.deepEqual(events.map(event => event.type), ['ERROR']);
+  });
+}
 
 test('página final removida durante a leitura exige uma nova confirmação do fim', async () => {
   const { db, events } = database();

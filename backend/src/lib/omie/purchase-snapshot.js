@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { setTimeout as sleep } from 'node:timers/promises';
 import { isSedeCostCenterCode } from '../acompanhamento/sede-cost-centers.js';
+import { createOmiePurchaseReader, isMissingOmiePage, isPurchaseNotFound } from './purchase-reader.js';
 
 const text = value => value == null ? null : String(value).trim() || null;
 const validId = value => /^\d+$/.test(String(value)) && Number.isSafeInteger(Number(value)) && Number(value) > 0;
@@ -42,29 +42,6 @@ function purchase(row, linked, categoryNames) {
   };
 }
 
-function notFound(error, id) {
-  const match = String(error?.body?.faultstring ?? '').match(/Lançamento não cadastrado para o Código \[(\d+)\]/iu);
-  return error?.body?.faultcode === 'SOAP-ENV:Client-105' && match?.[1] === String(id);
-}
-
-// Uma chamada por vez, com pausa curta e retries limitados. Nenhuma conexão de
-// banco fica ocupada durante a leitura da API ou a confirmação dos ausentes.
-function reader(call, requestDelayMs) {
-  let calls = 0;
-  return async (method, params) => {
-    for (let attempt = 0; ; attempt++) {
-      if (calls++ && requestDelayMs) await sleep(requestDelayMs);
-      try {
-        return await call('/financas/contapagar/', method, params);
-      } catch (error) {
-        const retryable = error?.status === 429 || error?.status >= 500 || error?.name === 'TypeError';
-        if (notFound(error, params.codigo_lancamento_omie) || !retryable || attempt >= 2) throw error;
-        await sleep(500 * (attempt + 1));
-      }
-    }
-  };
-}
-
 function pageInfo(response, page) {
   const count = Number(response?.total_de_registros);
   const pageCount = Number(response?.total_de_paginas);
@@ -79,8 +56,8 @@ function pageInfo(response, page) {
   return { count, pageCount, rows };
 }
 
-export async function readPurchaseSnapshot({ call, linked, categoryNames, existing, requestDelayMs }) {
-  const read = reader(call, requestDelayMs);
+export async function readPurchaseSnapshot({ call, linked, categoryNames, existing, requestDelayMs, wait, now }) {
+  const { read, stats } = createOmiePurchaseReader({ call, requestDelayMs, wait, now });
   const seen = new Set();
   const current = new Map();
   const summary = { pagesRead: 0, paginationChanges: 0, duplicateRows: 0, canceledIgnored: 0,
@@ -89,14 +66,14 @@ export async function readPurchaseSnapshot({ call, linked, categoryNames, existi
   let previousPages = null;
   for (let page = 1; page <= pages; page++) {
     const params = {
-      pagina: page, registros_por_pagina: 50, apenas_importado_api: 'N',
+      pagina: page, registros_por_pagina: 100, apenas_importado_api: 'N',
       ordenar_por: 'CODIGO', ordem_descrescente: 'N'
     };
     let info;
     try {
       info = pageInfo(await read('ListarContasPagar', params), page);
     } catch (error) {
-      if (page === 1) throw error;
+      if (page === 1 || !isMissingOmiePage(error)) throw error;
       // O último conjunto de registros pode ter sido excluído entre chamadas.
       // Só aceite o fim antecipado quando uma nova consulta válida o comprova.
       const latest = pageInfo(await read('ListarContasPagar', { ...params, pagina: 1 }), 1);
@@ -144,12 +121,12 @@ export async function readPurchaseSnapshot({ call, linked, categoryNames, existi
       if (data) { current.set(cached.omieId, data); summary.recoveredMissing++; }
       else removals.push(cached);
     } catch (error) {
-      if (!notFound(error, cached.omieId)) throw error;
+      if (!isPurchaseNotFound(error, cached.omieId)) throw error;
       removals.push(cached);
     }
     if (summary.verifiedMissing % 25 === 0) {
       console.log(`[omie-sync] compras: ${summary.verifiedMissing} ausentes conferidos individualmente.`);
     }
   }
-  return { purchases: [...current.values()], removals, read: seen.size, summary };
+  return { purchases: [...current.values()], removals, read: seen.size, summary: { ...summary, ...stats } };
 }
