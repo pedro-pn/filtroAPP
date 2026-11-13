@@ -2,15 +2,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { syncOmiePurchases as runSync } from '../src/lib/omie/purchases.js';
 
-const missing = id => Object.assign(new Error('Título excluído'), { status: 500, body: {
-  faultcode: 'SOAP-ENV:Client-105', faultstring: `ERROR: Lançamento não cadastrado para o Código [${id}] !`
-} });
-const syncOmiePurchases = ({ call, consult, ...args }) => {
+const syncOmiePurchases = ({ call, ...args }) => {
   let clock = 0;
   return runSync({ requestDelayMs: 0, wait: async ms => { clock += ms; }, now: () => clock, ...args,
-  call: (path, method, params) => method === 'ConsultarContaPagar'
-    ? consult ? consult(params.codigo_lancamento_omie) : Promise.reject(missing(params.codigo_lancamento_omie))
-    : call(path, method, params)
+    call: (path, method, params) => {
+      assert.equal(method, 'ListarContasPagar', 'a reconciliação usa somente listagens válidas');
+      return call(path, method, params);
+    }
   });
 };
 
@@ -132,29 +130,13 @@ test('conclui com total variável e crescimento de páginas, sem publicar duplic
   assert.equal(events.find(event => event.type === 'batch').rows.length, 2);
 });
 
-test('recupera da API um título válido que a paginação deslocou, em vez de excluí-lo', async () => {
-  const { db, events } = database();
-  const checked = [];
-  const result = await syncOmiePurchases({ db, call: async () => response([title()]),
-    consult: async id => {
-      checked.push(id);
-      if (id === 100) return title({ codigo_lancamento_omie: 100, valor_documento: 123 });
-      throw missing(id);
-    } });
-  assert.equal(checked.length, 7);
-  assert.equal(result.deleted, 6);
-  assert.equal(result.written, 2);
-  assert.equal(events.at(-1).args.data.summary.recoveredMissing, 1);
-  assert.ok(events.find(event => event.type === 'batch').rows.some(row => row.omieId === '100' && row.valor === 123));
-});
-
 test('redução do total e das páginas não descarta custos que ainda existem', async () => {
   const { db, events } = database();
   db.omiePurchase.findMany = async () => [1, 2, 3].map(id => ({ id: `local-${id}`, omieId: String(id), syncedAt: new Date('2020-01-01') }));
-  await syncOmiePurchases({ db, call: async (_path, _method, { pagina }) =>
-    response([title({ codigo_lancamento_omie: pagina === 1 ? 1 : 3 })], {
+  await syncOmiePurchases({ db, call: async (_path, _method, { pagina, registros_por_pagina }) =>
+    registros_por_pagina === 100 ? response([title({ codigo_lancamento_omie: pagina === 1 ? 1 : 3 })], {
       pagina, total_de_paginas: pagina === 1 ? 3 : 2, total_de_registros: pagina === 1 ? 3 : 2
-    }), consult: async id => title({ codigo_lancamento_omie: id, valor_documento: 456 }) });
+    }) : response([title(), title({ codigo_lancamento_omie: 2 }), title({ codigo_lancamento_omie: 3 })]) });
   assert.ok(!events.some(event => event.type === 'delete'));
   assert.equal(events.find(event => event.type === 'batch').rows.length, 3);
   assert.equal(events.at(-1).args.data.summary.recoveredMissing, 1);
@@ -233,21 +215,6 @@ test('página final removida durante a leitura exige uma nova confirmação do f
     'a nova consulta também importa os títulos válidos que acabou de encontrar');
 });
 
-for (const [name, consult] of [
-  ['erro temporário', async () => { throw Object.assign(new Error('API indisponível'), { status: 503 }); }],
-  ['erro de autenticação', async () => { throw Object.assign(new Error('Acesso negado'), { status: 403 }); }],
-  ['resposta incompleta', async () => ({})],
-  ['outro ID', async () => title({ codigo_lancamento_omie: 999 })],
-  ['not found de outro ID', async () => { throw missing(999); }],
-  ['mensagem sem código reconhecido', async () => { throw new Error('Lançamento não cadastrado'); }]
-]) {
-  test(`não exclui nem publica quando a confirmação retorna ${name}`, async () => {
-    const { db, events } = database();
-    await assert.rejects(syncOmiePurchases({ db, call: async () => response([title()]), consult }));
-    assert.deepEqual(events.map(event => event.type), ['ERROR']);
-  });
-}
-
 test('snapshot antigo não substitui outro ciclo já publicado', async () => {
   const { db, events } = database();
   db.integrationSyncRun.findFirst = async () => ({ id: 'newer-run' });
@@ -274,3 +241,53 @@ test('limpeza de grande volume usa lotes limitados sem excluir títulos válidos
   assert.deepEqual(batches.map(batch => batch.length), [500, 500, 200]);
   assert.ok(!batches.flat().includes('id-0'));
 });
+
+function overlapFixture() {
+  const { db, events } = database();
+  const rows = Array.from({ length: 201 }, (_, i) => title({ codigo_lancamento_omie: (i + 1) * 10 }));
+  db.omiePurchase.findMany = async () => [1005, 1006].map(id => ({ id: `local-${id}`, omieId: String(id), syncedAt: new Date('2020-01-01') }));
+  const calls = [];
+  const listing = (params, entries = rows) => {
+    calls.push([params.registros_por_pagina, params.pagina]);
+    const offset = (params.pagina - 1) * params.registros_por_pagina;
+    return response(entries.slice(offset, offset + params.registros_por_pagina), {
+      pagina: params.pagina, total_de_registros: entries.length,
+      total_de_paginas: Math.ceil(entries.length / params.registros_por_pagina)
+    });
+  };
+  return { db, events, rows, calls, listing };
+}
+
+test('uma sobreposição confirma vários IDs apagados sem nenhuma consulta inválida', async () => {
+  const f = overlapFixture();
+  const result = await syncOmiePurchases({ db: f.db, call: async (_path, _method, params) => f.listing(params) });
+  assert.equal(result.deleted, 2);
+  assert.deepEqual(f.calls, [[100, 1], [100, 2], [100, 3], [99, 2]]);
+  assert.equal(f.events.at(-1).args.data.summary.overlapPagesRead, 1);
+});
+
+test('sobreposição recupera um título válido deslocado pela paginação e atualiza seu valor', async () => {
+  const f = overlapFixture();
+  const live = [...f.rows, title({ codigo_lancamento_omie: 1005, valor_documento: 123 })]
+    .sort((a, b) => a.codigo_lancamento_omie - b.codigo_lancamento_omie);
+  const result = await syncOmiePurchases({ db: f.db, call: async (_path, _method, params) =>
+    f.listing(params, params.registros_por_pagina === 100 ? f.rows : live) });
+  assert.equal(result.deleted, 1);
+  assert.equal(result.written, 202);
+  assert.equal(f.events.at(-1).args.data.summary.recoveredMissing, 1);
+  assert.ok(f.events.find(event => event.type === 'batch').rows.some(row => row.omieId === '1005' && row.valor === 123));
+});
+
+for (const failure of ['403', '503', 'malformed', 'unordered']) {
+  test(`falha na confirmação por sobreposição preserva os custos: ${failure}`, async () => {
+    const f = overlapFixture();
+    await assert.rejects(syncOmiePurchases({ db: f.db, call: async (_path, _method, params) => {
+      if (params.registros_por_pagina === 100) return f.listing(params);
+      if (/^\d+$/.test(failure)) throw Object.assign(new Error('API indisponível'), { status: Number(failure) });
+      if (failure === 'malformed') return {};
+      const result = f.listing(params);
+      return { ...result, conta_pagar_cadastro: result.conta_pagar_cadastro.toReversed() };
+    } }));
+    assert.deepEqual(f.events.map(event => event.type), ['ERROR']);
+  });
+}
