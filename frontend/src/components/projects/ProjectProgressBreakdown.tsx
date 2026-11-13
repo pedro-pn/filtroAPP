@@ -66,6 +66,8 @@ export function ProjectProgressBreakdown({ projectId, filter, progressPct, canMa
     if (isLoading) return <Skeleton variant="text" lines={4} label="Calculando avanço" />;
     if (isError && !data) return <EmptyState variant="error" title="Não foi possível calcular o avanço."
       action={{ label: 'Tentar novamente', onClick: () => void refetch() }} />;
+    if (data?.progressMethod === 'MANUAL' && !data.hasScope) return <ProgressBar label="Avanço manual"
+      value={data.progressPct} valueLabel={fmtPct(data.progressPct)} />;
     if (!data || !data.hasScope) return <EmptyState title="Escopo previsto não cadastrado"
       description="Cadastre o escopo previsto com metas para calcular o avanço." />;
 
@@ -94,7 +96,8 @@ export function ProjectProgressBreakdown({ projectId, filter, progressPct, canMa
             options={equipmentFilterOptions(data)}
           />
         </Field> : null}
-      <ProgressBar label="Avanço total do escopo" value={shownPct} valueLabel={fmtPct(shownPct)} />
+      <ProgressBar label={data.progressMethod === 'MANUAL' ? 'Avanço manual' : 'Avanço total do escopo'} value={shownPct} valueLabel={fmtPct(shownPct)} />
+      {data.progressMethod === 'MANUAL' ? <Alert tone="info">O percentual manual está em uso. As medições abaixo continuam disponíveis para consulta.</Alert> : null}
       {groups.length ? <div className="acp-progress-ds__groups">
         {groups.map(group => {
           const services = group.services.map((service, index) => {
@@ -132,11 +135,12 @@ export function ProjectProgressBreakdown({ projectId, filter, progressPct, canMa
         </li>)}</ul>
       </details> : null}
       <ProjectRealizedCorrections projectId={projectId} canManage={canManage} appearance="design-system" />
-      <p className="acp-progress-ds__note">Realizado = serviços finalizados e quantitativos históricos, sem duplicar relatórios derivados. O avanço total considera todas as quantidades realizadas por serviço e tipo de medição, independentemente da conciliação, e pode ultrapassar 100%. O escopo e a UG informados no relatório já permitem contabilizar o realizado quando identificam um destino único. A conciliação detalha a distribuição por sistema e bitola; os serviços usam seus pesos.</p>
+      <p className="acp-progress-ds__note">Realizado = serviços finalizados e quantitativos históricos, sem duplicar relatórios derivados. O avanço calculado pelos relatórios considera todas as quantidades realizadas por serviço e tipo de medição, independentemente da conciliação, e pode ultrapassar 100%. O escopo e a UG informados no relatório já permitem contabilizar o realizado quando identificam um destino único. A conciliação detalha a distribuição por sistema e bitola; os serviços usam seus pesos.</p>
     </div>;
   }
 
   if (isLoading) return <div className="placeholder-copy">Calculando avanço…</div>;
+  if (data?.progressMethod === 'MANUAL' && !data.hasScope) return <div className="acp-progress-total">Avanço manual: <strong>{fmtPct(data.progressPct)}</strong></div>;
   if (!data || !data.hasScope) {
     return <div className="placeholder-copy">Cadastre o escopo previsto (com metas) para calcular o avanço.</div>;
   }
@@ -156,6 +160,7 @@ export function ProjectProgressBreakdown({ projectId, filter, progressPct, canMa
         <small>O percentual geral mantém todo o escopo; o filtro altera apenas as linhas exibidas.</small>
       </div> : null}
       <div className="acp-progress-total">
+        {data.progressMethod === 'MANUAL' ? <span>Avanço manual</span> : null}
         <div className="acp-prog-bar big"><span style={{ width: `${Math.min((progressPct === undefined ? data.progressPct : progressPct) ?? 0, 100)}%` }} /></div>
         <strong>{fmtPct(progressPct === undefined ? data.progressPct : progressPct)}</strong>
       </div>
@@ -189,7 +194,7 @@ export function ProjectProgressBreakdown({ projectId, filter, progressPct, canMa
       <ProjectRealizedCorrections projectId={projectId} canManage={canManage} />
       <p className="placeholder-copy" style={{ marginTop: 6, fontSize: 11 }}>
         Realizado = serviços finalizados e quantitativos históricos, sem duplicar relatórios derivados.
-        O avanço total considera todas as quantidades realizadas por serviço e tipo de medição, independentemente
+        O avanço calculado pelos relatórios considera todas as quantidades realizadas por serviço e tipo de medição, independentemente
         da conciliação, e pode ultrapassar 100%. O escopo e a UG informados no relatório já permitem contabilizar o realizado
         quando identificam um destino único. A conciliação detalha a distribuição por sistema e bitola; os serviços usam seus pesos.
       </p>

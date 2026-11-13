@@ -4,11 +4,12 @@ import axios from 'axios';
 import { getProjectDetail, getPlannedScope, saveTrackingDivision, saveTrackingDivisions, type TrackingDivision, type TrackingDivisionInput, type TrackingDivisionCandidate, type TrackingDivisionsResponse } from '../../api/acompanhamentoComercial';
 import { percentageForProjectValue, percentageOfProjectTotal, type TrackingDivisionPlannedField } from '../../utils/trackingDivisionPercentage';
 import { Modal } from '../ui/Modal';
+import { ProjectManualProgressField } from './ProjectManualProgressField';
 import { Alert, Button, EmptyState, Field, Input, Switch } from '../ui/ds';
 import './ProjectTrackingDivisionsPanel.ds.css';
 
-type Draft = { enabled: boolean; label: string; startDate: string; endDate: string; mobilizationDate: string; plannedCost: string; plannedRevenue: string; plannedHours: string; plannedDays: string };
-const emptyDraft = (): Draft => ({ enabled: false, label: '', startDate: '', endDate: '', mobilizationDate: '', plannedCost: '', plannedRevenue: '', plannedHours: '', plannedDays: '' });
+type Draft = { enabled: boolean; label: string; startDate: string; endDate: string; mobilizationDate: string; plannedCost: string; plannedRevenue: string; plannedHours: string; plannedDays: string; manualProgressPct: string; forceManualProgress: boolean };
+const emptyDraft = (): Draft => ({ enabled: false, label: '', startDate: '', endDate: '', mobilizationDate: '', plannedCost: '', plannedRevenue: '', plannedHours: '', plannedDays: '', manualProgressPct: '', forceManualProgress: false });
 const plannedFields: ReadonlyArray<readonly [TrackingDivisionPlannedField, string]> = [
   ['plannedCost', 'Custo previsto (R$)'],
   ['plannedRevenue', 'Receita prevista (R$)'],
@@ -23,7 +24,9 @@ function draftFromRows(rows: TrackingDivision[]): Record<string, Draft> {
     plannedCost: row.plannedCost == null ? '' : String(row.plannedCost),
     plannedRevenue: row.plannedRevenue == null ? '' : String(row.plannedRevenue),
     plannedHours: row.plannedHours == null ? '' : String(row.plannedHours),
-    plannedDays: row.plannedDays == null ? '' : String(row.plannedDays)
+    plannedDays: row.plannedDays == null ? '' : String(row.plannedDays),
+    manualProgressPct: row.manualProgressPct == null ? '' : String(row.manualProgressPct),
+    forceManualProgress: row.forceManualProgress ?? false
   }]));
 }
 
@@ -78,6 +81,8 @@ export function ProjectTrackingDivisionsPanel({ projectId, data, selectedDivisio
         queryClient.invalidateQueries({ queryKey: ['tracking-divisions', projectId] }),
         queryClient.invalidateQueries({ queryKey: ['project-detail', projectId] }),
         queryClient.invalidateQueries({ queryKey: ['project-progress', projectId] }),
+        queryClient.invalidateQueries({ queryKey: ['project-cards'] }),
+        queryClient.invalidateQueries({ queryKey: ['mission-group-detail'] }),
         queryClient.invalidateQueries({ queryKey: ['commercial-dashboard'] })
       ]);
       onClose();
@@ -131,10 +136,16 @@ export function ProjectTrackingDivisionsPanel({ projectId, data, selectedDivisio
       if (planned.plannedDays != null && !Number.isInteger(planned.plannedDays)) {
         setError(`Dias previstos devem ser inteiros em ${candidate.label}.`); return;
       }
+      const manualProgressPct = numeric(item.manualProgressPct);
+      if ((manualProgressPct != null && (!Number.isFinite(manualProgressPct) || manualProgressPct < 0 || manualProgressPct > 100))
+        || (item.forceManualProgress && manualProgressPct == null)) {
+        setError(`Informe um avanço manual de 0% a 100% em ${candidate.label}.`); return;
+      }
       rows.push({ key: candidate.key, ...(byDate ? { label: item.label.trim() } : {}), startDate: item.startDate, endDate: item.endDate || null,
         mobilizationDate: byDate ? item.startDate : item.mobilizationDate,
         plannedCost: planned.plannedCost, plannedRevenue: planned.plannedRevenue,
-        plannedHours: planned.plannedHours, plannedDays: planned.plannedDays });
+        plannedHours: planned.plannedHours, plannedDays: planned.plannedDays,
+        manualProgressPct, forceManualProgress: item.forceManualProgress });
     }
     save.mutate(rows);
   }
@@ -165,6 +176,10 @@ export function ProjectTrackingDivisionsPanel({ projectId, data, selectedDivisio
         {!byDate ? <Field id={fieldId('mobilization')} label="Mobilização do escopo" required helperText="Início da contagem dos dias corridos e da apuração dos colaboradores alocados neste escopo. Preencha manualmente.">
           <Input size="sm" type="date" required max={item.endDate || undefined} disabled={save.isPending} value={item.mobilizationDate} onChange={event => update(candidate.key, { mobilizationDate: event.target.value })} />
         </Field> : null}
+        <ProjectManualProgressField id={fieldId('manual-progress')} value={item.manualProgressPct}
+          forced={item.forceManualProgress} disabled={save.isPending}
+          onValueChange={value => update(candidate.key, { manualProgressPct: value })}
+          onForcedChange={value => update(candidate.key, { forceManualProgress: value })} />
         {plannedFields.map(([field, label]) => {
           const percentage = percentDraft[candidate.key]?.[field];
           const total = totals[field];
@@ -212,6 +227,7 @@ export function ProjectTrackingDivisionsPanel({ projectId, data, selectedDivisio
     <form id="acp-tracking-divisions-form" className="acp-tracking-divisions-form" onSubmit={submit}>
       <p className="acp-tracking-divisions-intro">{selectedDivisionKey ? 'Edite as datas e metas desta divisão. Sem data final, o período vai até hoje.' : 'Crie divisões por data, mesmo sem escopo cadastrado, ou ative abas por escopo e equipamento. As metas previstas são opcionais. Use o botão % para calcular pelo total do projeto. Sem data final, o período vai até hoje.'}</p>
       <p className="acp-tracking-divisions-intro">As datas de cada divisão são independentes das datas do projeto completo e das demais divisões.</p>
+      <p className="acp-tracking-divisions-intro">O avanço manual de cada divisão é independente do projeto completo e das demais divisões.</p>
       <p className="acp-tracking-divisions-intro">Cadastre os valores integrais das metas. O percentual da proposta definido no cronograma será aplicado aos indicadores de cada divisão.</p>
       {!selectedDivisionKey ? <Button type="button" size="sm" variant="secondary" disabled={save.isPending} onClick={() => {
         const key = JSON.stringify(['DATE', crypto.randomUUID(), null]);

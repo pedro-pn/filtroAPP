@@ -75,6 +75,19 @@ test('cronograma renderiza campos, avanço e escopo no DS sem mudar o contrato d
   const readOnly = render(ProjectScheduleEditor, { projectId: 'p', canManage: false });
   assert.doesNotMatch(readOnly, /Adicionar colaborador manualmente|Usar horas do comercial/);
   assert.match(readOnly, /Serviços previstos/);
+  assert.match(html, /<input(?=[^>]*role="switch")(?=[^>]*aria-label="Forçar avanço manual")[^>]*>/);
+  assert.match(readOnly, /<input(?=[^>]*aria-label="Forçar avanço manual")(?=[^>]*disabled)[^>]*>/);
+  assert.match(html, /<input(?=[^>]*role="switch")(?=[^>]*aria-label="Projeto offshore")[^>]*>/);
+  assert.match(readOnly, /<input(?=[^>]*aria-label="Projeto offshore")(?=[^>]*disabled)[^>]*>/);
+  assert.doesNotMatch(html, /aria-pressed=|acp-checkbox-inline/);
+
+  client.setQueryData(['commercial-revisions', 'p'], { currentCodBd: null, revisions: [],
+    manualProgressPct: 72.5, forceManualProgress: true });
+  const withoutRevision = render(ProjectScheduleEditor, { projectId: 'p', canManage: true });
+  assert.match(withoutRevision, /Forçar manual/);
+  assert.match(withoutRevision, /value="72.5"/);
+  assert.match(withoutRevision, /<input(?=[^>]*aria-label="Forçar avanço manual")(?=[^>]*checked)[^>]*>/);
+  client.setQueryData(['commercial-revisions', 'p'], { currentCodBd: 7, revisions: [revision] });
 
   const scheduleKey = ['commercial-revisions', 'p'];
   const existing = client.getQueryData(scheduleKey);
@@ -85,6 +98,21 @@ test('cronograma renderiza campos, avanço e escopo no DS sem mudar o contrato d
   const partial = render(ProjectScheduleEditor, { projectId: 'p', canManage: true });
   assert.match(partial, /<span>Dias corridos<\/span><strong>6<\/strong>/);
   assert.match(partial, /<span>Dias trabalhados<\/span><strong>7<\/strong>/);
+}));
+
+test('campo compartilhado identifica a escolha manual e o detalhamento exibe avanço sem metas', async () => fixture(async ({ server, client, render }) => {
+  const { ProjectManualProgressField } = await server.ssrLoadModule('/src/components/projects/ProjectManualProgressField.tsx');
+  const { ProjectProgressBreakdown } = await server.ssrLoadModule('/src/components/projects/ProjectProgressBreakdown.tsx');
+  const html = render(ProjectManualProgressField, { id: 'division-progress', value: '0', forced: true, onValueChange() {}, onForcedChange() {} });
+  assert.match(html, /Forçar manual/);
+  assert.match(html, /<input(?=[^>]*role="switch")(?=[^>]*aria-label="Forçar avanço manual")(?=[^>]*checked)[^>]*>/);
+  assert.match(html, /value="0"/);
+  assert.match(html, /for="division-progress-control"/);
+  client.setQueryData(['project-progress', 'p'], { hasScope: false, progressPct: 65, progressMethod: 'MANUAL', services: [] });
+  const manual = render(ProjectProgressBreakdown, { projectId: 'p', appearance: 'design-system' });
+  assert.match(manual, /Avanço manual/);
+  assert.match(manual, /65%/);
+  assert.doesNotMatch(manual, /Escopo previsto não cadastrado/);
 }));
 
 test('revisões comerciais mantêm ações e seletores acessíveis no Gestor', async () => fixture(async ({ server, client, render }) => {

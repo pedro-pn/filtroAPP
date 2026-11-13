@@ -37,7 +37,7 @@
 .fv-ds .acp-schedule-ds__facts span { color: var(--muted); font-size: var(--text-xs); }
 .fv-ds .acp-schedule-ds__facts strong { font-size: var(--text-lg); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .fv-ds .acp-schedule-ds__summary .fv-card__body { display: grid; gap: var(--space-3); }
-.fv-ds .acp-schedule-ds__fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
+.fv-ds .acp-schedule-ds__fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: var(--space-4); }
 .fv-ds .acp-schedule-ds__deadline { margin: 0; padding: var(--space-3); border-radius: var(--radius-md); background: var(--surface-2); color: var(--ink); font-size: var(--text-sm); }
 .fv-ds .acp-schedule-ds__late { color: var(--danger); }
 .fv-ds .acp-schedule-ds__hours-review { gap: var(--space-4); }

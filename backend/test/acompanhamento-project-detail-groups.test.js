@@ -562,3 +562,16 @@ test('progress-only group preserves manual weighting without cost or billing res
   assert.deepEqual(groupProgressProjection(projected, { includeRevision: true }), expected);
   assert.equal(expected.avancoPct, 60);
 });
+
+test('grupo respeita avanço manual forçado mesmo com metas e medições no projeto', () => {
+  const entries = [60, 20].map((value, index) => ({
+    projectId: `p${index}`, detail: { avancoPct: value },
+    progress: { hasScope: true, progressPct: value, progressMethod: index === 0 ? 'MANUAL' : 'RDO',
+      services: [{ serviceType: 'LIMPEZA_QUIMICA', weight: 100, systems: [{ systemType: 'TUBULACAO', unit: 'M', plannedQty: 100, realizedQty: 20 }] }] }
+  }));
+  const result = groupProgressProjection(entries, { progressMode: 'current' });
+  assert.equal(result.avancoPct, 40);
+  assert.equal(result.avancoMethod, 'GROUP_WEIGHTED');
+  assert.equal(result.progressBreakdown.progressPct, 40);
+  assert.equal(result.progressBreakdown.services[0].executionPct, 20, 'as medições continuam disponíveis');
+});

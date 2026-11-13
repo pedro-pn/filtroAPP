@@ -149,3 +149,60 @@ test('current-only progress preserves date eligibility, source filtering, values
     await compare(value, value === null ? null : 'MANUAL');
   }
 });
+
+test('forçar avanço manual substitui o RDO em todas as projeções e desativar recupera as medições', async () => {
+  const state = fixture(), ids = [state.project.id];
+  const options = { database: state.database, servicesByProject: new Map([[ids[0], state.services]]), includeRevision: true };
+  const read = async (currentOnly = false) => (await computeProgressDetailsForProjects(ids, { ...options, currentOnly })).get(ids[0]);
+  const automatic = await read();
+  state.project.startDate = '2026-01-01';
+  state.project.forceManualProgress = true;
+  state.project.updatedAt = new Date('2026-03-12');
+  state.manualHistory.push({ projectId: ids[0], recordedAt: new Date('2026-03-05'), progressPct: 12 },
+    { projectId: ids[0], recordedAt: new Date('2026-03-12'), progressPct: 18 });
+  const manual = await read();
+  assert.equal(manual.progress.progressPct, 18);
+  assert.equal(manual.progress.progressMethod, 'MANUAL');
+  assert.equal(manual.progressSlices, null, 'recortes dos RDOs não sobrescrevem o avanço manual no dashboard');
+  assert.deepEqual(manual.progress.services, automatic.progress.services, 'conserva as medições para consulta');
+  assert.deepEqual(manual.dailyProgressHistory.map(point => point.progressPct), [12, 18]);
+  assert.equal(manual.progressHistory.at(-1).progressPct, 18);
+  const current = await read(true);
+  assert.deepEqual(current.progress, manual.progress);
+  assert.equal(current.progressRevision, manual.progressRevision);
+  assert.notEqual(current.progressRevision, automatic.progressRevision);
+  state.project.manualProgressPct = 0;
+  assert.equal((await read(true)).progress.progressPct, 0);
+  state.project.forceManualProgress = false;
+  const restored = await read();
+  assert.deepEqual(restored.progress, automatic.progress);
+  assert.deepEqual(restored.dailyProgressHistory, automatic.dailyProgressHistory);
+});
+
+test('divisões controlam seu avanço sem herdar a escolha manual do projeto ou de outra divisão', async () => {
+  const state = fixture();
+  const database = { ...state.database, project: { findUnique: async () => state.project, findMany: async () => [state.project] } };
+  const options = { database, servicesByProject: new Map([[state.project.id, state.services]]), includeRevision: true };
+  const division = { key: JSON.stringify(['SCOPE', 'Escopo A', null]), startDate: '2026-01-10', endDate: '2026-02-10' };
+  const automatic = await computeDivisionProgressDetails(state.project.id, division, options);
+  state.project.manualProgressPct = 98;
+  state.project.forceManualProgress = true;
+  assert.deepEqual((await computeDivisionProgressDetails(state.project.id, division, options)).progress, automatic.progress);
+  const forced = { ...division, manualProgressPct: 65, forceManualProgress: true,
+    manualProgressHistory: [{ recordedAt: '2026-02-01', progressPct: 50 }, { recordedAt: '2026-02-10', progressPct: 65 }] };
+  const manual = await computeDivisionProgressDetails(state.project.id, forced, options);
+  assert.equal(manual.progress.progressPct, 65);
+  assert.equal(manual.progress.progressMethod, 'MANUAL');
+  assert.equal(manual.progressHistory.at(-1).progressPct, 65);
+  assert.deepEqual(manual.progress.services, automatic.progress.services);
+  const current = await computeDivisionProgressDetails(state.project.id, forced, { ...options, currentOnly: true });
+  assert.deepEqual(current.progress, manual.progress);
+  assert.equal(current.progressRevision, manual.progressRevision);
+  assert.notEqual(manual.progressRevision, automatic.progressRevision);
+  assert.equal((await computeDivisionProgressDetails(state.project.id, { ...forced, manualProgressPct: 0 }, options)).progress.progressPct, 0);
+  assert.deepEqual((await computeDivisionProgressDetails(state.project.id, { ...forced, forceManualProgress: false }, options)).progress, automatic.progress);
+  assert.equal((await computeProgressDetailsForProjects([state.project.id], options)).get(state.project.id).progress.progressPct, 98);
+  state.planned.length = 0;
+  const byDate = { ...forced, key: JSON.stringify(['DATE', 'etapa', null]) };
+  assert.equal((await computeDivisionProgressDetails(state.project.id, byDate, options)).progress.progressPct, 65);
+});
