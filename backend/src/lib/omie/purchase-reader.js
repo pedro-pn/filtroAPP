@@ -7,6 +7,13 @@ export function isPurchaseNotFound(error, id) {
   return error?.body?.faultcode === 'SOAP-ENV:Client-105' && match?.[1] === String(id);
 }
 
+export function isMissingOmiePage(error) {
+  if ([401, 403, 425, 429].includes(error?.status)) return false;
+  const message = String(error?.body?.faultstring ?? error?.message ?? '');
+  if (/REDUNDANT|consumo.*(?:redundante|indevido)/iu.test(message)) return false;
+  return /p[áa]gina.*n[ãa]o existe|n[ãa]o (?:existem|h[áa]) registros.*p[áa]gina/iu.test(message);
+}
+
 function retryDelay(error) {
   const message = String(error?.body?.faultstring ?? error?.message ?? '');
   const match = message.match(/aguarde\s+(\d+)\s+segundos?/iu);
@@ -46,7 +53,8 @@ export function createOmiePurchaseReader({ call, requestDelayMs, wait = sleep, n
         } catch (error) {
           attemptedAt.set(key, now());
           const retryable = [425, 429].includes(error?.status) || error?.status >= 500 || error?.name === 'TypeError';
-          if (isPurchaseNotFound(error, params.codigo_lancamento_omie) || !retryable || attempt >= 2) throw error;
+          if (isPurchaseNotFound(error, params.codigo_lancamento_omie)
+            || (method === 'ListarContasPagar' && isMissingOmiePage(error)) || !retryable || attempt >= 2) throw error;
           const delay = retryDelay(error);
           if (delay == null) throw error;
           stats.retries++;

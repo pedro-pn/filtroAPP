@@ -203,6 +203,20 @@ test('REDUNDANT aguarda o prazo do Omie e continua da mesma página sem publicar
   assert.equal(events.at(-1).args.data.summary.cooldownWaitMs, 61_000);
 });
 
+for (const status of [403, 503]) {
+  test(`falha HTTP ${status} persistente não reinicia a primeira página nem abre sondagens`, async () => {
+    const { db, events } = database();
+    const pages = [];
+    await assert.rejects(syncOmiePurchases({ db, call: async (_path, _method, { pagina }) => {
+      pages.push(pagina);
+      if (pagina === 2) throw Object.assign(new Error('Falha persistente'), { status });
+      return response([title()], { total_de_paginas: 2, total_de_registros: 2 });
+    } }));
+    assert.deepEqual(pages, status === 503 ? [1, 2, 2, 2] : [1, 2]);
+    assert.deepEqual(events.map(event => event.type), ['ERROR']);
+  });
+}
+
 test('página final removida durante a leitura exige uma nova confirmação do fim', async () => {
   const { db, events } = database();
   let firstPageCalls = 0;

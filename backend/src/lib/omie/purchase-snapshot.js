@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { isSedeCostCenterCode } from '../acompanhamento/sede-cost-centers.js';
-import { createOmiePurchaseReader, isPurchaseNotFound } from './purchase-reader.js';
+import { createOmiePurchaseReader, isMissingOmiePage, isPurchaseNotFound } from './purchase-reader.js';
 
 const text = value => value == null ? null : String(value).trim() || null;
 const validId = value => /^\d+$/.test(String(value)) && Number.isSafeInteger(Number(value)) && Number(value) > 0;
@@ -73,7 +73,7 @@ export async function readPurchaseSnapshot({ call, linked, categoryNames, existi
     try {
       info = pageInfo(await read('ListarContasPagar', params), page);
     } catch (error) {
-      if (page === 1) throw error;
+      if (page === 1 || !isMissingOmiePage(error)) throw error;
       // O último conjunto de registros pode ter sido excluído entre chamadas.
       // Só aceite o fim antecipado quando uma nova consulta válida o comprova.
       const latest = pageInfo(await read('ListarContasPagar', { ...params, pagina: 1 }), 1);

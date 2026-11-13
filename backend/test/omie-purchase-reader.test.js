@@ -75,3 +75,11 @@ test('duração malformada não causa retry antecipado por overflow do timer', a
   assert.equal(h.stats.apiCalls, 1);
   assert.deepEqual(h.waits, []);
 });
+
+test('página inexistente segue para confirmação do fim sem repetir uma consulta inválida', async () => {
+  const error = fault(500, 'ERROR: Não existem registros para a página [10] !');
+  const h = harness(async () => { throw error; });
+  await assert.rejects(h.read('ListarContasPagar', { pagina: 10 }), error);
+  assert.equal(h.stats.apiCalls, 1);
+  assert.deepEqual(h.waits, []);
+});
