@@ -6,7 +6,12 @@ import test from 'node:test';
 import pg from 'pg';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { syncOmiePurchases } from '../src/lib/omie/purchases.js';
+import { syncOmiePurchases as runSync } from '../src/lib/omie/purchases.js';
+
+const syncOmiePurchases = args => runSync({ requestDelayMs: 0, ...args });
+const missing = id => Object.assign(new Error('Título excluído'), { status: 500, body: {
+  faultcode: 'SOAP-ENV:Client-105', faultstring: `ERROR: Lançamento não cadastrado para o Código [${id}] !`
+} });
 
 test('PostgreSQL: primeira execução corrige legado, alterações e exclusões; falhas são atômicas', {
   skip: !process.env.OMIE_SYNC_TEST_DATABASE_URL, timeout: 90_000
@@ -74,15 +79,25 @@ test('PostgreSQL: primeira execução corrige legado, alterações e exclusões;
     title(23, { status_titulo: 'CANCELADO' }),
     title(30, { codigo_projeto: 900, valor_documento: 250 })
   ];
+  let unstable = true;
   const call = async (_path, method, params) => {
+    if (method === 'ConsultarContaPagar') {
+      const row = live.find(row => row.codigo_lancamento_omie === params.codigo_lancamento_omie);
+      if (!row) throw missing(params.codigo_lancamento_omie);
+      return row;
+    }
     assert.equal(method, 'ListarContasPagar');
     assert.ok(!Object.keys(params).some(key => key.startsWith('filtrar_')));
     const offset = (params.pagina - 1) * 5;
     const rows = live.slice(offset, offset + 5);
-    return { pagina: params.pagina, registros: rows.length, total_de_registros: live.length,
+    return { pagina: params.pagina, registros: rows.length, total_de_registros: live.length + (unstable && params.pagina === 1 ? 1 : 0),
       total_de_paginas: Math.max(1, Math.ceil(live.length / 5)), conta_pagar_cadastro: rows };
   };
   const result = await syncOmiePurchases({ db, call, sinceDays: 7 });
+  unstable = false;
+  const run = await db.integrationSyncRun.findFirst({ where: { status: 'SUCCESS' }, orderBy: { startedAt: 'desc' } });
+  assert.equal(run.summary.paginationChanges, 1, 'variação do total não aborta a carga');
+  assert.equal(run.summary.verifiedMissing, 12, 'ausências são confirmadas individualmente');
   assert.equal(result.deleted, 12, 'sete duplicatas, remapeados, cancelado, Sede e vínculo antigo');
   assert.equal(result.written, 9);
   const groups = await db.omiePurchase.groupBy({ by: ['categoriaCodigo'], where: { projectId: 'p1' }, _sum: { valor: true }, _count: true });
@@ -131,7 +146,10 @@ test('PostgreSQL: primeira execução corrige legado, alterações e exclusões;
   let releaseOlder, olderStarted;
   const waitForOlder = new Promise(resolve => { olderStarted = resolve; });
   const olderResponse = new Promise(resolve => { releaseOlder = resolve; });
-  const older = syncOmiePurchases({ db, call: async () => { olderStarted(); return olderResponse; } });
+  const older = syncOmiePurchases({ db, call: async (...args) => {
+    if (args[1] === 'ConsultarContaPagar') return call(...args);
+    olderStarted(); return olderResponse;
+  } });
   await waitForOlder;
   try {
     live = [title(1, { valor_documento: 84 })];
@@ -145,4 +163,18 @@ test('PostgreSQL: primeira execução corrige legado, alterações e exclusões;
   live = [];
   await syncOmiePurchases({ db, call });
   assert.equal(await db.omiePurchase.count(), 1, 'snapshot vazio retira todos os gerenciados e preserva canal desabilitado');
+
+  await db.omiePurchase.create({ data: cached(50) });
+  const stamp = (await db.omiePurchase.findUnique({ where: { omieId: '50' } })).syncedAt;
+  await syncOmiePurchases({ db, call: async (...args) => {
+    if (args[1] === 'ConsultarContaPagar') {
+      await db.omiePurchase.update({ where: { omieId: '50' }, data: {
+        valor: 987, syncedAt: new Date(stamp.getTime() + 1000)
+      } });
+      throw missing(50);
+    }
+    return call(...args);
+  } });
+  assert.equal(Number((await db.omiePurchase.findUnique({ where: { omieId: '50' } })).valor), 987,
+    'confirmação antiga não exclui um registro atualizado durante a leitura');
 });
