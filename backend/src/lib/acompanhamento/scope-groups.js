@@ -63,13 +63,22 @@ export function withScopeGroups(progress, plannedServices, normalizeServiceType)
     grouped.weight += Number(service.weight ?? 1);
     for (const row of service.systems ?? []) grouped.keys.add(measurementKey(row));
   }
+  for (const item of progress.pendingMeasurements ?? []) {
+    if (!item.attributedScope) continue;
+    const name = item.attributedScope.scopeName;
+    if (!groups.has(name)) groups.set(name, new Map());
+    const services = groups.get(name);
+    if (!services.has(item.serviceType)) services.set(item.serviceType, { weight: 0, keys: new Set() });
+  }
   return { ...progress, scopeGroups: [...groups].map(([name, types]) => ({
     scopeName: name,
     services: [...types].flatMap(([type, group]) => {
       const original = progress.services.find(service => service.serviceType === type);
       if (!original) return [];
       const systems = original.systems.filter(row => group.keys.has(measurementKey(row)));
-      const wholeService = systems.length === original.systems.length;
+      const wholeService = systems.length === original.systems.length && !(progress.pendingMeasurements ?? []).some(item =>
+        item.serviceType === type && item.attributedScope
+        && systemNameKey(item.attributedScope.scopeName) !== systemNameKey(name));
       const attributed = (progress.pendingMeasurements ?? [])
         .filter(item => item.serviceType === type && item.attributedScope
           && systemNameKey(item.attributedScope.scopeName) === systemNameKey(name))
