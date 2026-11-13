@@ -418,3 +418,56 @@
   border: 1px solid var(--line);
   object-fit: cover;
 }
+
+/* Manual de Operação: reordenar passos arrastando (mesmo visual das fotos do RDO) */
+.operation-step-row .operation-step-handle {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-height: 44px;
+  padding: 2px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted, var(--mu));
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.operation-step-row .operation-step-handle:active { cursor: grabbing; }
+.operation-step-row .operation-step-handle:focus-visible { outline: 2px solid var(--brand, var(--g)); outline-offset: 2px; }
+.operation-step-row .operation-step-handle:disabled { cursor: default; opacity: 0.5; }
+.operation-step-row[data-dragging] { opacity: 0.5; }
+.operation-step-row[data-drop-target] { outline: 2px solid var(--brand, var(--g)); outline-offset: 1px; }
+
+/* Cabeçalho da categoria: ações do gestor (editar categoria, modelo de dados técnicos, novo equipamento) */
+.equip-page-v2 .equip-category-section__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+/* Linha do passo: alça + número + texto + ações sempre numa linha; o texto ocupa o espaço restante */
+.fv-ds :is(.equip-entity-modal, .equip-config-category-modal) .operation-step-row .checklist-item-editor-main {
+  display: grid;
+  grid-template-columns: 28px 28px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-2);
+}
+.operation-step-row .operation-step-handle {
+  width: 28px;
+  min-width: 0;
+  padding: 0;
+  justify-content: center;
+}
+.operation-step-row .operation-step-text { width: 100%; min-width: 0; }
+@media (max-width: 640px) {
+  .fv-ds :is(.equip-entity-modal, .equip-config-category-modal) .operation-step-row .checklist-item-editor-main {
+    grid-template-columns: 28px 28px minmax(0, 1fr);
+  }
+  .fv-ds :is(.equip-entity-modal, .equip-config-category-modal) .operation-step-row .checklist-item-editor-actions {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+}

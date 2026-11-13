@@ -85,7 +85,9 @@ export interface EquipmentCategory {
   checklistItems: string[];
   /** Manual de Operação: passos-modelo herdados pelos equipamentos da categoria. */
   operationManualEnabled?: boolean;
-  operationSteps?: string[];
+  operationSteps?: OperationStoredStep[];
+  /** Fotos dos passos do modelo (referenciadas por id em operationSteps). */
+  operationPhotos?: EquipmentAttachment[];
   technicalDocEnabled: boolean;
   technicalTemplateId?: string | null;
   supportsCalibration: boolean;
@@ -135,6 +137,8 @@ export interface CompanyEquipment {
   /** Manual de Operação: null = herda o modelo da categoria; array = passos próprios. */
   operationSteps?: OperationStoredStep[] | null;
   operationPhotos?: EquipmentAttachment[];
+  /** Item do catálogo do Romaneio vinculado (categoria sincronizada): o QR code da etiqueta codifica este id. */
+  romaneioCatalogItemId?: string | null;
   operationRevision?: number;
   operationUpdatedAt?: string | null;
   operationManual?: EquipmentAttachment | null;
@@ -184,7 +188,7 @@ export interface EquipmentCategoryPayload {
   checklistDisplayMode?: ChecklistDisplayMode;
   checklistItems?: string[];
   operationManualEnabled?: boolean;
-  operationSteps?: string[];
+  operationSteps?: OperationStepPayload[];
   technicalDocEnabled?: boolean;
   supportsCalibration?: boolean;
   supportsTechnicalDoc?: boolean;

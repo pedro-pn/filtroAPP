@@ -1,5 +1,5 @@
 import { BrandLoading } from '../../components/brand/BrandLoading';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { driver } from 'driver.js';
 import type { DriveStep } from 'driver.js';
@@ -18,6 +18,7 @@ import { EquipmentCategorySection } from './EquipmentCategorySection';
 import { EquipmentDashboard } from './EquipmentDashboard';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { EquipmentFormModal } from './EquipmentFormModal';
+import { CategoryTechnicalModelModal } from './CategoryTechnicalModelModal';
 import { OperationManualModal } from './OperationManualModal';
 import { TechnicalDataModal } from './TechnicalDataModal';
 import { TechnicalStandardsManager } from './TechnicalStandardsManager';
@@ -32,6 +33,8 @@ import { equipmentCategoryFromParam, equipmentCategoryShortLabel, equipmentTabFr
 import './EquipamentosPage.ds.css';
 import './EquipmentConfig.ds.css';
 import './EquipmentEntity.ds.css';
+
+const EquipmentQrLabelModal = lazy(() => import('./EquipmentQrLabelModal'));
 
 type ActiveTab = { kind: EquipmentTab };
 
@@ -148,6 +151,8 @@ export function EquipamentosPage() {
     category: EquipmentCategory;
     item: CompanyEquipment;
   } | null>(null);
+  const [technicalModelCategory, setTechnicalModelCategory] = useState<EquipmentCategory | null>(null);
+  const [qrTarget, setQrTarget] = useState<{ categoryId: string; itemId: string } | null>(null);
   const [manualTarget, setManualTarget] = useState<{ categoryId: string; itemId: string } | null>(null);
   const [categoryForm, setCategoryForm] = useState<{
     open: boolean;
@@ -437,6 +442,8 @@ export function EquipamentosPage() {
     );
   }
 
+  const qrItem = qrTarget ? equipment.find(item => item.id === qrTarget.itemId) || null : null;
+  const qrCategory = qrTarget ? categories.find(category => category.id === qrTarget.categoryId) || null : null;
   const manualItem = manualTarget ? equipment.find(item => item.id === manualTarget.itemId) || null : null;
   const manualCategory = manualTarget ? categories.find(category => category.id === manualTarget.categoryId) || null : null;
 
@@ -616,6 +623,7 @@ export function EquipamentosPage() {
                       if (category) setTechnicalForm({ category, item });
                     }}
                     onOpenManual={item => setManualTarget({ categoryId: item.categoryId, itemId: item.id })}
+                    onOpenQr={item => setQrTarget({ categoryId: item.categoryId, itemId: item.id })}
                     onOpenMaintenanceHistory={item => {
                       const next = new URLSearchParams(searchParams);
                       next.set('equipamento', item.id);
@@ -643,10 +651,13 @@ export function EquipamentosPage() {
                     total={categoryEquipmentCount}
                     isManager={isManager}
                     onAdd={() => setEquipmentForm({ category: activeCategory, item: null })}
+                    onEditCategory={isManager ? () => setCategoryForm({ open: true, category: activeCategory }) : undefined}
+                    onEditTechnicalModel={isManager ? () => setTechnicalModelCategory(activeCategory) : undefined}
                     onEdit={item => setEquipmentForm({ category: activeCategory, item })}
                     onRemove={handleRemoveEquipment}
                     onOpenTechnical={item => setTechnicalForm({ category: activeCategory, item })}
                     onOpenManual={item => setManualTarget({ categoryId: activeCategory.id, itemId: item.id })}
+                    onOpenQr={item => setQrTarget({ categoryId: activeCategory.id, itemId: item.id })}
                     onOpenMaintenanceHistory={item => {
                       const next = new URLSearchParams(searchParams);
                       next.set('equipamento', item.id);
@@ -694,6 +705,14 @@ export function EquipamentosPage() {
           onRegenerate={handleManualRegenerate}
         />
       )}
+
+      {qrItem && qrCategory && (
+        <Suspense fallback={null}>
+          <EquipmentQrLabelModal equipment={qrItem} category={qrCategory} onClose={() => setQrTarget(null)} />
+        </Suspense>
+      )}
+
+      {technicalModelCategory && isManager && <CategoryTechnicalModelModal category={technicalModelCategory} standards={standardsQuery.data || []} unitsCatalog={unitsCatalogQuery.data || []} onClose={() => setTechnicalModelCategory(null)} />}
 
       {categoryForm.open && <CategoryFormModal open category={categoryForm.category} saving={savingCategory} technicalStandards={standardsQuery.data || []} standardsLoading={standardsQuery.isLoading} standardsError={standardsQuery.isError} onRetryStandards={() => { void standardsQuery.refetch(); }} onClose={() => setCategoryForm({ open: false, category: null })} onSubmit={handleCategorySubmit} />}
 

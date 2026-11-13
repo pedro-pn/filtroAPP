@@ -23,6 +23,7 @@ function categorySettings(category: EquipmentCategory) {
     category.supportsCalibration && 'Calibração',
     category.supportsTechnicalDoc && 'Documentação técnica',
     category.technicalDocEnabled && 'Dados técnicos',
+    category.operationManualEnabled && 'Manual de operação',
     category.checklistEnabled && 'Checklist',
     category.showInMaintenance && 'Manutenção',
     category.syncToRomaneio && 'Romaneio'

@@ -2,9 +2,11 @@ import { Router } from 'express';
 import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
-import { createEquipmentAttachment, createEquipmentPhoto, createGeneratedEquipmentAttachment, equipmentAttachmentsInclude, removeEquipmentAttachments, removeEquipmentAttachmentsByIds, resolveEquipmentPhotoAssets, resolveOperationPhotoAssets, serializeEquipmentAttachment, withCurrentAttachments, EquipmentAttachmentKinds } from '../../lib/equipment-attachments.js';
+import { createEquipmentAttachment, createEquipmentPhoto, createGeneratedEquipmentAttachment, equipmentAttachmentsInclude, removeEquipmentAttachments, removeEquipmentAttachmentsByIds, resolveEquipmentPhotoAssets, listCategoryOperationPhotos, resolveOperationPhotoAssets, serializeEquipmentAttachment, withCurrentAttachments, EquipmentAttachmentKinds } from '../../lib/equipment-attachments.js';
 import { generateTechnicalDatasheetPdf } from '../../lib/equipment-technical-docx.js';
-import { generateOperationManualPdf, normalizeOperationStepItems, normalizeOperationSteps, resolveEffectiveOperationSteps, serializeOperationStepItems, MAX_OPERATION_STEPS, MAX_OPERATION_STEP_LENGTH, MAX_OPERATION_STEP_PHOTOS } from '../../lib/equipamentos/operation-manual.js';
+import { withRomaneioCatalogIds } from '../../lib/equipamentos/romaneio-link.js';
+import { pruneOperationPhotos, resolveOperationStepItems } from '../../lib/equipamentos/operation-manual-photos.js';
+import { generateOperationManualPdf, normalizeOperationStepItems, resolveEffectiveOperationSteps, serializeOperationStepItems, MAX_OPERATION_STEPS, MAX_OPERATION_STEP_LENGTH, MAX_OPERATION_STEP_PHOTOS } from '../../lib/equipamentos/operation-manual.js';
 import { notifyCalibrationUpdatedSafely } from '../../lib/calibration-reminders.js';
 import { normalizeFieldSchema, normalizeTechnicalSchema, slugifySystemKey } from '../../lib/equipment-categories.js';
 import { removeTechnicalStandard, saveCategoryTechnicalStandard, updateTechnicalStandard } from '../../lib/equipamentos/technical-standards.js';
@@ -59,7 +61,6 @@ const technicalStandardSchema = z.object({
   technicalSchema: z.array(technicalFieldSchema)
 });
 const checklistItemsSchema = z.array(z.string().trim().min(1).max(300)).max(100);
-const operationStepsSchema = z.array(z.string().trim().min(1).max(MAX_OPERATION_STEP_LENGTH)).max(MAX_OPERATION_STEPS);
 // Passos do equipamento: texto puro ou { text, photos } — cada foto é uma já salva ({ id })
 // ou uma nova enviada como dataURL.
 const operationStepWithPhotosSchema = z.object({
@@ -84,7 +85,7 @@ const categorySchema = z.object({
   checklistDisplayMode: z.enum(['AUTO', 'TAG', 'NAME']).optional(),
   checklistItems: checklistItemsSchema.optional(),
   operationManualEnabled: z.boolean().optional(),
-  operationSteps: operationStepsSchema.optional(),
+  operationSteps: equipmentOperationStepsSchema.optional(),
   supportsCalibration: z.boolean().optional(),
   supportsTechnicalDoc: z.boolean().optional(),
   attachmentsEnabled: z.boolean().optional(),
@@ -327,7 +328,8 @@ router.get(
       where: { isActive: true },
       orderBy: [{ order: 'asc' }, { name: 'asc' }]
     });
-    res.json(categories);
+    const photos = await listCategoryOperationPhotos(prisma, categories.map(category => category.id));
+    res.json(categories.map(category => ({ ...category, operationPhotos: photos.get(category.id) || [] })));
   })
 );
 
@@ -351,20 +353,28 @@ router.post(
       checklistDisplayMode: normalizeChecklistDisplayMode(data.checklistDisplayMode),
       checklistItems: normalizeChecklistItems(data.checklistItems),
       operationManualEnabled: data.operationManualEnabled ?? false,
-      operationSteps: normalizeOperationSteps(data.operationSteps),
+      operationSteps: [], // gravados abaixo, depois de existir a categoria (as fotos pertencem a ela)
       technicalDocEnabled: data.technicalDocEnabled ?? false,
       supportsCalibration: data.supportsCalibration ?? false,
       supportsTechnicalDoc: data.supportsTechnicalDoc ?? true,
       attachmentsEnabled: data.attachmentsEnabled ?? false,
       syncToRomaneio: data.syncToRomaneio ?? false
     };
-    const category = data.technicalSchema !== undefined || data.technicalStandardId !== undefined
+    let category = data.technicalSchema !== undefined || data.technicalStandardId !== undefined
       ? await prisma.$transaction(tx => saveCategoryTechnicalStandard(tx, null, payload))
       : await prisma.equipmentCategory.create({ data: payload });
+    if (data.operationSteps?.length) {
+      const items = await resolveOperationStepItems(prisma, { categoryId: category.id, steps: data.operationSteps });
+      category = await prisma.equipmentCategory.update({
+        where: { id: category.id },
+        data: { operationSteps: serializeOperationStepItems(items) }
+      });
+    }
     const importedFromRomaneio = await importRomaneioEquipmentIntoCategory(category);
     invalidateCaches();
     if (category.syncToRomaneio) await syncRomaneioCatalog();
-    res.status(201).json({ ...category, importedFromRomaneio });
+    const operationPhotos = (await listCategoryOperationPhotos(prisma, [category.id])).get(category.id) || [];
+    res.status(201).json({ ...category, operationPhotos, importedFromRomaneio });
   })
 );
 
@@ -396,7 +406,6 @@ router.put(
         : {}),
       ...(data.checklistItems !== undefined ? { checklistItems: normalizeChecklistItems(data.checklistItems) } : {}),
       ...(data.operationManualEnabled !== undefined ? { operationManualEnabled: data.operationManualEnabled } : {}),
-      ...(data.operationSteps !== undefined ? { operationSteps: normalizeOperationSteps(data.operationSteps) } : {}),
       ...(data.technicalDocEnabled !== undefined ? { technicalDocEnabled: data.technicalDocEnabled } : {}),
       ...(data.supportsCalibration !== undefined ? { supportsCalibration: data.supportsCalibration } : {}),
       ...(data.supportsTechnicalDoc !== undefined ? { supportsTechnicalDoc: data.supportsTechnicalDoc } : {}),
@@ -411,19 +420,25 @@ router.put(
       where: { id: req.params.id },
       select: { name: true, syncToRomaneio: true, operationSteps: true }
     });
-    const category = data.technicalSchema !== undefined || data.technicalStandardId !== undefined
+    let category = data.technicalSchema !== undefined || data.technicalStandardId !== undefined
       ? await prisma.$transaction(tx => saveCategoryTechnicalStandard(tx, req.params.id, payload))
       : await prisma.equipmentCategory.update({ where: { id: req.params.id }, data: payload });
-    // Modelo de passos da categoria mudou: os equipamentos que herdam (sem passos próprios)
-    // ganham nova revisão e seu PDF anterior passa a constar como desatualizado.
-    if (
-      data.operationSteps !== undefined && previous &&
-      JSON.stringify(normalizeOperationSteps(previous.operationSteps)) !== JSON.stringify(payload.operationSteps)
-    ) {
-      await prisma.companyEquipment.updateMany({
-        where: { categoryId: category.id, operationSteps: { equals: Prisma.DbNull } },
-        data: { operationRevision: { increment: 1 }, operationUpdatedAt: new Date() }
+    if (data.operationSteps !== undefined) {
+      // Modelo de passos (texto + fotos). Se mudou, os equipamentos que herdam (sem passos próprios)
+      // ganham nova revisão e seu PDF anterior passa a constar como desatualizado.
+      const items = await resolveOperationStepItems(prisma, { categoryId: category.id, steps: data.operationSteps });
+      const changed = JSON.stringify(normalizeOperationStepItems(previous?.operationSteps)) !== JSON.stringify(items);
+      category = await prisma.equipmentCategory.update({
+        where: { id: category.id },
+        data: { operationSteps: serializeOperationStepItems(items) }
       });
+      await pruneOperationPhotos(prisma, { categoryId: category.id }, items);
+      if (changed) {
+        await prisma.companyEquipment.updateMany({
+          where: { categoryId: category.id, operationSteps: { equals: Prisma.DbNull } },
+          data: { operationRevision: { increment: 1 }, operationUpdatedAt: new Date() }
+        });
+      }
     }
     const nameChanged = data.name !== undefined && previous && data.name !== previous.name;
     const syncChanged = data.syncToRomaneio !== undefined && previous && data.syncToRomaneio !== previous.syncToRomaneio;
@@ -438,7 +453,8 @@ router.put(
     if (nameChanged || syncChanged) {
       await syncRomaneioCatalog();
     }
-    res.json({ ...category, importedFromRomaneio });
+    const operationPhotos = (await listCategoryOperationPhotos(prisma, [category.id])).get(category.id) || [];
+    res.json({ ...category, operationPhotos, importedFromRomaneio });
   })
 );
 
@@ -742,7 +758,7 @@ router.get(
         }
       }
     });
-    res.json(items.map(withCurrentAttachments));
+    res.json(await withRomaneioCatalogIds(prisma, items.map(withCurrentAttachments)));
   })
 );
 
@@ -898,7 +914,7 @@ router.post(
       where: { id: item.id },
       include: equipmentAttachmentsInclude
     });
-    res.status(201).json(withCurrentAttachments(fresh));
+    res.status(201).json(await withRomaneioCatalogIds(prisma, withCurrentAttachments(fresh)));
   })
 );
 
@@ -1006,7 +1022,7 @@ router.put(
         previousExpiresAt: previous?.expiresAt
       });
     }
-    res.json(withCurrentAttachments(fresh));
+    res.json(await withRomaneioCatalogIds(prisma, withCurrentAttachments(fresh)));
   })
 );
 
@@ -1086,7 +1102,7 @@ async function regenerateOperationManual(equipmentId) {
   });
   if (!equipment) return null;
   if (!resolveEffectiveOperationSteps(equipment, equipment.category).length) return null;
-  const photoAssets = await resolveOperationPhotoAssets(prisma, equipmentId);
+  const photoAssets = await resolveOperationPhotoAssets(prisma, { equipmentId, categoryId: equipment.categoryId });
   const { bytes, fileName } = await generateOperationManualPdf(equipment, equipment.category, photoAssets);
   const attachment = await createGeneratedEquipmentAttachment(prisma, {
     equipmentId,
@@ -1124,32 +1140,13 @@ router.put(
       return res.status(400).json({ error: 'A categoria deste equipamento não tem o Manual de Operação habilitado.' });
     }
 
-    // Resolve as fotos: reaproveita as já salvas deste equipamento e grava as novas.
-    const existingPhotos = await prisma.equipmentAttachment.findMany({
-      where: { equipmentId: equipment.id, kind: EquipmentAttachmentKinds.OPERATION_MANUAL_PHOTO },
-      select: { id: true }
+    // Fotos: reaproveita as já salvas deste equipamento, grava as novas e copia para o equipamento as
+    // fotos do modelo da categoria quando os passos herdados passam a ser próprios.
+    const nextItems = await resolveOperationStepItems(prisma, {
+      equipmentId: equipment.id,
+      categoryId: equipment.categoryId,
+      steps
     });
-    const existingPhotoIds = new Set(existingPhotos.map(photo => photo.id));
-    const draftItems = [];
-    for (const raw of steps) {
-      const text = typeof raw === 'string' ? raw : raw.text;
-      const photoIds = [];
-      for (const photo of (typeof raw === 'string' ? [] : raw.photos || [])) {
-        if ('id' in photo) {
-          if (existingPhotoIds.has(photo.id)) photoIds.push(photo.id);
-        } else {
-          // eslint-disable-next-line no-await-in-loop
-          const created = await createEquipmentPhoto(prisma, {
-            equipmentId: equipment.id,
-            upload: photo,
-            kind: EquipmentAttachmentKinds.OPERATION_MANUAL_PHOTO
-          });
-          if (created) photoIds.push(created.id);
-        }
-      }
-      draftItems.push({ text, photoIds });
-    }
-    const nextItems = normalizeOperationStepItems(draftItems);
     const previousItems = Array.isArray(equipment.operationSteps) ? normalizeOperationStepItems(equipment.operationSteps) : [];
     if (JSON.stringify(previousItems) !== JSON.stringify(nextItems)) {
       await prisma.companyEquipment.update({
@@ -1162,9 +1159,7 @@ router.put(
       });
     }
     // Fotos que deixaram de ser referenciadas por algum passo são apagadas.
-    await removeEquipmentAttachments(prisma, equipment.id, EquipmentAttachmentKinds.OPERATION_MANUAL_PHOTO, {
-      exceptIds: nextItems.flatMap(item => item.photoIds)
-    });
+    await pruneOperationPhotos(prisma, { equipmentId: equipment.id }, nextItems);
     let pdfError = null;
     try {
       await regenerateOperationManual(equipment.id);

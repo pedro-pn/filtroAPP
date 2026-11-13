@@ -2630,6 +2630,7 @@ model EquipmentCategory {
   maintenanceProfile      MaintenanceProfile?                    @relation("CategoryMaintenanceProfile", fields: [maintenanceProfileId], references: [id], onDelete: SetNull)
   technicalStandard       EquipmentTechnicalStandard?            @relation(fields: [technicalStandardId], references: [id], onDelete: Restrict)
   equipment               CompanyEquipment[]
+  attachments             EquipmentAttachment[] // fotos do modelo de passos do Manual de Operação
   projectWorkflowPlans    ProjectWorkflowEquipmentCategoryPlan[]
 
   @@index([maintenanceProfileId])
@@ -2718,16 +2719,19 @@ model RdoEquipmentSlot {
 
 model EquipmentAttachment {
   id          String                  @id @default(cuid())
-  equipmentId String
+  equipmentId String? // anexos de equipamento
+  categoryId  String? // fotos do modelo de passos do Manual de Operação (categoria)
   kind        EquipmentAttachmentKind
   fileName    String
   mimeType    String                  @default("application/pdf")
   storagePath String
   publicToken String                  @unique
   createdAt   DateTime                @default(now())
-  equipment   CompanyEquipment        @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  equipment   CompanyEquipment?       @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  category    EquipmentCategory?      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@index([equipmentId, kind, createdAt])
+  @@index([categoryId, kind, createdAt])
 }
 
 // === Modulo Estoque ===
