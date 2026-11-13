@@ -824,6 +824,7 @@ const scheduleSchema = z.object({
   mobilizationDate: z.string().datetime().nullable().optional(),
   demobilizationDate: z.string().datetime().nullable().optional(),
   manualProgressPct: z.number().min(0).max(100).nullable().optional(),
+  forceManualProgress: z.boolean().optional(),
   proposalPercentage: z.number().min(0).max(100)
     .refine(value => Math.abs(value * 100 - Math.round(value * 100)) < 1e-7, 'Use no máximo duas casas decimais.').optional(),
   offshore: z.boolean().optional(),
@@ -1076,7 +1077,9 @@ const trackingDivisionRowSchema = z.object({
   plannedCost: z.number().nonnegative().nullable().optional(),
   plannedRevenue: z.number().nonnegative().nullable().optional(),
   plannedHours: z.number().nonnegative().nullable().optional(),
-  plannedDays: z.number().nonnegative().nullable().optional()
+  plannedDays: z.number().nonnegative().nullable().optional(),
+  manualProgressPct: z.number().min(0).max(100).nullable().optional(),
+  forceManualProgress: z.boolean().optional()
 }).strict();
 
 router.get('/projetos/:projectId/divisoes', requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res) => {

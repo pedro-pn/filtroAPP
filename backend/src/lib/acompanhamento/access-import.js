@@ -536,6 +536,7 @@ export async function listProjectRevisions(projectId) {
       mobilizationDate: true,
       demobilizationDate: true,
       manualProgressPct: true,
+      forceManualProgress: true,
       proposalPercentage: true,
       offshore: true,
       laborSleepModeByCollaborator: true,
@@ -556,6 +557,7 @@ export async function listProjectRevisions(projectId) {
       mobilizationDate: project.mobilizationDate ?? null,
       demobilizationDate: project.demobilizationDate ?? null,
       manualProgressPct: project.manualProgressPct ?? null,
+      forceManualProgress: project.forceManualProgress ?? false,
       proposalPercentage: Number(project.proposalPercentage ?? 100),
       offshore: project.offshore ?? false,
       laborSleepModeByCollaborator,
@@ -611,6 +613,7 @@ export async function listProjectRevisions(projectId) {
     mobilizationDate: project.mobilizationDate ?? null,
     demobilizationDate: project.demobilizationDate ?? null,
     manualProgressPct: project.manualProgressPct ?? null,
+    forceManualProgress: project.forceManualProgress ?? false,
     proposalPercentage: Number(project.proposalPercentage ?? 100),
     offshore: project.offshore ?? false,
     laborSleepModeByCollaborator,
@@ -682,6 +685,7 @@ export async function setProjectSchedule(projectId, {
   mobilizationDate,
   demobilizationDate,
   manualProgressPct,
+  forceManualProgress,
   proposalPercentage,
   offshore,
   laborSleepModeByCollaborator,
@@ -689,14 +693,18 @@ export async function setProjectSchedule(projectId, {
 } = {}) {
   return prisma.$transaction(async (tx) => {
     let previousManualProgressPct;
-    if (manualProgressPct !== undefined) {
+    if (manualProgressPct !== undefined || forceManualProgress !== undefined) {
       const currentProject = await tx.project.findUnique({
         where: { id: projectId },
-        select: { manualProgressPct: true }
+        select: { manualProgressPct: true, forceManualProgress: true }
       });
       previousManualProgressPct = currentProject?.manualProgressPct != null
         ? Number(currentProject.manualProgressPct)
         : null;
+      const nextManual = manualProgressPct === undefined ? previousManualProgressPct : manualProgressPct;
+      if ((forceManualProgress ?? currentProject?.forceManualProgress) && nextManual == null) {
+        throw new Error('Informe o avanço manual para forçar sua utilização.');
+      }
     }
 
     if (approvedAt !== undefined) {
@@ -730,6 +738,7 @@ export async function setProjectSchedule(projectId, {
       projectData.demobilizationDate = demobilizationDate ? new Date(demobilizationDate) : null;
     }
     if (manualProgressPct !== undefined) projectData.manualProgressPct = nextManualProgressPct;
+    if (forceManualProgress !== undefined) projectData.forceManualProgress = forceManualProgress;
     if (proposalPercentage !== undefined) projectData.proposalPercentage = validateProposalPercentage(proposalPercentage);
     if (offshore !== undefined) projectData.offshore = Boolean(offshore);
     if (laborSleepModeByCollaborator !== undefined) {

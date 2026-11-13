@@ -225,3 +225,28 @@ test('período considera todos os escopos e recorta custos e dias pelas mesmas d
   }
   assert.throws(() => validateDivisionRows([], [division, division]), /repetida/);
 });
+
+test('avanços e históricos das divisões são persistidos individualmente nos dois modos de salvar', async () => {
+  let project = { manualProgressPct: 90, forceManualProgress: true, trackingDivisions: [] };
+  const fake = {
+    $transaction: async callback => callback(fake),
+    project: { findFirst: async () => project, update: async ({ data }) => { project = { ...project, ...data }; } },
+    projectPlannedService: { findMany: async () => candidateServices }
+  };
+  const base = { startDate: '2026-09-01', mobilizationDate: '2026-09-01', endDate: null };
+  await setTrackingDivisions('p', [
+    { ...base, key: scopeKey, manualProgressPct: 70, forceManualProgress: true },
+    { ...base, key: equipmentKey, manualProgressPct: 25, forceManualProgress: false }
+  ], fake);
+  const sibling = structuredClone(project.trackingDivisions[1]);
+  await setTrackingDivision('p', { ...base, key: scopeKey, manualProgressPct: 75 }, fake);
+  const loaded = await getTrackingDivisions('p', fake);
+  assert.equal(loaded.divisions[0].forceManualProgress, true);
+  assert.deepEqual(loaded.divisions[0].manualProgressHistory.map(point => point.progressPct), [70, 75]);
+  assert.deepEqual(loaded.divisions[1], sibling);
+  assert.equal(project.manualProgressPct, 90);
+  assert.equal(project.forceManualProgress, true);
+  const saved = structuredClone(project);
+  await assert.rejects(setTrackingDivision('p', { ...base, key: scopeKey, manualProgressPct: null }, fake), /Informe o avanço manual/);
+  assert.deepEqual(project, saved);
+});
