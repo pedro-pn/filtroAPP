@@ -139,6 +139,8 @@ export interface CompanyEquipment {
   operationPhotos?: EquipmentAttachment[];
   /** Item do catálogo do Romaneio vinculado (categoria sincronizada): o QR code da etiqueta codifica este id. */
   romaneioCatalogItemId?: string | null;
+  /** URL da página pública do QR code (conteúdo do QR). */
+  romaneioQrUrl?: string | null;
   operationRevision?: number;
   operationUpdatedAt?: string | null;
   operationManual?: EquipmentAttachment | null;
@@ -350,6 +352,32 @@ export async function regenerateOperationManual(id: string) {
   const response = await apiClient.post<OperationManualResult>(
     equipamentosApiPath(`/${id}/operation-manual/pdf`)
   );
+  return response.data;
+}
+
+export type QrAccessMode = 'PUBLIC' | 'LOGIN' | 'HIDDEN';
+
+export interface QrLinkDocument {
+  key: string;
+  group: string;
+  label: string;
+  fileName: string;
+  access: QrAccessMode;
+}
+
+export interface QrLinkSettings {
+  qrUrl: string | null;
+  documents: QrLinkDocument[];
+}
+
+export async function getQrLink(id: string) {
+  const response = await apiClient.get<QrLinkSettings>(equipamentosApiPath(`/${id}/qr-link`));
+  return response.data;
+}
+
+// Acesso de cada documento na página do QR: público, exige login ou oculto (só gestor).
+export async function saveQrAccess(id: string, access: Record<string, QrAccessMode>) {
+  const response = await apiClient.put<QrLinkSettings>(equipamentosApiPath(`/${id}/qr-access`), { access });
   return response.data;
 }
 

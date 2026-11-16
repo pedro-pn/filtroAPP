@@ -5,7 +5,9 @@ import test from 'node:test';
 import sharp from 'sharp';
 
 import app from '../src/app.js';
+import { createGeneratedEquipmentAttachment } from '../src/lib/equipment-attachments.js';
 import { createSession } from '../src/lib/auth.js';
+import { CLIENT_PRIVACY_NOTICE_VERSION } from '../src/lib/privacy-consent.js';
 import prisma from '../src/lib/prisma.js';
 
 async function pngDataUrl(color) {
@@ -44,6 +46,9 @@ test('modelo de passos da categoria guarda fotos; equipamento copia ao ter passo
   };
   const manager = await newUser('EQUIPAMENTOS_MANAGER');
   const viewer = await newUser('EQUIPAMENTOS_VIEWER');
+  const clientUser = await prisma.user.create({ data: { username: `client-${suffix}`, name: 'cliente', passwordHash: 'synthetic', role: 'CLIENT', accountType: 'CLIENT', privacyPolicyAcceptedAt: new Date(), privacyPolicyVersion: CLIENT_PRIVACY_NOTICE_VERSION } });
+  users.push(clientUser.id);
+  const clientToken = (await createSession(clientUser.id)).token;
   const base = `http://127.0.0.1:${server.address().port}/api`;
   const request = (path, method, body, token = manager) => fetch(`${base}${path}`, {
     method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -106,4 +111,57 @@ test('modelo de passos da categoria guarda fotos; equipamento copia ao ter passo
   await prisma.romaneioCatalogItem.update({ where: { id: catalog.id }, data: { isActive: false } });
   const listInactive = await (await request('/equipamentos/', 'GET', undefined, viewer)).json();
   assert.equal(listInactive.find(item => item.id === equipment.id).romaneioCatalogItemId, null, 'item inativo no catálogo não gera QR');
+
+  // ── Página pública do QR (sem login) ──
+  await prisma.romaneioCatalogItem.update({ where: { id: catalog.id }, data: { isActive: true } });
+  const fresh = await prisma.romaneioCatalogItem.findUnique({ where: { id: catalog.id } });
+  assert.match(fresh.publicToken, /^[0-9a-f-]{36}$/, 'item de catálogo recebe token público automaticamente');
+  const publicGet = (token, headers = {}) => fetch(`${base}/equipamentos-qr/${token}`, { headers });
+  const listAfterQr = await (await request('/equipamentos/', 'GET', undefined, viewer)).json();
+  assert.equal(listAfterQr.find(item => item.id === equipment.id).romaneioQrUrl.endsWith(`/q/${fresh.publicToken}`), true);
+
+  const empty = await publicGet(fresh.publicToken);
+  assert.equal(empty.status, 200, 'página existe sem login');
+  const emptyBody = await empty.json();
+  assert.equal(emptyBody.code, equipment.code);
+  assert.deepEqual(emptyBody.documents, [], 'sem documentos a página existe, vazia');
+  assert.equal((await publicGet('00000000-0000-4000-8000-000000000000')).status, 404);
+  assert.equal((await publicGet('nao-e-token')).status, 404);
+
+  // Documento adicionado depois aparece no MESMO link.
+  const doc = await createGeneratedEquipmentAttachment(prisma, { equipmentId: equipment.id, kind: 'DOCUMENT', fileName: 'procedimento.pdf', bytes: Buffer.from('%PDF-1.4 teste') });
+  const key = `doc:${doc.id}`;
+  const withDoc = (await (await publicGet(fresh.publicToken)).json()).documents;
+  assert.equal(withDoc.length, 1);
+  assert.equal(withDoc[0].requiresLogin, false);
+  assert.ok(withDoc[0].url, 'documento público traz URL de download');
+
+  // Exigir login: aparece, mas sem URL pública; baixar só com sessão de colaborador.
+  const setAccess = mode => request(`/equipamentos/${equipment.id}/qr-access`, 'PUT', { access: { [key]: mode } });
+  assert.equal((await request(`/equipamentos/${equipment.id}/qr-access`, 'PUT', { access: { [key]: 'LOGIN' } }, viewer)).status, 403);
+  assert.equal((await setAccess('LOGIN')).status, 200);
+  const locked = (await (await publicGet(fresh.publicToken)).json()).documents[0];
+  assert.equal(locked.requiresLogin, true);
+  assert.equal(locked.url, null);
+  const filePath = `${base}${locked.downloadPath.replace(/^\/api/, '')}`;
+  assert.equal((await fetch(filePath)).status, 401, 'sem login não baixa');
+  assert.equal((await fetch(filePath, { headers: { Authorization: `Bearer ${clientToken}` } })).status, 403, 'conta de cliente não baixa');
+  const download = await fetch(filePath, { headers: { Authorization: `Bearer ${viewer}` } });
+  assert.equal(download.status, 200);
+  assert.match(await download.text(), /%PDF-1\.4/);
+
+  // Oculto: some da página e do download.
+  assert.equal((await setAccess('HIDDEN')).status, 200);
+  assert.deepEqual((await (await publicGet(fresh.publicToken)).json()).documents, []);
+  assert.equal((await fetch(filePath, { headers: { Authorization: `Bearer ${viewer}` } })).status, 404);
+
+  // Painel de configuração lista o documento com o acesso atual; chave inválida é ignorada.
+  const settings = await (await request(`/equipamentos/${equipment.id}/qr-link`, 'GET', undefined, viewer)).json();
+  assert.equal(settings.documents.find(entry => entry.key === key).access, 'HIDDEN');
+  assert.equal((await request(`/equipamentos/${equipment.id}/qr-access`, 'PUT', { access: { 'chave invalida': 'LOGIN', [key]: 'PUBLIC' } })).status, 200);
+  assert.equal((await (await publicGet(fresh.publicToken)).json()).documents[0].requiresLogin, false);
+
+  // Item inativo no catálogo: a página deixa de existir.
+  await prisma.romaneioCatalogItem.update({ where: { id: catalog.id }, data: { isActive: false } });
+  assert.equal((await publicGet(fresh.publicToken)).status, 404);
 });

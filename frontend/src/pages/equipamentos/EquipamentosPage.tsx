@@ -708,7 +708,7 @@ export function EquipamentosPage() {
 
       {qrItem && qrCategory && (
         <Suspense fallback={null}>
-          <EquipmentQrLabelModal equipment={qrItem} category={qrCategory} onClose={() => setQrTarget(null)} />
+          <EquipmentQrLabelModal equipment={qrItem} category={qrCategory} isManager={isManager} onClose={() => setQrTarget(null)} />
         </Suspense>
       )}
 

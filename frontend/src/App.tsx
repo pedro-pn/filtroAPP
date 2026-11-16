@@ -12,6 +12,7 @@ import { usePageScrollRestoration } from './hooks/usePageScrollRestoration';
 import { moduleRouteElements } from './modules/moduleRoutes';
 import { moduleRouteAccess, moduleRoutePath } from './modules/registry';
 
+const EquipmentQrPage = lazy(() => import('./pages/EquipmentQrPage').then(module => ({ default: module.EquipmentQrPage })));
 const AccountPage = lazy(() => import('./pages/account/AccountPage').then(module => ({ default: module.AccountPage })));
 const ClientPage = lazy(() => import('./pages/client/ClientPage').then(module => ({ default: module.ClientPage })));
 const ConfirmEmailChangePage = lazy(() => import('./pages/ConfirmEmailChangePage').then(module => ({ default: module.ConfirmEmailChangePage })));
@@ -103,6 +104,7 @@ export default function App() {
         </> : null}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/q/:token" element={<EquipmentQrPage />} />
         <Route path="/privacidade" element={<PrivacyPage />} />
         <Route path="/privacidade/direitos" element={<PrivacyRightsPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />

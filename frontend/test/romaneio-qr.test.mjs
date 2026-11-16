@@ -246,3 +246,34 @@ test('o QR perde a moldura embutida para que a zona de silêncio venha da etique
   trimRomaneioQrSvgQuietZone(emptyQrCode);
   assert.deepEqual(untouched, {});
 });
+
+const TOKEN = '3f2b8c1e-4d5a-4b6c-8d7e-9a0b1c2d3e4f';
+
+test('QR novo é a URL da página pública e o formato antigo continua legível', async () => {
+  const { parseRomaneioQrScan, romaneioItemQrContent } = await loadRomaneioQr();
+
+  assert.deepEqual(parseRomaneioQrScan(`https://app.filtrovali.com.br/q/${TOKEN}`), { kind: 'token', token: TOKEN });
+  assert.deepEqual(parseRomaneioQrScan(`  http://localhost:5173/q/${TOKEN.toUpperCase()}/  `), { kind: 'token', token: TOKEN });
+  assert.deepEqual(parseRomaneioQrScan('FILTROVALI:ROMANEIO_ITEM:1:cm123_item-9'), { kind: 'legacy', catalogItemId: 'cm123_item-9' });
+
+  assert.equal(parseRomaneioQrScan('https://example.com/equipamento/123'), null);
+  assert.equal(parseRomaneioQrScan('https://example.com/q/nao-e-token'), null);
+  assert.equal(parseRomaneioQrScan(`javascript:alert(1)//q/${TOKEN}`), null);
+  assert.equal(parseRomaneioQrScan(`ftp://x/q/${TOKEN}`), null);
+
+  assert.equal(romaneioItemQrContent({ id: 'cm1', qrUrl: `https://app/q/${TOKEN}` }), `https://app/q/${TOKEN}`);
+  assert.equal(romaneioItemQrContent({ id: 'cm1' }), 'FILTROVALI:ROMANEIO_ITEM:1:cm1', 'sem URL do servidor usa o formato antigo');
+});
+
+test('a leitura do QR acha o item do catálogo pelo id (antigo) ou pelo token (novo), só se ativo', async () => {
+  const { findCatalogItemForQrScan } = await loadRomaneioQr();
+  const items = [
+    { id: 'a1', publicToken: TOKEN, isActive: true },
+    { id: 'b2', publicToken: '11111111-1111-4111-8111-111111111111', isActive: false }
+  ];
+
+  assert.equal(findCatalogItemForQrScan(items, { kind: 'token', token: TOKEN })?.id, 'a1');
+  assert.equal(findCatalogItemForQrScan(items, { kind: 'legacy', catalogItemId: 'a1' })?.id, 'a1');
+  assert.equal(findCatalogItemForQrScan(items, { kind: 'token', token: '11111111-1111-4111-8111-111111111111' }), null);
+  assert.equal(findCatalogItemForQrScan(items, { kind: 'legacy', catalogItemId: 'zz' }), null);
+});

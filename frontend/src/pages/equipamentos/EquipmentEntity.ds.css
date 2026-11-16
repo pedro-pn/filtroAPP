@@ -471,3 +471,28 @@
     justify-self: end;
   }
 }
+
+/* QR code: link da página pública e acesso por documento */
+.equip-qr-access {
+  display: grid;
+  gap: var(--space-3, 0.75rem);
+  margin-top: var(--space-4, 1rem);
+  padding-top: var(--space-4, 1rem);
+  border-top: 1px solid var(--line);
+}
+.equip-qr-access__link { display: flex; flex-wrap: wrap; gap: var(--space-2, 0.5rem); align-items: center; }
+.equip-qr-access__link input { flex: 1 1 220px; min-width: 0; }
+.equip-qr-access__docs { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2, 0.5rem); }
+.equip-qr-access__docs li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2, 0.5rem);
+  padding: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md, 8px);
+}
+.equip-qr-access__docs li > div { display: grid; min-width: 0; }
+.equip-qr-access__docs li span { color: var(--muted); font-size: var(--text-sm, 0.875rem); overflow-wrap: anywhere; }
+.equip-qr-access__actions { display: flex; justify-content: flex-end; }

@@ -1,3 +1,4 @@
+import { qrPageUrl } from '../../lib/equipamentos/qr-link.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Router } from 'express';
@@ -1117,7 +1118,8 @@ router.get('/catalog', requireAuth, requireRomaneioAccess, asyncHandler(async (_
     where: { isActive: true },
     orderBy: [{ categoryName: 'asc' }, { code: 'asc' }, { name: 'asc' }]
   });
-  res.json(items);
+  // `qrUrl`: página pública do item, que é o conteúdo do QR code da etiqueta.
+  res.json(items.map(item => ({ ...item, qrUrl: qrPageUrl(item.publicToken) })));
 }));
 
 router.post('/catalog', requireAuth, requireRomaneioAccess, requireRomaneioManager, asyncHandler(async (req, res) => {

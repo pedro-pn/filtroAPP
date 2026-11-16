@@ -41,7 +41,7 @@ import { autosaveDraftTargetId } from '../../utils/draftAutosave';
 import { defaultRomaneioUnit, romaneioMeasureLabel, romaneioUsesVariableQuantity } from '../../utils/romaneioMeasure';
 import { mergeRomaneioReturnSelection, romaneioReturnKey } from '../../utils/romaneioReturnItems';
 import { RomaneioChecklistModal } from './RomaneioChecklistModal';
-import { romaneioQrRequiresQuantity } from '../../utils/romaneioQr';
+import { findCatalogItemForQrScan, romaneioQrRequiresQuantity, type RomaneioQrScan } from '../../utils/romaneioQr';
 import { todayDateOnly } from '../../utils/dateOnly';
 import { RomaneioProjectAvailabilityNovelty } from './RomaneioProjectAvailabilityNovelty';
 import { RomaneioQrNovelty } from './RomaneioQrNovelty';
@@ -437,9 +437,10 @@ export function NewRomaneioPage() {
     addCatalogItemWithQuantity(item, quantity);
   }
 
-  function handleScannedCatalogItem(catalogItemId: string) {
+  function handleScannedCatalogItem(scan: RomaneioQrScan) {
     setQrScannerOpen(false);
-    const item = (catalogQuery.data || []).find(candidate => candidate.id === catalogItemId && candidate.isActive);
+    // Aceita o QR antigo (id do item) e o novo (URL da página pública, pelo token do item).
+    const item = findCatalogItemForQrScan(catalogQuery.data || [], scan);
     if (!item) {
       showToast('Equipamento não encontrado ou inativo no catálogo do romaneio.');
       return;
@@ -1265,7 +1266,7 @@ export function NewRomaneioPage() {
       <RomaneioQrScannerModal
         open={qrScannerOpen}
         onClose={() => setQrScannerOpen(false)}
-        onDetectedCatalogItemId={handleScannedCatalogItem}
+        onDetectedQr={handleScannedCatalogItem}
       />
       <Modal
         open={Boolean(qrQuantityItem)}

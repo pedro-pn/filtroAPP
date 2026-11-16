@@ -19,6 +19,10 @@ export interface RomaneioCatalogItem {
   defaultUnitLabel: string;
   isSerialized: boolean;
   isActive: boolean;
+  /** Token estável da página pública do item (QR code). */
+  publicToken?: string;
+  /** URL da página pública (conteúdo do QR code). */
+  qrUrl?: string;
   createdAt: string;
   updatedAt: string;
 }

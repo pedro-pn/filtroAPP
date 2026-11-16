@@ -2649,6 +2649,7 @@ model CompanyEquipment {
   technicalFieldOverrides    Json                  @default("{}") // inclusão/exclusão de campos optionalPerEquipment, keyed por key -> bool
   checklistItems             Json? // null = herda da categoria; array = override integral
   operationSteps             Json? // Manual de Operação: null = herda da categoria; array = passos próprios
+  qrDocumentAccess           Json                  @default("{}") // página do QR: acesso por documento (PUBLIC | LOGIN | HIDDEN), chave = manual|datasheet|certificate|doc:<id>
   operationRevision          Int                   @default(0)
   operationUpdatedAt         DateTime?
   technicalRevision          Int                   @default(0)
@@ -3441,6 +3442,8 @@ model RomaneioCatalogItem {
   isSerialized       Boolean               @default(true)
   isActive           Boolean               @default(true)
   hiddenInRomaneioAt DateTime?
+  // Token público e estável do QR code: o QR aponta para /q/<publicToken> (página pública do item).
+  publicToken        String                @unique @default(dbgenerated("(gen_random_uuid())::text"))
   createdAt          DateTime              @default(now())
   updatedAt          DateTime              @updatedAt
   romaneioItems      RomaneioItem[]

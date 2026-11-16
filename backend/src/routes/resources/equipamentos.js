@@ -5,6 +5,7 @@ import asyncHandler from '../../lib/async-handler.js';
 import { createEquipmentAttachment, createEquipmentPhoto, createGeneratedEquipmentAttachment, equipmentAttachmentsInclude, removeEquipmentAttachments, removeEquipmentAttachmentsByIds, resolveEquipmentPhotoAssets, listCategoryOperationPhotos, resolveOperationPhotoAssets, serializeEquipmentAttachment, withCurrentAttachments, EquipmentAttachmentKinds } from '../../lib/equipment-attachments.js';
 import { generateTechnicalDatasheetPdf } from '../../lib/equipment-technical-docx.js';
 import { withRomaneioCatalogIds } from '../../lib/equipamentos/romaneio-link.js';
+import { buildQrLinkSettings, normalizeQrAccess } from '../../lib/equipamentos/qr-link.js';
 import { pruneOperationPhotos, resolveOperationStepItems } from '../../lib/equipamentos/operation-manual-photos.js';
 import { generateOperationManualPdf, normalizeOperationStepItems, resolveEffectiveOperationSteps, serializeOperationStepItems, MAX_OPERATION_STEPS, MAX_OPERATION_STEP_LENGTH, MAX_OPERATION_STEP_PHOTOS } from '../../lib/equipamentos/operation-manual.js';
 import { notifyCalibrationUpdatedSafely } from '../../lib/calibration-reminders.js';
@@ -1092,6 +1093,23 @@ router.post(
     return res.status(201).json(serializeEquipmentAttachment(attachment));
   })
 );
+
+// Link da página pública do QR code e acesso de cada documento (todos os usuários do módulo veem;
+// só o gestor altera).
+router.get('/:id/qr-link', asyncHandler(async (req, res) => {
+  const settings = await buildQrLinkSettings(prisma, req.params.id);
+  if (!settings) return res.status(404).json({ error: 'Equipamento não encontrado.' });
+  return res.json(settings);
+}));
+
+router.put('/:id/qr-access', requireEquipamentosManager, asyncHandler(async (req, res) => {
+  const { access } = z.object({ access: z.record(z.string(), z.enum(['PUBLIC', 'LOGIN', 'HIDDEN'])) }).parse(req.body);
+  const equipment = await prisma.companyEquipment.findUnique({ where: { id: req.params.id }, select: { id: true, isActive: true } });
+  if (!equipment?.isActive) return res.status(404).json({ error: 'Equipamento não encontrado.' });
+  await prisma.companyEquipment.update({ where: { id: equipment.id }, data: { qrDocumentAccess: normalizeQrAccess(access) } });
+  invalidateCaches();
+  return res.json(await buildQrLinkSettings(prisma, equipment.id));
+}));
 
 // Gera o PDF do Manual de Operação com os passos efetivos (próprios ou da categoria)
 // e o guarda como o manual atual; o anterior é removido (sem histórico de PDFs).

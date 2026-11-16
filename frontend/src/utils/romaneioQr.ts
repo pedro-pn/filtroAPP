@@ -51,6 +51,43 @@ export function buildRomaneioItemQrValue(catalogItemId: string) {
   return `${ROMANEIO_QR_PREFIX}${normalizedId}`;
 }
 
+const QR_PAGE_PATH = /^\/q\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/?$/i;
+
+/** Token público de uma URL `https://…/q/<token>` (formato novo do QR code). */
+export function parseRomaneioQrPageToken(value: string) {
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+    return QR_PAGE_PATH.exec(url.pathname)?.[1]?.toLowerCase() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export type RomaneioQrScan =
+  | { kind: 'legacy'; catalogItemId: string }
+  | { kind: 'token'; token: string };
+
+/** Lê o QR em qualquer formato: o antigo (`FILTROVALI:ROMANEIO_ITEM:1:<id>`) ou a URL da página pública. */
+export function parseRomaneioQrScan(value: string): RomaneioQrScan | null {
+  const legacyId = parseRomaneioItemQrValue(value);
+  if (legacyId) return { kind: 'legacy', catalogItemId: legacyId };
+  const token = parseRomaneioQrPageToken(value);
+  return token ? { kind: 'token', token } : null;
+}
+
+/** Item do catálogo que corresponde a uma leitura de QR (por id no formato antigo, por token no novo). */
+export function findCatalogItemForQrScan<T extends { id: string; publicToken?: string | null; isActive: boolean }>(items: readonly T[], scan: RomaneioQrScan) {
+  return items.find(item => item.isActive && (scan.kind === 'legacy' ? item.id === scan.catalogItemId : item.publicToken?.toLowerCase() === scan.token)) ?? null;
+}
+
+/** Conteúdo gravado no QR: a URL da página pública (quando o servidor informa) ou, por compatibilidade, o formato antigo. */
+export function romaneioItemQrContent(item: { id: string; qrUrl?: string | null }) {
+  const url = String(item.qrUrl || '').trim();
+  if (!url) return buildRomaneioItemQrValue(item.id);
+  return url.startsWith('/') && typeof window !== 'undefined' ? `${window.location.origin}${url}` : url;
+}
+
 export function parseRomaneioItemQrValue(value: string) {
   const normalizedValue = value.trim();
   if (!normalizedValue.startsWith(ROMANEIO_QR_PREFIX)) return null;
