@@ -195,7 +195,8 @@ function parseImageUpload(upload) {
 }
 
 // Cria uma foto dos Dados Técnicos (anexo TECHNICAL_PHOTO). Várias por equipamento.
-export async function createEquipmentPhoto(client, { equipmentId, upload, kind = EquipmentAttachmentKinds.TECHNICAL_PHOTO }) {
+// `equipmentId` ou `categoryId` define o dono da foto (fotos do modelo de passos pertencem à categoria).
+export async function createEquipmentPhoto(client, { equipmentId = null, categoryId = null, upload, kind = EquipmentAttachmentKinds.TECHNICAL_PHOTO }) {
   const parsed = parseImageUpload(upload);
   if (!parsed) return null;
   const publicToken = randomUUID();
@@ -209,6 +210,7 @@ export async function createEquipmentPhoto(client, { equipmentId, upload, kind =
   return client.equipmentAttachment.create({
     data: {
       equipmentId,
+      categoryId,
       kind,
       fileName: parsed.fileName,
       mimeType: parsed.mimeType,
@@ -278,15 +280,21 @@ export async function createGeneratedEquipmentAttachment(client, { equipmentId, 
 // O arquivo físico só é apagado dos anexos do próprio módulo (sob "Equipamentos/");
 // os migrados compartilham o arquivo com registros antigos e são preservados.
 export async function removeEquipmentAttachments(client, equipmentId, kind, options = {}) {
+  return removeAttachmentsOfOwner(client, { equipmentId }, kind, options);
+}
+
+// Mesma remoção, para o dono equipamento ({ equipmentId }) ou categoria ({ categoryId }).
+export async function removeAttachmentsOfOwner(client, owner, kind, options = {}) {
+  const ownerWhere = owner.categoryId ? { categoryId: owner.categoryId } : { equipmentId: owner.equipmentId };
   const exceptIds = new Set((options.exceptIds || []).filter(Boolean));
   const where = {
-    equipmentId,
+    ...ownerWhere,
     kind,
     ...(exceptIds.size ? { id: { notIn: [...exceptIds] } } : {})
   };
   const rows = await client.equipmentAttachment.findMany({ where });
   if (!rows.length) return 0;
-  await client.equipmentAttachment.deleteMany({ where: { equipmentId, kind, id: { in: rows.map(row => row.id) } } });
+  await client.equipmentAttachment.deleteMany({ where: { ...ownerWhere, kind, id: { in: rows.map(row => row.id) } } });
   for (const row of rows) {
     // eslint-disable-next-line no-await-in-loop
     await unlinkManagedDocumentFile(row.storagePath, { rootDir: env.uploadDir, requiredPrefix: 'Equipamentos/' });
@@ -327,9 +335,12 @@ export async function resolveEquipmentPhotoAssets(client, equipmentId) {
 }
 
 // Fotos dos passos do Manual de Operação como Map(id -> asset) para embutir no DOCX.
-export async function resolveOperationPhotoAssets(client, equipmentId) {
+export async function resolveOperationPhotoAssets(client, { equipmentId, categoryId }) {
+  // Passos próprios usam fotos do equipamento; passos herdados usam as do modelo da categoria.
+  const owners = [equipmentId ? { equipmentId } : null, categoryId ? { categoryId } : null].filter(Boolean);
+  if (!owners.length) return new Map();
   const rows = await client.equipmentAttachment.findMany({
-    where: { equipmentId, kind: EquipmentAttachmentKinds.OPERATION_MANUAL_PHOTO }
+    where: { kind: EquipmentAttachmentKinds.OPERATION_MANUAL_PHOTO, OR: owners }
   });
   const assets = new Map();
   for (const row of rows) {
@@ -338,6 +349,44 @@ export async function resolveOperationPhotoAssets(client, equipmentId) {
     if (asset && asset.width && asset.height) assets.set(row.id, { ...asset, label: row.fileName });
   }
   return assets;
+}
+
+// Copia uma foto (ex.: do modelo da categoria) para o equipamento: o equipamento passa a ter a sua,
+// independente de a categoria trocar ou apagar a original depois.
+export async function cloneOperationPhotoToEquipment(client, sourceRow, equipmentId) {
+  const asset = await readStoredImageAsset(sourceRow.storagePath);
+  if (!asset?.bytes?.length) return null;
+  const publicToken = randomUUID();
+  const storagePath = await writeAttachmentFile({
+    kind: EquipmentAttachmentKinds.OPERATION_MANUAL_PHOTO,
+    token: publicToken,
+    fileName: sourceRow.fileName,
+    bytes: asset.bytes,
+    extension: asset.extension
+  });
+  return client.equipmentAttachment.create({
+    data: {
+      equipmentId,
+      kind: EquipmentAttachmentKinds.OPERATION_MANUAL_PHOTO,
+      fileName: sourceRow.fileName,
+      mimeType: sourceRow.mimeType,
+      storagePath,
+      publicToken
+    }
+  });
+}
+
+// Fotos do modelo de passos de cada categoria, já serializadas (Map categoryId -> lista).
+export async function listCategoryOperationPhotos(client, categoryIds) {
+  const ids = [...new Set((categoryIds || []).filter(Boolean))];
+  const byCategory = new Map(ids.map(id => [id, []]));
+  if (!ids.length) return byCategory;
+  const rows = await client.equipmentAttachment.findMany({
+    where: { categoryId: { in: ids }, kind: EquipmentAttachmentKinds.OPERATION_MANUAL_PHOTO },
+    orderBy: { createdAt: 'asc' }
+  });
+  for (const row of rows) byCategory.get(row.categoryId)?.push(serializeEquipmentAttachment(row));
+  return byCategory;
 }
 
 export async function resolvePublicEquipmentAttachment(token) {

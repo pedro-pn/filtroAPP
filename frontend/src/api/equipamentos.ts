@@ -85,7 +85,9 @@ export interface EquipmentCategory {
   checklistItems: string[];
   /** Manual de Operação: passos-modelo herdados pelos equipamentos da categoria. */
   operationManualEnabled?: boolean;
-  operationSteps?: string[];
+  operationSteps?: OperationStoredStep[];
+  /** Fotos dos passos do modelo (referenciadas por id em operationSteps). */
+  operationPhotos?: EquipmentAttachment[];
   technicalDocEnabled: boolean;
   technicalTemplateId?: string | null;
   supportsCalibration: boolean;
@@ -135,6 +137,10 @@ export interface CompanyEquipment {
   /** Manual de Operação: null = herda o modelo da categoria; array = passos próprios. */
   operationSteps?: OperationStoredStep[] | null;
   operationPhotos?: EquipmentAttachment[];
+  /** Item do catálogo do Romaneio vinculado (categoria sincronizada): o QR code da etiqueta codifica este id. */
+  romaneioCatalogItemId?: string | null;
+  /** URL da página pública do QR code (conteúdo do QR). */
+  romaneioQrUrl?: string | null;
   operationRevision?: number;
   operationUpdatedAt?: string | null;
   operationManual?: EquipmentAttachment | null;
@@ -184,7 +190,7 @@ export interface EquipmentCategoryPayload {
   checklistDisplayMode?: ChecklistDisplayMode;
   checklistItems?: string[];
   operationManualEnabled?: boolean;
-  operationSteps?: string[];
+  operationSteps?: OperationStepPayload[];
   technicalDocEnabled?: boolean;
   supportsCalibration?: boolean;
   supportsTechnicalDoc?: boolean;
@@ -346,6 +352,32 @@ export async function regenerateOperationManual(id: string) {
   const response = await apiClient.post<OperationManualResult>(
     equipamentosApiPath(`/${id}/operation-manual/pdf`)
   );
+  return response.data;
+}
+
+export type QrAccessMode = 'PUBLIC' | 'LOGIN' | 'HIDDEN';
+
+export interface QrLinkDocument {
+  key: string;
+  group: string;
+  label: string;
+  fileName: string;
+  access: QrAccessMode;
+}
+
+export interface QrLinkSettings {
+  qrUrl: string | null;
+  documents: QrLinkDocument[];
+}
+
+export async function getQrLink(id: string) {
+  const response = await apiClient.get<QrLinkSettings>(equipamentosApiPath(`/${id}/qr-link`));
+  return response.data;
+}
+
+// Acesso de cada documento na página do QR: público, exige login ou oculto (só gestor).
+export async function saveQrAccess(id: string, access: Record<string, QrAccessMode>) {
+  const response = await apiClient.put<QrLinkSettings>(equipamentosApiPath(`/${id}/qr-access`), { access });
   return response.data;
 }
 

@@ -15,10 +15,11 @@ interface Props {
   onRemove: () => void;
   onOpenTechnical?: () => void;
   onOpenManual?: () => void;
+  onOpenQr?: () => void;
   onOpenMaintenanceHistory?: () => void;
 }
 
-export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onOpenTechnical, onOpenManual, onOpenMaintenanceHistory }: Props) {
+export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onOpenTechnical, onOpenManual, onOpenQr, onOpenMaintenanceHistory }: Props) {
   const cardRef = useRef<HTMLElement | null>(null);
   const techInput = useRef<HTMLInputElement>(null);
   const certInput = useRef<HTMLInputElement>(null);
@@ -145,7 +146,7 @@ export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onO
           )}
         </div>
       )}
-      {(isManager || (category.technicalDocEnabled && onOpenTechnical) || (category.operationManualEnabled && onOpenManual) || onOpenMaintenanceHistory) && (
+      {(isManager || (category.technicalDocEnabled && onOpenTechnical) || (category.operationManualEnabled && onOpenManual) || (item.romaneioCatalogItemId && onOpenQr) || onOpenMaintenanceHistory) && (
         <div className="report-card-actions">
           {onOpenMaintenanceHistory ? (
             <Button variant="secondary" size="sm" multiline className="equip-maintenance-action" onClick={onOpenMaintenanceHistory}>
@@ -161,6 +162,11 @@ export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onO
           {category.operationManualEnabled && onOpenManual && (
             <Button variant="secondary" size="sm" multiline className="equip-manual-action" onClick={onOpenManual} title={isManager ? 'Editar manual de operação' : 'Ver manual de operação'} data-equip-manual-button>
               Manual{item.operationManual ? ' ●' : ''}
+            </Button>
+          )}
+          {item.romaneioCatalogItemId && onOpenQr && (
+            <Button variant="secondary" size="sm" multiline onClick={onOpenQr} title="Ver e baixar o QR code do equipamento" data-equip-qr-button>
+              QR code
             </Button>
           )}
           {isManager && (

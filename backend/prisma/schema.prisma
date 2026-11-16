@@ -2630,6 +2630,7 @@ model EquipmentCategory {
   maintenanceProfile      MaintenanceProfile?                    @relation("CategoryMaintenanceProfile", fields: [maintenanceProfileId], references: [id], onDelete: SetNull)
   technicalStandard       EquipmentTechnicalStandard?            @relation(fields: [technicalStandardId], references: [id], onDelete: Restrict)
   equipment               CompanyEquipment[]
+  attachments             EquipmentAttachment[] // fotos do modelo de passos do Manual de Operação
   projectWorkflowPlans    ProjectWorkflowEquipmentCategoryPlan[]
 
   @@index([maintenanceProfileId])
@@ -2648,6 +2649,7 @@ model CompanyEquipment {
   technicalFieldOverrides    Json                  @default("{}") // inclusão/exclusão de campos optionalPerEquipment, keyed por key -> bool
   checklistItems             Json? // null = herda da categoria; array = override integral
   operationSteps             Json? // Manual de Operação: null = herda da categoria; array = passos próprios
+  qrDocumentAccess           Json                  @default("{}") // página do QR: acesso por documento (PUBLIC | LOGIN | HIDDEN), chave = manual|datasheet|certificate|doc:<id>
   operationRevision          Int                   @default(0)
   operationUpdatedAt         DateTime?
   technicalRevision          Int                   @default(0)
@@ -2718,16 +2720,19 @@ model RdoEquipmentSlot {
 
 model EquipmentAttachment {
   id          String                  @id @default(cuid())
-  equipmentId String
+  equipmentId String? // anexos de equipamento
+  categoryId  String? // fotos do modelo de passos do Manual de Operação (categoria)
   kind        EquipmentAttachmentKind
   fileName    String
   mimeType    String                  @default("application/pdf")
   storagePath String
   publicToken String                  @unique
   createdAt   DateTime                @default(now())
-  equipment   CompanyEquipment        @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  equipment   CompanyEquipment?       @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  category    EquipmentCategory?      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@index([equipmentId, kind, createdAt])
+  @@index([categoryId, kind, createdAt])
 }
 
 // === Modulo Estoque ===
@@ -3437,6 +3442,8 @@ model RomaneioCatalogItem {
   isSerialized       Boolean               @default(true)
   isActive           Boolean               @default(true)
   hiddenInRomaneioAt DateTime?
+  // Token público e estável do QR code: o QR aponta para /q/<publicToken> (página pública do item).
+  publicToken        String                @unique @default(dbgenerated("(gen_random_uuid())::text"))
   createdAt          DateTime              @default(now())
   updatedAt          DateTime              @updatedAt
   romaneioItems      RomaneioItem[]

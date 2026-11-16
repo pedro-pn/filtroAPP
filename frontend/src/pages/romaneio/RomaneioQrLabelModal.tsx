@@ -1,9 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 
 import type { RomaneioCatalogItem } from '../../api/romaneio';
 import { Modal } from '../../components/ui/Modal';
 import {
-  buildRomaneioItemQrValue,
+  romaneioItemQrContent,
   paginateRomaneioQrLabels,
   ROMANEIO_QR_LABEL_SHEET,
   ROMANEIO_QR_LABEL_SIZES,
@@ -76,11 +76,13 @@ function RomaneioQrLabelPreview({ item, qrSvgMarkup, sizeId, ariaLabel }: Romane
 
 interface RomaneioQrLabelModalProps {
   items: RomaneioCatalogItem[];
+  /** Conteúdo extra no corpo do modal (ex.: acesso aos documentos do link, no módulo Equipamentos). */
+  extraContent?: ReactNode;
   categoryName?: string;
   onClose: () => void;
 }
 
-export function RomaneioQrLabelModal({ items, categoryName, onClose }: RomaneioQrLabelModalProps) {
+export function RomaneioQrLabelModal({ items, categoryName, extraContent, onClose }: RomaneioQrLabelModalProps) {
   const [error, setError] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [qrSvgMarkupByItemId, setQrSvgMarkupByItemId] = useState<Record<string, string>>({});
@@ -96,7 +98,7 @@ export function RomaneioQrLabelModal({ items, categoryName, onClose }: RomaneioQ
       if (disposed) return;
       const writer = new BrowserQRCodeSvgWriter();
       const markups = Object.fromEntries(items.map(item => {
-        const value = buildRomaneioItemQrValue(item.id);
+        const value = romaneioItemQrContent(item);
         const qrCode = trimRomaneioQrSvgQuietZone(writer.write(value, 320, 320));
         qrCode.setAttribute('role', 'img');
         qrCode.setAttribute('aria-label', `QR code de ${item.name}`);
@@ -361,6 +363,7 @@ export function RomaneioQrLabelModal({ items, categoryName, onClose }: RomaneioQ
           </div>
         ) : null}
         {error ? <div className="form-error" role="alert">{error}</div> : null}
+        {extraContent}
       </div>
       <div className="admin-form-actions">
         <button className="secondary-button" type="button" onClick={onClose}>Fechar</button>

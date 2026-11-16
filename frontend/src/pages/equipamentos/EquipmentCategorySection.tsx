@@ -9,9 +9,12 @@ interface EquipmentCategorySectionProps extends EquipmentTableActions {
   items: CompanyEquipment[];
   total: number;
   onAdd: () => void;
+  /** Só gestor: edição da categoria e do modelo de dados técnicos direto da própria categoria. */
+  onEditCategory?: () => void;
+  onEditTechnicalModel?: () => void;
 }
 
-export function EquipmentCategorySection({ category, items, total, isManager, onAdd, onEdit, onRemove, onOpenTechnical, onOpenManual, onOpenMaintenanceHistory }: EquipmentCategorySectionProps) {
+export function EquipmentCategorySection({ category, items, total, isManager, onAdd, onEditCategory, onEditTechnicalModel, onEdit, onRemove, onOpenTechnical, onOpenManual, onOpenQr, onOpenMaintenanceHistory }: EquipmentCategorySectionProps) {
   const compact = useListingMobileViewport('xl');
 
   return (
@@ -21,7 +24,13 @@ export function EquipmentCategorySection({ category, items, total, isManager, on
           <h2>{category.name}</h2>
           <p>{items.length === total ? `${total} equipamento${total === 1 ? '' : 's'}` : `${items.length} de ${total} equipamentos`}</p>
         </div>
-        {isManager ? <Button size="sm" variant="primary" onClick={onAdd}>+ Novo equipamento</Button> : null}
+        {isManager ? (
+          <div className="equip-category-section__actions">
+            {onEditCategory ? <Button size="sm" variant="secondary" onClick={onEditCategory} data-equip-category-edit>Editar categoria</Button> : null}
+            {onEditTechnicalModel && category.technicalDocEnabled ? <Button size="sm" variant="secondary" onClick={onEditTechnicalModel} data-equip-technical-model>Modelo de dados técnicos</Button> : null}
+            <Button size="sm" variant="primary" onClick={onAdd}>+ Novo equipamento</Button>
+          </div>
+        ) : null}
       </div>
 
       {items.length === 0 ? (
@@ -38,12 +47,13 @@ export function EquipmentCategorySection({ category, items, total, isManager, on
               onRemove={() => onRemove(item)}
               onOpenTechnical={() => onOpenTechnical(item)}
               onOpenManual={() => onOpenManual(item)}
+              onOpenQr={() => onOpenQr(item)}
               onOpenMaintenanceHistory={() => onOpenMaintenanceHistory(item)}
             />
           ))}
         </div>
       ) : (
-        <EquipmentTable categories={[category]} items={items} isManager={isManager} onEdit={onEdit} onRemove={onRemove} onOpenTechnical={onOpenTechnical} onOpenManual={onOpenManual} onOpenMaintenanceHistory={onOpenMaintenanceHistory} />
+        <EquipmentTable categories={[category]} items={items} isManager={isManager} onEdit={onEdit} onRemove={onRemove} onOpenTechnical={onOpenTechnical} onOpenManual={onOpenManual} onOpenQr={onOpenQr} onOpenMaintenanceHistory={onOpenMaintenanceHistory} />
       )}
     </section>
   );

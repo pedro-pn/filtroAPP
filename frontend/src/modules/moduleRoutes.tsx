@@ -10,6 +10,7 @@ const AcompanhamentoPage = lazy(() => import('../pages/acompanhamento/Acompanham
 const AdminAccountsPage = lazy(() => import('../pages/admin/AdminAccountsPage').then(module => ({ default: module.AdminAccountsPage })));
 const AdminTokensPage = lazy(() => import('../pages/admin/AdminTokensPage').then(module => ({ default: module.AdminTokensPage })));
 const EpiPage = lazy(() => import('../pages/epi/EpiPage').then(module => ({ default: module.EpiPage })));
+const EquipmentManualPage = lazy(() => import('../pages/equipamentos/EquipmentManualPage').then(module => ({ default: module.EquipmentManualPage })));
 const EquipamentosPage = lazy(() => import('../pages/equipamentos/EquipamentosPage').then(module => ({ default: module.EquipamentosPage })));
 const EstoquePage = lazy(() => import('../pages/estoque/EstoquePage').then(module => ({ default: module.EstoquePage })));
 const PrivacyRequestsPage = lazy(() => import('../pages/privacy/PrivacyRequestsPage').then(module => ({ default: module.PrivacyRequestsPage })));
@@ -55,6 +56,7 @@ export const moduleRouteElements = (
 
     <Route element={<RoleRoute {...EQUIPAMENTOS_ACCESS} />}>
       <Route path={moduleRoutePath('equipamentos', 'index')} element={<EquipamentosPage />} />
+      <Route path={`${moduleRoutePath('equipamentos', 'index')}/manual`} element={<EquipmentManualPage />} />
     </Route>
 
     <Route element={<RoleRoute {...ESTOQUE_ACCESS} />}>

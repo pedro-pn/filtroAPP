@@ -10,6 +10,8 @@ import env from './config/env.js';
 import asyncHandler from './lib/async-handler.js';
 import { resolvePublicCalibrationCertificate } from './lib/calibration-certificates.js';
 import { equipmentAttachmentFileName, inlineContentDisposition, resolvePublicEquipmentAttachment } from './lib/equipment-attachments.js';
+import prisma from './lib/prisma.js';
+import { buildPublicQrPage, resolveQrDownload } from './lib/equipamentos/qr-link.js';
 import { captureOperationalError } from './lib/operations/error-tracking.js';
 import { resolvePublicStockAttachment, stockAttachmentFileName } from './lib/estoque/stock-attachments.js';
 import { qualityAttachmentFileName, resolvePublicQualityAttachment } from './lib/qualidade/attachments.js';
@@ -170,6 +172,25 @@ app.get('/api/equipamentos-anexos/:token', asyncHandler(async (req, res) => {
     return res.status(404).json({ error: 'Anexo não encontrado.' });
   }
   res.type(resolved.attachment.mimeType || 'application/pdf');
+  res.setHeader('Content-Disposition', inlineContentDisposition(equipmentAttachmentFileName(resolved.attachment)));
+  return res.sendFile(resolved.targetPath);
+}));
+// Página pública do QR code (sem login): documentos do equipamento conforme o acesso de cada um.
+app.get('/api/equipamentos-qr/:token', asyncHandler(async (req, res) => {
+  const page = await buildPublicQrPage(prisma, req.params.token);
+  if (!page) return res.status(404).json({ error: 'QR code não reconhecido.' });
+  res.setHeader('Cache-Control', 'no-store');
+  return res.json(page);
+}));
+// Download de documento "exige login": só colaboradores (contas internas/admin), não clientes.
+app.get('/api/equipamentos-qr/:token/documentos/:key/arquivo', requireAuth, asyncHandler(async (req, res) => {
+  if (req.auth?.user?.accountType === 'CLIENT') {
+    return res.status(403).json({ error: 'Este documento é restrito a colaboradores.' });
+  }
+  const resolved = await resolveQrDownload(prisma, req.params.token, req.params.key);
+  if (!resolved) return res.status(404).json({ error: 'Documento não encontrado.' });
+  res.type(resolved.attachment.mimeType || 'application/pdf');
+  res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Content-Disposition', inlineContentDisposition(equipmentAttachmentFileName(resolved.attachment)));
   return res.sendFile(resolved.targetPath);
 }));

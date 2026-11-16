@@ -452,8 +452,8 @@ jobs:
       - run: npm ci
       - run: npm run prisma:generate
       - run: npm run prisma:deploy
-      - name: Verify mixed primary categories, secondary alternatives, permissions and bootstrap
-        run: node --test test/rdo-equipment-slots.test.js test/rdo-equipment-slots.integration.test.js
+      - name: Verify mixed primary categories, secondary alternatives, permissions, bootstrap and operation manual photos
+        run: node --test test/rdo-equipment-slots.test.js test/rdo-equipment-slots.integration.test.js test/equipment-operation-manual.integration.test.js
 
   frontend:
     name: Frontend

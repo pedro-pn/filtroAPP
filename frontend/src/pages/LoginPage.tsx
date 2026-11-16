@@ -28,7 +28,12 @@ export function LoginPage({ preview = false }: { preview?: boolean }) {
   const [error, setError] = useState('');
   const [previewMessage, setPreviewMessage] = useState('');
 
-  const redirectPath = useMemo(() => preferredEntryPath(user), [user]);
+  // `?next=/caminho` devolve o usuário ao ponto de origem (ex.: página pública do QR) depois do login.
+  const nextPath = useMemo(() => {
+    const next = new URLSearchParams(location.search).get('next') || '';
+    return next.startsWith('/') && !next.startsWith('//') && !next.includes('\\') ? next : '';
+  }, [location.search]);
+  const redirectPath = useMemo(() => nextPath || preferredEntryPath(user), [nextPath, user]);
   if (!preview && (isBootstrapping || (token && !user))) return null;
   if (!preview && isAuthenticated) return <Navigate to={redirectPath} replace />;
 

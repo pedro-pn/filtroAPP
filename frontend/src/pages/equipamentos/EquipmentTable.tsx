@@ -15,6 +15,7 @@ export interface EquipmentTableActions {
   onRemove: (item: CompanyEquipment) => void;
   onOpenTechnical: (item: CompanyEquipment) => void;
   onOpenManual: (item: CompanyEquipment) => void;
+  onOpenQr: (item: CompanyEquipment) => void;
   onOpenMaintenanceHistory: (item: CompanyEquipment) => void;
 }
 
@@ -24,7 +25,7 @@ interface EquipmentRowProps extends EquipmentTableActions {
   showCategory?: boolean;
 }
 
-function EquipmentRow({ category, item, showCategory, isManager, onEdit, onRemove, onOpenTechnical, onOpenManual, onOpenMaintenanceHistory }: EquipmentRowProps) {
+function EquipmentRow({ category, item, showCategory, isManager, onEdit, onRemove, onOpenTechnical, onOpenManual, onOpenQr, onOpenMaintenanceHistory }: EquipmentRowProps) {
   const certInput = useRef<HTMLInputElement>(null);
   const { canTech, canCert, currentDoc, isUploading, uploadDoc } = useEquipmentDocumentUpload(item, category, isManager);
   const status = calibrationStatus(item);
@@ -117,6 +118,9 @@ function EquipmentRow({ category, item, showCategory, isManager, onEdit, onRemov
             <Button size="sm" multiline variant="secondary" onClick={() => onOpenManual(item)} title={isManager ? 'Editar manual de operação' : 'Ver manual de operação'} data-equip-manual-button>
               Manual{item.operationManual ? ' ●' : ''}
             </Button>
+          ) : null}
+          {item.romaneioCatalogItemId ? (
+            <Button size="sm" multiline variant="secondary" onClick={() => onOpenQr(item)} title="Ver e baixar o QR code do equipamento" data-equip-qr-button>QR code</Button>
           ) : null}
           {isManager ? (
             <>
