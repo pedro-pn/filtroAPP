@@ -312,7 +312,7 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
       </Field>
       {progressModelValue === 'WORKED_DAYS' ? <>
         <Field id={`acp-progress-days-${projectId}`} label="Dias de trabalho previstos" optionalText="" helperText="Preenchido automaticamente a partir da proposta e dos adicionais considerados.">
-          <Input type="number" value={modelPlannedDays ?? ''} readOnly placeholder="Sem previsão" />
+          <Input id={`acp-progress-days-${projectId}-control`} type="number" value={modelPlannedDays ?? ''} readOnly placeholder="Sem previsão" />
         </Field>
         <Field id={`acp-planned-collaborators-${projectId}`} label="Colaboradores planejados" optionalText="" helperText="Quantidade de pessoas prevista para cada dia de trabalho.">
           <Input type="number" min="1" max="2147483647" step="1" inputMode="numeric" value={plannedCollaboratorsValue}
