@@ -10,13 +10,16 @@ import './ProjectProgressBreakdown.ds.css';
 import { ProjectRealizedCorrections } from './ProjectRealizedCorrections';
 
 const SERVICE_LABELS: Record<string, string> = {
+  DIAS_TRABALHADOS: 'Dias trabalhados',
   LIMPEZA_QUIMICA: 'Limpeza química',
   TESTE_PRESSAO: 'Teste de pressão',
   FLUSHING: 'Flushing',
   LIMPEZA_MECANICA: 'Limpeza mecânica', LOCACAO: 'Locação', FILTRAGEM: 'Filtragem'
 };
-const SYSTEM_LABELS: Record<string, string> = { TUBULACAO: 'Tubulações', OLEO: 'Óleo', SISTEMA: 'Sistemas completos', MANGOTE: 'Mangueiras', MECANICA_M: 'Comprimento', MECANICA_UN: 'Quantidade', MECANICA_KG: 'Massa', MECANICA_T: 'Massa', MECANICA_L: 'Volume', LOCACAO: 'Dias de locação' };
-const UNIT_LABELS: Record<string, string> = { M: 'm', KG: 'kg', T: 't', UN: 'un', L: 'L' };
+const SYSTEM_LABELS: Record<string, string> = { DIAS_TRABALHADOS: 'Trabalho da equipe', TUBULACAO: 'Tubulações', OLEO: 'Óleo', SISTEMA: 'Sistemas completos', MANGOTE: 'Mangueiras', MECANICA_M: 'Comprimento', MECANICA_UN: 'Quantidade', MECANICA_KG: 'Massa', MECANICA_T: 'Massa', MECANICA_L: 'Volume', LOCACAO: 'Dias de locação' };
+const UNIT_LABELS: Record<string, string> = { M: 'm', KG: 'kg', T: 't', UN: 'un', L: 'L', DIA: 'dias', PESSOA_DIA: 'pessoas-dia' };
+
+const WORKED_DAYS_NOTE = 'Cada RDO conta como um dia de trabalho para cada colaborador marcado, sem repetir a mesma pessoa entre os turnos. O avanço divide esse total pelos dias previstos × colaboradores planejados e pode ultrapassar 100%. Uma pessoa-dia equivale a uma pessoa em um RDO.';
 
 const fmtPct = (v: number | null) => (v == null ? '—' : `${v.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`);
 const fmtQty = (v: number | null, unit: string | null) =>
@@ -61,6 +64,12 @@ export function ProjectProgressBreakdown({ projectId, filter, progressPct, canMa
     queryFn: () => getProjectProgress(projectId, divisionKey),
     ...acompanhamentoRefreshQueryOptions
   });
+  const byWorkedDays = data?.progressMethod === 'WORKED_DAYS' || data?.workedDays != null;
+  const workedDaysSummary = data?.workedDays ? <p className="acp-progress-ds__note">
+    Planejamento: {data.workedDays.plannedDays} dias × {data.workedDays.plannedCollaborators} colaboradores.
+    {' '}Realizado: {data.workedDays.realizedPersonDays} pessoas-dia em {data.workedDays.rdoCount} RDO(s)
+    {' '}({data.workedDays.equivalentWorkedDays?.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} dias equivalentes da equipe planejada).
+  </p> : null;
 
   if (appearance === 'design-system') {
     if (isLoading) return <Skeleton variant="text" lines={4} label="Calculando avanço" />;
@@ -68,8 +77,8 @@ export function ProjectProgressBreakdown({ projectId, filter, progressPct, canMa
       action={{ label: 'Tentar novamente', onClick: () => void refetch() }} />;
     if (data?.progressMethod === 'MANUAL' && !data.hasScope) return <ProgressBar label="Avanço manual"
       value={data.progressPct} valueLabel={fmtPct(data.progressPct)} />;
-    if (!data || !data.hasScope) return <EmptyState title="Escopo previsto não cadastrado"
-      description="Cadastre o escopo previsto com metas para calcular o avanço." />;
+    if (!data || !data.hasScope) return <EmptyState title={byWorkedDays ? 'Dias de trabalho previstos não disponíveis' : 'Escopo previsto não cadastrado'}
+      description={byWorkedDays ? 'Confira os dias previstos na proposta e a equipe planejada no cronograma.' : 'Cadastre o escopo previsto com metas para calcular o avanço.'} />;
 
     const shownPct = progressPct === undefined ? data.progressPct : progressPct;
     const groups = (data.scopeGroups ?? [{ scopeName: null, services: data.services }])
@@ -98,6 +107,7 @@ export function ProjectProgressBreakdown({ projectId, filter, progressPct, canMa
         </Field> : null}
       <ProgressBar label={data.progressMethod === 'MANUAL' ? 'Avanço manual' : 'Avanço total do escopo'} value={shownPct} valueLabel={fmtPct(shownPct)} />
       {data.progressMethod === 'MANUAL' ? <Alert tone="info">O percentual manual está em uso. As medições abaixo continuam disponíveis para consulta.</Alert> : null}
+      {workedDaysSummary}
       {groups.length ? <div className="acp-progress-ds__groups">
         {groups.map(group => {
           const services = group.services.map((service, index) => {
@@ -134,15 +144,15 @@ export function ProjectProgressBreakdown({ projectId, filter, progressPct, canMa
           {item.attributedScope ? ` · Contabilizado em ${item.attributedScope.scopeName || 'Sem escopo definido'} · ${item.attributedScope.equipment}` : ''}
         </li>)}</ul>
       </details> : null}
-      <ProjectRealizedCorrections projectId={projectId} canManage={canManage} appearance="design-system" />
-      <p className="acp-progress-ds__note">Realizado = serviços finalizados e quantitativos históricos, sem duplicar relatórios derivados. O avanço calculado pelos relatórios considera todas as quantidades realizadas por serviço e tipo de medição, independentemente da conciliação, e pode ultrapassar 100%. O escopo e a UG informados no relatório já permitem contabilizar o realizado quando identificam um destino único. A conciliação detalha a distribuição por sistema e bitola; os serviços usam seus pesos.</p>
+      {!byWorkedDays ? <ProjectRealizedCorrections projectId={projectId} canManage={canManage} appearance="design-system" /> : null}
+      <p className="acp-progress-ds__note">{byWorkedDays ? WORKED_DAYS_NOTE : 'Realizado = serviços finalizados e quantitativos históricos, sem duplicar relatórios derivados. O avanço calculado pelos relatórios considera todas as quantidades realizadas por serviço e tipo de medição, independentemente da conciliação, e pode ultrapassar 100%. O escopo e a UG informados no relatório já permitem contabilizar o realizado quando identificam um destino único. A conciliação detalha a distribuição por sistema e bitola; os serviços usam seus pesos.'}</p>
     </div>;
   }
 
   if (isLoading) return <div className="placeholder-copy">Calculando avanço…</div>;
   if (data?.progressMethod === 'MANUAL' && !data.hasScope) return <div className="acp-progress-total">Avanço manual: <strong>{fmtPct(data.progressPct)}</strong></div>;
   if (!data || !data.hasScope) {
-    return <div className="placeholder-copy">Cadastre o escopo previsto (com metas) para calcular o avanço.</div>;
+    return <div className="placeholder-copy">{byWorkedDays ? 'Confira os dias previstos na proposta e a equipe planejada no cronograma.' : 'Cadastre o escopo previsto (com metas) para calcular o avanço.'}</div>;
   }
 
   return (
@@ -165,6 +175,7 @@ export function ProjectProgressBreakdown({ projectId, filter, progressPct, canMa
         <strong>{fmtPct(progressPct === undefined ? data.progressPct : progressPct)}</strong>
       </div>
       <div className="acp-progress-list">
+        {workedDaysSummary}
         {(data.scopeGroups ?? [{ scopeName: null, services: data.services }])
           .filter(group => !scopeKey || scopeKeyOf(group.scopeName) === scopeKey)
           .map(group => <section key={group.scopeName ?? ''} className={data.scopeGroups ? 'acp-scope-group' : undefined}>
@@ -191,12 +202,12 @@ export function ProjectProgressBreakdown({ projectId, filter, progressPct, canMa
           {item.attributedScope ? ` · Contabilizado em ${item.attributedScope.scopeName || 'Sem escopo definido'} · ${item.attributedScope.equipment}` : ''}
         </li>)}</ul>
       </details> : null}
-      <ProjectRealizedCorrections projectId={projectId} canManage={canManage} />
+      {!byWorkedDays ? <ProjectRealizedCorrections projectId={projectId} canManage={canManage} /> : null}
       <p className="placeholder-copy" style={{ marginTop: 6, fontSize: 11 }}>
-        Realizado = serviços finalizados e quantitativos históricos, sem duplicar relatórios derivados.
+        {byWorkedDays ? WORKED_DAYS_NOTE : <>Realizado = serviços finalizados e quantitativos históricos, sem duplicar relatórios derivados.
         O avanço calculado pelos relatórios considera todas as quantidades realizadas por serviço e tipo de medição, independentemente
         da conciliação, e pode ultrapassar 100%. O escopo e a UG informados no relatório já permitem contabilizar o realizado
-        quando identificam um destino único. A conciliação detalha a distribuição por sistema e bitola; os serviços usam seus pesos.
+        quando identificam um destino único. A conciliação detalha a distribuição por sistema e bitola; os serviços usam seus pesos.</>}
       </p>
     </div>
   );

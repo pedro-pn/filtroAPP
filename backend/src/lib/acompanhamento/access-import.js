@@ -16,6 +16,7 @@ import prisma from '../prisma.js';
 import { commercialDashboardCache } from '../resource-list-cache.js';
 import { commercialProposalSyncData } from '../projects/commercial-proposal-sync-state.js';
 import { computeProgressForProjects } from './avanco.js';
+import { validateProgressConfiguration } from './worked-days-progress.js';
 import { buildOmieCostCategoryWhere } from './cost-categories.js';
 import { getManualProjectCostsByProject } from './manual-costs.js';
 import { applyProposalPercentage, scaleProposalValue, validateProposalPercentage } from './proposal-percentage.js';
@@ -537,6 +538,8 @@ export async function listProjectRevisions(projectId) {
       demobilizationDate: true,
       manualProgressPct: true,
       forceManualProgress: true,
+      progressModel: true,
+      plannedCollaborators: true,
       proposalPercentage: true,
       offshore: true,
       laborSleepModeByCollaborator: true,
@@ -558,6 +561,8 @@ export async function listProjectRevisions(projectId) {
       demobilizationDate: project.demobilizationDate ?? null,
       manualProgressPct: project.manualProgressPct ?? null,
       forceManualProgress: project.forceManualProgress ?? false,
+      progressModel: project.progressModel ?? 'QUANTITIES',
+      plannedCollaborators: project.plannedCollaborators ?? null,
       proposalPercentage: Number(project.proposalPercentage ?? 100),
       offshore: project.offshore ?? false,
       laborSleepModeByCollaborator,
@@ -614,6 +619,8 @@ export async function listProjectRevisions(projectId) {
     demobilizationDate: project.demobilizationDate ?? null,
     manualProgressPct: project.manualProgressPct ?? null,
     forceManualProgress: project.forceManualProgress ?? false,
+    progressModel: project.progressModel ?? 'QUANTITIES',
+    plannedCollaborators: project.plannedCollaborators ?? null,
     proposalPercentage: Number(project.proposalPercentage ?? 100),
     offshore: project.offshore ?? false,
     laborSleepModeByCollaborator,
@@ -686,12 +693,19 @@ export async function setProjectSchedule(projectId, {
   demobilizationDate,
   manualProgressPct,
   forceManualProgress,
+  progressModel,
+  plannedCollaborators,
   proposalPercentage,
   offshore,
   laborSleepModeByCollaborator,
   laborCollaboratorIds
 } = {}) {
   return prisma.$transaction(async (tx) => {
+    if (progressModel !== undefined || plannedCollaborators !== undefined) {
+      const current = await tx.project.findUniqueOrThrow({ where: { id: projectId, deletedAt: null },
+        select: { progressModel: true, plannedCollaborators: true } });
+      validateProgressConfiguration(current, { progressModel, plannedCollaborators });
+    }
     let previousManualProgressPct;
     if (manualProgressPct !== undefined || forceManualProgress !== undefined) {
       const currentProject = await tx.project.findUnique({
@@ -739,6 +753,8 @@ export async function setProjectSchedule(projectId, {
     }
     if (manualProgressPct !== undefined) projectData.manualProgressPct = nextManualProgressPct;
     if (forceManualProgress !== undefined) projectData.forceManualProgress = forceManualProgress;
+    if (progressModel !== undefined) projectData.progressModel = progressModel;
+    if (plannedCollaborators !== undefined) projectData.plannedCollaborators = plannedCollaborators;
     if (proposalPercentage !== undefined) projectData.proposalPercentage = validateProposalPercentage(proposalPercentage);
     if (offshore !== undefined) projectData.offshore = Boolean(offshore);
     if (laborSleepModeByCollaborator !== undefined) {
