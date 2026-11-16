@@ -98,6 +98,22 @@ test('cronograma renderiza campos, avanço e escopo no DS sem mudar o contrato d
   const partial = render(ProjectScheduleEditor, { projectId: 'p', canManage: true });
   assert.match(partial, /<span>Dias corridos<\/span><strong>6<\/strong>/);
   assert.match(partial, /<span>Dias trabalhados<\/span><strong>7<\/strong>/);
+
+  client.setQueryData(scheduleKey, { ...client.getQueryData(scheduleKey), progressModel: 'WORKED_DAYS', plannedCollaborators: 4 });
+  client.setQueryData(['project-progress', 'p'], { hasScope: true, progressPct: 5, progressMethod: 'WORKED_DAYS',
+    workedDays: { plannedDays: 7, plannedCollaborators: 4, plannedPersonDays: 28, realizedPersonDays: 2, equivalentWorkedDays: 0.5, rdoCount: 1 },
+    services: [{ serviceType: 'DIAS_TRABALHADOS', weight: 100, executionPct: 5,
+      systems: [{ systemType: 'DIAS_TRABALHADOS', unit: 'PESSOA_DIA', plannedQty: 28, realizedQty: 2, pct: 5 }] }] });
+  const days = render(ProjectScheduleEditor, { projectId: 'p', canManage: true });
+  assert.match(days, /Modelo de quantificação do avanço/);
+  assert.match(days, /option value="WORKED_DAYS" selected=""/);
+  assert.match(days, /<input(?=[^>]*id="acp-progress-days-p-control")(?=[^>]*readOnly="")(?=[^>]*value="7")[^>]*>/);
+  assert.match(days, /id="acp-planned-collaborators-p-control"[^>]*value="4"/);
+  assert.match(days, /2 pessoas-dia/);
+  assert.match(days, /0,5 dias equivalentes/);
+  assert.doesNotMatch(days, /Realizado = serviços finalizados/);
+  const daysReadOnly = render(ProjectScheduleEditor, { projectId: 'p', canManage: false });
+  assert.match(daysReadOnly, /<input(?=[^>]*id="acp-planned-collaborators-p-control")(?=[^>]*disabled="")[^>]*>/);
 }));
 
 test('campo compartilhado identifica a escolha manual e o detalhamento exibe avanço sem metas', async () => fixture(async ({ server, client, render }) => {

@@ -17,7 +17,7 @@ export function ProjectOverviewMetrics({ card }: { card: ProjectCardItem }) {
     : `Base: venda prevista. Impostos previstos na NF: ${brl(taxes.invoiceTaxTotal)}.`} Código ${(taxes.omieServiceTaxCodes?.length ? taxes.omieServiceTaxCodes : taxes.serviceTaxCode === 'MIXED' ? taxes.serviceTaxCodes : [taxes.serviceTaxCode])?.join(', ')}${taxes.equivalentServiceTaxCode ? ` (regra ${taxes.equivalentServiceTaxCode})` : ''}. ISS ${taxes.issRatePct}%. INSS ${taxes.inssRatePct}%.` : '';
   return <div className="acp-project__metrics">
     {card.presentation ? <p className="acp-project__secondary">Apresentação · cópia da missão {card.presentation.sourceCode}</p> : null}
-    <ProgressBar label={`Avanço de escopo${card.progressMethod === 'MANUAL' ? ' (manual)' : ''}`} value={card.progressPct} valueLabel={pct(card.progressPct)} />
+    <ProgressBar label={`Avanço de escopo${card.progressMethod === 'MANUAL' ? ' (manual)' : card.progressMethod === 'WORKED_DAYS' ? ' (dias trabalhados)' : ''}`} value={card.progressPct} valueLabel={pct(card.progressPct)} />
     <div className="acp-project__section">
       {!card.presentation ? <ProgressBar label="Custo consumido" value={card.costConsumedPct} valueLabel={pct(card.costConsumedPct)} /> : null}
       <dl className="acp-project__pair">

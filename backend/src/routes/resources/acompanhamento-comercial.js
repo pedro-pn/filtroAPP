@@ -823,6 +823,8 @@ const scheduleSchema = z.object({
   demobilizationDate: z.string().datetime().nullable().optional(),
   manualProgressPct: z.number().min(0).max(100).nullable().optional(),
   forceManualProgress: z.boolean().optional(),
+  progressModel: z.enum(['QUANTITIES', 'WORKED_DAYS']).optional(),
+  plannedCollaborators: z.number().int().positive().max(2147483647).nullable().optional(),
   proposalPercentage: z.number().min(0).max(100)
     .refine(value => Math.abs(value * 100 - Math.round(value * 100)) < 1e-7, 'Use no máximo duas casas decimais.').optional(),
   offshore: z.boolean().optional(),
