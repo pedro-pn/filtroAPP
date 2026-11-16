@@ -5,6 +5,7 @@ import { makeProjectWorkflowSchemas } from '../../../shared/schemas/project-work
 import { makeProjectExecutionSchemas } from '../../../shared/schemas/project-execution.js';
 import { makeProjectDocumentSchemas } from '../../../shared/schemas/project-documents.js';
 import asyncHandler from '../lib/async-handler.js';
+import { signatureEvidenceFromRequest } from '../lib/internal-report-signatures.js';
 import { requireHubAdmin } from '../middleware/auth.js';
 import { getProjectRomaneios } from '../lib/acompanhamento/project-romaneios.js';
 import { isEfetivoManager, requireEfetivoManager, requireEfetivoViewer } from '../lib/efetivo/access.js';
@@ -52,6 +53,7 @@ function context(req) {
   return {
     actorUserId: req.auth?.user?.id || null,
     user: req.auth?.user || null,
+    evidence: signatureEvidenceFromRequest(req),
     isManager: isEfetivoManager(req.auth?.user)
   };
 }
