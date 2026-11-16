@@ -40,6 +40,7 @@ import { MissionAllocationModal } from './MissionAllocationModal';
 import { ProjectCloseoutPanel } from './ProjectCloseoutPanel';
 import { ProjectPostJobPanel } from './ProjectPostJobPanel';
 import { ProjectWorkflowCategory } from './ProjectWorkflowCategory';
+import { ProjectWorkflowReportRecipients } from './ProjectWorkflowReportRecipients';
 import { ProjectWorkflowStageRail } from './ProjectWorkflowStageRail';
 import { ProjectWorkflowIcon } from './ProjectWorkflowIcon';
 import { initialsOf } from '../../../utils/projectWorkflowPresentation';
@@ -959,6 +960,11 @@ function WorkflowStagePanel({ detail, leaders, workflow, activeStage, saving, co
     stageContent = renderCloseout();
   } else {
     stageContent = <>{renderPostJob()}{renderCloseout()}{workflow.permissions.canReopen ? <ReopenProjectForm workflow={workflow} saving={saving} onPatch={stagePatch} /> : null}</>;
+  }
+
+  if (!isFutureStage && (!isLegacySkippedStage || activeStage === 'EXECUTION')
+    && ['MOBILIZATION_PLANNING', 'PREPARATION', 'MOBILIZATION', 'EXECUTION'].includes(activeStage)) {
+    stageContent = <><ProjectWorkflowReportRecipients key={`${detail.project.id}-${workflow.version}`} project={detail.project} workflow={workflow} saving={stageSaving} onPatch={stagePatch} />{stageContent}</>;
   }
 
   if (!isLegacySkippedStage && !isFutureStage && canViewProjectTeamCycles(activeStage)) {

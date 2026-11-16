@@ -1,6 +1,7 @@
 import { apiClient, type ApiClientError } from './client';
 import type { ProjectRomaneiosResponse } from './acompanhamentoComercial';
 import type { ProjectDocumentRequirementSummary } from './projectDocuments';
+import type { ClientSigner } from '../types/domain';
 
 export type ProjectWorkflowStage = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'WAITING_PLANNING' | 'MOBILIZATION_PLANNING' | 'PREPARATION' | 'MOBILIZATION' | 'EXECUTION' | 'DEMOBILIZATION' | 'POST_JOB' | 'FINAL_MEASUREMENT' | 'FINISHED';
 export type ProjectWorkflowChecklistStatus = 'PENDING' | 'DONE' | 'NOT_APPLICABLE';
@@ -66,6 +67,10 @@ export interface ProjectWorkflowProject {
   name: string;
   clientName: string;
   clientEmailPrimary?: string;
+  clientSignerFirstName?: string;
+  clientSignerLastName?: string;
+  clientEmailCc?: string[];
+  clientSigners?: ClientSigner[];
   commercialProposalSync?: { status: string; proposalCode: string; revisionNumber: number } | null;
   location: string;
   startDate?: string | null;
@@ -899,6 +904,7 @@ export interface ProjectExecutionDeviationInput {
 }
 
 export type ProjectWorkflowPatch = { correctionStage?: ProjectWorkflowStage | null } & (
+  | { action: 'report_recipients'; version: number; clientEmailPrimary: string; clientSignerFirstName: string; clientSignerLastName: string; clientEmailCc: string[]; clientSigners: ClientSigner[] }
   | { action: 'settings'; version: number; leaderUserId?: string; plannerUserId?: string; plannedMobilizationDate?: string | null }
   | { action: 'checklist'; version: number; key: string; status: ProjectWorkflowChecklistStatus; note?: string | null }
   | { action: 'team_member_check'; version: number; collaboratorId: string; key: ProjectWorkflowTeamMemberCheckKey; status: 'PENDING' | 'DONE' }

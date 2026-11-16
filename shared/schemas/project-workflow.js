@@ -1,3 +1,5 @@
+import { makeProjectReportRecipientsSchema } from './project-report-recipients.js';
+
 export const PROJECT_WORKFLOW_STAGES = [
   'HANDOVER',
   'INITIAL_ANALYSIS',
@@ -431,6 +433,9 @@ export function makeProjectWorkflowSchemas(z) {
     plannerUserId: id.optional(),
     plannedMobilizationDate: dateOnly.nullable().optional()
   }).strict().refine(value => value.leaderUserId || value.plannerUserId || Object.hasOwn(value, 'plannedMobilizationDate'), 'Informe ao menos uma alteração.');
+  const reportRecipients = makeProjectReportRecipientsSchema(z, {
+    action: z.literal('report_recipients'), version, correctionStage
+  });
   const checklist = z.object({
     action: z.literal('checklist'),
     version,
@@ -912,7 +917,7 @@ export function makeProjectWorkflowSchemas(z) {
     convertLegacySummary,
     postJob,
     measurement,
-    patch: z.discriminatedUnion('action', [settings, checklist, teamMemberCheck, preparationItemCheck, clientAttendance, clientRelease, preJob, qsms, travel, critical, clientContactCheck, analysisContact, analysisSchedule, commercialDates, commercialScheduleConfirm, analysisCriticality, analysisLocation, teamPlan, equipmentPlan, supplyPlan, logisticsPlan, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, mobilization, demobilization, postJob, measurement]),
+    patch: z.discriminatedUnion('action', [settings, reportRecipients, checklist, teamMemberCheck, preparationItemCheck, clientAttendance, clientRelease, preJob, qsms, travel, critical, clientContactCheck, analysisContact, analysisSchedule, commercialDates, commercialScheduleConfirm, analysisCriticality, analysisLocation, teamPlan, equipmentPlan, supplyPlan, logisticsPlan, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, mobilization, demobilization, postJob, measurement]),
     list: z.object({
       search: z.string().trim().max(120).optional(),
       page: z.coerce.number().int().min(1).default(1)

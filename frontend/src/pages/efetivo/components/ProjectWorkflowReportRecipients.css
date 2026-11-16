@@ -1,0 +1,44 @@
+.project-workflow-report-recipients fieldset {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.project-workflow-report-recipients .cc-list {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.project-workflow-report-recipients .cc-list-header {
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.project-workflow-report-recipients :is(.cc-row, .cc-add-row, .cc-list-header) {
+  border-color: var(--line);
+}
+
+.project-workflow-report-recipients .cc-email {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.project-workflow-report-recipients .cc-name-row label {
+  color: var(--muted);
+}
+
+.project-workflow-report-recipients .tog input:focus-visible + .tog-sl {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+}
+
+@media (max-width: 640px) {
+  .project-workflow-report-recipients fieldset {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

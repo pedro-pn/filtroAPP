@@ -60,6 +60,7 @@ import { projectDocumentReadiness, projectDocumentRequirements } from './documen
 import { notifyProjectWorkflowClientRegistrationRequested, notifyProjectWorkflowResourceConflicts } from './email-alerts.js';
 import { getNotificationEmailSetting, setNotificationEmailSetting } from '../notification-email-settings.js';
 import { detectResourceConflicts, syncResourceConflictIssues } from './resource-conflicts.js';
+import { saveProjectReportRecipients } from '../../projects/report-recipients.js';
 import { buildProjectExecutionWeeklyReview, reviewStartDate } from './weekly-review.js';
 import {
   currentRomaneioEquipmentForProject,
@@ -80,6 +81,10 @@ const PROJECT_FIELDS = {
   name: true,
   clientName: true,
   clientEmailPrimary: true,
+  clientEmailCc: true,
+  clientSigners: true,
+  clientSignerFirstName: true,
+  clientSignerLastName: true,
   commercialProposalSync: true,
   contractCode: true,
   isActive: true,
@@ -162,6 +167,7 @@ const OPERATIONAL_MISSION_QUERY = {
   }
 };
 const WORKFLOW_INCLUDE = {
+  project: { select: { clientEmailPrimary: true, clientEmailCc: true, clientSigners: true, clientSignerFirstName: true, clientSignerLastName: true } },
   leader: { select: { id: true, name: true, email: true, isActive: true } },
   planner: { select: { id: true, name: true, email: true, isActive: true } },
   closedBy: { select: { id: true, name: true } },
@@ -206,6 +212,7 @@ const WORKFLOW_INCLUDE = {
 // O resumo da integração precisa dos gates, mas não dos catálogos de disponibilidade,
 // eventos, autores ou pós-jobs de outros projetos carregados pela tela de detalhe.
 const STATUS_WORKFLOW_INCLUDE = {
+  project: { select: { clientEmailPrimary: true, clientEmailCc: true, clientSigners: true, clientSignerFirstName: true, clientSignerLastName: true } },
   checklists: { select: { key: true, status: true } },
   teamMemberChecks: { select: { collaboratorId: true, key: true, status: true } },
   preparationItemChecks: { select: { itemType: true, itemId: true, key: true, status: true } },
@@ -1204,6 +1211,10 @@ export async function getProjectWorkflow(projectId, context = {}, dependencies =
       name: project.name,
       clientName: project.clientName,
       clientEmailPrimary: project.clientEmailPrimary,
+      clientEmailCc: project.clientEmailCc || [],
+      clientSigners: project.clientSigners || [],
+      clientSignerFirstName: project.clientSignerFirstName || '',
+      clientSignerLastName: project.clientSignerLastName || '',
       commercialProposalSync: project.commercialProposalSync ? {
         status: project.commercialProposalSync.status,
         proposalCode: project.commercialProposalSync.proposalCode,
@@ -2542,7 +2553,14 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
         code: 'PROJECT_WORKFLOW_FINISHED_READ_ONLY'
       });
     }
-    if (payload.action === 'checklist') assertChecklistEditable(workflowForMutation, payload.key, context);
+    if (payload.action === 'report_recipients') {
+      assertEditable(workflow, context);
+      if (!['MOBILIZATION_PLANNING', 'PREPARATION', 'MOBILIZATION', 'EXECUTION'].includes(workflowForMutation.stage)) {
+        throw planningError('Cadastre os destinatários durante o planejamento, preparação, mobilização ou execução.', {
+          statusCode: 409, code: 'PROJECT_WORKFLOW_REPORT_RECIPIENTS_STAGE_REQUIRED'
+        });
+      }
+    } else if (payload.action === 'checklist') assertChecklistEditable(workflowForMutation, payload.key, context);
     else if (payload.action === 'team_member_check') {
       const definition = PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS.find(item => item.key === payload.key);
       assertPreparationAreaEditable(workflowForMutation, definition?.areaRoles || [], context);
@@ -2590,6 +2608,7 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
     }
     await reserveVersion(tx, workflow, payload.version);
     if (payload.action === 'settings') await applySettings(tx, workflowForMutation, payload, context);
+    else if (payload.action === 'report_recipients') await saveProjectReportRecipients(tx, projectId, payload, dependencies);
     else if (payload.action === 'checklist') await applyChecklist(tx, workflowForMutation, payload, context);
     else if (payload.action === 'team_member_check') await applyTeamMemberCheck(tx, workflowForMutation, payload, context);
     else if (payload.action === 'preparation_item_check') await applyPreparationItemCheck(tx, workflowForMutation, payload, context);
@@ -2626,6 +2645,14 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
     delete eventData.version;
     await recordEvent(tx, projectId, context.actorUserId, `WORKFLOW_${payload.action.toUpperCase()}`, eventData);
   });
+  if (payload.action === 'report_recipients') {
+    const reconcile = dependencies.reconcileProjectClientSignatureRequirements
+      || (await import('../../../routes/resources/reports.js')).reconcileProjectClientSignatureRequirements;
+    await reconcile(projectId, { userId: context.actorUserId, evidence: context.evidence || {} });
+    const clearCaches = dependencies.clearProjectDerivedCaches
+      || (await import('../../resource-list-cache.js')).clearProjectDerivedCaches;
+    clearCaches();
+  }
   if (resourceConflictNotice) {
     try {
       await (dependencies.notifyResourceConflicts || notifyProjectWorkflowResourceConflicts)({

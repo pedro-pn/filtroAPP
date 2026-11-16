@@ -587,6 +587,10 @@ export function ProjectWorkflowBoard({
     onSuccess: async (data, payload) => {
       await refresh(data);
       if (payload.action === 'stage' && payload.stage === 'EXECUTION') await refreshExecutionStart(data.project.id);
+      if (payload.action === 'report_recipients') await Promise.all(
+        ['projects', 'bootstrap', 'reports', 'report', 'project-execution']
+          .map(key => queryClient.invalidateQueries({ queryKey: [key] }))
+      );
       if (payload.action === 'stage') {
         if (payload.stage === 'FINISHED') await offerCompletionSurvey(data.project);
         else await refreshReportArchive();

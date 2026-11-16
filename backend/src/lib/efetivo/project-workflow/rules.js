@@ -15,6 +15,7 @@ import {
   projectWorkflowStageTransitions
 } from '../../../../../shared/schemas/project-workflow.js';
 import { isResourceConflictIssue } from './resource-conflicts.js';
+import { projectReportRecipientsIssues } from '../../projects/report-recipients-input.js';
 
 function dateKey(value) {
   if (!value) return null;
@@ -535,7 +536,8 @@ export function projectWorkflowPlanningReadiness(workflow) {
     { key: 'D30_TEAM', complete: workflow?.teamPlanDefined === false || (workflow?.teamPlanDefined === true && (workflow?.teamDemands || []).length > 0) },
     { key: 'D30_EQUIPMENT', complete: workflow?.equipmentPlanDefined === false || (workflow?.equipmentPlanDefined === true && (workflow?.equipmentCategoryPlans || []).length > 0) },
     { key: 'D30_MATERIALS', complete: workflow?.supplyPlanDefined === false || (workflow?.supplyPlanDefined === true && supplyPlan.length > 0) },
-    { key: 'D30_LOGISTICS', complete: logisticsComplete }
+    { key: 'D30_LOGISTICS', complete: logisticsComplete },
+    { key: 'D30_REPORT_RECIPIENTS', complete: projectReportRecipientsIssues(workflow?.project).length === 0 }
   ].map(item => ({
     key: item.key,
     completed: item.complete ? 1 : 0,
@@ -911,7 +913,7 @@ export function planningGateIssues(workflow) {
     issues.push('Definir os cargos e as quantidades da equipe');
   }
   // Na Sede, equipamentos, insumos e logística são opcionais: não bloqueiam a preparação.
-  if (isHeadquartersWorkflow(workflow)) return issues;
+  if (isHeadquartersWorkflow(workflow)) return [...issues, ...projectReportRecipientsIssues(workflow?.project)];
   if (workflow?.equipmentPlanDefined == null) {
     issues.push('Informar se serão necessários equipamentos');
   } else if (workflow.equipmentPlanDefined === true && !(workflow?.equipmentCategoryPlans || []).length) {
@@ -936,7 +938,7 @@ export function planningGateIssues(workflow) {
     if (typeof logistics.lodgingRequested !== 'boolean') issues.push('Informar se a hospedagem já foi solicitada');
     if (logistics.lodgingRequested === true && !logistics.lodgingRequestedAt) issues.push('Informar a data da solicitação da hospedagem');
   }
-  return issues;
+  return [...issues, ...projectReportRecipientsIssues(workflow?.project)];
 }
 
 export function allowedProjectWorkflowTransition(current, target, workflow = null) {
@@ -951,6 +953,7 @@ export function projectWorkflowTransitionIssues(workflow, target) {
     return analysisGateIssues(workflow);
   }
   if (target === 'PREPARATION' && workflow.stage === 'MOBILIZATION_PLANNING') return planningGateIssues(workflow);
+  if (workflow.stage === 'EXECUTION' && ['DEMOBILIZATION', 'POST_JOB'].includes(target)) return projectReportRecipientsIssues(workflow.project);
   if (target === 'POST_JOB' && workflow.stage === 'DEMOBILIZATION') return demobilizationGateIssues(workflow);
   if (target === 'FINAL_MEASUREMENT' && workflow.stage === 'POST_JOB') return postJobGateIssues(workflow);
   if (target === 'FINISHED') {
