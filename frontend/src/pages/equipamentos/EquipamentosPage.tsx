@@ -1,6 +1,6 @@
 import { BrandLoading } from '../../components/brand/BrandLoading';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { driver } from 'driver.js';
 import type { DriveStep } from 'driver.js';
 
@@ -542,7 +542,12 @@ export function EquipamentosPage() {
         <PageHeader
           title={sectionLabel}
           description="Cadastro, calibração e documentação técnica dos equipamentos."
-          actions={<Button variant="secondary" size="sm" onClick={startEquipmentTutorial}>Ver tutorial</Button>}
+          actions={(
+            <>
+              <Link className="fv-button fv-button--secondary fv-button--sm" to="/equipamentos/manual" data-equip-manual-link>Manual</Link>
+              <Button variant="secondary" size="sm" onClick={startEquipmentTutorial}>Ver tutorial</Button>
+            </>
+          )}
         />
         <div className="equip-layout">
           <nav className="equip-nav" aria-label="Áreas de Equipamentos" data-equip-nav>
