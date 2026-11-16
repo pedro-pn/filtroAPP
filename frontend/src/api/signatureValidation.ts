@@ -12,6 +12,7 @@ export interface SignatureValidationPayload {
     records: Array<{
       epiName: string;
       ca: string;
+      size?: string | null;
       quantity: number;
       lendDate: string;
       devolutionDate?: string | null;

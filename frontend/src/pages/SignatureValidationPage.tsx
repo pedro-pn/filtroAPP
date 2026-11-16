@@ -139,7 +139,7 @@ export function SignatureValidationPage({ source = 'report' }: { source?: 'repor
                   <div className="section-subtitle">EPIs abrangidos por esta assinatura</div>
                   {payload.epi.records.map((record, index) => (
                     <div className="det-row" key={index}>
-                      <span className="det-label">{record.epiName} · CA {record.ca || '-'} · Qtd. {record.quantity}</span>
+                      <span className="det-label">{record.epiName}{record.size ? ` · Tamanho: ${record.size}` : ''} · CA {record.ca || '-'} · Qtd. {record.quantity}</span>
                       <span className="det-val">
                         Fornecimento: {formatDateOnlyPtBr(record.lendDate)}
                         {record.devolutionDate ? ` · Devolução: ${formatDateOnlyPtBr(record.devolutionDate)}` : ''}

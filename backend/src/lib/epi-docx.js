@@ -40,13 +40,17 @@ function elementText(element) {
   return getTextNodes(element).map(node => node.data || '').join('');
 }
 
-function replaceTokenInElement(element, token, replacement) {
+function replacePlaceholders(element, values) {
   const nodes = getTextNodes(element);
-  let full = nodes.map(node => node.data || '').join('');
-  let idx = full.indexOf(token);
+  const full = nodes.map(node => node.data || '').join('');
+  // Replace original template markers from right to left so inserted values stay literal.
+  const matches = Array.from(full.matchAll(/<<([^<>]+)>>/g)).reverse();
 
-  while (idx >= 0) {
-    const end = idx + token.length;
+  for (const match of matches) {
+    if (!Object.hasOwn(values, match[1])) continue;
+    const idx = match.index;
+    const end = idx + match[0].length;
+    const replacement = safeText(values[match[1]]);
     let offset = 0;
     let firstHit = true;
 
@@ -67,16 +71,7 @@ function replaceTokenInElement(element, token, replacement) {
       }
       offset = endPos;
     }
-
-    full = nodes.map(node => node.data || '').join('');
-    idx = full.indexOf(token);
   }
-}
-
-function replacePlaceholders(element, values) {
-  Object.entries(values).forEach(([key, value]) => {
-    replaceTokenInElement(element, `<<${key}>>`, safeText(value));
-  });
 }
 
 function findFirstByText(root, tagName, token) {
@@ -223,13 +218,13 @@ function setParagraphToSignature(zip, relsDoc, paragraph, signatureImageDataUrl,
   if (!paragraph) return;
   const parsed = parseSignatureImageDataUrl(signatureImageDataUrl);
   if (!parsed) {
-    replaceTokenInElement(paragraph, '<<ass>>', '');
+    replacePlaceholders(paragraph, { ass: '' });
     return;
   }
   const asset = imageMeta(parsed);
   const relId = createImageRelationship(zip, relsDoc, asset);
   const heightEmu = Math.max(1, Math.round(maxWidthEmu * (asset.height / asset.width)));
-  replaceTokenInElement(paragraph, '<<ass>>', '');
+  replacePlaceholders(paragraph, { ass: '' });
   ensureParagraphCentered(paragraph);
   const drawingDoc = new DOMParser().parseFromString(drawingXml(relId, maxWidthEmu, heightEmu), 'text/xml');
   paragraph.appendChild(drawingDoc.documentElement);
@@ -256,8 +251,10 @@ function buildBaseData(collaborator, createdAt) {
 }
 
 function recordData(record) {
+  const name = record.epiName || '';
+  const size = safeText(record.size).trim();
   return {
-    epi: record.epiName || '',
+    epi: size ? `${name} (Tamanho: ${size})` : name,
     ca: record.ca || '',
     quantity: String(record.quantity || 1),
     qtd: String(record.quantity || 1),
@@ -291,16 +288,15 @@ function populateEpiRows(zip, relsDoc, doc, records) {
       lenddate: '',
       devolutiondate: ''
     });
-    replaceTokenInElement(templateRow, '<<ass>>', '');
+    replacePlaceholders(templateRow, { ass: '' });
     return;
   }
 
   const clones = records.map(record => {
     const clone = templateRow.cloneNode(true);
-    replacePlaceholders(clone, recordData(record));
     const paragraph = findFirstByText(clone, 'w:p', '<<ass>>');
     setParagraphToSignature(zip, relsDoc, paragraph, recordSignatureImageDataUrl(record));
-    replaceTokenInElement(clone, '<<ass>>', '');
+    replacePlaceholders(clone, recordData(record));
     return clone;
   });
   cloneBefore(templateRow, clones);
@@ -334,7 +330,6 @@ export async function buildEpiDocx(collaborator, options = {}) {
       populateGlobalSignature(zip, relsDoc, doc, records);
       populateEpiRows(zip, relsDoc, doc, records);
     }
-    replacePlaceholders(doc, buildBaseData(source, createdAt));
     zip.updateFile(entryName, Buffer.from(clearRemainingPlaceholders(new XMLSerializer().serializeToString(doc)), 'utf8'));
   }
 

@@ -5,6 +5,8 @@ export interface EpiCatalogItem {
   id: string;
   name: string;
   ca: string;
+  hasSizes: boolean;
+  sizes: string[];
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -23,6 +25,7 @@ export interface EpiRecord {
   catalogItemId?: string | null;
   epiName: string;
   ca: string;
+  size?: string | null;
   quantity: number;
   lendDate: string;
   devolutionDate?: string | null;
@@ -60,6 +63,7 @@ export interface EpiRecordPayload {
   catalogItemId?: string | null;
   epiName: string;
   ca?: string | null;
+  size?: string | null;
   quantity: number;
   lendDate: string;
   devolutionDate?: string | null;
@@ -100,12 +104,20 @@ export async function listEpiCatalog() {
   return data;
 }
 
-export async function createEpiCatalogItem(payload: { name: string; ca?: string | null; isActive?: boolean }) {
+export interface EpiCatalogPayload {
+  name: string;
+  ca?: string | null;
+  isActive?: boolean;
+  hasSizes?: boolean;
+  sizes?: string[];
+}
+
+export async function createEpiCatalogItem(payload: EpiCatalogPayload) {
   const { data } = await apiClient.post<EpiCatalogItem>(epiApiPath('/catalog'), payload);
   return data;
 }
 
-export async function updateEpiCatalogItem(id: string, payload: Partial<{ name: string; ca: string; isActive: boolean }>) {
+export async function updateEpiCatalogItem(id: string, payload: Partial<EpiCatalogPayload>) {
   const { data } = await apiClient.put<EpiCatalogItem>(epiApiPath(`/catalog/${id}`), payload);
   return data;
 }
