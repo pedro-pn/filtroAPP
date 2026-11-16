@@ -5,7 +5,7 @@ const baseURL = `http://127.0.0.1:${port}`;
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: /quality-epi\.migration\.spec\.ts/,
+  testMatch: /(?:quality-epi\.migration|epi-sizes)\.spec\.ts/,
   workers: 1,
   retries: 0,
   timeout: 60_000,

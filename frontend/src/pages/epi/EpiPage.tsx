@@ -1,7 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
-import { Alert, Badge, Button, EmptyState, Input, Select, Skeleton } from '../../components/ui/ds';
+import { Alert, Badge, Button, EmptyState, Input, Select, Skeleton, Switch } from '../../components/ui/ds';
 import { PageHeader } from '../../layout/PageHeader';
 import { OperationalModuleAppShell } from '../OperationalModuleAppShell';
 
@@ -38,6 +38,90 @@ import './EpiPage.ds.css';
 type Tab = 'collaborators' | 'catalog';
 type RecordTab = 'active' | 'archived';
 const TABS: Tab[] = ['collaborators', 'catalog'];
+const DEFAULT_EPI_SIZES = ['P', 'M', 'G', 'GG', 'XG', 'Especial'];
+type CatalogForm = { name: string; ca: string; hasSizes: boolean; sizes: string[] };
+
+function emptyCatalogForm(): CatalogForm {
+  return { name: '', ca: '', hasSizes: false, sizes: [...DEFAULT_EPI_SIZES] };
+}
+
+function CatalogSizesToggle({ value, onChange }: {
+  value: CatalogForm;
+  onChange: (next: CatalogForm) => void;
+}) {
+  return (
+    <Switch
+      containerClassName="epi-catalog-size-toggle"
+      label="Este EPI possui tamanhos"
+      checked={value.hasSizes}
+      onChange={event => onChange({ ...value, hasSizes: event.target.checked, sizes: value.sizes.length ? value.sizes : [...DEFAULT_EPI_SIZES] })}
+    />
+  );
+}
+
+function CatalogSizes({ id, value, onChange }: {
+  id: string;
+  value: CatalogForm;
+  onChange: (next: CatalogForm) => void;
+}) {
+  const [newSize, setNewSize] = useState('');
+  const [error, setError] = useState('');
+
+  function addSize() {
+    const size = newSize.trim();
+    if (!size) {
+      setError('Informe o tamanho para acrescentar.');
+      return;
+    }
+    if (value.sizes.some(option => option.toLocaleLowerCase('pt-BR') === size.toLocaleLowerCase('pt-BR'))) {
+      setError('Este tamanho já está na lista.');
+      return;
+    }
+    onChange({ ...value, sizes: [...value.sizes, size] });
+    setNewSize('');
+    setError('');
+  }
+
+  if (!value.hasSizes) return null;
+
+  return (
+    <div className="epi-catalog-sizes">
+      <fieldset className="epi-size-options">
+        <legend>Tamanhos disponíveis</legend>
+        <small>Ao lançar este item na ficha, será obrigatório escolher um tamanho.</small>
+        <div className="epi-size-chips">
+          {value.sizes.map(size => (
+            <span className="epi-size-chip" key={size}>
+              {size}
+              <button type="button" aria-label={`Remover tamanho ${size}`} onClick={() => onChange({ ...value, sizes: value.sizes.filter(option => option !== size) })}>×</button>
+            </span>
+          ))}
+        </div>
+        {!value.sizes.length ? <small>Acrescente ao menos um tamanho antes de salvar.</small> : null}
+        <div className="epi-size-add">
+          <div className="field-group">
+            <label htmlFor={`${id}-new-size`}>Novo tamanho</label>
+            <Input
+              id={`${id}-new-size`}
+              size="sm"
+              value={newSize}
+              maxLength={40}
+              placeholder="Ex.: 42, Único, XXG"
+              aria-invalid={!!error}
+              aria-describedby={error ? `${id}-size-error` : undefined}
+              onChange={event => { setNewSize(event.target.value); setError(''); }}
+              onKeyDown={event => {
+                if (event.key === 'Enter') { event.preventDefault(); addSize(); }
+              }}
+            />
+          </div>
+          <Button type="button" variant="secondary" size="sm" onClick={addSize}>Acrescentar tamanho</Button>
+        </div>
+        {error ? <small id={`${id}-size-error`} role="alert">{error}</small> : null}
+      </fieldset>
+    </div>
+  );
+}
 
 function parseEpiTab(value: string | null): Tab {
   return TABS.includes(value as Tab) ? value as Tab : 'collaborators';
@@ -51,6 +135,7 @@ const emptyRecord: EpiRecordPayload = {
   catalogItemId: null,
   epiName: '',
   ca: '',
+  size: null,
   quantity: 1,
   lendDate: todayInputDate(),
   devolutionDate: ''
@@ -152,13 +237,14 @@ export function EpiPage() {
   const [selectedRecordIds, setSelectedRecordIds] = useState<Set<string>>(() => new Set());
   const [selectedArchivedRecordIds, setSelectedArchivedRecordIds] = useState<Set<string>>(() => new Set());
   const [lastSignUrl, setLastSignUrl] = useState('');
-  const [catalogForm, setCatalogForm] = useState({ name: '', ca: '' });
+  const [catalogForm, setCatalogForm] = useState<CatalogForm>(emptyCatalogForm);
   const [editingCatalogId, setEditingCatalogId] = useState<string | null>(null);
-  const [editCatalogForm, setEditCatalogForm] = useState({ name: '', ca: '' });
+  const [editCatalogForm, setEditCatalogForm] = useState<CatalogForm>(emptyCatalogForm);
   const [removeDialog, setRemoveDialog] = useState<RemoveDialogState | null>(null);
 
   const collaboratorsQuery = useQuery({ queryKey: ['epi-collaborators'], queryFn: listEpiCollaborators });
   const catalogQuery = useQuery({ queryKey: ['epi-catalog'], queryFn: listEpiCatalog });
+  const selectedCatalogItem = (catalogQuery.data || []).find(item => item.id === recordForm.catalogItemId);
   const jobRolesQuery = useQuery({
     queryKey: ['epi-job-roles'],
     queryFn: listEpiJobRoles,
@@ -257,17 +343,17 @@ export function EpiPage() {
   });
 
   const saveCatalogMutation = useMutation({
-    mutationFn: () => createEpiCatalogItem({ ...catalogForm, isActive: true }),
+    mutationFn: () => createEpiCatalogItem({ ...catalogForm, sizes: catalogForm.hasSizes ? catalogForm.sizes : [], isActive: true }),
     onSuccess: () => {
       invalidate();
-      setCatalogForm({ name: '', ca: '' });
+      setCatalogForm(emptyCatalogForm());
       showToast('EPI salvo no catálogo.', 'success');
     },
     onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível salvar o EPI.', 'error')
   });
 
   const updateCatalogMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: { name: string; ca: string } }) => updateEpiCatalogItem(id, payload),
+    mutationFn: ({ id, payload }: { id: string; payload: CatalogForm }) => updateEpiCatalogItem(id, { ...payload, sizes: payload.hasSizes ? payload.sizes : [] }),
     onSuccess: () => {
       invalidate();
       setEditingCatalogId(null);
@@ -310,7 +396,8 @@ export function EpiPage() {
       ...current,
       catalogItemId: item?.id || null,
       epiName: item?.name || current.epiName,
-      ca: item?.ca || current.ca
+      ca: item?.ca || current.ca,
+      size: null
     }));
   }
 
@@ -353,11 +440,16 @@ export function EpiPage() {
   function submitRecord(event: FormEvent) {
     event.preventDefault();
     if (!expandedCollaborator) return;
+    if (selectedCatalogItem?.hasSizes && !selectedCatalogItem.sizes.includes(recordForm.size || '')) {
+      showToast('Selecione um tamanho disponível para este EPI.', 'error');
+      return;
+    }
     const payload = {
       ...recordForm,
       catalogItemId: recordForm.catalogItemId || null,
       epiName: recordForm.epiName.trim(),
       ca: String(recordForm.ca || '').trim(),
+      size: selectedCatalogItem?.hasSizes ? recordForm.size : null,
       quantity: Number(recordForm.quantity) || 1,
       lendDate: inputDateToPtBr(recordForm.lendDate) || '',
       devolutionDate: inputDateToPtBr(recordForm.devolutionDate)
@@ -381,11 +473,19 @@ export function EpiPage() {
 
   function editCatalog(item: EpiCatalogItem) {
     setEditingCatalogId(item.id);
-    setEditCatalogForm({ name: item.name, ca: item.ca || '' });
+    setEditCatalogForm({ name: item.name, ca: item.ca || '', hasSizes: !!item.hasSizes, sizes: item.sizes?.length ? [...item.sizes] : [...DEFAULT_EPI_SIZES] });
+  }
+
+  function validateCatalogSizes(form: CatalogForm) {
+    if (form.hasSizes && !form.sizes.length) {
+      showToast('Acrescente ao menos um tamanho disponível.', 'error');
+      return false;
+    }
+    return true;
   }
 
   function confirmRemoveRecord(record: EpiRecord) {
-    const description = `${record.epiName} (${caLabel(record.ca)})`;
+    const description = `${record.epiName} (${caLabel(record.ca)}${record.size ? ` · Tam. ${record.size}` : ''})`;
     setRemoveDialog({
       kind: 'record',
       id: record.id,
@@ -589,12 +689,21 @@ export function EpiPage() {
                           </div>
                           <div className="field-group">
                             <label htmlFor={`epi-record-name-${collaborator.id}`}>Nome do EPI</label>
-                            <Input id={`epi-record-name-${collaborator.id}`} value={recordForm.epiName} onChange={event => setRecordForm(current => ({ ...current, epiName: event.target.value, catalogItemId: null }))} required />
+                            <Input id={`epi-record-name-${collaborator.id}`} value={recordForm.epiName} onChange={event => setRecordForm(current => ({ ...current, epiName: event.target.value, catalogItemId: null, size: null }))} required />
                           </div>
                           <div className="field-group">
                             <label htmlFor={`epi-record-ca-${collaborator.id}`}>C.A</label>
-                            <Input id={`epi-record-ca-${collaborator.id}`} value={recordForm.ca || ''} onChange={event => setRecordForm(current => ({ ...current, ca: event.target.value, catalogItemId: null }))} />
+                            <Input id={`epi-record-ca-${collaborator.id}`} value={recordForm.ca || ''} onChange={event => setRecordForm(current => ({ ...current, ca: event.target.value, catalogItemId: null, size: null }))} />
                           </div>
+                          {selectedCatalogItem?.hasSizes ? (
+                            <div className="field-group epi-record-size">
+                              <label htmlFor={`epi-record-size-${collaborator.id}`}>Tamanho</label>
+                              <Select id={`epi-record-size-${collaborator.id}`} value={recordForm.size || ''} onChange={event => setRecordForm(current => ({ ...current, size: event.target.value || null }))} required>
+                                <option value="">Selecione o tamanho</option>
+                                {selectedCatalogItem.sizes.map(size => <option key={size} value={size}>{size}</option>)}
+                              </Select>
+                            </div>
+                          ) : null}
                           <div className="field-group">
                             <label htmlFor={`epi-record-quantity-${collaborator.id}`}>Quantidade</label>
                             <Input id={`epi-record-quantity-${collaborator.id}`} type="number" min="1" value={recordForm.quantity} onChange={event => setRecordForm(current => ({ ...current, quantity: Number(event.target.value) }))} required />
@@ -667,13 +776,13 @@ export function EpiPage() {
                         {visibleRecords.length ? visibleRecords.map(record => (
                           <div className="epi-record-row" key={record.id}>
                             {isTechnician && recordTab === 'active' ? (
-                              <input type="checkbox" checked={selectedRecordIds.has(record.id)} onChange={() => toggleRecord(record.id)} aria-label={`Selecionar ${record.epiName}`} />
+                              <input type="checkbox" checked={selectedRecordIds.has(record.id)} onChange={() => toggleRecord(record.id)} aria-label={`Selecionar ${record.epiName}${record.size ? ` tamanho ${record.size}` : ''}`} />
                             ) : isTechnician && recordTab === 'archived' ? (
-                              <input type="checkbox" checked={selectedArchivedRecordIds.has(record.id)} onChange={() => toggleArchivedRecord(record.id)} aria-label={`Selecionar ${record.epiName}`} />
+                              <input type="checkbox" checked={selectedArchivedRecordIds.has(record.id)} onChange={() => toggleArchivedRecord(record.id)} aria-label={`Selecionar ${record.epiName}${record.size ? ` tamanho ${record.size}` : ''}`} />
                             ) : <span />}
                             <div>
                               <strong>{record.epiName}</strong>
-                              <small>{caLabel(record.ca)} · Qtd. {record.quantity} · Forn. {formatDate(record.lendDate)} · Dev. {formatDate(record.devolutionDate)}{record.archivedAt ? ` · Arq. ${formatDate(record.archivedAt)}` : ''}</small>
+                              <small>{caLabel(record.ca)}{record.size ? ` · Tam. ${record.size}` : ''} · Qtd. {record.quantity} · Forn. {formatDate(record.lendDate)} · Dev. {formatDate(record.devolutionDate)}{record.archivedAt ? ` · Arq. ${formatDate(record.archivedAt)}` : ''}</small>
                             </div>
                             <Badge tone={record.signedAt ? 'success' : record.signatureRequest?.status === 'PENDING' ? 'warning' : 'neutral'}>{signedLabel(record)}</Badge>
                             {isTechnician ? (
@@ -707,16 +816,20 @@ export function EpiPage() {
         ) : (
           <section className="page-card epi-panel">
             {isTechnician ? (
-              <form className="epi-catalog-form" onSubmit={event => { event.preventDefault(); saveCatalogMutation.mutate(); }}>
+              <form className="epi-catalog-form" onSubmit={event => { event.preventDefault(); if (validateCatalogSizes(catalogForm)) saveCatalogMutation.mutate(); }}>
                 <div className="field-group">
                   <label htmlFor="epi-catalog-name">Nome do EPI</label>
                   <Input id="epi-catalog-name" value={catalogForm.name} onChange={event => setCatalogForm(current => ({ ...current, name: event.target.value }))} required />
                 </div>
-                <div className="field-group">
-                  <label htmlFor="epi-catalog-ca">C.A</label>
-                  <Input id="epi-catalog-ca" value={catalogForm.ca} onChange={event => setCatalogForm(current => ({ ...current, ca: event.target.value }))} />
+                <div className="epi-catalog-options">
+                  <div className="field-group epi-catalog-ca">
+                    <label htmlFor="epi-catalog-ca">C.A</label>
+                    <Input id="epi-catalog-ca" value={catalogForm.ca} onChange={event => setCatalogForm(current => ({ ...current, ca: event.target.value }))} />
+                  </div>
+                  <CatalogSizesToggle value={catalogForm} onChange={setCatalogForm} />
                 </div>
                 <Button variant="primary" type="submit" loading={saveCatalogMutation.isPending}>Adicionar</Button>
+                <CatalogSizes id="epi-catalog" value={catalogForm} onChange={setCatalogForm} />
               </form>
             ) : null}
 
@@ -730,7 +843,7 @@ export function EpiPage() {
                   <div className="epi-catalog-row-main">
                     <div>
                       <strong>{item.name}</strong>
-                      <small>{caLabel(item.ca)}</small>
+                      <small>{caLabel(item.ca)}{item.hasSizes ? ` · Tamanhos: ${item.sizes.join(', ')}` : ''}</small>
                     </div>
                     {isTechnician ? (
                       <div className="epi-row-buttons">
@@ -741,10 +854,16 @@ export function EpiPage() {
                   </div>
                   {editingCatalogId === item.id ? (
                     <div className="epi-catalog-edit-form">
-                      <Input aria-label={`Nome de ${item.name}`} value={editCatalogForm.name} onChange={event => setEditCatalogForm(current => ({ ...current, name: event.target.value }))} />
-                      <Input aria-label={`C.A de ${item.name}`} value={editCatalogForm.ca} onChange={event => setEditCatalogForm(current => ({ ...current, ca: event.target.value }))} />
-                      <Button variant="primary" size="sm" loading={updateCatalogMutation.isPending} onClick={() => updateCatalogMutation.mutate({ id: item.id, payload: editCatalogForm })}>Salvar</Button>
-                      <Button variant="secondary" size="sm" onClick={() => setEditingCatalogId(null)}>Cancelar</Button>
+                      <Input containerClassName="epi-catalog-name" aria-label={`Nome de ${item.name}`} value={editCatalogForm.name} onChange={event => setEditCatalogForm(current => ({ ...current, name: event.target.value }))} />
+                      <div className="epi-catalog-options">
+                        <Input containerClassName="epi-catalog-ca" aria-label={`C.A de ${item.name}`} value={editCatalogForm.ca} onChange={event => setEditCatalogForm(current => ({ ...current, ca: event.target.value }))} />
+                        <CatalogSizesToggle value={editCatalogForm} onChange={setEditCatalogForm} />
+                      </div>
+                      <div className="epi-catalog-actions">
+                        <Button variant="primary" size="sm" loading={updateCatalogMutation.isPending} onClick={() => { if (validateCatalogSizes(editCatalogForm)) updateCatalogMutation.mutate({ id: item.id, payload: editCatalogForm }); }}>Salvar</Button>
+                        <Button variant="secondary" size="sm" onClick={() => setEditingCatalogId(null)}>Cancelar</Button>
+                      </div>
+                      <CatalogSizes id={`epi-catalog-edit-${item.id}`} value={editCatalogForm} onChange={setEditCatalogForm} />
                     </div>
                   ) : null}
                 </div>

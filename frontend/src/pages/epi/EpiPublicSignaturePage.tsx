@@ -92,7 +92,7 @@ export function EpiPublicSignaturePage() {
                 {payload.records.map(record => (
                   <Card className="epi-public-row" variant="flat" padding="sm" key={record.id}>
                     <strong>{record.epiName}</strong>
-                    <small>C.A {record.ca} · Qtd. {record.quantity}</small>
+                    <small>C.A {record.ca}{record.size ? ` · Tam. ${record.size}` : ''} · Qtd. {record.quantity}</small>
                   </Card>
                 ))}
               </div>

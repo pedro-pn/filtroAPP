@@ -516,6 +516,9 @@ jobs:
       - name: Install Chromium for notification and equipment regressions
         run: npx playwright install --with-deps chromium
 
+      - name: Verify EPI catalog sizes and required delivery selection in the browser
+        run: npx playwright test --config=playwright.quality-epi.config.ts --project=chromium epi-sizes.spec.ts
+
       - name: Verify RDO forms, notifications and equipment selection in the browser
         run: >-
           npx playwright test --config=playwright.rdo.config.ts
@@ -542,6 +545,14 @@ jobs:
         with:
           name: efetivo-closeout-browser-report
           path: output/playwright/efetivo
+          if-no-files-found: warn
+
+      - name: Upload EPI browser regression report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: epi-sizes-browser-report
+          path: output/playwright/quality-epi
           if-no-files-found: warn
 
       - name: Upload browser regression report

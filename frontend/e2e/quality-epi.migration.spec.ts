@@ -300,7 +300,7 @@ test('EPI: formulários de entrega e catálogo preservam os contratos', async ({
   await page.locator('.epi-catalog-row').getByRole('button', { name: 'Editar' }).click();
   await page.getByRole('textbox', { name: 'Nome de Capacete' }).fill('Capacete classe B');
   await page.locator('.epi-catalog-edit-form').getByRole('button', { name: 'Salvar' }).click();
-  await expect.poll(() => catalogPayload).toEqual({ name: 'Capacete classe B', ca: '123' });
+  await expect.poll(() => catalogPayload).toEqual({ name: 'Capacete classe B', ca: '123', hasSizes: false, sizes: [] });
 });
 
 test('Qualidade visualizador e EPI colaborador não exibem ações de edição', async ({ page }) => {
