@@ -1,0 +1,41 @@
+.fv-app-update {
+  position: fixed;
+  z-index: 350;
+  inset-inline-start: max(var(--space-4), env(safe-area-inset-left));
+  inset-block-end: calc(var(--space-4) + env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: calc(100vw - 2 * var(--space-4));
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-e2);
+}
+
+.fv-app-update__icon {
+  flex-shrink: 0;
+  color: var(--brand-text);
+}
+
+.fv-app-update__message {
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+
+.fv-app-update .fv-button {
+  flex-shrink: 0;
+}
+
+@media (max-width: 767.98px) {
+  .fv-app-update {
+    inset-block-end: calc(var(--bottombar-h) + var(--space-3) + env(safe-area-inset-bottom));
+  }
+}
+
+@media print {
+  .fv-app-update { display: none; }
+}
