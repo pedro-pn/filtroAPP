@@ -484,7 +484,7 @@ jobs:
       - name: Generate audit report
         run: |
           mkdir -p ../audit-reports
-          npm audit --audit-level=high --json > ../audit-reports/frontend-audit.json
+          npm run audit:ci -- --report ../audit-reports/frontend-audit.json
 
       - name: Upload frontend audit report
         if: always()

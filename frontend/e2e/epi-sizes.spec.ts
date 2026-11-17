@@ -114,7 +114,8 @@ for (const width of [1280, 390]) {
     await page.goto('/epi');
     await page.getByRole('button', { name: /Marina Operações/ }).click();
     const catalogSelect = page.getByLabel('EPI cadastrado');
-    await catalogSelect.selectOption('catalog-sized');
+    await catalogSelect.fill('Luva');
+    await page.getByRole('option', { name: 'Luva de proteção · C.A 123', exact: true }).click();
     const size = page.getByLabel('Tamanho', { exact: true });
     await expect(size).toHaveValue('');
     await expect(size).toHaveAttribute('required', '');
@@ -122,16 +123,19 @@ for (const width of [1280, 390]) {
     expect(state.submissions).toHaveLength(0);
     expect(await size.evaluate((element: HTMLSelectElement) => element.validity.valueMissing)).toBe(true);
     await size.selectOption('GG');
-    await catalogSelect.selectOption('catalog-other');
+    await catalogSelect.fill('456');
+    await page.getByRole('option', { name: 'Botina · C.A 456', exact: true }).click();
     await expect(size).toHaveValue('');
     await expect(size.locator('option')).toHaveText(['Selecione o tamanho', '38', '40', '42']);
     await size.selectOption('42');
-    await catalogSelect.selectOption('catalog-plain');
+    await catalogSelect.fill('auricular');
+    await page.getByRole('option', { name: 'Protetor auricular · C.A 789', exact: true }).click();
     await expect(size).toHaveCount(0);
     await page.getByRole('button', { name: 'Adicionar EPI', exact: true }).click();
     await expect.poll(() => state.submissions).toMatchObject([{ catalogItemId: 'catalog-plain', size: null }]);
 
-    await catalogSelect.selectOption('catalog-sized');
+    await catalogSelect.fill('Luva');
+    await page.getByRole('option', { name: 'Luva de proteção · C.A 123', exact: true }).click();
     await size.selectOption('Especial');
     await page.getByRole('button', { name: 'Adicionar EPI', exact: true }).click();
     await expect.poll(() => state.submissions).toHaveLength(2);

@@ -70,7 +70,8 @@ test('EPI: catálogo e entrega gravam a quantidade e o colaborador correto', asy
   await expect.poll(async () => (await sql('SELECT id FROM "EpiCatalogItem" WHERE name=$1',[`Capacete ${suffix}`])).length).toBe(1);
   const item = (await sql('SELECT id FROM "EpiCatalogItem" WHERE name=$1',[`Capacete ${suffix}`]))[0];
   await page.goto('/epi'); await page.getByRole('button', { name: /Colaborador Validação/ }).click();
-  await page.getByLabel('EPI cadastrado').selectOption(item.id);
+  await page.getByLabel('EPI cadastrado').fill(`Capacete ${suffix}`);
+  await page.getByRole('option', { name: `Capacete ${suffix} · C.A 12345`, exact: true }).click();
   await page.getByLabel('Quantidade', { exact: true }).fill('2');
   await page.getByRole('button', { name: 'Adicionar EPI', exact: true }).click();
   await expect.poll(async () => (await sql('SELECT quantity FROM "EpiRecord" WHERE "catalogItemId"=$1 AND "collaboratorId"=$2',[item.id,fixture.collaborator.id]))[0]?.quantity).toBe(2);

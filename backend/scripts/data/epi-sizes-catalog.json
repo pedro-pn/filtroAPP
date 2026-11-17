@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "source": "Lista de uniformes fornecida em 17/11/2026. Condição e gênero permanecem no nome; modelos genéricos não são equiparados sem evidência.",
+  "items": [
+    { "name": "CALÇA BRIM", "sizes": ["P", "M", "G", "GG", "XG", "Especial"] },
+    { "name": "CAMISA SOCIAL - FEMININA - MANGA LONGA", "sizes": ["P", "M", "G", "GG", "XG", "Especial"] },
+    { "name": "CAMISA SOCIAL - MASCULINA - MANGA LONGA", "sizes": ["P", "M", "G", "GG", "XG"] },
+    { "name": "CAMISETA FEMININA - ALGODÃO - MANGA CURTA", "aliases": ["CAMISETA FEMINA - ALGODÃO - MANGA CURTA"], "sizes": ["PP", "P", "M", "G", "GG", "XG"] },
+    { "name": "CAMISETA MASCULINA - ALGODÃO - MANGA CURTA", "sizes": ["P", "M", "G", "GG", "XG"] },
+    { "name": "CAMISETA MASCULINA - ALGODÃO - MANGA LONGA", "sizes": ["P", "M", "G", "GG", "XG"] },
+    { "name": "JAQUETA IMPERMEÁVEL", "sizes": ["P", "M", "G", "GG"] },
+    { "name": "MACACÃO BRIM", "sizes": ["P", "M", "G", "GG", "XG"] },
+    { "name": "MACACÃO NR10", "sizes": ["P", "M", "G", "GG"] },
+    { "name": "MACACÃO NR10 - PLATAFORMA - LARANJA", "aliases": ["MACACAO LARANJA - NR10 - PLATAFORMA"], "sizes": ["P", "M", "G", "GG"] },
+    { "name": "MOLETOM UNISSEX - INVERNO 2026", "sizes": ["GG", "XG"] },
+    { "name": "USADO - CALÇA BRIM", "sizes": ["G", "GG"] },
+    { "name": "USADO - CAMISETA MASCULINA - ALGODÃO - MANGA CURTA UNISSEX", "sizes": ["P"] },
+    { "name": "USADO - JAQUETA IMPERMEÁVEL", "sizes": ["P", "M", "G"] },
+    { "name": "USADO - MACACÃO BRIM", "sizes": ["P", "M", "G", "GG"] },
+    { "name": "USADO - MACACÃO NR10", "sizes": ["P", "M", "G", "GG"] },
+    { "name": "USADO - MOLETOM UNISSEX - INVERNO 2026", "sizes": ["G", "GG", "XG"] }
+  ]
+}
