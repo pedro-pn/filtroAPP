@@ -14,6 +14,47 @@ import { createApiToken } from '../src/lib/api-credentials/token.js';
 import { syncConectaRh } from '../src/lib/conecta-rh/sync.js';
 import { resolveSelectedMissionTeam } from '../src/lib/efetivo/planning/mission-team.js';
 
+test('Conecta: códigos locais sequenciais e identidade externa independente da grafia', { timeout: 120_000 }, async t => {
+  const database = await apiSimulationDatabase();
+  t.after(() => database.close());
+  const db = database.client;
+  const companyId = randomUUID(), roleId = randomUUID();
+  const event = (aggregateType, data, revision = 1) => ({ schemaVersion: '1.0', companyId, eventId: randomUUID(),
+    eventType: `${aggregateType}.upserted`, aggregateType, aggregateId: data.employmentId || data.id,
+    revision, occurredAt: '2026-11-11T12:00:00Z', data });
+  const receive = input => receiveConectaEvent(db, input, { companyId, idempotencyKey: input.eventId });
+  await receive(event('job_role', { id: roleId, name: 'Cargo dos códigos', cbo: null, isActive: true, isOperational: true }));
+  const role = await db.jobRole.findFirstOrThrow();
+  const legacy = await db.collaborator.create({ data: { code: 'COL-069', name: 'Nome abreviado antigo', jobRoleId: role.id, registrationNumber: 'legacy-69' } });
+  await db.collaborator.createMany({ data: [
+    { code: 'COL-999', name: 'Último código', jobRoleId: role.id },
+    { code: 'COL-9999-custom', name: 'Código personalizado', jobRoleId: role.id }
+  ] });
+  const employment = { employmentId: randomUUID(), personId: randomUUID(), name: 'Nome oficial do CONECTA', cpf: null,
+    registrationNumber: 'legacy-69', email: null, isOperational: true, admissionDate: '2026-11-01', terminationDate: null,
+    status: 'ACTIVE', currentJobRoleId: roleId };
+  assert.equal((await receive(event('employment', employment))).status, 'APPLIED');
+  const mappedLegacy = await db.conectaRhPerson.findUniqueOrThrow({ where: { collaboratorId: legacy.id } });
+  assert.equal(mappedLegacy.personId, employment.personId);
+  assert.equal((await db.collaborator.findUniqueOrThrow({ where: { id: legacy.id } })).code, 'COL-069');
+  assert.equal((await db.collaborator.findUniqueOrThrow({ where: { id: legacy.id } })).name, employment.name);
+
+  // Nome igual não é prova de identidade: uma pessoa nova continua independente.
+  const newcomer = { ...employment, employmentId: randomUUID(), personId: randomUUID(), registrationNumber: null };
+  const initial = event('employment', newcomer);
+  await receive(initial);
+  const mapping = await db.conectaRhPerson.findUniqueOrThrow({ where: { companyId_personId: { companyId, personId: newcomer.personId } } });
+  const created = await db.collaborator.findUniqueOrThrow({ where: { id: mapping.collaboratorId } });
+  assert.equal(created.code, 'COL-1000');
+  assert.notEqual(created.id, legacy.id);
+  await receive(initial);
+  await receive(event('employment', { ...newcomer, name: 'Grafia revisada' }, 2));
+  assert.equal((await db.collaborator.findUniqueOrThrow({ where: { id: created.id } })).code, created.code);
+  assert.equal(await db.collaborator.count(), 4);
+  await receive(event('employment', { ...newcomer, employmentId: randomUUID(), personId: randomUUID(), name: 'Outra pessoa' }));
+  assert.equal(await db.collaborator.count({ where: { code: 'COL-1001' } }), 1);
+});
+
 test('Conecta: recepção real, referência provisória por vínculo, correções e autenticação', { timeout: 120_000 }, async t => {
   const database = await apiSimulationDatabase();
   t.after(() => database.close());
@@ -45,6 +86,7 @@ test('Conecta: recepção real, referência provisória por vínculo, correçõe
     await receive(initialRole, new Date('2026-11-15T12:00:00Z'));
     assert.equal((await getConectaReceipt(db, ack.receiptId, companyId)).status, 'APPLIED');
     person = await db.collaborator.findFirstOrThrow();
+    assert.equal(person.code, 'COL-001');
     assert.equal(person.admissionDate.toISOString().slice(0, 10), '2026-11-12');
     assert.equal(person.admissionDateProvisional, true);
     assert.equal(person.rhStatus, 'PRE_ADMISSION');
@@ -61,6 +103,7 @@ test('Conecta: recepção real, referência provisória por vínculo, correçõe
     person = await db.collaborator.findFirstOrThrow();
     assert.equal(person.admissionDate.toISOString().slice(0, 10), '2026-11-12');
     assert.equal(person.name, 'Nome corrigido');
+    assert.equal(person.code, 'COL-001');
     assert.equal(await db.collaborator.count(), 1);
     await assert.rejects(() => receive({ ...initial, data: { ...employment, name: 'Outro corpo' } }), e => e.code === 'EVENT_CONTENT_CONFLICT');
     await assert.rejects(() => receive(envelope('employment', { ...employment, name: 'Outra versão' }, 2)), e => e.code === 'REVISION_CONTENT_CONFLICT');
