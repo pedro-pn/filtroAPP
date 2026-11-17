@@ -437,14 +437,15 @@ function progressContribution({ detail, progress, dashboardRow }) {
 export function groupProgressProjection(details, { progressMode = 'full', includeRevision = false } = {}) {
   const groupedScopeProgress = combineProgressBreakdowns(details.map(item => item.progress).filter(Boolean));
   const fallbackProgress = combineProgress(details.map(progressContribution));
-  const progress = groupedScopeProgress?.progressPct !== null && groupedScopeProgress?.progressPct !== undefined
+  const hasManualProgress = details.some(item => item.progress?.progressMethod === 'MANUAL');
+  const progress = !hasManualProgress && groupedScopeProgress?.progressPct !== null && groupedScopeProgress?.progressPct !== undefined
     ? groupedScopeProgress
     : fallbackProgress;
 
   return {
     avancoPct: progress.progressPct,
     avancoMethod: progress.progressMethod,
-    progressBreakdown: groupedScopeProgress,
+    progressBreakdown: groupedScopeProgress && hasManualProgress ? { ...groupedScopeProgress, ...progress } : groupedScopeProgress,
     progressHistory: progressMode === 'current' ? undefined : combineProgressHistory(details.map(entry => ({
       ...progressContribution(entry), progressHistory: entry.detail.progressHistory
     }))),

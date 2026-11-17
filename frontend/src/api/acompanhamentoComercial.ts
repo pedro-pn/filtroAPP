@@ -77,6 +77,9 @@ export interface ProjectRevisions {
   mobilizationDate?: string | null;
   demobilizationDate?: string | null;
   manualProgressPct?: string | number | null;
+  forceManualProgress?: boolean;
+  progressModel?: 'QUANTITIES' | 'WORKED_DAYS';
+  plannedCollaborators?: number | null;
   offshore?: boolean;
   laborSleepModeByCollaborator?: Record<string, 'HOME' | 'AWAY'>;
   laborCollaboratorIds?: string[];
@@ -97,18 +100,21 @@ export interface LaborCollaborator {
 }
 
 export interface ProjectSchedulePayload {
+  progressModel?: 'QUANTITIES' | 'WORKED_DAYS';
+  plannedCollaborators?: number | null;
   proposalPercentage?: number;
   approvedAt?: string | null;
   startDate?: string | null;
   mobilizationDate?: string | null;
   demobilizationDate?: string | null;
   manualProgressPct?: number | null;
+  forceManualProgress?: boolean;
   offshore?: boolean;
   laborSleepModeByCollaborator?: Record<string, 'HOME' | 'AWAY'>;
   laborCollaboratorIds?: string[];
 }
 
-export type ProgressMethod = 'RDO' | 'MANUAL';
+export type ProgressMethod = 'RDO' | 'MANUAL' | 'WORKED_DAYS';
 export type GroupProgressMethod = 'GROUP_SCOPE' | 'GROUP_WEIGHTED' | 'GROUP_AVERAGE';
 export interface ProjectAlert {
   code: string;
@@ -610,8 +616,8 @@ export interface ProgressSystemIdentity {
   diameterUnit?: string | null;
 }
 export interface ProgressSystem extends ProgressSystemIdentity {
-  systemType: PlannedSystemType;
-  unit: PlannedMeasureUnit | null;
+  systemType: PlannedSystemType | 'DIAS_TRABALHADOS';
+  unit: PlannedMeasureUnit | 'PESSOA_DIA' | null;
   plannedQty: number | null;
   realizedQty: number | null;
   pct: number | null;
@@ -626,8 +632,17 @@ export interface ProgressService {
 }
 
 export interface ProjectProgress {
+  workedDays?: {
+    plannedDays: number | null;
+    plannedCollaborators: number | null;
+    plannedPersonDays: number | null;
+    realizedPersonDays: number;
+    equivalentWorkedDays: number | null;
+    rdoCount: number;
+  };
   hasScope: boolean;
   progressPct: number | null;
+  progressMethod?: ProgressMethod | GroupProgressMethod | null;
   services: ProgressService[];
   pendingMeasurements?: PendingSystemMeasurement[];
   scopeGroups?: Array<{ scopeName: string | null; services: ProgressService[] }>;
@@ -644,8 +659,8 @@ export interface PendingSystemMeasurement {
 export type RequiredWeeklyProgressStatus = 'REQUIRED' | 'COMPLETED' | 'DUE_TODAY' | 'OVERDUE' | 'UNAVAILABLE';
 
 export interface RequiredWeeklyProgressSystem extends ProgressSystemIdentity {
-  systemType: PlannedSystemType;
-  unit: PlannedMeasureUnit | null;
+  systemType: PlannedSystemType | 'DIAS_TRABALHADOS';
+  unit: PlannedMeasureUnit | 'PESSOA_DIA' | null;
   plannedQty: number | null;
   realizedQty: number | null;
   remainingQty: number | null;
@@ -1166,6 +1181,8 @@ export interface TrackingDivision {
   plannedRevenue: number | null;
   plannedHours: number | null;
   plannedDays: number | null;
+  manualProgressPct?: number | null;
+  forceManualProgress?: boolean;
 }
 
 export type TrackingDivisionInput = TrackingDivision;

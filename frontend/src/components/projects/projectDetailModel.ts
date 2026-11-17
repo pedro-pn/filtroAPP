@@ -5,6 +5,7 @@ import type { BudgetBreakdownSlice, DayStatus, ManualProjectCostPayload, Require
 import { formatDateOnly } from '../../utils/dateOnly';
 
 export const SERVICE_LABELS: Record<string, string> = {
+  DIAS_TRABALHADOS: 'Dias trabalhados',
   LIMPEZA_QUIMICA: 'Limpeza química',
   TESTE_PRESSAO: 'Teste de pressão',
   FLUSHING: 'Flushing',
@@ -12,8 +13,8 @@ export const SERVICE_LABELS: Record<string, string> = {
   LIMPEZA_MECANICA: 'Limpeza mecânica',
   LOCACAO: 'Locação'
 };
-export const SYSTEM_LABELS: Record<string, string> = { TUBULACAO: 'Tubulações', OLEO: 'Óleo', SISTEMA: 'Sistemas completos', MANGOTE: 'Mangueiras' };
-export const UNIT_LABELS: Record<string, string> = { M: 'm', KG: 'kg', T: 't', UN: 'un', L: 'L' };
+export const SYSTEM_LABELS: Record<string, string> = { DIAS_TRABALHADOS: 'Trabalho da equipe', TUBULACAO: 'Tubulações', OLEO: 'Óleo', SISTEMA: 'Sistemas completos', MANGOTE: 'Mangueiras' };
+export const UNIT_LABELS: Record<string, string> = { M: 'm', KG: 'kg', T: 't', UN: 'un', L: 'L', DIA: 'dias', PESSOA_DIA: 'pessoas-dia' };
 
 export function physicalUnit(systemType: string, unit?: string | null) {
   const bySystem: Record<string, string> = { TUBULACAO: 'M', SISTEMA: 'UN', MANGOTE: 'UN', OLEO: 'L' };

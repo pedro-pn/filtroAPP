@@ -39,6 +39,25 @@ test('API cria divisões por datas sem escopo ou mobilização e mantém permiss
   assert.equal((await request('GET')).data.candidates[0].label, division.label);
   assert.equal((await request('PATCH', { division: { ...division, label: 'Etapa revisada' } })).status, 200);
   assert.equal(project.trackingDivisions[0].label, 'Etapa revisada');
+  const manual = await request('PATCH', { division: { ...division, manualProgressPct: 0, forceManualProgress: true } });
+  assert.equal(manual.status, 200);
+  assert.equal(manual.data.divisions[0].manualProgressPct, 0);
+  assert.equal(manual.data.divisions[0].forceManualProgress, true);
+  assert.equal(manual.data.divisions[0].manualProgressHistory[0].progressPct, 0);
+  const history = structuredClone(project.trackingDivisions[0].manualProgressHistory);
+  assert.equal((await request('PATCH', { division: { ...division, label: 'Etapa revisada' } })).status, 200);
+  assert.deepEqual(project.trackingDivisions[0].manualProgressHistory, history);
+  assert.equal(project.trackingDivisions[0].forceManualProgress, true, 'edições de datas preservam a escolha manual');
+  for (const patch of [{ manualProgressPct: null }, { manualProgressPct: -1 }, { manualProgressPct: 101 }, { forceManualProgress: 'true' }]) {
+    assert.equal((await request('PATCH', { division: { ...division, ...patch } })).status, 400);
+  }
+  assert.deepEqual(project.trackingDivisions[0].manualProgressHistory, history);
+  const automatic = await request('PUT', { divisions: [{ ...division, forceManualProgress: false }] });
+  assert.equal(automatic.status, 200);
+  assert.equal(project.trackingDivisions[0].manualProgressPct, 0);
+  assert.equal(project.trackingDivisions[0].forceManualProgress, false);
+  assert.deepEqual(project.trackingDivisions[0].manualProgressHistory, history);
+  assert.equal((await request('PATCH', { division: { ...division, label: 'Etapa revisada' } })).status, 200);
   for (const patch of [{ endDate: '2026-08-31' }, { label: '' }, { startDate: '2026-02-30' }, { key: '["DATE",null,null]' }]) {
     assert.equal((await request('PUT', { divisions: [{ ...division, ...patch }] })).status, 400);
   }

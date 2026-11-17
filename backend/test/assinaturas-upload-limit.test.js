@@ -48,14 +48,14 @@ test('API recebe e armazena um PDF válido de 25,7 MB sem rejeição 413', async
   assert.equal(auditCount, 1);
 });
 
-test('Compose substitui o limite legado de 20 MB pelos 200 MB anunciados em todos os ambientes', async t => {
+test('Compose substitui os limites legados por 200 MB e 500 páginas em todos os ambientes', async t => {
   const available = spawnSync('docker', ['compose', 'version'], { encoding: 'utf8' });
   if (available.status !== 0) { t.skip('Docker Compose indisponível'); return; }
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'filtro-signature-limit-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   await fs.mkdir(path.join(root, 'backend'));
   for (const name of ['production', 'staging', 'docker.local']) {
-    await fs.writeFile(path.join(root, 'backend', `.env.${name}`), 'ASSINATURAS_MAX_PDF_MB=20\n');
+    await fs.writeFile(path.join(root, 'backend', `.env.${name}`), 'ASSINATURAS_MAX_PDF_MB=20\nASSINATURAS_MAX_PAGES=100\n');
   }
   for (const name of ['prod', 'staging', 'local']) {
     const file = `docker-compose.${name}.yml`;
@@ -65,8 +65,9 @@ test('Compose substitui o limite legado de 20 MB pelos 200 MB anunciados em todo
     });
     assert.equal(result.status, 0, result.stderr);
     const config = JSON.parse(result.stdout);
-    for (const service of name === 'prod' ? ['backend', 'worker'] : ['backend']) {
+    for (const service of name === 'local' ? ['backend'] : ['backend', 'worker']) {
       assert.equal(config.services[service].environment.ASSINATURAS_MAX_PDF_MB, '200', `${name}/${service}`);
+      assert.equal(config.services[service].environment.ASSINATURAS_MAX_PAGES, '500', `${name}/${service}`);
     }
   }
 });

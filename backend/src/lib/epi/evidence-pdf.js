@@ -160,7 +160,8 @@ export async function appendEpiEvidencePages(sourceBytes, collaborator) {
 
     const lines = [];
     group.records.forEach(record => {
-      lines.push(`Linha ${record.rowNumber}: ${record.epiName} | CA: ${record.ca || '-'} | Qtd: ${record.quantity} | Fornecimento: ${dateOnly(record.lendDate)} | Devolução: ${dateOnly(record.devolutionDate)}`);
+      const size = String(record.size || '').trim();
+      lines.push(`Linha ${record.rowNumber}: ${record.epiName}${size ? ` | Tamanho: ${size}` : ''} | CA: ${record.ca || '-'} | Qtd: ${record.quantity} | Fornecimento: ${dateOnly(record.lendDate)} | Devolução: ${dateOnly(record.devolutionDate)}`);
     });
     lines.push(`SHA-256 da assinatura visual: ${group.signatureImageHash || 'Não registrado'}`);
     lines.push(`SHA-256 do PDF-base da solicitação, sem anexo: ${group.sourceDocumentHash || (group.validationCode && !group.signedPdfHash ? sourceDocumentHash : 'Não registrado (assinatura anterior)')}`);

@@ -78,6 +78,7 @@ function fakeDatabase() {
   };
   const withRelations = () => state.workflow ? {
     ...state.workflow,
+    project: { ...state.project },
     leader: users[state.workflow.leaderUserId],
     planner: users[state.workflow.plannerUserId] || null,
     closedBy: users[state.workflow.closedByUserId] || null,
@@ -1083,10 +1084,10 @@ test('áreas editam somente suas frentes do planejamento e não obtêm poderes d
     lodgingRequired: false, lodgingPeopleCount: null, lodgingExpectedDate: null,
     lodgingRequested: null, lodgingRequestedAt: null, lodgingCompletedAt: null
   }, operations, { database });
-  assert.equal(detail.workflow.planningReadiness.completed, 1);
+  assert.equal(detail.workflow.planningReadiness.completed, 2);
   assert.equal(detail.workflow.permissions.canEditLogisticsPlanning, true);
   detail = await updateProjectWorkflow('project-1', { action: 'team_plan', version: 2, defined: true, demands: [{ jobRoleId: 'role-1', requiredCount: 2 }] }, operations, { database });
-  assert.equal(detail.workflow.planningReadiness.completed, 2);
+  assert.equal(detail.workflow.planningReadiness.completed, 3);
   await assert.rejects(
     updateProjectWorkflow('project-1', {
       action: 'supply_plan', version: 3, defined: true,
@@ -2246,4 +2247,82 @@ test('em campo, o fluxo segue com Pronto para mobilizar e a pergunta de exigênc
   assert.equal(detail.workflow.executedAtHeadquarters, false);
   assert.equal(detail.workflow.criticalAnswers.some(item => item.key === 'CLIENT_REQUIREMENTS'), true);
   assert.equal(detail.workflow.documentationCategories.some(item => item.type === 'EXAM'), true);
+});
+
+test('planejador cadastra destinatários no projeto durante planejamento e execução, com auditoria e assinaturas', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannerUserId: 'leader-2' }, manager, { database });
+  const planner = { actorUserId: 'leader-2', user: { id: 'leader-2', accountType: 'INTERNAL', moduleRoles: ['efetivo:viewer'] } };
+  const effects = [];
+  const dependencies = {
+    database,
+    clientAccounts: {
+      ensureClientAccountForProject: async (tx, project, options) => { assert.equal(tx, database); effects.push(['primary', project, options]); },
+      ensureClientCcAccounts: async (tx, project) => { assert.equal(tx, database); effects.push(['copies', project]); }
+    },
+    reconcileProjectClientSignatureRequirements: async (projectId, options) => { effects.push(['signatures', projectId, options]); },
+    clearProjectDerivedCaches: () => { effects.push(['cache']); }
+  };
+  for (const stage of ['MOBILIZATION_PLANNING', 'EXECUTION']) {
+    state.workflow.stage = stage;
+    const result = await updateProjectWorkflow('project-1', {
+      action: 'report_recipients', version: state.workflow.version,
+      clientEmailPrimary: ' Novo@Example.com ', clientSignerFirstName: ' Joana ', clientSignerLastName: ' Souza ',
+      clientEmailCc: ['copia@example.com', 'COPIA@example.com', 'novo@example.com', 'leitor@example.com'],
+      clientSigners: [{ email: 'copia@example.com', firstName: ' Ana ', lastName: ' Silva ', signsServiceReports: false }]
+    }, planner, dependencies);
+    assert.equal(result.project.clientEmailPrimary, 'novo@example.com');
+    assert.equal(result.project.clientSignerFirstName, 'Joana');
+    assert.deepEqual(result.project.clientEmailCc, ['copia@example.com', 'leitor@example.com']);
+    assert.deepEqual(result.project.clientSigners, [{ email: 'copia@example.com', firstName: 'Ana', lastName: 'Silva', name: 'Ana Silva', signsServiceReports: false }]);
+    assert.equal(state.events.at(-1).action, 'WORKFLOW_REPORT_RECIPIENTS');
+    assert.deepEqual(effects.slice(-4).map(effect => effect[0]), ['primary', 'copies', 'signatures', 'cache']);
+    assert.equal(effects.at(-2)[2].userId, 'leader-2');
+    assert.equal(state.project.name, 'Flushing');
+  }
+  const reloaded = await getProjectWorkflow('project-1', planner, { database });
+  assert.equal(reloaded.project.clientSigners[0].email, 'copia@example.com');
+  const version = state.workflow.version;
+  await updateProjectWorkflow('project-1', {
+    action: 'report_recipients', version, clientEmailPrimary: 'novo@example.com', clientEmailCc: [], clientSigners: []
+  }, planner, dependencies);
+  assert.deepEqual(state.project.clientSigners, [], 'desmarcar ou remover cópia remove o assinante');
+});
+
+test('destinatários rejeitam leitores, etapa indevida, versão antiga e e-mail vazio sem gravar no projeto', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1' }, manager, { database });
+  const input = { action: 'report_recipients', version: state.workflow.version, clientEmailPrimary: 'novo@example.com' };
+  await assert.rejects(updateProjectWorkflow('project-1', input, leader, { database }), error => error.code === 'PROJECT_WORKFLOW_REPORT_RECIPIENTS_STAGE_REQUIRED');
+  state.workflow.stage = 'EXECUTION';
+  await assert.rejects(updateProjectWorkflow('project-1', input, viewer, { database }), error => error.statusCode === 403);
+  await assert.rejects(updateProjectWorkflow('project-1', { ...input, version: 0 }, leader, { database }), error => error.code === 'PROJECT_WORKFLOW_VERSION_CONFLICT');
+  await assert.rejects(updateProjectWorkflow('project-1', { ...input, clientEmailPrimary: '' }, leader, { database }), error => error.name === 'ZodError');
+  assert.equal(state.project.clientEmailPrimary, 'cliente@example.com');
+  assert.equal(state.workflow.version, input.version);
+  state.workflow.stage = 'FINISHED';
+  await assert.rejects(updateProjectWorkflow('project-1', input, manager, { database }), error => error.code === 'PROJECT_WORKFLOW_FINISHED_READ_ONLY');
+});
+
+test('falha no cadastro das contas dos destinatários desfaz projeto, versão e auditoria', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1' }, manager, { database });
+  state.workflow.stage = 'EXECUTION';
+  const version = state.workflow.version;
+  const eventCount = state.events.length;
+  let reconciled = false;
+  await assert.rejects(updateProjectWorkflow('project-1', {
+    action: 'report_recipients', version, clientEmailPrimary: 'novo@example.com'
+  }, leader, {
+    database,
+    clientAccounts: {
+      ensureClientAccountForProject: async () => {},
+      ensureClientCcAccounts: async () => { throw new Error('Falha simulada nas contas'); }
+    },
+    reconcileProjectClientSignatureRequirements: async () => { reconciled = true; }
+  }), /Falha simulada/);
+  assert.equal(state.project.clientEmailPrimary, 'cliente@example.com');
+  assert.equal(state.workflow.version, version);
+  assert.equal(state.events.length, eventCount);
+  assert.equal(reconciled, false);
 });

@@ -28,6 +28,11 @@ interface UploadFieldProps {
   appearance?: 'legacy' | 'design-system';
   onChange: (files: UploadedFile[]) => void;
   transferTarget?: ReportUploadTarget;
+  /**
+   * Mantém as fotos só no cliente (dataURL em `url`), sem enviar ao armazenamento de uploads do RDO
+   * nem agendar exclusão global. Quem usa é responsável por persistir (ex.: Manual de Operação).
+   */
+  localOnly?: boolean;
 }
 
 interface UploadDrag {
@@ -195,7 +200,7 @@ export function UploadPreviewListItem({ disabled, file, index, appearance = 'leg
   );
 }
 
-export function UploadField({ label, value, projectId, disabled = false, appearance = 'legacy', onChange, transferTarget }: UploadFieldProps) {
+export function UploadField({ label, value, projectId, disabled = false, appearance = 'legacy', onChange, transferTarget, localOnly = false }: UploadFieldProps) {
   const transfer = useContext(UploadTransferContext);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const fieldRef = useRef<HTMLDivElement | null>(null);
@@ -295,9 +300,11 @@ export function UploadField({ label, value, projectId, disabled = false, appeara
           };
         })
       );
-      const uploaded = await uploadFiles(items, (completed, total) => {
-        setUploadProgress(total > 0 ? completed / total * 100 : undefined);
-      });
+      const uploaded = localOnly
+        ? items.map(item => ({ label: item.label, fileName: item.fileName, mimeType: item.mimeType, url: item.dataUrl }))
+        : await uploadFiles(items, (completed, total) => {
+          setUploadProgress(total > 0 ? completed / total * 100 : undefined);
+        });
       // Outros campos do serviço podem ter mudado durante o envio.
       latestFiles.current.onChange([...latestFiles.current.value, ...uploaded]);
     } catch (err) {
@@ -309,6 +316,7 @@ export function UploadField({ label, value, projectId, disabled = false, appeara
   }
 
   function serverReference(file: UploadPreviewFile) {
+    if (localOnly) return '';
     const raw = file.url || file.storagePath || file.path || file.publicUrl || file.source || file.src || file.href || '';
     return raw && !raw.startsWith('data:') ? raw : '';
   }

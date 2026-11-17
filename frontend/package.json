@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "performance:check": "node scripts/check-performance-budget.mjs",
     "preview": "vite preview",
+    "audit:ci": "node scripts/audit-dependencies.mjs",
     "test": "node --test test/*.test.mjs",
     "test:rdo:static": "node --test test/rdo-*.test.mjs",
     "test:rdo:behavioral": "playwright test --config=playwright.rdo.config.ts",

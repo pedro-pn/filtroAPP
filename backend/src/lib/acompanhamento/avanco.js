@@ -19,7 +19,7 @@ import { MECHANICAL_MEASURES } from '../../../../shared/modules/mechanical-measu
 
 import prisma from '../prisma.js';
 import { progressSourceRevision } from './progress-projection.js';
-import { consideredPlannedServices } from './proposal-percentage.js';
+import { consideredPlannedServices, scaleProposalValue } from './proposal-percentage.js';
 import { loadHistoricalRealizedServices } from '../reports/historical-services-store.js';
 import { buildSystemProgress, createSystemProgressContext, hasScopeDivisions } from './system-progress.js';
 import { systemNameKey } from './project-systems.js';
@@ -34,6 +34,8 @@ import { dateInDivision } from './tracking-divisions.js';
 import { isValidReportDate } from '../../../../shared/modules/report-date.js';
 import { measureRequestStage } from '../operations/request-performance.js';
 import { readVerifiedProgressSources } from './verified-progress-sources.js';
+import { buildWorkedDaysProgress, loadWorkedDaysSources } from './worked-days-progress.js';
+import { reportAllCollaboratorIds } from './report-time.js';
 
 export { normalizeRdoServiceType } from './service-types.js';
 
@@ -338,11 +340,12 @@ export function buildRequiredWeeklyProgress(progress, {
 export function buildProgressHistory(plannedServices = [], serviceReports = [], {
   startDate = null,
   manualProgressPct = null,
+  forceManualProgress = false,
   manualProgressHistory = [],
   currentDate = new Date(),
   trackingDivisions = []
 } = {}) {
-  if (!hasMeasurableScope(plannedServices)) {
+  if (forceManualProgress || !hasMeasurableScope(plannedServices)) {
     const manual = num(manualProgressPct);
     if (manual === null) return [];
 
@@ -422,11 +425,12 @@ function buildProgressTimeline(plannedServices, serviceReports, { includeHistory
 // detalhamento por serviço; lançamentos repetidos na mesma data usam o último valor.
 export function buildDailyProgressHistory(plannedServices = [], serviceReports = [], {
   manualProgressPct = null,
+  forceManualProgress = false,
   manualProgressHistory = [],
   currentDate = new Date(),
   trackingDivisions = []
 } = {}) {
-  if (hasMeasurableScope(plannedServices)) {
+  if (!forceManualProgress && hasMeasurableScope(plannedServices)) {
     return buildProgressTimeline(plannedServices, serviceReports, { trackingDivisions }).points
       .filter(point => point.progressPct !== null && isValidReportDate(point.date));
   }
@@ -571,9 +575,21 @@ async function aggregateRealized(projectIds, database = prisma) {
   return byProject;
 }
 
-// Avanço de vários projetos de uma vez (usado no dashboard). Retorna Map<projectId, progress>.
-// Método: RDO ponderado quando há escopo com meta; senão cai no avanço MANUAL (Project.manualProgressPct)
-// se informado; senão fica indefinido (null).
+// A escolha manual substitui somente o percentual oficial. As medições continuam
+// disponíveis para consulta e para retomar o cálculo automático.
+function withManualProgress(scope, { manualProgressPct, forceManualProgress } = {}) {
+  const manual = num(manualProgressPct);
+  const useManual = forceManualProgress || (scope.progressMethod !== 'WORKED_DAYS' && scope.progressPct == null && manual != null);
+  return {
+    ...scope,
+    progressPct: useManual ? manual : scope.progressPct,
+    progressMethod: useManual ? (manual != null ? 'MANUAL' : null) : (scope.progressMethod ?? (scope.progressPct != null ? 'RDO' : null))
+  };
+}
+
+// Método: manual quando forçado; RDO ponderado quando há escopo com meta;
+// sem metas, usa o percentual manual informado como alternativa.
+// Retorna Map<projectId, progress> para os dashboards e listagens.
 export async function computeProgressForProjects(projectIds, { database = prisma } = {}) {
   const result = new Map();
   if (!projectIds || projectIds.length === 0) return result;
@@ -584,10 +600,10 @@ export async function computeProgressForProjects(projectIds, { database = prisma
       orderBy: [{ order: 'asc' }],
       include: { systems: { orderBy: [{ order: 'asc' }], include: { projectSystem: true } } }
     }),
-    database.project.findMany({ where: { id: { in: projectIds } }, select: { id: true, manualProgressPct: true, proposalPercentage: true, trackingDivisions: true } })
+    database.project.findMany({ where: { id: { in: projectIds } }, select: { id: true, manualProgressPct: true, forceManualProgress: true, proposalPercentage: true, trackingDivisions: true, progressModel: true, plannedCollaborators: true } })
   ]);
 
-  const manualById = new Map(projects.map(p => [p.id, p.manualProgressPct != null ? Number(p.manualProgressPct) : null]));
+  const projectById = new Map(projects.map(project => [project.id, project]));
   const percentageById = new Map(projects.map(project => [project.id, project.proposalPercentage]));
   const divisionsById = new Map(projects.map(project => [project.id, project.trackingDivisions ?? []]));
   const byProject = new Map();
@@ -596,22 +612,25 @@ export async function computeProgressForProjects(projectIds, { database = prisma
     byProject.get(svc.projectId).push(svc);
   }
 
-  const realized = await aggregateRealized([...byProject.keys()], database);
+  const [realized, workedDaysSources] = await Promise.all([
+    aggregateRealized([...byProject.keys()].filter(id => projectById.get(id)?.progressModel !== 'WORKED_DAYS'), database),
+    loadWorkedDaysSources(projects, database)
+  ]);
 
   for (const projectId of projectIds) {
+    const project = projectById.get(projectId);
+    if (project?.progressModel === 'WORKED_DAYS') {
+      const scope = buildWorkedDaysProgress({ ...workedDaysSources.get(projectId), plannedCollaborators: project.plannedCollaborators }).progress;
+      result.set(projectId, withManualProgress(scope, project));
+      continue;
+    }
     const services = byProject.get(projectId);
     const scope = services
       ? buildProgress(consideredPlannedServices(services, percentageById.get(projectId)), realized.get(projectId) ?? new Map(), {
         trackingDivisions: divisionsById.get(projectId)
       })
       : { hasScope: false, progressPct: null, services: [] };
-    const manual = manualById.get(projectId) ?? null;
-    const useManual = scope.progressPct == null && manual != null;
-    result.set(projectId, {
-      ...scope,
-      progressPct: scope.progressPct ?? (useManual ? manual : null),
-      progressMethod: scope.progressPct != null ? 'RDO' : (useManual ? 'MANUAL' : null)
-    });
+    result.set(projectId, withManualProgress(scope, projectById.get(projectId)));
   }
   return result;
 }
@@ -693,7 +712,7 @@ export async function computeProgressHistoryForProjects(projectIds, { daily = fa
     }),
     prisma.project.findMany({
       where: { id: { in: projectIds } },
-      select: { id: true, startDate: true, manualProgressPct: true, updatedAt: true, proposalPercentage: true, trackingDivisions: true }
+      select: { id: true, startDate: true, manualProgressPct: true, forceManualProgress: true, updatedAt: true, proposalPercentage: true, trackingDivisions: true, progressModel: true, plannedCollaborators: true }
     }),
     loadReportServicesByProject(projectIds),
     prisma.projectManualProgressHistory.findMany({
@@ -710,6 +729,7 @@ export async function computeProgressHistoryForProjects(projectIds, { daily = fa
   }
 
   const projectById = new Map(projects.map(project => [project.id, project]));
+  const workedDaysSources = await loadWorkedDaysSources(projects, prisma);
 
   const manualHistoryByProject = new Map();
   for (const item of manualProgressHistory) {
@@ -719,12 +739,20 @@ export async function computeProgressHistoryForProjects(projectIds, { daily = fa
 
   for (const projectId of projectIds) {
     const project = projectById.get(projectId);
+    if (project?.progressModel === 'WORKED_DAYS') {
+      const details = workedDaysDetails(project, workedDaysSources.get(projectId), {
+        manualProgressHistory: manualHistoryByProject.get(projectId) ?? []
+      });
+      result.set(projectId, daily ? details.dailyProgressHistory : details.progressHistory);
+      continue;
+    }
     result.set(projectId, (daily ? buildDailyProgressHistory : buildProgressHistory)(
       consideredPlannedServices(plannedByProject.get(projectId) ?? [], project?.proposalPercentage),
       servicesByProject.get(projectId) ?? [],
       {
         startDate: project?.startDate ?? null,
         manualProgressPct: project?.manualProgressPct ?? null,
+        forceManualProgress: project?.forceManualProgress ?? false,
         manualProgressHistory: manualHistoryByProject.get(projectId) ?? [],
         currentDate: project?.updatedAt ?? new Date(),
         trackingDivisions: project?.trackingDivisions ?? []
@@ -761,6 +789,9 @@ export async function computeProgressDetailsForProjects(projectIds, {
         serviceCategory: true, endDate: true,
         startDate: true,
         manualProgressPct: true,
+        forceManualProgress: true,
+        progressModel: true,
+        plannedCollaborators: true,
         proposalPercentage: true,
         trackingDivisions: true,
         updatedAt: true,
@@ -786,6 +817,7 @@ export async function computeProgressDetailsForProjects(projectIds, {
     plannedByProject.get(service.projectId).push(service);
   }
   const projectById = new Map(projects.map(project => [project.id, project]));
+  const workedDaysSources = await loadWorkedDaysSources(projects, database);
   const manualHistoryByProject = new Map();
   for (const item of manualProgressHistory) {
     if (!manualHistoryByProject.has(item.projectId)) manualHistoryByProject.set(item.projectId, []);
@@ -795,46 +827,51 @@ export async function computeProgressDetailsForProjects(projectIds, {
   for (const projectId of ids) {
     const project = projectById.get(projectId);
     if (!project) continue;
+    if (project.progressModel === 'WORKED_DAYS') {
+      result.set(projectId, { project, plannedServices: plannedByProject.get(projectId) ?? [],
+        ...workedDaysDetails(project, workedDaysSources.get(projectId), { currentOnly, includeRevision,
+          manualProgressHistory: manualHistoryByProject.get(projectId) ?? [] }) });
+      continue;
+    }
     const planned = consideredPlannedServices(plannedByProject.get(projectId) ?? [], project.proposalPercentage);
     const serviceReports = servicesByProject.get(projectId) ?? [];
     const revision = includeRevision ? { progressRevision: progressSourceRevision({
       project: {
         id: project.id, startDate: project.startDate, proposalPercentage: project.proposalPercentage,
-        manualProgressPct: project.manualProgressPct, trackingDivisions: project.trackingDivisions,
+        manualProgressPct: project.manualProgressPct, forceManualProgress: project.forceManualProgress,
+        trackingDivisions: project.trackingDivisions,
         // A data de atualização só ancora o histórico quando o avanço é manual.
-        ...(!hasMeasurableScope(planned) ? { updatedAt: project.updatedAt } : {})
+        ...(project.forceManualProgress || !hasMeasurableScope(planned) ? { updatedAt: project.updatedAt } : {})
       },
       planned, serviceReports, manualHistory: manualHistoryByProject.get(projectId) ?? []
     }, { unorderedArrays: ['serviceReports'] }) } : {};
     const progressOptions = { trackingDivisions: project.trackingDivisions ?? [] };
-    const timeline = measureRequestStage('progress.timeline', () => buildProgressTimeline(planned, serviceReports, { ...progressOptions, includeHistory: !currentOnly }));
+    const timeline = measureRequestStage('progress.timeline', () => buildProgressTimeline(planned, serviceReports, {
+      ...progressOptions, includeHistory: !currentOnly && !project.forceManualProgress
+    }));
     const scope = planned.length > 0
       ? buildProgress(planned, timeline.realizedByType, progressOptions)
       : { hasScope: false, progressPct: null, services: [] };
-    const manual = project.manualProgressPct != null ? Number(project.manualProgressPct) : null;
-    const useManual = scope.progressPct == null && manual != null;
-    const progress = {
-      ...scope,
-      progressPct: scope.progressPct ?? (useManual ? manual : null),
-      progressMethod: scope.progressPct != null ? 'RDO' : (useManual ? 'MANUAL' : null)
-    };
+    const progress = withManualProgress(scope, project);
     if (currentOnly) {
       result.set(projectId, { project, plannedServices: planned, progress,
         progressHistory: [], dailyProgressHistory: [], progressSlices: null, ...revision });
       continue;
     }
-    const progressHistory = hasMeasurableScope(planned)
+    const progressHistory = !project.forceManualProgress && hasMeasurableScope(planned)
       ? weeklyHistory(timeline.points, project.startDate)
       : buildProgressHistory(planned, serviceReports, {
           startDate: project.startDate,
           manualProgressPct: project.manualProgressPct,
+          forceManualProgress: project.forceManualProgress,
           manualProgressHistory: manualHistoryByProject.get(projectId) ?? [],
           currentDate: project.updatedAt ?? new Date()
         });
-    const dailyProgressHistory = hasMeasurableScope(planned)
+    const dailyProgressHistory = !project.forceManualProgress && hasMeasurableScope(planned)
       ? timeline.points.filter(point => point.progressPct !== null && isValidReportDate(point.date))
       : buildDailyProgressHistory(planned, serviceReports, {
           manualProgressPct: project.manualProgressPct,
+          forceManualProgress: project.forceManualProgress,
           manualProgressHistory: manualHistoryByProject.get(projectId) ?? [],
           currentDate: project.updatedAt ?? new Date()
         });
@@ -845,12 +882,37 @@ export async function computeProgressDetailsForProjects(projectIds, {
       progress,
       progressHistory,
       dailyProgressHistory,
-      progressSlices: includeSlices
+      // Recortes calculados pelos RDOs não substituem o percentual manual escolhido.
+      progressSlices: includeSlices && !project.forceManualProgress
         ? measureRequestStage('progress.slices', () => buildProgressSlices(planned, serviceReports, { ...progressOptions, startDate: project.startDate })) : null,
       ...revision
     });
   }
   return result;
+}
+
+function workedDaysDetails(project, source = {}, {
+  currentOnly = false, includeRevision = false, startDate = project.startDate, manualProgressHistory = []
+} = {}) {
+  const details = buildWorkedDaysProgress({ ...source, plannedCollaborators: project.plannedCollaborators });
+  const manualOptions = { startDate, forceManualProgress: true, manualProgressPct: project.manualProgressPct,
+    manualProgressHistory, currentDate: project.updatedAt ?? new Date() };
+  return {
+    progress: withManualProgress(details.progress, project),
+    dailyProgressHistory: currentOnly ? [] : project.forceManualProgress
+      ? buildDailyProgressHistory([], [], manualOptions) : details.dailyProgressHistory,
+    progressHistory: currentOnly ? [] : project.forceManualProgress
+      ? buildProgressHistory([], [], manualOptions) : compactWeeklyProgressHistory(details.dailyProgressHistory, { startDate }),
+    progressSlices: null,
+    ...(includeRevision ? { progressRevision: progressSourceRevision({
+      model: 'WORKED_DAYS', startDate, plannedDays: source.plannedDays, plannedCollaborators: project.plannedCollaborators,
+      forceManualProgress: project.forceManualProgress ?? false,
+      ...(project.forceManualProgress ? { manualProgressPct: project.manualProgressPct,
+        manualProgressHistory, updatedAt: project.updatedAt } : {}),
+      reports: (source.reports ?? []).map(report => ({ id: report.id, date: report.reportDate,
+        collaborators: reportAllCollaboratorIds(report).sort() }))
+    }, { unorderedArrays: ['reports'] }) } : {})
+  };
 }
 
 export async function computeProjectProgressDetails(projectId, options = {}) {
@@ -879,6 +941,7 @@ export async function computeDivisionProgressDetails(projectId, division, {
     database.project.findUnique({ where: { id: projectId }, select: {
       id: true, startDate: true, clientSegment: true, mobilizationDate: true,
       workdayHours: true, weekendWorkdayHours: true, offshore: true,
+      progressModel: true, plannedCollaborators: true,
       laborSleepModeByCollaborator: true, proposalPercentage: true, trackingDivisions: true
     } }),
     database.projectPlannedService.findMany({ where: { projectId }, orderBy: { order: 'asc' },
@@ -886,17 +949,29 @@ export async function computeDivisionProgressDetails(projectId, division, {
     preloadedServices ?? loadReportServicesByProject([projectId], { database })
   ]);
   if (!project) throw new Error('Projeto não encontrado.');
+  if (project.progressModel === 'WORKED_DAYS') {
+    const source = (await loadWorkedDaysSources([project], database)).get(projectId) ?? {};
+    const selectedSource = { plannedDays: scaleProposalValue(division.plannedDays, project.proposalPercentage),
+      reports: (source.reports ?? []).filter(report => dateInDivision(report.reportDate, division)) };
+    return { project, plannedServices: allPlanned,
+      ...workedDaysDetails({ ...project, ...division }, selectedSource, { currentOnly, includeRevision,
+        startDate: division.startDate, manualProgressHistory: division.manualProgressHistory ?? [] }) };
+  }
   const plannedServices = consideredPlannedServices(selectDivisionPlannedServices(allPlanned, division.key), project.proposalPercentage);
   const reports = (servicesByProject.get(projectId) ?? []).filter(service => dateInDivision(service.reportDate, division));
-  const options = { includeHistory: !currentOnly, includeUnmatched: JSON.parse(division.key)[0] === 'DATE',
+  const options = { includeHistory: !currentOnly && !division.forceManualProgress, includeUnmatched: JSON.parse(division.key)[0] === 'DATE',
     referencePlannedServices: consideredPlannedServices(allPlanned, project.proposalPercentage), divisionKey: division.key,
     trackingDivisions: [...(project.trackingDivisions ?? []).filter(row => row.key !== division.key), division] };
   const timeline = buildProgressTimeline(plannedServices, reports, options);
   const scopeProgress = buildProgress(plannedServices, timeline.realizedByType, options);
-  const progress = { ...scopeProgress, progressMethod: scopeProgress.progressPct == null ? null : 'RDO' };
+  const progress = withManualProgress(scopeProgress, division);
+  const useManualHistory = progress.progressMethod === 'MANUAL';
   return {
     project, plannedServices, progress,
-    progressHistory: currentOnly ? [] : weeklyHistory(timeline.points, division.startDate),
+    progressHistory: currentOnly ? [] : useManualHistory
+      ? buildProgressHistory(plannedServices, reports, { ...division,
+          currentDate: division.manualProgressHistory?.at(-1)?.recordedAt ?? new Date() })
+      : weeklyHistory(timeline.points, division.startDate),
     progressSlices: null,
     ...(includeRevision ? { progressRevision: progressSourceRevision({
       projectId, proposalPercentage: project.proposalPercentage, allPlanned, reports, division, trackingDivisions: options.trackingDivisions
@@ -907,6 +982,8 @@ export async function computeDivisionProgressDetails(projectId, division, {
 // Recortes de avanço (escopo e/ou equipamento do cliente) de um projeto; null quando não há o
 // que filtrar. O ritmo semanal é montado por quem conhece as datas do cronograma.
 export async function computeProgressSlicesForProject(projectId) {
+  const progressProject = await prisma.project.findUnique({ where: { id: projectId }, select: { progressModel: true } });
+  if (progressProject?.progressModel === 'WORKED_DAYS') return null;
   const plannedServices = await prisma.projectPlannedService.findMany({
     where: { projectId },
     orderBy: [{ order: 'asc' }],

@@ -48,20 +48,66 @@ const profileSchema = z.object({
 });
 
 const optionalCaSchema = commonSchemas.optionalTrimmedString({ max: 80, emptyAs: '' });
+const DEFAULT_EPI_SIZES = ['P', 'M', 'G', 'GG', 'XG', 'Especial'];
+
+const sizeSchema = z.string().trim().max(40, 'O tamanho deve ter no máximo 40 caracteres.');
 
 const catalogSchema = z.object({
   name: commonSchemas.nonEmptyTrimmedString({ max: 180 }),
   ca: optionalCaSchema,
-  isActive: z.boolean().default(true)
+  hasSizes: z.boolean().optional(),
+  sizes: z.array(sizeSchema.min(1, 'Informe um tamanho válido.')).max(100).refine(
+    sizes => new Set(sizes.map(size => size.toLocaleLowerCase('pt-BR'))).size === sizes.length,
+    'Não repita os tamanhos disponíveis.'
+  ).optional(),
+  isActive: z.boolean().optional()
 });
+
+function parseEpiCatalogData(input, current = null) {
+  const data = (current ? catalogSchema.partial() : catalogSchema).parse(input);
+  const hasSizes = data.hasSizes ?? current?.hasSizes ?? false;
+  const sizes = hasSizes
+    ? data.sizes ?? (current?.sizes?.length ? current.sizes : [...DEFAULT_EPI_SIZES])
+    : [];
+  if (hasSizes && !sizes.length) {
+    throw new z.ZodError([{
+      code: z.ZodIssueCode.custom,
+      path: ['sizes'],
+      message: 'Informe pelo menos um tamanho disponível.'
+    }]);
+  }
+  return { ...data, isActive: data.isActive ?? current?.isActive ?? true, hasSizes, sizes };
+}
+
+function resolveEpiRecordSize(catalogItem, value) {
+  if (!catalogItem?.hasSizes) return null;
+  const size = sizeSchema.optional().nullable().parse(value);
+  if (!size || !catalogItem.sizes.includes(size)) {
+    throw new z.ZodError([{
+      code: z.ZodIssueCode.custom,
+      path: ['size'],
+      message: `Selecione um dos tamanhos disponíveis para ${catalogItem.name}.`
+    }]);
+  }
+  return size;
+}
 
 const recordSchema = z.object({
   catalogItemId: z.string().trim().optional().nullable(),
   epiName: commonSchemas.nonEmptyTrimmedString({ max: 180, message: 'Informe o nome do EPI.' }),
   ca: optionalCaSchema,
-  quantity: z.coerce.number().int('Quantidade deve ser um número inteiro.').positive('Quantidade deve ser maior que zero.').max(999).default(1),
+  size: sizeSchema.optional().nullable(),
+  // O banco aplica o padrão apenas na criação, preservando quantidade em edições parciais.
+  quantity: z.coerce.number().int('Quantidade deve ser um número inteiro.').positive('Quantidade deve ser maior que zero.').max(999).optional(),
   lendDate: z.string().trim().min(1, 'Informe a data de fornecimento.'),
   devolutionDate: z.string().trim().optional().nullable()
+});
+
+const createRecordSchema = recordSchema.extend({
+  newCatalogItem: catalogSchema.pick({ hasSizes: true, sizes: true }).optional()
+}).refine(data => !data.catalogItemId || !data.newCatalogItem, {
+  message: 'Configure tamanhos apenas ao cadastrar um novo EPI.',
+  path: ['newCatalogItem']
 });
 
 const signatureRequestSchema = z.object({
@@ -250,6 +296,7 @@ function selectedCollaboratorFields() {
           catalogItemId: true,
           epiName: true,
           ca: true,
+          size: true,
           quantity: true,
           lendDate: true,
           devolutionDate: true,
@@ -425,6 +472,7 @@ export function publicEpiSignaturePayload(request, status = requestStatus(reques
       catalogItemId: record.catalogItemId,
       epiName: record.epiName,
       ca: record.ca,
+      size: record.size ?? null,
       quantity: record.quantity,
       lendDate: record.lendDate,
       devolutionDate: record.devolutionDate,
@@ -530,6 +578,7 @@ function signedEpiReturnRevisionData(record, devolutionDate, userId) {
     catalogItemId: record.catalogItemId || null,
     epiName: record.epiName,
     ca: record.ca,
+    size: record.size ?? null,
     quantity: record.quantity,
     lendDate: record.lendDate,
     devolutionDate,
@@ -680,11 +729,23 @@ async function ensureCatalogForRecord(data, tx = prisma) {
     return item;
   }
 
-  return tx.epiCatalogItem.upsert({
+  const newCatalogData = data.newCatalogItem
+    ? parseEpiCatalogData({ name: data.epiName, ca, ...data.newCatalogItem })
+    : null;
+  const item = await tx.epiCatalogItem.upsert({
     where: { name_ca: { name: data.epiName, ca } },
-    create: { name: data.epiName, ca, isActive: true },
+    create: newCatalogData || { name: data.epiName, ca, isActive: true },
     update: { isActive: true }
   });
+  if (newCatalogData && (item.hasSizes !== newCatalogData.hasSizes
+    || item.sizes.length !== newCatalogData.sizes.length
+    || !item.sizes.every(size => newCatalogData.sizes.includes(size)))) {
+    const error = new Error('Já existe um EPI com este nome e CA e outra configuração de tamanhos. Selecione o EPI cadastrado ou ajuste-o no catálogo.');
+    error.status = 409;
+    error.statusCode = 409;
+    throw error;
+  }
+  return item;
 }
 
 async function sendCollaboratorPdf(res, collaboratorId, options = {}) {
@@ -845,7 +906,7 @@ export async function publicEpiValidationPayload(validationCode, client = prisma
       collaborator: { select: { name: true } },
       records: {
         orderBy: [{ lendDate: 'asc' }, { createdAt: 'asc' }],
-        select: { epiName: true, ca: true, quantity: true, lendDate: true, devolutionDate: true }
+        select: { epiName: true, ca: true, size: true, quantity: true, lendDate: true, devolutionDate: true }
       }
     }
   });
@@ -1106,7 +1167,7 @@ router.get('/collaborators/:id/pdf', asyncHandler(async (req, res) => {
 }));
 
 router.post('/collaborators/:id/records', requireEpiTechnician, asyncHandler(async (req, res) => {
-  const data = recordSchema.parse(req.body || {});
+  const data = createRecordSchema.parse(req.body || {});
   const item = await prisma.$transaction(async tx => {
     const collaborator = await tx.collaborator.findFirst({ where: { id: req.params.id, isActive: true } });
     if (!collaborator) {
@@ -1125,6 +1186,7 @@ router.post('/collaborators/:id/records', requireEpiTechnician, asyncHandler(asy
         catalogItemId: catalogItem.id,
         epiName: catalogItem.name,
         ca: catalogItem.ca,
+        size: resolveEpiRecordSize(catalogItem, data.size),
         quantity: data.quantity,
         lendDate,
         devolutionDate,
@@ -1141,7 +1203,7 @@ router.put('/records/:id', requireEpiTechnician, asyncHandler(async (req, res) =
   const item = await prisma.$transaction(async tx => {
     const current = await tx.epiRecord.findUniqueOrThrow({
       where: { id: req.params.id },
-      include: { signatureRequest: true }
+      include: { signatureRequest: true, catalogItem: true }
     });
     if (isSignedEpiReturnUpdate(current, data)) {
       assertNoActivePendingEpiSignatureRequest(current);
@@ -1160,6 +1222,12 @@ router.put('/records/:id', requireEpiTechnician, asyncHandler(async (req, res) =
       epiName: data.epiName ?? current.epiName,
       ca: data.ca ?? current.ca
     }, tx) : null;
+    let size;
+    if (catalogItem || data.size !== undefined) {
+      const sameItem = !catalogItem || catalogItem.id === current.catalogItemId;
+      const existingSize = sameItem ? current.size : null;
+      size = resolveEpiRecordSize(catalogItem || current.catalogItem, data.size === undefined ? existingSize : data.size);
+    }
     const lendDate = data.lendDate ? parseDateOnly(data.lendDate, 'lendDate') : undefined;
     const devolutionDate = data.devolutionDate === undefined ? undefined : (data.devolutionDate ? parseDateOnly(data.devolutionDate, 'devolutionDate') : null);
     assertEpiDateOrder(lendDate ?? current.lendDate, devolutionDate === undefined ? current.devolutionDate : devolutionDate);
@@ -1169,6 +1237,7 @@ router.put('/records/:id', requireEpiTechnician, asyncHandler(async (req, res) =
         catalogItemId: catalogItem?.id,
         epiName: catalogItem?.name ?? data.epiName,
         ca: catalogItem?.ca ?? data.ca,
+        size,
         quantity: data.quantity,
         lendDate,
         devolutionDate
@@ -1314,7 +1383,7 @@ router.get('/catalog', asyncHandler(async (_req, res) => {
 }));
 
 router.post('/catalog', requireEpiTechnician, asyncHandler(async (req, res) => {
-  const data = catalogSchema.parse(req.body || {});
+  const data = parseEpiCatalogData(req.body || {});
   const item = await prisma.epiCatalogItem.upsert({
     where: { name_ca: { name: data.name, ca: data.ca } },
     create: data,
@@ -1324,8 +1393,11 @@ router.post('/catalog', requireEpiTechnician, asyncHandler(async (req, res) => {
 }));
 
 router.put('/catalog/:id', requireEpiTechnician, asyncHandler(async (req, res) => {
-  const data = catalogSchema.partial().parse(req.body || {});
-  const item = await prisma.epiCatalogItem.update({ where: { id: req.params.id }, data });
+  const item = await prisma.$transaction(async tx => {
+    const current = await tx.epiCatalogItem.findUniqueOrThrow({ where: { id: req.params.id } });
+    const data = parseEpiCatalogData(req.body || {}, current);
+    return tx.epiCatalogItem.update({ where: { id: req.params.id }, data });
+  });
   res.json(item);
 }));
 

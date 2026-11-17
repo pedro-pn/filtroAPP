@@ -12,6 +12,8 @@ import { Modal } from '../../components/ui/Modal';
 import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { Button } from '../../components/ui/ds';
 import { ChecklistItemsEditor } from './ChecklistItemsEditor';
+import { OperationStepsEditor } from './OperationStepsEditor';
+import { hasPhotoWithoutText, toDrafts, toPayload, type OperationStepDraft } from './operationSteps';
 
 interface Props {
   open: boolean;
@@ -52,6 +54,8 @@ export function CategoryFormModal({ open, category, saving, technicalStandards, 
   const [checklistEnabled, setChecklistEnabled] = useState(Boolean(category?.checklistEnabled));
   const [checklistDisplayMode, setChecklistDisplayMode] = useState<ChecklistDisplayMode>(category?.checklistDisplayMode || 'AUTO');
   const [checklistItems, setChecklistItems] = useState<string[]>(category?.checklistItems?.length ? category.checklistItems : []);
+  const [operationManualEnabled, setOperationManualEnabled] = useState(Boolean(category?.operationManualEnabled));
+  const [operationSteps, setOperationSteps] = useState<OperationStepDraft[]>(() => toDrafts(category?.operationSteps, category?.operationPhotos));
   const [fields, setFields] = useState<EquipmentFieldDefinition[]>(category?.fieldSchema?.length ? category.fieldSchema : []);
   const [technicalDocEnabled, setTechnicalDocEnabled] = useState(Boolean(category?.technicalDocEnabled));
   const [technicalStandardId, setTechnicalStandardId] = useState(category?.technicalStandardId || '');
@@ -60,6 +64,8 @@ export function CategoryFormModal({ open, category, saving, technicalStandards, 
   function updateField(index: number, patch: Partial<EquipmentFieldDefinition>) {
     setFields(prev => prev.map((field, i) => (i === index ? { ...field, ...patch } : field)));
   }
+
+  const photoWithoutText = hasPhotoWithoutText(operationSteps);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -73,6 +79,8 @@ export function CategoryFormModal({ open, category, saving, technicalStandards, 
       checklistEnabled,
       checklistDisplayMode,
       checklistItems: checklistItems.map(item => item.trim()).filter(Boolean),
+      operationManualEnabled,
+      operationSteps: toPayload(operationSteps),
       technicalDocEnabled,
       technicalStandardId: technicalStandardId || null,
       fieldSchema: fields
@@ -126,6 +134,10 @@ export function CategoryFormModal({ open, category, saving, technicalStandards, 
             <span>Dados Técnicos (datasheet preenchível)</span>
           </label>
           <label className="equip-toggle">
+            <input type="checkbox" checked={operationManualEnabled} onChange={e => setOperationManualEnabled(e.target.checked)} />
+            <span>Manual de Operação (passo a passo em PDF)</span>
+          </label>
+          <label className="equip-toggle">
             <input type="checkbox" checked={showInMaintenance} onChange={e => setShowInMaintenance(e.target.checked)} />
             <span>Exibir no módulo de manutenção</span>
           </label>
@@ -157,6 +169,22 @@ export function CategoryFormModal({ open, category, saving, technicalStandards, 
             </select>
           </div>
           <ChecklistItemsEditor appearance="design-system" value={checklistItems} onChange={setChecklistItems} disabled={!checklistEnabled} />
+        </div>
+
+        <div className="equip-fields-builder">
+          <div className="admin-toolbar">
+            <div>
+              <div className="sec">Manual de Operação — modelo da categoria</div>
+              <div className="rel-meta">Vale para todos os equipamentos da categoria; cada equipamento pode ter passos próprios.</div>
+            </div>
+          </div>
+          <OperationStepsEditor
+            value={operationSteps}
+            onChange={setOperationSteps}
+            disabled={!operationManualEnabled}
+            emptyText="Nenhum passo no modelo. Os equipamentos podem cadastrar os próprios passos."
+          />
+          {photoWithoutText && <p className="inline-error">Há passos com foto e sem texto. Descreva o passo ou remova as fotos para salvar.</p>}
         </div>
 
         <div className="equip-fields-builder">
@@ -213,7 +241,7 @@ export function CategoryFormModal({ open, category, saving, technicalStandards, 
 
         <div className="admin-form-actions equip-form-actions">
           <Button variant="secondary" size="sm" type="button" onClick={onClose} disabled={saving}>Cancelar</Button>
-          <Button variant="primary" size="sm" type="submit" loading={saving}>{saving ? 'Salvando…' : 'Salvar categoria'}</Button>
+          <Button variant="primary" size="sm" type="submit" loading={saving} disabled={photoWithoutText}>{saving ? 'Salvando…' : 'Salvar categoria'}</Button>
         </div>
       </form>
     </Modal>

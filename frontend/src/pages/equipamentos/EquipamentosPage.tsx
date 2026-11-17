@@ -1,10 +1,10 @@
 import { BrandLoading } from '../../components/brand/BrandLoading';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router';
 import { driver } from 'driver.js';
 import type { DriveStep } from 'driver.js';
 
-import type { CompanyEquipment, EquipmentCategory, EquipmentCategoryPayload, EquipmentPayload, ImageUpload } from '../../api/equipamentos';
+import type { CompanyEquipment, EquipmentCategory, EquipmentCategoryPayload, EquipmentPayload, ImageUpload, OperationStepPayload } from '../../api/equipamentos';
 import { useAuth } from '../../auth/AuthContext';
 import { useToast } from '../../components/ui/ToastContext';
 import { Button } from '../../components/ui/ds';
@@ -18,6 +18,8 @@ import { EquipmentCategorySection } from './EquipmentCategorySection';
 import { EquipmentDashboard } from './EquipmentDashboard';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { EquipmentFormModal } from './EquipmentFormModal';
+import { CategoryTechnicalModelModal } from './CategoryTechnicalModelModal';
+import { OperationManualModal } from './OperationManualModal';
 import { TechnicalDataModal } from './TechnicalDataModal';
 import { TechnicalStandardsManager } from './TechnicalStandardsManager';
 import { NotificationsConfig } from './NotificationsConfig';
@@ -31,6 +33,8 @@ import { equipmentCategoryFromParam, equipmentCategoryShortLabel, equipmentTabFr
 import './EquipamentosPage.ds.css';
 import './EquipmentConfig.ds.css';
 import './EquipmentEntity.ds.css';
+
+const EquipmentQrLabelModal = lazy(() => import('./EquipmentQrLabelModal'));
 
 type ActiveTab = { kind: EquipmentTab };
 
@@ -147,6 +151,9 @@ export function EquipamentosPage() {
     category: EquipmentCategory;
     item: CompanyEquipment;
   } | null>(null);
+  const [technicalModelCategory, setTechnicalModelCategory] = useState<EquipmentCategory | null>(null);
+  const [qrTarget, setQrTarget] = useState<{ categoryId: string; itemId: string } | null>(null);
+  const [manualTarget, setManualTarget] = useState<{ categoryId: string; itemId: string } | null>(null);
   const [categoryForm, setCategoryForm] = useState<{
     open: boolean;
     category: EquipmentCategory | null;
@@ -435,6 +442,37 @@ export function EquipamentosPage() {
     );
   }
 
+  const qrItem = qrTarget ? equipment.find(item => item.id === qrTarget.itemId) || null : null;
+  const qrCategory = qrTarget ? categories.find(category => category.id === qrTarget.categoryId) || null : null;
+  const manualItem = manualTarget ? equipment.find(item => item.id === manualTarget.itemId) || null : null;
+  const manualCategory = manualTarget ? categories.find(category => category.id === manualTarget.categoryId) || null : null;
+
+  function handleManualSave(steps: OperationStepPayload[]) {
+    if (!manualItem) return;
+    mutations.saveManual.mutate(
+      { id: manualItem.id, steps },
+      {
+        onSuccess: result => {
+          if (result.pdfError) {
+            showToast(result.pdfError, 'error');
+            return;
+          }
+          showToast('Manual de operação salvo e PDF gerado.', 'success');
+          setManualTarget(null);
+        },
+        onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível salvar o manual.', 'error')
+      }
+    );
+  }
+
+  function handleManualRegenerate() {
+    if (!manualItem) return;
+    mutations.regenerateManual.mutate(manualItem.id, {
+      onSuccess: () => showToast('PDF do manual atualizado.', 'success'),
+      onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível gerar o PDF.', 'error')
+    });
+  }
+
   function handleCategorySubmit(payload: EquipmentCategoryPayload) {
     const close = () => setCategoryForm({ open: false, category: null });
     const onError = (error: unknown) => showToast(error instanceof Error ? error.message : 'Não foi possível salvar.', 'error');
@@ -504,7 +542,12 @@ export function EquipamentosPage() {
         <PageHeader
           title={sectionLabel}
           description="Cadastro, calibração e documentação técnica dos equipamentos."
-          actions={<Button variant="secondary" size="sm" onClick={startEquipmentTutorial}>Ver tutorial</Button>}
+          actions={(
+            <>
+              <Link className="fv-button fv-button--secondary fv-button--sm" to="/equipamentos/manual" data-equip-manual-link>Manual</Link>
+              <Button variant="secondary" size="sm" onClick={startEquipmentTutorial}>Ver tutorial</Button>
+            </>
+          )}
         />
         <div className="equip-layout">
           <nav className="equip-nav" aria-label="Áreas de Equipamentos" data-equip-nav>
@@ -584,6 +627,8 @@ export function EquipamentosPage() {
                       const category = categories.find(category => category.id === item.categoryId);
                       if (category) setTechnicalForm({ category, item });
                     }}
+                    onOpenManual={item => setManualTarget({ categoryId: item.categoryId, itemId: item.id })}
+                    onOpenQr={item => setQrTarget({ categoryId: item.categoryId, itemId: item.id })}
                     onOpenMaintenanceHistory={item => {
                       const next = new URLSearchParams(searchParams);
                       next.set('equipamento', item.id);
@@ -611,9 +656,13 @@ export function EquipamentosPage() {
                     total={categoryEquipmentCount}
                     isManager={isManager}
                     onAdd={() => setEquipmentForm({ category: activeCategory, item: null })}
+                    onEditCategory={isManager ? () => setCategoryForm({ open: true, category: activeCategory }) : undefined}
+                    onEditTechnicalModel={isManager ? () => setTechnicalModelCategory(activeCategory) : undefined}
                     onEdit={item => setEquipmentForm({ category: activeCategory, item })}
                     onRemove={handleRemoveEquipment}
                     onOpenTechnical={item => setTechnicalForm({ category: activeCategory, item })}
+                    onOpenManual={item => setManualTarget({ categoryId: activeCategory.id, itemId: item.id })}
+                    onOpenQr={item => setQrTarget({ categoryId: activeCategory.id, itemId: item.id })}
                     onOpenMaintenanceHistory={item => {
                       const next = new URLSearchParams(searchParams);
                       next.set('equipamento', item.id);
@@ -648,6 +697,27 @@ export function EquipamentosPage() {
       {equipmentForm && <EquipmentFormModal open category={equipmentForm.category} equipment={equipmentForm.item} saving={savingEquipment} isManager={isManager} onClose={() => setEquipmentForm(null)} onSubmit={handleEquipmentSubmit} />}
 
       {technicalForm && <TechnicalDataModal open category={technicalForm.category} equipment={technicalForm.item} unitsCatalog={unitsCatalogQuery.data || []} saving={mutations.updateEquipment.isPending} isManager={isManager} onClose={() => setTechnicalForm(null)} onSubmit={handleTechnicalSubmit} />}
+
+      {manualItem && manualCategory && (
+        <OperationManualModal
+          open
+          category={manualCategory}
+          equipment={manualItem}
+          isManager={isManager}
+          saving={mutations.saveManual.isPending || mutations.regenerateManual.isPending}
+          onClose={() => setManualTarget(null)}
+          onSave={handleManualSave}
+          onRegenerate={handleManualRegenerate}
+        />
+      )}
+
+      {qrItem && qrCategory && (
+        <Suspense fallback={null}>
+          <EquipmentQrLabelModal equipment={qrItem} category={qrCategory} isManager={isManager} onClose={() => setQrTarget(null)} />
+        </Suspense>
+      )}
+
+      {technicalModelCategory && isManager && <CategoryTechnicalModelModal category={technicalModelCategory} standards={standardsQuery.data || []} unitsCatalog={unitsCatalogQuery.data || []} onClose={() => setTechnicalModelCategory(null)} />}
 
       {categoryForm.open && <CategoryFormModal open category={categoryForm.category} saving={savingCategory} technicalStandards={standardsQuery.data || []} standardsLoading={standardsQuery.isLoading} standardsError={standardsQuery.isError} onRetryStandards={() => { void standardsQuery.refetch(); }} onClose={() => setCategoryForm({ open: false, category: null })} onSubmit={handleCategorySubmit} />}
 

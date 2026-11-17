@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { performance } from 'node:perf_hooks';
+import { Prisma } from '@prisma/client';
 import { seedLaborPerformanceFixture } from '../scripts/fixtures/labor-performance.js';
 import { captureLaborQueries } from '../scripts/fixtures/labor-query-profile.js';
 import { seedEffectiveAllocationFixture } from '../scripts/fixtures/effective-allocation.js';
@@ -37,6 +38,17 @@ test('PostgreSQL: fontes enxutas preservam folha, rateio, trilhas e atualizaçã
     await database.$disconnect();
   });
   fixture = await seedLaborPerformanceFixture(database, { reportCount: 120, servicesPerRdo: 4 });
+  await t.test('monthly source order stays stable after updating a bulk-created parent', async () => {
+    const options = { startDate: '2026-09-01', endDate: '2026-09-30' };
+    const before = await loadMonthlyPontoSources(database, [fixture.importId], options);
+    const ids = before.periods.map(row => row.id);
+    assert.equal(ids.length, fixture.collaborators);
+    // Rewriting an unchanged field can move a tuple in PostgreSQL without
+    // changing business data. Full DTO/cache comparisons must keep their order.
+    await database.pontoPeriodSummary.update({ where: { id: ids[0] }, data: { rawName: before.periods[0].rawName } });
+    const after = await loadMonthlyPontoSources(database, [fixture.importId], options);
+    assert.deepEqual(after.periods, before.periods);
+  });
   await database.pontoExternalEmployee.createMany({ data: [
     { externalEmployeeId: fixture.prefix + '-ignored-a', externalName: 'Ignorado A', ignoredAt: new Date('2026-09-01') },
     { externalEmployeeId: fixture.prefix + '-ignored-b', externalName: 'Ignorado B', ignoredAt: new Date('2026-09-02') },
@@ -46,6 +58,31 @@ test('PostgreSQL: fontes enxutas preservam folha, rateio, trilhas e atualizaçã
     { id: fixture.prefix + '-calendar-holiday', holidayDate: new Date('2026-09-08'), name: 'Feriado sintético' },
     { id: fixture.prefix + '-calendar-deleted', holidayDate: new Date('2026-09-09'), name: 'Excluído', deletedAt: new Date() }
   ] });
+  await t.test('financial-only calculations preserve every cost field without unused workforce annotations', async () => {
+    const full = await computeCollaboratorRates(fixture.importId);
+    const originalRaw = database.$queryRaw;
+    const queries = [];
+    database.$queryRaw = (...args) => {
+      const sql = Array.isArray(args[0]) ? Prisma.sql(args[0], ...args.slice(1)) : args[0];
+      queries.push(sql.text);
+      return originalRaw.apply(database, args);
+    };
+    let financial;
+    try { financial = await computeCollaboratorRates(fixture.importId, { includeWorkforceDetails: false }); }
+    finally { database.$queryRaw = originalRaw; }
+    assert.doesNotMatch(queries.join('\n'), /CollaboratorAbsence|WorkforceHoliday|WorkforceCalendarState/,
+      'Actual PostgreSQL statements must omit the three unused workforce sources');
+    assert.ok(queries.some(sql => sql.includes('CollaboratorJobRoleHistory')));
+    assert.ok(queries.some(sql => sql.includes('PontoExternalEmployee')));
+    const strip = rate => {
+      const { workforceDays: _days, workforceConflicts: _conflicts, workforceCalendarRevision: _revision, ...cost } = rate;
+      return cost;
+    };
+    assert.deepEqual(financial, { ...full, rates: full.rates.map(strip),
+      byCollaboratorId: new Map([...full.byCollaboratorId].map(([id, rate]) => [id, strip(rate)])) });
+    assert.equal(financial.rates[0], financial.byCollaboratorId.get(financial.rates[0].collaboratorId));
+    assert.ok(full.rates.every(rate => rate.workforceDays && Array.isArray(rate.workforceConflicts)));
+  });
   for (const includeIgnoredNames of [false, true]) {
     const references = await loadLaborPeriodReferences(database, { startDate: '2026-09-01', endDate: '2026-09-30', includeIgnoredNames });
     assert.deepEqual(references.ignoredEmployees, await database.pontoExternalEmployee.findMany({
@@ -64,13 +101,14 @@ test('PostgreSQL: fontes enxutas preservam folha, rateio, trilhas e atualizaçã
   await database.collaborator.update({ where: { id: fixture.prefix + '-person-2' }, data: { jobRoleId: unconfiguredRoleId } });
   const nativePeriods = await database.pontoPeriodSummary.findMany({
     where: { importId: { in: [fixture.importId] }, collaboratorId: { not: null } },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     include: { collaborator: { select: { id: true, name: true, jobRoleId: true,
       jobRoleHistory: { select: { jobRoleId: true, effectiveDate: true }, orderBy: { effectiveDate: 'asc' } }
     } } }
   });
   const monthlySources = await loadMonthlyPontoSources(database, [fixture.importId], { startDate: '2026-09-01', endDate: '2026-09-30' });
   assert.deepEqual(monthlySources.periods, nativePeriods,
-    'The period order, all scalar/JSON values and complete role history equal the original nested Prisma selection');
+    'The stable period order, all scalar/JSON values and complete role history equal the nested Prisma selection');
   assert.deepEqual(monthlySources.absences, []);
   // Salary and base-model changes must retain their exact effective dates.
   await database.costParameterSet.createMany({ data: [
@@ -169,6 +207,25 @@ test('PostgreSQL: fontes enxutas preservam folha, rateio, trilhas e atualizaçã
   const conflicts = refreshed.byCollaboratorId.get(person);
   assert.notDeepEqual(refreshed, after);
   assert.ok(JSON.stringify(conflicts).includes('WORK_DURING_ABSENCE'));
+  await t.test('reduced period sources preserve identities and financial results with real absences and role history', async () => {
+    const range = { startDate: '2026-09-01', endDate: '2026-09-30' };
+    const complete = await loadMonthlyPontoSources(database, [fixture.importId], range);
+    assert.deepEqual(complete.absences, await database.collaboratorAbsence.findMany({
+      where: { collaboratorId: { in: complete.periods.map(row => row.collaboratorId) }, deletedAt: null,
+        startDate: { lte: new Date(range.endDate) }, endDate: { gte: new Date(range.startDate) } },
+      select: { id: true, collaboratorId: true, startDate: true, endDate: true }
+    }));
+    assert.equal(complete.absences.length, 1);
+    const reduced = await loadMonthlyPontoSources(database, [fixture.importId], { ...range, includeWorkforceDetails: false });
+    assert.deepEqual(reduced, { periods: complete.periods, absences: [] });
+    const financial = await computeCollaboratorRates(fixture.importId, { includeWorkforceDetails: false });
+    const strip = rate => {
+      const { workforceDays: _days, workforceConflicts: _conflicts, workforceCalendarRevision: _revision, ...cost } = rate;
+      return cost;
+    };
+    assert.deepEqual(financial, { ...refreshed, rates: refreshed.rates.map(strip),
+      byCollaboratorId: new Map([...refreshed.byCollaboratorId].map(([id, rate]) => [id, strip(rate)])) });
+  });
 
   // A later import must win even when its summary row was created earlier.
   const person3 = fixture.prefix + '-person-3', newerImportId = fixture.prefix + '-newer-import';

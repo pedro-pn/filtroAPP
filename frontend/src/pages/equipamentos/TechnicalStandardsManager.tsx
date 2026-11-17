@@ -17,15 +17,18 @@ interface Props {
   onRetry: () => void;
 }
 
-function StandardForm({ standard, unitsCatalog, saving, onClose, onSubmit }: {
+export function StandardForm({ standard, seedName, seedFields, unitsCatalog, saving, onClose, onSubmit }: {
   standard: EquipmentTechnicalStandard | null;
+  /** Valores iniciais de um padrão novo (ex.: criado a partir dos campos atuais de uma categoria). */
+  seedName?: string;
+  seedFields?: TechnicalFieldDefinition[];
   unitsCatalog: MeasurementDimension[];
   saving: boolean;
   onClose: () => void;
   onSubmit: (payload: TechnicalStandardPayload) => void;
 }) {
-  const [name, setName] = useState(standard?.name || '');
-  const [fields, setFields] = useState<TechnicalFieldDefinition[]>(standard?.technicalSchema || []);
+  const [name, setName] = useState(standard?.name || seedName || '');
+  const [fields, setFields] = useState<TechnicalFieldDefinition[]>(standard?.technicalSchema || seedFields || []);
   const [error, setError] = useState('');
   const categories = standard?.categories || [];
   const equipmentCount = categories.reduce((total, category) => total + category._count.equipment, 0);

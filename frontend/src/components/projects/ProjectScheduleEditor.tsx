@@ -18,9 +18,10 @@ import { systemReconciliationPath } from '../../api/systemReconciliation';
 import { useToast } from '../ui/ToastContext';
 import { HelpTip } from '../ui/HelpTip';
 import { RemoveIconButton } from '../ui/RemoveIconButton';
-import { Alert, Button, Card, Field, Input, Select, Skeleton } from '../ui/ds';
+import { Alert, Button, Card, Field, Input, Select, Skeleton, Switch } from '../ui/ds';
 import { ProjectPlannedScopeEditor, type ScopeEditorHandle } from './ProjectPlannedScopeEditor';
 import { ProjectProgressBreakdown } from './ProjectProgressBreakdown';
+import { ProjectManualProgressField } from './ProjectManualProgressField';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
 import { ProjectProposalPercentageField } from './ProjectProposalPercentageField';
 import { consideredProposalValue, parseProposalPercentage } from '../../utils/proposalPercentage';
@@ -132,6 +133,9 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
   const [mobEdit, setMobEdit] = useState<string | null>(null);
   const [demobEdit, setDemobEdit] = useState<string | null>(null);
   const [manualEdit, setManualEdit] = useState<string | null>(null);
+  const [forceManualEdit, setForceManualEdit] = useState<boolean | null>(null);
+  const [progressModelEdit, setProgressModelEdit] = useState<ProjectSchedulePayload['progressModel']>(undefined);
+  const [plannedCollaboratorsEdit, setPlannedCollaboratorsEdit] = useState<string | null>(null);
   const [proposalPercentageEdit, setProposalPercentageEdit] = useState<string | null>(null);
   const [offshoreEdit, setOffshoreEdit] = useState<boolean | null>(null);
   const [sleepModeEdit, setSleepModeEdit] = useState<Record<string, LaborSleepMode> | null>(null);
@@ -150,6 +154,9 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
       setMobEdit(null);
       setDemobEdit(null);
       setManualEdit(null);
+      setForceManualEdit(null);
+      setProgressModelEdit(undefined);
+      setPlannedCollaboratorsEdit(null);
       setProposalPercentageEdit(null);
       setOffshoreEdit(null);
       setSleepModeEdit(null);
@@ -176,6 +183,12 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
   const demobValue = demobEdit ?? toDateInput(data?.demobilizationDate);
   const baseManual = data?.manualProgressPct == null ? '' : String(data.manualProgressPct);
   const manualValue = manualEdit ?? baseManual;
+  const baseForceManual = data?.forceManualProgress ?? false;
+  const forceManualValue = forceManualEdit ?? baseForceManual;
+  const baseProgressModel = data?.progressModel ?? 'QUANTITIES';
+  const progressModelValue = progressModelEdit ?? baseProgressModel;
+  const basePlannedCollaborators = data?.plannedCollaborators == null ? '' : String(data.plannedCollaborators);
+  const plannedCollaboratorsValue = plannedCollaboratorsEdit ?? basePlannedCollaborators;
   const baseProposalPercentage = String(data?.proposalPercentage ?? 100);
   const proposalPercentageValue = proposalPercentageEdit ?? baseProposalPercentage;
   const proposalPercentage = parseProposalPercentage(proposalPercentageValue);
@@ -190,6 +203,9 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
     || mobValue !== toDateInput(data?.mobilizationDate)
     || demobValue !== toDateInput(data?.demobilizationDate)
     || manualValue !== baseManual
+    || forceManualValue !== baseForceManual
+    || progressModelValue !== baseProgressModel
+    || plannedCollaboratorsValue !== basePlannedCollaborators
     || proposalPercentageValue !== baseProposalPercentage
     || offshoreValue !== baseOffshore
     || sleepModeMapKey(sleepModeValue) !== sleepModeMapKey(baseSleepModeMap)
@@ -220,18 +236,31 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
   // Salvar único: grava o cronograma (se mudou) e o escopo (se mudou), via ref do editor de escopo.
   const runSave = useRef<() => void>(() => {});
   runSave.current = () => {
+    const collaborators = plannedCollaboratorsValue.trim() === '' ? null : Number(plannedCollaboratorsValue);
+    if ((progressModelValue === 'WORKED_DAYS' && collaborators == null)
+      || (collaborators != null && (!Number.isInteger(collaborators) || collaborators <= 0 || collaborators > 2147483647))) {
+      showToast('Informe uma quantidade inteira e positiva de colaboradores planejados.');
+      return;
+    }
     if (proposalPercentage == null) {
       showToast('Informe um percentual da proposta de 0% a 100%, com no máximo duas casas decimais.');
       return;
     }
     if (scheduleDirty) {
       const manualNum = manualValue.trim() === '' ? null : Number(manualValue.replace(',', '.'));
+      if ((manualNum != null && (!Number.isFinite(manualNum) || manualNum < 0 || manualNum > 100)) || (forceManualValue && manualNum == null)) {
+        showToast('Informe um avanço manual de 0% a 100% para forçar sua utilização.');
+        return;
+      }
       const payload: ProjectSchedulePayload = {};
       if (approvalValue !== toDateInput(data?.approvedAt)) payload.approvedAt = isoOrNull(approvalValue);
       if (startValue !== toDateInput(data?.startDate)) payload.startDate = isoOrNull(startValue);
       if (mobValue !== toDateInput(data?.mobilizationDate)) payload.mobilizationDate = isoOrNull(mobValue);
       if (demobValue !== toDateInput(data?.demobilizationDate)) payload.demobilizationDate = isoOrNull(demobValue);
-      if (manualValue !== baseManual) payload.manualProgressPct = manualNum != null && Number.isFinite(manualNum) ? Math.min(100, Math.max(0, manualNum)) : null;
+      if (manualValue !== baseManual) payload.manualProgressPct = manualNum;
+      if (forceManualValue !== baseForceManual) payload.forceManualProgress = forceManualValue;
+      if (progressModelValue !== baseProgressModel) payload.progressModel = progressModelValue;
+      if (plannedCollaboratorsValue !== basePlannedCollaborators) payload.plannedCollaborators = collaborators;
       if (canManageProposal && proposalPercentageValue !== baseProposalPercentage) payload.proposalPercentage = proposalPercentage;
       if (offshoreValue !== baseOffshore) payload.offshore = offshoreValue;
       if (sleepModeMapKey(sleepModeValue) !== sleepModeMapKey(baseSleepModeMap)) payload.laborSleepModeByCollaborator = normalizeSleepModeMap(sleepModeValue);
@@ -244,6 +273,10 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
   useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
 
   if (isLoading) return <Skeleton variant="text" lines={5} label="Carregando cronograma" />;
+
+  const manualProgressField = <ProjectManualProgressField id={`acp-manual-progress-${projectId}`}
+    value={manualValue} forced={forceManualValue} disabled={!canManage || scheduleMutation.isPending}
+    onValueChange={setManualEdit} onForcedChange={setForceManualEdit} />;
 
   const percentageField = <ProjectProposalPercentageField projectId={projectId}
     value={proposalPercentageValue} canManage={canManageProposal && !scheduleMutation.isPending}
@@ -259,11 +292,46 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
   const current = data?.currentCodBd ?? null;
   const revisions = data?.revisions ?? [];
   const currentRevision: CommercialRevision | undefined = revisions.find(r => r.codBd === current) ?? undefined;
+  const modelRevisions = [currentRevision, ...(data?.additionalProposals ?? []).map(group => {
+    const revision = group.revisions.find(item => item.codBd === group.currentCodBd);
+    return revision ? { ...revision,
+      plannedDays: group.metricInclusion?.plannedDays === false ? null : revision.plannedDays,
+      workedDays: group.metricInclusion?.workedDays === false ? null : revision.workedDays
+    } : undefined;
+  })].filter((revision): revision is CommercialRevision => Boolean(revision));
+  const modelFullDays = projectDetail?.fullWorkedDays ?? sumRevisionValue(modelRevisions, revision => revision.workedDays, 0)
+    ?? projectDetail?.fullPlannedDays ?? sumRevisionValue(modelRevisions, revision => revision.plannedDays, 0);
+  const modelPlannedDays = consideredProposalValue(modelFullDays, proposalPercentage ?? 100);
+  const progressModelField = <Card variant="flat" padding="md" title="Modelo de quantificação do avanço" className="acp-schedule-ds__progress-model">
+    <div className="acp-schedule-ds__fields">
+      <Field id={`acp-progress-model-${projectId}`} label="Calcular avanço por" optionalText="">
+        <Select value={progressModelValue} disabled={!canManage} onChange={e => setProgressModelEdit(e.target.value as ProjectSchedulePayload['progressModel'])}>
+          <option value="QUANTITIES">Quantitativos dos serviços</option>
+          <option value="WORKED_DAYS">Dias trabalhados</option>
+        </Select>
+      </Field>
+      {progressModelValue === 'WORKED_DAYS' ? <>
+        <Field id={`acp-progress-days-${projectId}`} label="Dias de trabalho previstos" optionalText="" helperText="Preenchido automaticamente a partir da proposta e dos adicionais considerados.">
+          <Input id={`acp-progress-days-${projectId}-control`} type="number" value={modelPlannedDays ?? ''} readOnly placeholder="Sem previsão" />
+        </Field>
+        <Field id={`acp-planned-collaborators-${projectId}`} label="Colaboradores planejados" optionalText="" helperText="Quantidade de pessoas prevista para cada dia de trabalho.">
+          <Input type="number" min="1" max="2147483647" step="1" inputMode="numeric" value={plannedCollaboratorsValue}
+            disabled={!canManage} onChange={e => setPlannedCollaboratorsEdit(e.target.value)} />
+        </Field>
+      </> : null}
+    </div>
+    {progressModelValue === 'WORKED_DAYS' ? <>
+      <p className="acp-schedule-ds__muted">Avanço = soma dos colaboradores marcados em cada RDO ÷ (dias previstos × colaboradores planejados). Cada RDO conta como um dia, com a equipe proporcional ao planejamento.</p>
+      {!modelPlannedDays ? <Alert tone="warning">A proposta precisa ter dias previstos para calcular o avanço por dias trabalhados.</Alert> : null}
+    </> : null}
+  </Card>;
 
   if (current == null || !currentRevision) {
     return <div className="acp-schedule-ds">
       {percentageField}
+      {progressModelField}
       <Alert tone="info">Aguardando seleção da proposta aprovada pela gestão. A previsão manual permanece disponível.</Alert>
+      {manualProgressField}
       <ProjectPlannedScopeEditor ref={scopeRef} projectId={projectId} canManage={canManage}
         onDirtyChange={setScopeDirty} onSavingChange={setScopeSaving} />
     </div>;
@@ -438,23 +506,12 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
         <Field id={`acp-inicio-${projectId}`} label={<>Início real <HelpTip icon help="Data em que a execução começou de fato. Ponto de partida dos dias corridos e da previsão de término." /></>} optionalText="">
           <Input type="date" value={startValue} onChange={e => setStartEdit(e.target.value)} />
         </Field>
-        <Field id={`acp-manual-progress-${projectId}`} label={<>Avanço manual <HelpTip icon help="Avanço informado à mão, em %. É usado só como fallback quando o projeto NÃO tem escopo previsto cadastrado (aí o avanço não pode vir dos RDOs). Se houver escopo, este valor é ignorado." /></>} optionalText="">
-            <Input id={`acp-manual-progress-${projectId}`} suffix="%"
-              type="number" min="0" max="100" step="1" inputMode="numeric" placeholder="—"
-              value={manualValue}
-              onChange={e => setManualEdit(e.target.value)}
-            />
-        </Field>
+        {manualProgressField}
         <Field id={`acp-offshore-${projectId}`} label={<>Projeto offshore <HelpTip icon help="Projetos offshore usam a modalidade OFFSHORE do motor de mão de obra para os colaboradores alocados, com periculosidade integral e confinamento." /></>} optionalText="">
-          <label className="acp-checkbox-inline">
-            <input
-              id={`acp-offshore-${projectId}-control`}
-              type="checkbox"
-              checked={offshoreValue}
-              onChange={e => setOffshoreEdit(e.target.checked)}
-            />
-            <span>{offshoreValue ? 'Sim' : 'Não'}</span>
-          </label>
+          <Switch id={`acp-offshore-${projectId}-control`} label={offshoreValue ? 'Sim' : 'Não'}
+            role="switch" aria-label="Projeto offshore" checked={offshoreValue}
+            disabled={!canManage || scheduleMutation.isPending}
+            onChange={event => setOffshoreEdit(event.target.checked)} />
         </Field>
       </div>
       <p className="acp-schedule-ds__deadline"><strong>Mobilização / prazo: </strong>
@@ -463,6 +520,8 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
           {consumedPct != null ? ` · prazo consumido ${consumedPct}%` : ''}
       </p>
       </section>
+
+      {progressModelField}
 
       {reconciliationBlocked ? (
         <button type="button" className="acp-reconciliation-shortcut" disabled>{reconciliationContent}</button>

@@ -1,10 +1,12 @@
 import { defineConfig, type ProxyOptions } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { randomUUID } from 'node:crypto';
 
 const sharedWorkspaceRoot = decodeURIComponent(new URL('../shared', import.meta.url).pathname);
 
-export default defineConfig(() => {
+export default defineConfig(({ command }) => {
+  const appVersion = command === 'build' ? randomUUID() : 'development';
   const apiProxyTarget =
     process.env.VITE_API_PROXY_TARGET ?? 'http://localhost:4000';
   const proxy: Record<string, ProxyOptions> = Object.fromEntries(
@@ -21,6 +23,9 @@ export default defineConfig(() => {
 
   return {
     base: '/',
+    define: {
+      __APP_VERSION__: JSON.stringify(appVersion)
+    },
     // Concurrent dev servers and SSR tests must not overwrite each other's dependencies.
     cacheDir: process.env.VITE_CACHE_DIR || `node_modules/.vite-app-${process.pid}`,
     // O visualizador é carregado sob demanda. Prepare o motor de PDF no início,
@@ -31,6 +36,16 @@ export default defineConfig(() => {
     plugins: [
       react(),
       tailwindcss(),
+      {
+        name: 'app-version',
+        generateBundle() {
+          this.emitFile({
+            type: 'asset',
+            fileName: 'app-version.json',
+            source: JSON.stringify({ version: appVersion })
+          });
+        }
+      },
       {
         name: 'watch-shared-workspace',
         configureServer(server) {

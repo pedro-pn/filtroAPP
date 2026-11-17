@@ -254,6 +254,15 @@ export function effectiveParameterSetAt(sets = [], dateKey) {
   return selected;
 }
 
+// Versões de salário anteriores à criação do campo (inclusive agendadas) não
+// encerram um reajuste. Somente um percentual explícito, inclusive zero, o muda.
+export function effectiveCargoParameterSetAt(sets = [], dateKey) {
+  const selected = effectiveParameterSetAt(sets, dateKey);
+  if (!selected) return null;
+  const adjustment = effectiveParameterSetAt(sets.filter(set => set.params?.reajusteHhPct != null), dateKey);
+  return { ...selected, params: { ...selected.params, reajusteHhPct: adjustment?.params.reajusteHhPct ?? 0 } };
+}
+
 function maxDateKey(...keys) {
   return keys.filter(Boolean).sort().at(-1);
 }
@@ -480,7 +489,7 @@ export function filterIgnoredPontoPeriods(periods = [], ignoredExternalEmployeeI
 }
 
 // Cargo canônico (Collaborator.jobRoleId -> JobRole) -> parâmetros efetivos por data. O cargo herda do modelo
-// que estava vigente na data calculada e sobrescreve o salário base. A insalubridade vem do salário
+// que estava vigente na data calculada e define salário base e reajuste de HH. A insalubridade vem do salário
 // mínimo no motor novo.
 export function buildRoleParamsResolver({ roles = [], models = [] } = {}) {
   const modelSetsByKey = new Map();
@@ -499,7 +508,7 @@ export function buildRoleParamsResolver({ roles = [], models = [] } = {}) {
   }
 
   function paramsFor(roleName, dateKey) {
-    const roleSet = effectiveParameterSetAt(roleSetsByName.get(roleName) || [], dateKey);
+    const roleSet = effectiveCargoParameterSetAt(roleSetsByName.get(roleName) || [], dateKey);
     if (!roleSet) return null;
     const override = roleSet.params || {};
     const modelKey = typeof override.baseModel === 'string' && override.baseModel
@@ -511,6 +520,9 @@ export function buildRoleParamsResolver({ roles = [], models = [] } = {}) {
 
     const effective = { ...(modelSet.params || {}) };
     if (override.salarioBase != null) effective.salarioBase = override.salarioBase;
+    // O reajuste pertence ao cargo, nunca ao modelo compartilhado. Versões
+    // anteriores à configuração conservam o custo original.
+    effective.reajusteHhPct = override.reajusteHhPct ?? 0;
     return effective;
   }
 
@@ -2011,11 +2023,11 @@ function costProjectsFromClassification(classified) {
 
 // Custo/hora e rateio por obra de cada colaborador para o ponto vigente (ou o import indicado),
 // somando a divisão mensal.
-export async function computeCollaboratorRates(importId = null, { includeIgnoredNames = false } = {}) {
-  return readMonthlyCostSnapshot(importId, { includeIgnoredNames }, options => computeCollaboratorRatesUncached(importId, options));
+export async function computeCollaboratorRates(importId = null, { includeIgnoredNames = false, includeWorkforceDetails = true } = {}) {
+  return readMonthlyCostSnapshot(importId, { includeIgnoredNames, includeWorkforceDetails }, options => computeCollaboratorRatesUncached(importId, options));
 }
 
-async function computeCollaboratorRatesUncached(importId, { includeIgnoredNames }) {
+async function computeCollaboratorRatesUncached(importId, { includeIgnoredNames, includeWorkforceDetails = true }) {
   const pontoScope = await getPontoImportScope(importId);
   if (!pontoScope) return { pontoImport: null, pontoImports: [], periodStart: null, periodEnd: null, fileName: null, rates: [], byCollaboratorId: new Map() };
 
@@ -2027,11 +2039,11 @@ async function computeCollaboratorRatesUncached(importId, { includeIgnoredNames 
   // and project metadata. Start them first, then overlap the remaining reads
   // with absence/calendar checks instead of adding another sequential stage.
   const periodStatePromise = Promise.all([
-    loadMonthlyPontoSources(prisma, importIds, { startDate: pontoScope.periodStart, endDate: pontoScope.periodEnd }),
-    loadLaborPeriodReferences(prisma, { startDate: pontoScope.periodStart, endDate: pontoScope.periodEnd, includeIgnoredNames })
+    loadMonthlyPontoSources(prisma, importIds, { startDate: pontoScope.periodStart, endDate: pontoScope.periodEnd, includeWorkforceDetails }),
+    loadLaborPeriodReferences(prisma, { startDate: pontoScope.periodStart, endDate: pontoScope.periodEnd, includeIgnoredNames, includeWorkforceDetails })
   ]).then(async ([{ periods: periodRows, absences }, { ignoredEmployees, calendar }]) => {
     const periods = mergePontoPeriods(filterIgnoredPontoPeriods(withPontoImportDates(periodRows, pontoScope.pontoImports), ignoredEmployees.map(item => item.externalEmployeeId)));
-    const actualAvailability = periods.length ? await checkWorkforceAvailability(prisma, {
+    const actualAvailability = includeWorkforceDetails && periods.length ? await checkWorkforceAvailability(prisma, {
       collaboratorIds: periods.map(period => period.collaboratorId).filter(Boolean),
       startDate: dateKeyUTC(pontoScope.periodStart), endDate: dateKeyUTC(pontoScope.periodEnd), context: 'ACTUAL_REPORT'
     }, { calendar, absences }) : { calendarRevision: 1, conflicts: [] };
@@ -2316,7 +2328,10 @@ async function computeCollaboratorRatesUncached(importId, { includeIgnoredNames 
     rates.push(entry);
     byCollaboratorId.set(period.collaboratorId, entry);
   }
-  const annotatedRates = measureRequestStage('labor.workforce.days', () => {
+  // Calendar/conflict annotations are not cost inputs. Financial project
+  // readers and the point summary do not expose them, so their uncached path
+  // avoids preparing a historical calendar for every collaborator.
+  const annotatedRates = includeWorkforceDetails ? measureRequestStage('labor.workforce.days', () => {
     const classifyDays = createActualWorkforceDayClassifier({
       startDate: dateKeyUTC(pontoScope.periodStart),
       endDate: dateKeyUTC(pontoScope.periodEnd)
@@ -2329,7 +2344,7 @@ async function computeCollaboratorRatesUncached(importId, { includeIgnoredNames 
         conflicts: actualAvailability.conflicts.filter(conflict => conflict.collaboratorId === entry.collaboratorId)
       })
     }));
-  });
+  }) : rates;
   const annotatedByCollaboratorId = new Map(annotatedRates.map(entry => [entry.collaboratorId, entry]));
   return {
     pontoImport: pontoScope.pontoImport,
@@ -2499,7 +2514,7 @@ export async function laborCostByProject(importId = null) {
 }
 
 async function laborCostByProjectUncached(importId = null) {
-  const { pontoImport, periodStart, periodEnd, byCollaboratorId: monthlyByCollaboratorId } = await computeCollaboratorRates(importId);
+  const { pontoImport, periodStart, periodEnd, byCollaboratorId: monthlyByCollaboratorId } = await computeCollaboratorRates(importId, { includeWorkforceDetails: false });
   if (!pontoImport) {
     return { pontoImport: null, periodStart: null, periodEnd: null, byProjectId: new Map(), idle: { cost: 0, costBase: 0, hours: 0 }, byCollaboratorId: new Map() };
   }

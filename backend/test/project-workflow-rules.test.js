@@ -262,6 +262,7 @@ test('documentação usa cinco decisões por tipo e acompanha itens nomeados com
 
 test('progresso D-30 é calculado no total e por frente', () => {
   const result = projectWorkflowPlanningReadiness({
+    project: { clientEmailPrimary: 'cliente@example.com' },
     teamPlanDefined: true,
     teamDemands: [{ jobRoleId: 'role-1', requiredCount: 2 }],
     equipmentPlanDefined: true,
@@ -277,10 +278,10 @@ test('progresso D-30 é calculado no total e por frente', () => {
       lodgingRequested: false
     }
   });
-  assert.equal(result.total, 4);
-  assert.equal(result.completed, 4);
+  assert.equal(result.total, 5);
+  assert.equal(result.completed, 5);
   assert.equal(result.percentage, 100);
-  assert.deepEqual(result.sections.map(item => item.key), ['D30_TEAM', 'D30_EQUIPMENT', 'D30_MATERIALS', 'D30_LOGISTICS']);
+  assert.deepEqual(result.sections.map(item => item.key), ['D30_TEAM', 'D30_EQUIPMENT', 'D30_MATERIALS', 'D30_LOGISTICS', 'D30_REPORT_RECIPIENTS']);
 });
 
 function readyMobilizationWorkflow(overrides = {}) {
@@ -334,6 +335,7 @@ function readyMobilizationWorkflow(overrides = {}) {
     }
   };
   return {
+    project: { clientEmailPrimary: 'cliente@example.com' },
     stage: 'PREPARATION',
     version: 10,
     actualMobilizationDate: '2026-09-10',
@@ -369,6 +371,7 @@ function readyMobilizationWorkflow(overrides = {}) {
 
 test('planejamento completo libera Preparação e D-15 acompanha equipe nominal e cliente', () => {
   const structuredPlanning = {
+    project: { clientEmailPrimary: 'cliente@example.com' },
     teamPlanDefined: true,
     teamDemands: [{ jobRoleId: 'role-1', requiredCount: 2 }],
     equipmentPlanDefined: true,
@@ -377,7 +380,7 @@ test('planejamento completo libera Preparação e D-15 acompanha equipe nominal 
     supplyPlan: [{ id: 'stock-1', requiredQuantity: 2 }],
     logisticsPlan: { vehicleRequired: false, freightRequired: false, lodgingRequired: false }
   };
-  assert.equal(planningGateIssues({ checklists: [] }).length, 6);
+  assert.equal(planningGateIssues({ checklists: [] }).length, 7);
   assert.deepEqual(planningGateIssues(structuredPlanning), []);
   const prepared = readyMobilizationWorkflow();
   const readiness = projectWorkflowPreparationReadiness(prepared);
@@ -386,7 +389,7 @@ test('planejamento completo libera Preparação e D-15 acompanha equipe nominal 
   assert.equal(readiness.sections.length, 9);
   prepared.teamPreparation.members[0].checks[0].status = 'PENDING';
   assert.equal(projectWorkflowPreparationReadiness(prepared).completed, readiness.total - 1);
-  assert.equal(projectWorkflowTransitionIssues({ stage: 'MOBILIZATION_PLANNING', checklists: [] }, 'PREPARATION').length, 6);
+  assert.equal(projectWorkflowTransitionIssues({ stage: 'MOBILIZATION_PLANNING', checklists: [] }, 'PREPARATION').length, 7);
   assert.deepEqual(projectWorkflowTransitionIssues({ stage: 'MOBILIZATION_PLANNING', ...structuredPlanning }, 'PREPARATION'), []);
 });
 
@@ -1025,7 +1028,7 @@ test('Sede usa o início da execução como data-base dos marcos', () => {
 });
 
 test('responder "não" para equipe, equipamentos e insumos no planejamento D-30 libera a Preparação (obra pode não precisar de nada disso)', () => {
-  const allNo = { teamPlanDefined: false, equipmentPlanDefined: false, supplyPlanDefined: false, logisticsPlan: { vehicleRequired: false, freightRequired: false, lodgingRequired: false } };
+  const allNo = { project: { clientEmailPrimary: 'cliente@example.com' }, teamPlanDefined: false, equipmentPlanDefined: false, supplyPlanDefined: false, logisticsPlan: { vehicleRequired: false, freightRequired: false, lodgingRequired: false } };
   assert.deepEqual(planningGateIssues(allNo), []);
   assert.deepEqual(projectWorkflowTransitionIssues({ stage: 'MOBILIZATION_PLANNING', ...allNo }, 'PREPARATION'), []);
   const readiness = projectWorkflowPlanningReadiness(allNo);
@@ -1041,6 +1044,7 @@ test('responder "não" para equipe, equipamentos e insumos no planejamento D-30 
 
   // "sim" sem detalhar nada continua pendente — só "não" ou "sim" com itens resolve
   assert.deepEqual(planningGateIssues({
+    project: { clientEmailPrimary: 'cliente@example.com' },
     teamPlanDefined: true,
     equipmentPlanDefined: true,
     supplyPlanDefined: true,
@@ -1063,16 +1067,16 @@ test('responder "não" para equipe, equipamentos e insumos no planejamento D-30 
   assert.equal(gate.ready, true, JSON.stringify(gate.blockers));
 });
 
-test('planejamento D-30 da Sede exige só a equipe; equipamentos, insumos e logística ficam opcionais', () => {
-  const teamOnly = { executedAtHeadquarters: true, teamPlanDefined: true, teamDemands: [{ jobRoleId: 'role-1', requiredCount: 2 }] };
+test('planejamento D-30 da Sede exige equipe e destinatários; equipamentos, insumos e logística ficam opcionais', () => {
+  const teamOnly = { project: { clientEmailPrimary: 'cliente@example.com' }, executedAtHeadquarters: true, teamPlanDefined: true, teamDemands: [{ jobRoleId: 'role-1', requiredCount: 2 }] };
   assert.deepEqual(planningGateIssues(teamOnly), []);
   assert.deepEqual(projectWorkflowTransitionIssues({ stage: 'MOBILIZATION_PLANNING', ...teamOnly }, 'PREPARATION'), []);
-  assert.deepEqual(planningGateIssues({ executedAtHeadquarters: true }), ['Informar se será necessária equipe própria']);
-  assert.deepEqual(planningGateIssues({ executedAtHeadquarters: true, teamPlanDefined: false }), []);
+  assert.deepEqual(planningGateIssues({ project: teamOnly.project, executedAtHeadquarters: true }), ['Informar se será necessária equipe própria']);
+  assert.deepEqual(planningGateIssues({ project: teamOnly.project, executedAtHeadquarters: true, teamPlanDefined: false }), []);
   assert.equal(planningGateIssues({ ...teamOnly, executedAtHeadquarters: false }).length, 5);
   const readiness = projectWorkflowPlanningReadiness(teamOnly);
-  assert.equal(readiness.total, 1);
-  assert.equal(readiness.completed, 1);
+  assert.equal(readiness.total, 2);
+  assert.equal(readiness.completed, 2);
   assert.equal(readiness.percentage, 100);
   assert.deepEqual(readiness.sections.filter(section => section.optional).map(section => section.key), ['D30_EQUIPMENT', 'D30_MATERIALS', 'D30_LOGISTICS']);
   // logística preliminar da Sede não pergunta hospedagem
@@ -1155,4 +1159,39 @@ test('o contrato aceita a ação analysis_location', () => {
   assert.equal(patch.safeParse({ action: 'analysis_location', version: 1, executedAtHeadquarters: false }).success, true);
   assert.equal(patch.safeParse({ action: 'analysis_location', version: 1 }).success, false);
   assert.equal(patch.safeParse({ action: 'analysis_location', version: 1, executedAtHeadquarters: null }).success, false);
+});
+
+test('destinatários são obrigatórios no planejamento de campo e Sede e na saída da execução', () => {
+  const planned = {
+    teamPlanDefined: false, equipmentPlanDefined: false, supplyPlanDefined: false,
+    logisticsPlan: { vehicleRequired: false, freightRequired: false, lodgingRequired: false }
+  };
+  for (const executedAtHeadquarters of [false, true]) {
+    const workflow = { ...planned, executedAtHeadquarters, stage: 'MOBILIZATION_PLANNING' };
+    assert.match(planningGateIssues(workflow).join(' '), /e-mail principal/);
+    assert.ok(projectWorkflowPlanningReadiness(workflow).percentage < 100);
+    workflow.project = { clientEmailPrimary: 'cliente@example.com' };
+    assert.deepEqual(planningGateIssues(workflow), []);
+    assert.equal(projectWorkflowPlanningReadiness(workflow).percentage, 100);
+    workflow.project.clientEmailPrimary = 'invalido';
+    assert.match(planningGateIssues(workflow).join(' '), /e-mail principal/);
+    const target = executedAtHeadquarters ? 'POST_JOB' : 'DEMOBILIZATION';
+    assert.match(projectWorkflowTransitionIssues({ ...workflow, stage: 'EXECUTION' }, target).join(' '), /e-mail principal/);
+    workflow.project.clientEmailPrimary = 'cliente@example.com';
+    assert.deepEqual(projectWorkflowTransitionIssues({ ...workflow, stage: 'EXECUTION' }, target), []);
+  }
+});
+
+test('assinantes legados com nome completo continuam válidos e cópias sem assinatura não exigem nome', () => {
+  const workflow = {
+    stage: 'EXECUTION',
+    project: {
+      clientEmailPrimary: 'cliente@example.com',
+      clientEmailCc: ['ana@example.com', 'leitor@example.com'],
+      clientSigners: [{ email: 'ana@example.com', name: 'Ana Silva' }]
+    }
+  };
+  assert.deepEqual(projectWorkflowTransitionIssues(workflow, 'DEMOBILIZATION'), []);
+  workflow.project.clientSigners[0].name = 'Ana';
+  assert.match(projectWorkflowTransitionIssues(workflow, 'DEMOBILIZATION').join(' '), /nomes dos assinantes/);
 });

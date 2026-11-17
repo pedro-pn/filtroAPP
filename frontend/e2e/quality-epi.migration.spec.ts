@@ -291,7 +291,8 @@ test('EPI: formulários de entrega e catálogo preservam os contratos', async ({
 
   await page.goto('/epi');
   await page.getByRole('button', { name: /Marina Operações/ }).click();
-  await page.getByLabel('EPI cadastrado').selectOption('catalog-1');
+  await page.getByLabel('EPI cadastrado').fill('123');
+  await page.getByRole('option', { name: 'Capacete · C.A 123', exact: true }).click();
   await page.getByLabel('Quantidade').fill('2');
   await page.getByRole('button', { name: 'Adicionar EPI' }).click();
   await expect.poll(() => recordPayload).toMatchObject({ catalogItemId: 'catalog-1', epiName: 'Capacete', ca: '123', quantity: 2 });
@@ -300,7 +301,7 @@ test('EPI: formulários de entrega e catálogo preservam os contratos', async ({
   await page.locator('.epi-catalog-row').getByRole('button', { name: 'Editar' }).click();
   await page.getByRole('textbox', { name: 'Nome de Capacete' }).fill('Capacete classe B');
   await page.locator('.epi-catalog-edit-form').getByRole('button', { name: 'Salvar' }).click();
-  await expect.poll(() => catalogPayload).toEqual({ name: 'Capacete classe B', ca: '123' });
+  await expect.poll(() => catalogPayload).toEqual({ name: 'Capacete classe B', ca: '123', hasSizes: false, sizes: [] });
 });
 
 test('Qualidade visualizador e EPI colaborador não exibem ações de edição', async ({ page }) => {
@@ -337,7 +338,10 @@ test('Qualidade visualizador e EPI colaborador não exibem ações de edição',
 
 test('EPI: assinatura, arquivo e restauração usam confirmação e contratos existentes', async ({ page }) => {
   await useFixtures(page, 'light');
-  let current = { ...collaborator, epiRecords: collaborator.epiRecords.map(record => ({ ...record, archivedAt: record.archivedAt as string | null })) };
+  let current = { ...collaborator, epiRecords: [
+    ...collaborator.epiRecords,
+    { ...collaborator.epiRecords[0], id: 'epi-record-2', epiName: 'Luva' }
+  ].map(record => ({ ...record, archivedAt: record.archivedAt as string | null })) };
   let signatureIds: string[] = [];
   const archiveRequests: Array<{ recordIds: string[]; archived: boolean }> = [];
   await page.route('**/api/epi/collaborators', route => route.fulfill({
@@ -361,24 +365,36 @@ test('EPI: assinatura, arquivo e restauração usam confirmação e contratos ex
 
   await page.goto('/epi');
   await page.getByRole('button', { name: /Marina Operações/ }).click();
-  await page.getByRole('checkbox', { name: 'Selecionar Capacete' }).check();
+  const selectAll = page.getByRole('checkbox', { name: 'Selecionar todos', exact: true });
+  await selectAll.check();
+  await expect(page.getByRole('checkbox', { name: 'Selecionar Capacete', exact: true })).toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'Selecionar Luva', exact: true })).toBeChecked();
+  await page.getByRole('checkbox', { name: 'Selecionar Luva', exact: true }).uncheck();
+  await expect(selectAll).toBeChecked({ indeterminate: true });
+  await selectAll.check();
+  await selectAll.uncheck();
+  await expect(page.locator('.epi-record-row input:checked')).toHaveCount(0);
+  await selectAll.check();
   await page.getByRole('button', { name: 'Solicitar assinatura' }).click();
-  await expect.poll(() => signatureIds).toEqual(['epi-record-1']);
+  await expect.poll(() => signatureIds).toEqual(['epi-record-1', 'epi-record-2']);
+  await expect(selectAll).not.toBeChecked();
   await expect(page.getByText('https://example.com/assinar/teste')).toBeVisible();
 
-  await page.getByRole('checkbox', { name: 'Selecionar Capacete' }).check();
+  await selectAll.check();
   await page.getByRole('button', { name: 'Arquivar selecionados' }).click();
   await expect(page.getByRole('dialog')).toContainText('Arquivar EPIs selecionados?');
   await page.getByRole('dialog').getByRole('button', { name: 'Arquivar' }).click();
-  await expect.poll(() => archiveRequests).toEqual([{ recordIds: ['epi-record-1'], archived: true }]);
-  await page.getByRole('button', { name: 'Arquivados (1)' }).click();
+  await expect.poll(() => archiveRequests).toEqual([{ recordIds: ['epi-record-1', 'epi-record-2'], archived: true }]);
+  await expect(selectAll).toBeDisabled();
+  await page.getByRole('button', { name: 'Arquivados (2)' }).click();
   await expect(page.locator('.epi-record-row').getByText('Capacete', { exact: true })).toBeVisible();
-  await page.getByRole('checkbox', { name: 'Selecionar Capacete' }).check();
+  await expect(selectAll).not.toBeChecked();
+  await selectAll.check();
   await page.getByRole('button', { name: 'Restaurar selecionados' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Restaurar' }).click();
   await expect.poll(() => archiveRequests).toEqual([
-    { recordIds: ['epi-record-1'], archived: true },
-    { recordIds: ['epi-record-1'], archived: false }
+    { recordIds: ['epi-record-1', 'epi-record-2'], archived: true },
+    { recordIds: ['epi-record-1', 'epi-record-2'], archived: false }
   ]);
 });
 
@@ -422,7 +438,7 @@ test('EPI: perfil, devolução e PDF permanecem operacionais', async ({ page }) 
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Baixar PDF', exact: true }).click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toContain('Marina Operações.pdf');
+  expect(download.suggestedFilename().replaceAll('_', ' ')).toContain('Marina Operações.pdf');
 });
 
 test('Qualidade: evidências e exportação permanecem disponíveis no celular', async ({ page }) => {

@@ -28,11 +28,13 @@ test('Data Book: HTTP + PostgreSQL + gerador Python, do diálogo ao PDF salvo no
   const { processarFilaDatabook } = await import('../src/lib/databook/jobs.js');
   const { createStockItemDocument } = await import('../src/lib/estoque/stock-attachments.js');
   const { createCalibrationCertificate } = await import('../src/lib/calibration-certificates.js');
+  const { createEquipmentAttachment } = await import('../src/lib/equipment-attachments.js');
+  const { resolveReportCounter, resolveReportManometers } = await import('../src/lib/report-equipment-resolve.js');
 
   const sufixo = randomUUID().slice(0, 8);
   const pdf = await fs.readFile(new URL('../databook/exemplo/certificados/CERT_MAN-012.pdf', import.meta.url));
-  const upload = nome => ({ fileName: `${nome}.pdf`, dataUrl: `data:application/pdf;base64,${pdf.toString('base64')}` });
-  const criados = { users: [], projectId: null, stockItemId: null, manometerId: null };
+  const upload = (nome, bytes = pdf) => ({ fileName: `${nome}.pdf`, dataUrl: `data:application/pdf;base64,${bytes.toString('base64')}` });
+  const criados = { users: [], projectId: null, stockItemId: null, manometerId: null, categoryId: null };
   let server;
   t.after(async () => {
     if (server) await new Promise(resolve => server.close(resolve));
@@ -43,6 +45,10 @@ test('Data Book: HTTP + PostgreSQL + gerador Python, do diálogo ao PDF salvo no
     }
     if (criados.stockItemId) await prisma.stockItem.delete({ where: { id: criados.stockItemId } });
     if (criados.manometerId) await prisma.manometer.delete({ where: { id: criados.manometerId } });
+    if (criados.categoryId) {
+      await prisma.companyEquipment.deleteMany({ where: { categoryId: criados.categoryId } });
+      await prisma.equipmentCategory.delete({ where: { id: criados.categoryId } });
+    }
     await prisma.user.deleteMany({ where: { id: { in: criados.users } } });
     await prisma.$disconnect();
     await fs.rm(uploadDir, { recursive: true, force: true });
@@ -78,6 +84,24 @@ test('Data Book: HTTP + PostgreSQL + gerador Python, do diálogo ao PDF salvo no
   criados.manometerId = manometro.id;
   const certificado = await createCalibrationCertificate(prisma, { equipmentType: 'MANOMETER', manometerId: manometro.id, upload: upload('CAL-1') });
 
+  const categoria = await prisma.equipmentCategory.create({ data: { systemKey: `databook-${sufixo}`, name: 'Instrumentos de teste' } });
+  criados.categoryId = categoria.id;
+  const atuais = [];
+  for (const [codigo, arquivo] of [['MAN', 'CERT_MAN-015.pdf'], ['CP', 'CERT_CP-03.pdf']]) {
+    const equipamento = await prisma.companyEquipment.create({ data: {
+      code: `${codigo}-ATUAL-${sufixo}`, name: 'Instrumento atual', categoryId: categoria.id,
+      attributes: { scale: '0 a 400 bar', serialNumber: `SN-${codigo}`, calibrationCertCode: `CAL-${codigo}` },
+      hasCalibration: true, calibratedAt: new Date('2026-03-12'), expiresAt: new Date('2027-03-12')
+    } });
+    const bytes = await fs.readFile(new URL(`../databook/exemplo/certificados/${arquivo}`, import.meta.url));
+    const anexo = await createEquipmentAttachment(prisma, {
+      equipmentId: equipamento.id, kind: 'CALIBRATION_CERTIFICATE', upload: upload(`CAL-${codigo}`, bytes)
+    });
+    atuais.push({ equipamento, anexo });
+  }
+  const [manometroAtual] = await resolveReportManometers(prisma, [atuais[0].equipamento.id]);
+  const contadorAtual = await resolveReportCounter(prisma, atuais[1].equipamento.id);
+
   const fotoRel = `Missão ${projeto.code} - ${projeto.name}/RDO/foto-1.jpg`;
   await fs.mkdir(path.dirname(path.join(uploadDir, fotoRel)), { recursive: true });
   const { default: sharp } = await import('sharp');
@@ -98,7 +122,14 @@ test('Data Book: HTTP + PostgreSQL + gerador Python, do diálogo ao PDF salvo no
   await prisma.report.create({ data: { ...rdoBase, reportType: 'RTP', sequenceNumber: 1, reportDate: rdo2.reportDate,
     specialConditions: { parentRdoId: rdo2.id, serviceId: rdo2.services[0].id,
       serviceData: { 'Desenhos / TAGs': 'L-101', 'Aprovado pelo cliente?': 'Sim', 'Pressão de trabalho': '210 bar', 'Pressão de teste': '315 bar' },
-      resolvedManometers: [{ code: manometro.code, scale: '0 a 400 bar', certCode: 'CAL-1', calibratedAt: '2026-03-12', expiresAt: '2027-03-12', certificate: { id: certificado.id } }] } } });
+      resolvedManometers: [
+        { code: manometro.code, scale: '0 a 400 bar', certCode: 'CAL-1', calibratedAt: '2026-03-12', expiresAt: '2027-03-12', certificate: { id: certificado.id } },
+        { code: manometroAtual.code, scale: manometroAtual.scale, certCode: manometroAtual.calibrationCertCode,
+          calibratedAt: '2026-03-12', expiresAt: '2027-03-12', certificate: manometroAtual.currentCalibrationCertificate }
+      ] } } });
+  await prisma.report.create({ data: { ...rdoBase, reportType: 'RCPU', sequenceNumber: 1, reportDate: rdo2.reportDate,
+    specialConditions: { serviceData: { 'Aprovado pelo cliente?': 'Sim' },
+      resolvedCounter: { ...contadorAtual, certificate: contadorAtual.currentCalibrationCertificate } } } });
 
   server = await new Promise(resolve => { const instance = app.listen(0, '127.0.0.1', () => resolve(instance)); });
   const pedir = async (caminho, { body, role = 'RDO_MANAGER', method = body ? 'POST' : 'GET' } = {}) => {
@@ -124,7 +155,10 @@ test('Data Book: HTTP + PostgreSQL + gerador Python, do diálogo ao PDF salvo no
   assert.equal(revisao.status, 200);
   assert.equal(revisao.body.documento.doc, `DB-${projeto.code}-01`);
   assert.equal(revisao.body.dados.fds.length, 1);
-  assert.equal(revisao.body.dados.certificados.length, 1);
+  assert.deepEqual(revisao.body.dados.certificados.map(c => c.arquivo).sort(), [
+    `cert:${certificado.id}`, ...atuais.map(a => `equipmentcert:${a.anexo.id}`)
+  ].sort());
+  assert.equal(revisao.body.avisos.some(a => a.includes('não está disponível para anexar')), false);
   assert.ok(Array.isArray(revisao.body.avisos));
 
   const previa = await pedir(`/projects/${projeto.id}/previa`, { body: { ...dialogo.body.padrao, edicoes: {
@@ -154,7 +188,18 @@ test('Data Book: HTTP + PostgreSQL + gerador Python, do diálogo ao PDF salvo no
   assert.equal(baixado.status, 200);
   assert.equal(baixado.body.subarray(0, 4).toString(), '%PDF');
   const salvo = await prisma.projectDatabookRevision.findUnique({ where: { id: gerar.body.id } });
-  await fs.access(path.join(uploadDir, ...salvo.storagePath.split('/')));
+  const caminhoPdf = path.join(uploadDir, ...salvo.storagePath.split('/'));
+  await fs.access(caminhoPdf);
+  const verificarAnexos = spawnSync(python, ['-c', [
+    'import json, sys', 'from pypdf import PdfReader',
+    'normalizar = lambda texto: " ".join(texto.split())',
+    'paginas = [normalizar(p.extract_text()) for p in PdfReader(sys.argv[1]).pages]',
+    'originais = [normalizar(p.extract_text()) for arquivo in sys.argv[2:] for p in PdfReader(arquivo).pages]',
+    'print(json.dumps([any(original in pagina for pagina in paginas) for original in originais]))'
+  ].join('\n'), caminhoPdf, ...['CERT_MAN-012.pdf', 'CERT_MAN-015.pdf', 'CERT_CP-03.pdf'].map(arquivo =>
+    new URL(`../databook/exemplo/certificados/${arquivo}`, import.meta.url).pathname)], { encoding: 'utf8' });
+  assert.equal(verificarAnexos.status, 0, verificarAnexos.stderr);
+  assert.deepEqual(JSON.parse(verificarAnexos.stdout), [true, true, true, true, true], 'todas as páginas dos três certificados devem estar no PDF final');
 
   const edicao = await pedir(`/revisoes/${gerar.body.id}/edicao`);
   assert.equal(edicao.body.dados.projeto.servico, 'Limpeza Química e Teste de Pressão');

@@ -1058,7 +1058,10 @@ model Project {
   mobilizationDate           DateTime? // data de mobilização (manual, gestor/coordenador)
   demobilizationDate         DateTime? // data de desmobilização (manual); fecha a janela de alocação
   startDate                  DateTime? // início real confirmado no Efetivo ou informado no Acompanhamento
-  manualProgressPct          Decimal?                           @db.Decimal(5, 2) // avanço informado à mão (fallback quando não há escopo)
+  manualProgressPct          Decimal?                           @db.Decimal(5, 2) // avanço informado à mão
+  forceManualProgress        Boolean                            @default(false)
+  progressModel              String                             @default("QUANTITIES") // QUANTITIES | WORKED_DAYS
+  plannedCollaborators       Int? // equipe prevista para o avanço proporcional por dias trabalhados
   proposalPercentage         Decimal                            @default(100) @db.Decimal(5, 2) // percentual da proposta considerado nos valores previstos do acompanhamento
   trackingDivisions          Json                               @default("[]") // recortes do acompanhamento por escopo/equipamento do cliente
   plannedHoursResolution     Json? // decisão manual vinculada aos valores/revisões comerciais e às horas manuais conferidas
@@ -2672,6 +2675,8 @@ model EquipmentCategory {
   technicalStandardId     String?
   checklistEnabled        Boolean                                @default(false)
   checklistItems          Json                                   @default("[]") // pontos de checagem herdados pelos equipamentos da categoria
+  operationManualEnabled  Boolean                                @default(false) // liga o botão "Manual" (Manual de Operação) nos equipamentos da categoria
+  operationSteps          Json                                   @default("[]") // Manual de Operação: passos-modelo herdados pelos equipamentos da categoria
   checklistDisplayMode    String                                 @default("AUTO") // AUTO | TAG | NAME para <<nomeoutag>>
   technicalDocEnabled     Boolean                                @default(false) // liga a aba "Dados Técnicos" (datasheet estruturado + geração DOCX→PDF)
   technicalTemplateId     String? // DOCX modelo da categoria (Etapa F); null = usa o modelo genérico
@@ -2686,6 +2691,7 @@ model EquipmentCategory {
   maintenanceProfile      MaintenanceProfile?                    @relation("CategoryMaintenanceProfile", fields: [maintenanceProfileId], references: [id], onDelete: SetNull)
   technicalStandard       EquipmentTechnicalStandard?            @relation(fields: [technicalStandardId], references: [id], onDelete: Restrict)
   equipment               CompanyEquipment[]
+  attachments             EquipmentAttachment[] // fotos do modelo de passos do Manual de Operação
   projectWorkflowPlans    ProjectWorkflowEquipmentCategoryPlan[]
 
   @@index([maintenanceProfileId])
@@ -2703,6 +2709,10 @@ model CompanyEquipment {
   technicalData              Json                  @default("{}") // valores do datasheet, keyed por technicalSchema.key
   technicalFieldOverrides    Json                  @default("{}") // inclusão/exclusão de campos optionalPerEquipment, keyed por key -> bool
   checklistItems             Json? // null = herda da categoria; array = override integral
+  operationSteps             Json? // Manual de Operação: null = herda da categoria; array = passos próprios
+  qrDocumentAccess           Json                  @default("{}") // página do QR: acesso por documento (PUBLIC | LOGIN | HIDDEN), chave = manual|datasheet|certificate|doc:<id>
+  operationRevision          Int                   @default(0)
+  operationUpdatedAt         DateTime?
   technicalRevision          Int                   @default(0)
   technicalUpdatedAt         DateTime?
   hasCalibration             Boolean               @default(false)
@@ -2729,6 +2739,8 @@ enum EquipmentAttachmentKind {
   TECHNICAL_TEMPLATE
   TECHNICAL_DOC_GENERATED
   TECHNICAL_PHOTO
+  OPERATION_MANUAL_GENERATED
+  OPERATION_MANUAL_PHOTO
 }
 
 // Destinatários das notificações de calibração do módulo Equipamentos: contas
@@ -2769,16 +2781,19 @@ model RdoEquipmentSlot {
 
 model EquipmentAttachment {
   id          String                  @id @default(cuid())
-  equipmentId String
+  equipmentId String? // anexos de equipamento
+  categoryId  String? // fotos do modelo de passos do Manual de Operação (categoria)
   kind        EquipmentAttachmentKind
   fileName    String
   mimeType    String                  @default("application/pdf")
   storagePath String
   publicToken String                  @unique
   createdAt   DateTime                @default(now())
-  equipment   CompanyEquipment        @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  equipment   CompanyEquipment?       @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  category    EquipmentCategory?      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@index([equipmentId, kind, createdAt])
+  @@index([categoryId, kind, createdAt])
 }
 
 // === Modulo Estoque ===
@@ -3285,6 +3300,8 @@ model EpiCatalogItem {
   id        String      @id @default(cuid())
   name      String
   ca        String
+  hasSizes  Boolean     @default(false)
+  sizes     String[]    @default([])
   isActive  Boolean     @default(true)
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
@@ -3301,6 +3318,7 @@ model EpiRecord {
   catalogItemId         String?
   epiName               String
   ca                    String
+  size                  String?
   quantity              Int                  @default(1)
   lendDate              DateTime
   devolutionDate        DateTime?
@@ -3488,6 +3506,8 @@ model RomaneioCatalogItem {
   isSerialized       Boolean               @default(true)
   isActive           Boolean               @default(true)
   hiddenInRomaneioAt DateTime?
+  // Token público e estável do QR code: o QR aponta para /q/<publicToken> (página pública do item).
+  publicToken        String                @unique @default(dbgenerated("(gen_random_uuid())::text"))
   createdAt          DateTime              @default(now())
   updatedAt          DateTime              @updatedAt
   romaneioItems      RomaneioItem[]

@@ -63,6 +63,7 @@ jobs:
     env:
       NODE_ENV: test
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali?schema=public
+      OMIE_SYNC_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali
       PROPOSAL_PERCENTAGE_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali?schema=public
       ADDITIONAL_METRICS_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali?schema=public
       CHEMICAL_COST_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali?schema=public
@@ -124,8 +125,13 @@ jobs:
 
       - name: Configure Ubuntu package mirrors
         run: |
-          { printf 'https://mirrors.edge.kernel.org/ubuntu/\tpriority:0\n'; cat /etc/apt/apt-mirrors.txt; } > "$RUNNER_TEMP/ci-apt-mirrors.txt"
-          sudo cp "$RUNNER_TEMP/ci-apt-mirrors.txt" /etc/apt/apt-mirrors.txt
+          if curl --fail --silent --show-error --location --connect-timeout 5 --max-time 10 \
+            https://mirrors.edge.kernel.org/ubuntu/dists/noble/InRelease > /dev/null; then
+            { printf 'https://mirrors.edge.kernel.org/ubuntu/\tpriority:0\n'; cat /etc/apt/apt-mirrors.txt; } > "$RUNNER_TEMP/ci-apt-mirrors.txt"
+            sudo cp "$RUNNER_TEMP/ci-apt-mirrors.txt" /etc/apt/apt-mirrors.txt
+          else
+            echo 'Extra Ubuntu mirror unavailable; keeping the runner default mirrors.'
+          fi
           printf 'Acquire::Retries "1";\nAcquire::http::Timeout "20";\nAcquire::https::Timeout "20";\n' | sudo tee /etc/apt/apt.conf.d/zz-ci-retries > /dev/null
 
       - name: Install Hunspell pt-BR (revisão ortográfica do Data Book)
@@ -451,8 +457,8 @@ jobs:
       - run: npm ci
       - run: npm run prisma:generate
       - run: npm run prisma:deploy
-      - name: Verify mixed primary categories, secondary alternatives, permissions and bootstrap
-        run: node --test test/rdo-equipment-slots.test.js test/rdo-equipment-slots.integration.test.js
+      - name: Verify mixed primary categories, secondary alternatives, permissions, bootstrap and operation manual photos
+        run: node --test test/rdo-equipment-slots.test.js test/rdo-equipment-slots.integration.test.js test/equipment-operation-manual.integration.test.js
 
   frontend:
     name: Frontend
@@ -478,7 +484,7 @@ jobs:
       - name: Generate audit report
         run: |
           mkdir -p ../audit-reports
-          npm audit --audit-level=high --json > ../audit-reports/frontend-audit.json
+          npm run audit:ci -- --report ../audit-reports/frontend-audit.json
 
       - name: Upload frontend audit report
         if: always()
@@ -508,12 +514,21 @@ jobs:
 
       - name: Configure Ubuntu package mirrors
         run: |
-          { printf 'https://mirrors.edge.kernel.org/ubuntu/\tpriority:0\n'; cat /etc/apt/apt-mirrors.txt; } > "$RUNNER_TEMP/ci-apt-mirrors.txt"
-          sudo cp "$RUNNER_TEMP/ci-apt-mirrors.txt" /etc/apt/apt-mirrors.txt
+          if curl --fail --silent --show-error --location --connect-timeout 5 --max-time 10 \
+            https://mirrors.edge.kernel.org/ubuntu/dists/noble/InRelease > /dev/null; then
+            { printf 'https://mirrors.edge.kernel.org/ubuntu/\tpriority:0\n'; cat /etc/apt/apt-mirrors.txt; } > "$RUNNER_TEMP/ci-apt-mirrors.txt"
+            sudo cp "$RUNNER_TEMP/ci-apt-mirrors.txt" /etc/apt/apt-mirrors.txt
+          else
+            echo 'Extra Ubuntu mirror unavailable; keeping the runner default mirrors.'
+          fi
           printf 'Acquire::Retries "1";\nAcquire::http::Timeout "20";\nAcquire::https::Timeout "20";\n' | sudo tee /etc/apt/apt.conf.d/zz-ci-retries > /dev/null
 
       - name: Install Chromium for notification and equipment regressions
+        timeout-minutes: 5
         run: npx playwright install --with-deps chromium
+
+      - name: Verify EPI catalog sizes and required delivery selection in the browser
+        run: npx playwright test --config=playwright.quality-epi.config.ts --project=chromium epi-sizes.spec.ts
 
       - name: Verify RDO forms, notifications and equipment selection in the browser
         run: >-
@@ -541,6 +556,14 @@ jobs:
         with:
           name: efetivo-closeout-browser-report
           path: output/playwright/efetivo
+          if-no-files-found: warn
+
+      - name: Upload EPI browser regression report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: epi-sizes-browser-report
+          path: output/playwright/quality-epi
           if-no-files-found: warn
 
       - name: Upload browser regression report

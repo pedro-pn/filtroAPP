@@ -74,11 +74,13 @@ test('toda página que exibe o botão Tirar foto monta a novidade com a sua posi
   ]);
   // Páginas que renderizam o botão, direta ou indiretamente (UploadField e ServiceFields o contêm).
   const rendersButton = /<(?:UploadField|PhotoCaptureButton|ServiceFields)\b/;
+  // Usos sem o destaque temporário "Tirar foto" (novidade restrita aos fluxos de relatório).
+  const withoutNovelty = new Set(['equipamentos/OperationStepsEditor.tsx']);
   const found = new Map();
   for (const url of files) {
     const source = await readFile(url, 'utf8');
     const name = url.pathname.slice(pagesRoot.pathname.length);
-    if (rendersButton.test(source)) found.set(name, source);
+    if (rendersButton.test(source) && !withoutNovelty.has(name)) found.set(name, source);
   }
 
   assert.deepEqual([...found.keys()].sort(), [...expected.keys()].sort());

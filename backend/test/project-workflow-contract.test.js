@@ -149,3 +149,19 @@ test('contrato vincula líder e planejador e aceita exceções auditáveis de re
     }]
   }).success, false);
 });
+
+test('destinatários exigem e-mail principal válido, cópias válidas e nome dos assinantes selecionados', () => {
+  const { patch } = makeProjectWorkflowSchemas(z);
+  const base = { action: 'report_recipients', version: 1, clientEmailPrimary: ' Cliente@Example.com ' };
+  assert.equal(patch.parse(base).clientEmailPrimary, 'cliente@example.com');
+  assert.equal(patch.safeParse({ ...base, clientEmailPrimary: '' }).success, false);
+  assert.equal(patch.safeParse({ ...base, clientEmailPrimary: 'sem-email' }).success, false);
+  assert.equal(patch.safeParse({ ...base, clientEmailCc: ['invalido'] }).success, false);
+  const copy = { ...base, clientEmailCc: ['copia@example.com'] };
+  assert.equal(patch.safeParse(copy).success, true, 'cópia não precisa assinar');
+  const signer = { email: 'copia@example.com', firstName: 'Ana', lastName: 'Silva' };
+  assert.equal(patch.safeParse({ ...copy, clientSigners: [signer] }).success, true);
+  assert.equal(patch.safeParse({ ...copy, clientSigners: [{ ...signer, lastName: '' }] }).success, false);
+  assert.equal(patch.safeParse({ ...copy, clientSigners: [{ ...signer, email: 'outro@example.com' }] }).success, false);
+  assert.equal(patch.safeParse({ ...copy, clientSigners: [signer, signer] }).success, false);
+});

@@ -381,6 +381,7 @@ paths:
                     - acompanhamento.opportunities.links.list
                     - acompanhamento.opportunities.get
                     - jobRoles.salary.get
+                    - jobRoles.hourlyReference.get
                     - efetivo.allocationReview.list
                     - quality.records.list
                     - quality.records.get
@@ -1195,6 +1196,67 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404':
           description: Cargo inexistente (NOT_FOUND) ou salário não configurado na data (SALARY_NOT_FOUND).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/cargos/{id}/referencia-hh:
+    get:
+      tags: [IntegrationOperational]
+      operationId: getIntegrationJobRoleHourlyReference
+      summary: Salário original e reajuste do HH por cargo e data
+      description: >-
+        Projeção global que preserva o salário original e informa separadamente o
+        reajuste do HH como fração (0.1 = 10%). Usa somente vigências até referenceDate,
+        com desempate por versão. Um salário posterior sem o campo herda o último
+        reajuste explícito; zero encerra o reajuste. Sem reajuste registrado, retorna
+        zero e metadados nulos. Sem salário válido, salary, effectiveDate e version
+        são nulos, mantendo o reajuste disponível para referências provisórias.
+        Não expõe os parâmetros internos nem dados de colaboradores.
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: [cargos.salarios.read]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 100 }
+        - name: referenceDate
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Referência do cargo com salário original e reajuste de HH independentes.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [jobRoleId, jobRoleName, referenceDate, salary, effectiveDate, version, hhAdjustmentPct, hhAdjustmentEffectiveDate, hhAdjustmentVersion]
+                properties:
+                  jobRoleId: { type: string }
+                  jobRoleName: { type: string }
+                  referenceDate: { type: string, format: date }
+                  salary: { type: [string, 'null'], pattern: '^\d+(\.\d+)?$' }
+                  effectiveDate: { type: [string, 'null'], format: date }
+                  version: { type: [integer, 'null'], minimum: 1 }
+                  hhAdjustmentPct: { type: number, minimum: 0, maximum: 1, description: Fração de reajuste do HH; 0.1 representa 10%. }
+                  hhAdjustmentEffectiveDate: { type: [string, 'null'], format: date }
+                  hhAdjustmentVersion: { type: [integer, 'null'], minimum: 1 }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: Cargo inexistente (NOT_FOUND).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422':
+          description: Reajuste de HH inválido na origem (HH_ADJUSTMENT_INVALID).
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }

@@ -63,6 +63,26 @@ function fixture(t) {
   return state;
 }
 
+test('listagem, detalhe e históricos priorizam avanço manual forçado sem descartar relatórios', async t => {
+  const state = fixture(t);
+  state.project.forceManualProgress = true;
+  const ids = [state.project.id];
+  for (const value of [72.5, 0]) {
+    state.project.manualProgressPct = value;
+    const listed = (await computeProgressForProjects(ids)).get(ids[0]);
+    const detailed = (await computeProgressDetailsForProjects(ids)).get(ids[0]);
+    assert.equal(listed.progressPct, value);
+    assert.equal(listed.progressMethod, 'MANUAL');
+    assert.deepEqual(listed, detailed.progress);
+    assert.equal((await computeProgressHistoryForProjects(ids)).get(ids[0]).at(-1).progressPct, value);
+    assert.equal((await computeProgressHistoryForProjects(ids, { daily: true })).get(ids[0]).at(-1).progressPct, value);
+  }
+  state.project.forceManualProgress = false;
+  const restored = (await computeProgressForProjects(ids)).get(ids[0]);
+  assert.equal(restored.progressPct, 65);
+  assert.equal(restored.progressMethod, 'RDO');
+});
+
 test('pacote de avanço consolida dados atuais, histórico e recortes em uma rodada de consultas', async t => {
   const state = fixture(t);
   const details = (await computeProgressDetailsForProjects([state.project.id])).get(state.project.id);

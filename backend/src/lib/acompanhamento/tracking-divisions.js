@@ -81,7 +81,7 @@ export function divisionCandidates(services = [], dateRows = []) {
   return [...scopeCandidates, ...dateDivisionCandidates(dateRows)];
 }
 
-export function validateDivisionRows(candidates, rows) {
+export function validateDivisionRows(candidates, rows, previousRows = []) {
   const allowed = new Set(candidates.flatMap(scope => [scope.key, ...scope.equipments.map(equipment => equipment.key)]));
   const seen = new Set();
   return rows.map(row => {
@@ -101,8 +101,27 @@ export function validateDivisionRows(candidates, rows) {
       planned[field] = value ?? null;
     }
     if (planned.plannedDays != null && !Number.isInteger(planned.plannedDays)) throw new Error('Dias previstos devem ser inteiros.');
-    return { key: row.key, ...(byDate ? { label: row.label.trim() } : {}), startDate: row.startDate, endDate: row.endDate ?? null, mobilizationDate, ...planned };
+    const previous = previousRows.find(item => item.key === row.key);
+    const manualProgressPct = row.manualProgressPct === undefined ? previous?.manualProgressPct : row.manualProgressPct;
+    const forceManualProgress = row.forceManualProgress === undefined ? previous?.forceManualProgress : row.forceManualProgress;
+    if (manualProgressPct != null && (!Number.isFinite(manualProgressPct) || manualProgressPct < 0 || manualProgressPct > 100)) {
+      throw new Error('Informe um avanço manual de 0% a 100%.');
+    }
+    if (forceManualProgress !== undefined && typeof forceManualProgress !== 'boolean') throw new Error('Opção de avanço manual inválida.');
+    if (forceManualProgress && manualProgressPct == null) throw new Error('Informe o avanço manual para forçar sua utilização.');
+    return { key: row.key, ...(byDate ? { label: row.label.trim() } : {}), startDate: row.startDate, endDate: row.endDate ?? null, mobilizationDate, ...planned,
+      ...(manualProgressPct !== undefined ? { manualProgressPct } : {}),
+      ...(forceManualProgress !== undefined ? { forceManualProgress } : {}) };
   });
+}
+
+// O histórico pertence à divisão e só recebe valores gravados pelo servidor.
+function withManualProgressHistory(division, previous) {
+  const history = previous?.manualProgressHistory ?? [];
+  if (division.manualProgressPct != null && division.manualProgressPct !== previous?.manualProgressPct) {
+    return { ...division, manualProgressHistory: [...history, { recordedAt: new Date().toISOString(), progressPct: division.manualProgressPct }] };
+  }
+  return history.length ? { ...division, manualProgressHistory: history } : division;
 }
 
 // Divisões salvas antes do agrupamento por equipamento continuam disponíveis. Quando
@@ -162,8 +181,9 @@ export async function getTrackingDivisions(projectId, client = prisma) {
 
 export async function setTrackingDivisions(projectId, rows, client = prisma) {
   return client.$transaction(async tx => {
-    const { candidates } = await getTrackingDivisions(projectId, tx);
-    const divisions = validateDivisionRows(candidates, rows);
+    const { candidates, divisions: current } = await getTrackingDivisions(projectId, tx);
+    const divisions = validateDivisionRows(candidates, rows, current)
+      .map(division => withManualProgressHistory(division, current.find(item => item.key === division.key)));
     await tx.project.update({ where: { id: projectId }, data: { trackingDivisions: divisions } });
     return { candidates: [...candidates.filter(candidate => candidate.kind !== 'DATE'), ...dateDivisionCandidates(divisions)], divisions };
   });
@@ -172,7 +192,8 @@ export async function setTrackingDivisions(projectId, rows, client = prisma) {
 export async function setTrackingDivision(projectId, row, client = prisma) {
   return client.$transaction(async tx => {
     const { candidates, divisions: current } = await getTrackingDivisions(projectId, tx);
-    const [division] = validateDivisionRows(candidates, [row]);
+    const [validated] = validateDivisionRows(candidates, [row], current);
+    const division = withManualProgressHistory(validated, current.find(item => item.key === row.key));
     const exists = current.some(item => item.key === division.key);
     const divisions = exists
       ? current.map(item => item.key === division.key ? division : item)

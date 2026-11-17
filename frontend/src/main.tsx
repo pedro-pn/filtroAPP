@@ -8,6 +8,7 @@ import '@fontsource-variable/inter/wght.css';
 import App from './App';
 import { AuthProvider } from './auth/AuthProvider';
 import { ToastProvider } from './components/ui/Toast';
+import { AppUpdateNotice } from './components/ui/AppUpdateNotice';
 import { installClientErrorTracking } from './observability/errorTracking';
 import { MaintenancePage } from './pages/MaintenancePage';
 import { ThemeProvider } from './theme/ThemeProvider';
@@ -32,6 +33,7 @@ installClientErrorTracking();
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ThemeProvider>
+      <AppUpdateNotice />
       {isMaintenanceMode ? (
         <MaintenancePage />
       ) : (

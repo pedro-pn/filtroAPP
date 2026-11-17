@@ -3,19 +3,19 @@ import type { IScannerControls } from '@zxing/browser';
 
 import { Modal } from '../../components/ui/Modal';
 import { canUseLiveCamera, cameraErrorMessage } from '../../utils/camera';
-import { parseRomaneioItemQrValue } from '../../utils/romaneioQr';
+import { parseRomaneioQrScan, type RomaneioQrScan } from '../../utils/romaneioQr';
 
 interface RomaneioQrScannerModalProps {
   open: boolean;
   onClose: () => void;
-  onDetectedCatalogItemId: (catalogItemId: string) => void;
+  onDetectedQr: (scan: RomaneioQrScan) => void;
 }
 
-export function RomaneioQrScannerModal({ open, onClose, onDetectedCatalogItemId }: RomaneioQrScannerModalProps) {
+export function RomaneioQrScannerModal({ open, onClose, onDetectedQr }: RomaneioQrScannerModalProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
-  const onDetectedRef = useRef(onDetectedCatalogItemId);
+  const onDetectedRef = useRef(onDetectedQr);
   const completedRef = useRef(false);
   const [message, setMessage] = useState('Aponte a câmera para o QR code do equipamento.');
   const [hasError, setHasError] = useState(false);
@@ -23,8 +23,8 @@ export function RomaneioQrScannerModal({ open, onClose, onDetectedCatalogItemId 
   const liveCameraAvailable = canUseLiveCamera();
 
   useEffect(() => {
-    onDetectedRef.current = onDetectedCatalogItemId;
-  }, [onDetectedCatalogItemId]);
+    onDetectedRef.current = onDetectedQr;
+  }, [onDetectedQr]);
 
   useEffect(() => {
     if (!open) return;
@@ -64,15 +64,15 @@ export function RomaneioQrScannerModal({ open, onClose, onDetectedCatalogItemId 
         video,
         result => {
           if (!result || completedRef.current || disposed) return;
-          const catalogItemId = parseRomaneioItemQrValue(result.getText());
-          if (!catalogItemId) {
+          const scan = parseRomaneioQrScan(result.getText());
+          if (!scan) {
             setMessage('QR code não reconhecido. Use uma etiqueta gerada no romaneio.');
             setHasError(true);
             return;
           }
           completedRef.current = true;
           controlsRef.current?.stop();
-          onDetectedRef.current(catalogItemId);
+          onDetectedRef.current(scan);
         }
       );
       if (disposed || completedRef.current) {
@@ -107,15 +107,15 @@ export function RomaneioQrScannerModal({ open, onClose, onDetectedCatalogItemId 
     try {
       const { BrowserQRCodeReader } = await import('@zxing/browser');
       const result = await new BrowserQRCodeReader().decodeFromImageUrl(imageUrl);
-      const catalogItemId = parseRomaneioItemQrValue(result.getText());
-      if (!catalogItemId) {
+      const scan = parseRomaneioQrScan(result.getText());
+      if (!scan) {
         setMessage('A foto contém um QR code que não pertence ao romaneio.');
         setHasError(true);
         return;
       }
       completedRef.current = true;
       controlsRef.current?.stop();
-      onDetectedRef.current(catalogItemId);
+      onDetectedRef.current(scan);
     } catch {
       setMessage('Não foi possível localizar um QR code na foto. Tente novamente com mais luz e aproximação.');
       setHasError(true);

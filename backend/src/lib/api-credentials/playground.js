@@ -18,6 +18,7 @@ import { ApiCredentialServiceError, effectiveCredentialStatus, validateCredentia
 import { checkPlaygroundDownload } from './playground-downloads.js';
 import { getEfetivoProjectStatus, validateEfetivoProjectStatusRequest } from './efetivo-project-status.js';
 import { getJobRoleSalary, validateJobRoleSalaryRequest } from './job-role-salary.js';
+import { getJobRoleHourlyReference } from './job-role-hourly-reference.js';
 import { ALLOCATION_REVIEW_OPERATION, listConfirmedAllocations, validateAllocationReviewQuery } from './allocation-review.js';
 import { createCrmDocument, createCrmProject, upsertCrmCommercialFact, validateCommercialFact, validateCrmDocument, validateProjectCreation, validateProjectWriteAccess } from './efetivo-project-writes.js';
 import { receiveCrmOpportunity, validateCrmOpportunity } from '../projects/crm-opportunities.js';
@@ -52,7 +53,7 @@ export function validatePlaygroundRequest(input) {
   else if (operation.operationId === 'quality.records.get') parsed.query = integrationSchemas.qualityRecordDetailQuery.parse(parsed.query);
   else if (operation.operationId === 'quality.natures.list') parsed.query = integrationSchemas.qualityNaturesQuery.parse(parsed.query);
   else if (operation.operationId === 'efetivo.projects.status.get') validateEfetivoProjectStatusRequest(parsed.pathParams, parsed.query, { projectAccessMode: 'ALL' });
-  else if (operation.operationId === 'jobRoles.salary.get') validateJobRoleSalaryRequest(parsed.pathParams, parsed.query);
+  else if (['jobRoles.salary.get', 'jobRoles.hourlyReference.get'].includes(operation.operationId)) validateJobRoleSalaryRequest(parsed.pathParams, parsed.query);
   else if (operation.operationId === ALLOCATION_REVIEW_OPERATION) parsed.query = validateAllocationReviewQuery(parsed.query, { scopes: new Set(operation.requiredScopes), projectAccessMode: 'ALL', maxPageSize: 500 });
   else if (operation.operationId === 'efetivo.projects.measurement.get') validateProjectMeasurementRequest(parsed.pathParams, parsed.query, { scopes: new Set(operation.requiredScopes), projectAccessMode: 'ALL' });
   else if (operation.operationId === 'logistics.unloadings.create') validateUnloading(parsed.body, parsed.headers?.['Idempotency-Key'], { scopes: new Set(operation.requiredScopes), projectAccessMode: 'ALL' });
@@ -210,6 +211,9 @@ async function executeScopedPlaygroundOperation(prisma, credentialId, input, opt
         cursorKey: options.cursorKey || context.envConfig.apiTokenHashKeys[context.envConfig.apiTokenActiveKeyVersion] });
       body = { ...result, generatedAt: new Date().toISOString(), schemaVersion: '1.0', requestId };
       rows = result.items.length;
+    } else if (parsed.operationId === 'jobRoles.hourlyReference.get') {
+      body = await getJobRoleHourlyReference(prisma, parsed.pathParams, query, context);
+      rows = 1;
     } else if (parsed.operationId === 'jobRoles.salary.get') {
       body = await getJobRoleSalary(prisma, parsed.pathParams, query, context);
       rows = 1;

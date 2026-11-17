@@ -5,14 +5,16 @@ import { projectAllowsChannel, projectChannelWhere } from '../projects/distribut
  *
  * Ligação (confirmada): ContaPagar.codigo_projeto -> Projeto.codigo (Omie) -> nº da OS no nome
  * do projeto -> Project.code no app. O filtro por codigo_projeto em ListarContasPagar funciona,
- * então as compras são puxadas por projeto (leve).
+ * mas exclusões exigem reconciliar o histórico completo de compras.
  */
 
 import env from '../../config/env.js';
-import { isSedeCostCenterCode, SEDE_OMIE_CODES } from '../acompanhamento/sede-cost-centers.js';
 import { omieCall, omieConfigured } from './client.js';
 import { syncOmieInvoices } from './invoices.js';
+import { syncOmiePurchases } from './purchases.js';
 import prisma from '../prisma.js';
+
+export { syncOmiePurchases } from './purchases.js';
 
 const PAGE_SIZE = 500;
 
@@ -248,185 +250,6 @@ export async function syncOmieCategories({ triggeredBy = 'SCRIPT' } = {}) {
   }
 }
 
-function omieProjectFilterValue(codigo) {
-  const value = Number(codigo);
-  if (!Number.isSafeInteger(value) || value <= 0) {
-    throw new Error(`Código de projeto Omie inválido para backfill: ${codigo}`);
-  }
-  return value;
-}
-
-function isInactiveOmieProjectFilterError(error) {
-  const message = String(error?.body?.faultstring || error?.message || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
-  return message.includes('projeto esta inativo') && message.includes('filtrar_por_projeto');
-}
-
-// Compras (contas a pagar) dos projetos do Omie que casam com um Project do app.
-// Projetos ainda sem histórico completo são consultados diretamente por filtrar_por_projeto.
-// Depois do backfill, sinceDays > 0 mantém os títulos atualizados pela data de alteração.
-export async function syncOmiePurchases({ triggeredBy = 'SCRIPT', sinceDays = null } = {}) {
-  const run = await startRun('purchases', triggeredBy);
-  try {
-    const categories = await prisma.omieCategory.findMany({ select: { codigo: true, descricao: true } });
-    const categoryName = new Map(categories.map(c => [c.codigo, c.descricao]));
-
-    const linked = await prisma.omieProject.findMany({
-      where: {
-        AND: [{ OR: [{ projectId: null }, { project: projectChannelWhere('omie') }] }],
-        OR: [
-          { projectId: { not: null } },
-          { osNumber: { in: SEDE_OMIE_CODES } },
-          { codigo: { in: SEDE_OMIE_CODES } }
-        ]
-      },
-      select: { codigo: true, osNumber: true, projectId: true, inativo: true, purchasesBackfilledAt: true }
-    });
-    const linkedByCodigo = new Map(linked.map(op => [op.codigo, op]));
-    for (const codigo of SEDE_OMIE_CODES) {
-      if (!linkedByCodigo.has(codigo)) linkedByCodigo.set(codigo, { codigo, osNumber: codigo, projectId: null });
-    }
-    if (linkedByCodigo.size === 0) {
-      await finishRun(run.id, 'SUCCESS', { recordsRead: 0, recordsWritten: 0, summary: { note: 'Nenhum projeto Omie vinculado; rode omie:sync projetos.' } });
-      return { read: 0, written: 0, projects: 0 };
-    }
-
-    let written = 0;
-    const upsertRecords = async (records) => {
-      for (const r of records) {
-        const codigoProjeto = r.codigo_projeto != null ? String(r.codigo_projeto) : null;
-        const op = codigoProjeto ? linkedByCodigo.get(codigoProjeto) : null;
-        if (!op) continue; // só títulos de projetos do app ou centros fixos da Sede
-        const omieId = String(r.codigo_lancamento_omie);
-        const categoriaCodigo = r.codigo_categoria ?? null;
-        const data = {
-          omieId,
-          codigoProjeto,
-          projectId: op.projectId ?? null,
-          osNumber: op.osNumber,
-          valor: num(r.valor_documento),
-          statusTitulo: r.status_titulo ?? null,
-          categoriaCodigo,
-          categoriaDescricao: categoriaCodigo ? categoryName.get(categoriaCodigo) ?? null : null,
-          fornecedorCodigo: r.codigo_cliente_fornecedor ? String(r.codigo_cliente_fornecedor) : null,
-          numeroDocumento: r.numero_documento ?? null,
-          numeroDocumentoFiscal: r.numero_documento_fiscal ?? null,
-          origem: r.id_origem ?? null,
-          dataEmissao: parseOmieDate(r.data_emissao),
-          dataVencimento: parseOmieDate(r.data_vencimento),
-          dataPrevisao: parseOmieDate(r.data_previsao),
-          linkStatus: op.projectId ? 'LINKED' : isSedeCostCenterCode(op.osNumber ?? codigoProjeto) ? 'SEDE' : 'UNMATCHED',
-          rawPayload: r,
-          syncedAt: new Date()
-        };
-        // eslint-disable-next-line no-await-in-loop
-        await prisma.omiePurchase.upsert({ where: { omieId }, create: data, update: data });
-        written += 1;
-      }
-    };
-
-    const incremental = Boolean(sinceDays && Number(sinceDays) > 0);
-    const pendingBackfills = linked.filter(project => project.projectId && !project.purchasesBackfilledAt);
-    const targetedPendingBackfills = pendingBackfills.filter(project => !project.inativo);
-    let historicalBackfillProjects = 0;
-    let historicalBackfillRead = 0;
-    let historicalBackfillWritten = 0;
-    let historicalBackfillSkippedInactiveProjects = incremental
-      ? pendingBackfills.length - targetedPendingBackfills.length
-      : 0;
-
-    if (incremental) {
-      for (const project of targetedPendingBackfills) {
-        const writtenBefore = written;
-        let projectRead;
-        try {
-          projectRead = await paginate(
-            '/financas/contapagar/',
-            'ListarContasPagar',
-            {
-              apenas_importado_api: 'N',
-              filtrar_por_projeto: omieProjectFilterValue(project.codigo)
-            },
-            'conta_pagar_cadastro',
-            upsertRecords,
-            `ListarContasPagar projeto ${project.osNumber ?? project.codigo}`
-          );
-        } catch (error) {
-          if (!isInactiveOmieProjectFilterError(error)) throw error;
-          historicalBackfillSkippedInactiveProjects += 1;
-          console.warn(`[omie-sync] backfill de compras ignorado para projeto inativo ${project.osNumber ?? project.codigo}`);
-          continue;
-        }
-        await prisma.omieProject.updateMany({
-          where: { codigo: project.codigo, projectId: project.projectId },
-          data: { purchasesBackfilledAt: new Date() }
-        });
-        historicalBackfillProjects += 1;
-        historicalBackfillRead += projectRead;
-        historicalBackfillWritten += written - writtenBefore;
-      }
-    }
-
-    const baseParam = { apenas_importado_api: 'N' };
-    if (incremental) {
-      baseParam.filtrar_apenas_alteracao = 'S';
-      baseParam.filtrar_por_data_de = omieDateStr(new Date(Date.now() - Number(sinceDays) * 86400000));
-    }
-
-    const regularRead = await paginate(
-      '/financas/contapagar/',
-      'ListarContasPagar',
-      baseParam,
-      'conta_pagar_cadastro',
-      upsertRecords
-    );
-
-    if (!incremental) {
-      for (const project of pendingBackfills) {
-        await prisma.omieProject.updateMany({
-          where: { codigo: project.codigo, projectId: project.projectId },
-          data: { purchasesBackfilledAt: new Date() }
-        });
-        historicalBackfillProjects += 1;
-      }
-    }
-
-    const tracked = [...linkedByCodigo.values()];
-    const linkedProjects = tracked.filter(op => op.projectId).length;
-    const sedeCenters = tracked.filter(op => !op.projectId && isSedeCostCenterCode(op.osNumber ?? op.codigo)).length;
-    const read = historicalBackfillRead + regularRead;
-    await finishRun(run.id, 'SUCCESS', {
-      recordsRead: read,
-      recordsWritten: written,
-      summary: {
-        linkedProjects,
-        sedeCenters,
-        incremental,
-        historicalBackfillProjects,
-        historicalBackfillRead,
-        historicalBackfillWritten,
-        historicalBackfillSkippedInactiveProjects,
-        historicalBackfillMode: incremental ? 'TARGETED' : 'FULL_SCAN'
-      }
-    });
-    return {
-      read,
-      written,
-      projects: linkedProjects,
-      sedeCenters,
-      historicalBackfillProjects,
-      historicalBackfillRead,
-      historicalBackfillWritten,
-      historicalBackfillSkippedInactiveProjects
-    };
-  } catch (error) {
-    await finishRun(run.id, 'ERROR', { error: error.message });
-    throw error;
-  }
-}
-
 // Receitas/faturamento dos projetos do Omie que casam com um Project do app.
 // Usado no acompanhamento para trocar a base prevista pela venda realmente faturada no Omie.
 export async function syncOmieReceivables({ triggeredBy = 'SCRIPT', sinceDays = null } = {}) {
@@ -545,8 +368,8 @@ export async function syncOmieAll({ triggeredBy = 'SCRIPT', sinceDays = null } =
 }
 
 // === Job agendado (in-process, padrão do app) ===
-// Atualiza projetos/categorias, conclui o histórico dos vínculos ainda pendentes por projeto
-// e mantém compras/receitas atualizadas pela janela incremental de N dias.
+// Atualiza projetos/categorias, reconcilia todo o histórico de compras
+// e mantém receitas atualizadas pela janela incremental de N dias.
 let omieJobRunning = false;
 
 export function startOmieSyncJob() {
@@ -585,5 +408,5 @@ export function startOmieSyncJob() {
   const kickoff = setTimeout(run, 60 * 1000);
   if (typeof kickoff.unref === 'function') kickoff.unref();
 
-  console.log(`[omie-sync] agendado a cada ${intervalMinutes} min (históricos pendentes por projeto + incrementais ${sinceDays}d).`);
+  console.log(`[omie-sync] agendado a cada ${intervalMinutes} min (reconciliação completa de compras + receitas incrementais ${sinceDays}d).`);
 }

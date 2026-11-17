@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { Prisma } from '@prisma/client';
 import prisma from '../src/lib/prisma.js';
 import {
   buildEffectiveAllocationIndex,
@@ -56,7 +57,8 @@ function mockCalculation(t, {
     ? (await reportRead(args)).map((report, index) => ({ id: 'report-' + index, ...report }))
     : args.where.project?.offshore ? [] : reportRows);
   const originalRaw = prisma.$queryRaw;
-  prisma.$queryRaw = async (_query, reportIds) => {
+  prisma.$queryRaw = async (_query, ...parameters) => {
+    const reportIds = parameters[0];
     if (_query.join('').includes('labor.day-decisions')) return [{ overrides: await prisma.pontoDayProjectOverride.findMany(), reviews: [] }];
     if (_query.join('').includes('labor.period-reference-rows')) return [{ ignored: [], holidays: [], revision: 1 }];
     if (_query.join('').includes('labor.period-collaborators')) return [{ collaborators: [{
@@ -64,7 +66,8 @@ function mockCalculation(t, {
       jobRoleHistory: (person.jobRoleHistory || []).map(history => ({ ...history,
         effectiveDate: new Date(history.effectiveDate).toISOString().slice(0,10)
       }))
-    }], absences: await prisma.collaboratorAbsence.findMany() }];
+    }], absences: Prisma.sql(_query, ...parameters).text.includes('"CollaboratorAbsence"')
+      ? await prisma.collaboratorAbsence.findMany() : [] }];
     if (_query.join('').includes('labor.cost-reference-rows')) return costReferenceRows({
       roles: await prisma.jobRole.findMany(), profiles: await prisma.costProfile.findMany(),
       settings: await prisma.acompanhamentoSetting.findMany()
@@ -347,4 +350,26 @@ test('falha na disponibilidade rejeita a leitura e a requisição seguinte consu
   assert.equal(reads, 2);
   assert.equal(recovered.rates.length, 1);
   assert.equal(recovered.rates[0].workforceCalendarRevision, 1);
+});
+
+test('uncached financial readers omit unused workforce annotations while keeping every cost and allocation field', async t => {
+  let availabilityReads = 0;
+  mockCalculation(t, {
+    days: [{ date: '2026-09-21', workedMinutes: 480, tags: [] }],
+    availabilityRead: async () => { availabilityReads++; return []; }
+  });
+  const full = await computeCollaboratorRates();
+  assert.equal(availabilityReads, 1);
+  const financial = await computeCollaboratorRates(null, { includeWorkforceDetails: false });
+  assert.equal(availabilityReads, 1, 'Financial readers do not query the unused absence source');
+  const strip = rate => {
+    const { workforceDays: _days, workforceConflicts: _conflicts, workforceCalendarRevision: _revision, ...cost } = rate;
+    return cost;
+  };
+  assert.deepEqual(financial.rates, full.rates.map(strip));
+  assert.deepEqual([...financial.byCollaboratorId], [...full.byCollaboratorId].map(([id, rate]) => [id, strip(rate)]));
+  assert.equal(financial.rates[0], financial.byCollaboratorId.get('c1'));
+  const fullAgain = await computeCollaboratorRates();
+  assert.equal(availabilityReads, 2);
+  assert.deepEqual(fullAgain, full);
 });

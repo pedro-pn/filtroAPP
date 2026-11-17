@@ -5,6 +5,7 @@ const sourceBundles = {
     'src/components/stats/StatsOverview.tsx'
   ],
   'src/pages/gestor/GestorPage.tsx': [
+    'src/components/projects/ProjectClientFields.tsx',
     'src/pages/gestor/GestorPage.shared.tsx',
     'src/pages/gestor/GestorPage.tsx'
   ],

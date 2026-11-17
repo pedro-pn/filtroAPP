@@ -103,8 +103,10 @@ test('all administrative, quality and operational operations have unique IDs and
       assert.equal(createOperationalRouter().stack.find(layer => layer.route?.path === path)?.route?.methods.get, true);
       continue;
     }
-    if (['getIntegrationEfetivoProjectStatus', 'getIntegrationJobRoleSalary', 'getIntegrationProjectMeasurement'].includes(operation.operationId)) {
-      const path = operation.operationId === 'getIntegrationProjectMeasurement' ? '/efetivo/projetos/:id/medicao' : operation.operationId === 'getIntegrationJobRoleSalary' ? '/cargos/:id/salario' : '/efetivo/projetos/:id/status';
+    if (['getIntegrationEfetivoProjectStatus', 'getIntegrationJobRoleSalary', 'getIntegrationJobRoleHourlyReference', 'getIntegrationProjectMeasurement'].includes(operation.operationId)) {
+      const path = operation.operationId === 'getIntegrationProjectMeasurement' ? '/efetivo/projetos/:id/medicao'
+        : operation.operationId === 'getIntegrationJobRoleSalary' ? '/cargos/:id/salario'
+        : operation.operationId === 'getIntegrationJobRoleHourlyReference' ? '/cargos/:id/referencia-hh' : '/efetivo/projetos/:id/status';
       const route = createOperationalRouter().stack.find(layer => layer.route?.path === path)?.route;
       assert.equal(route?.methods.get, true);
       continue;

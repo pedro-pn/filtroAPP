@@ -2,8 +2,12 @@ import { Router } from 'express';
 import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
-import { createEquipmentAttachment, createEquipmentPhoto, createGeneratedEquipmentAttachment, equipmentAttachmentsInclude, removeEquipmentAttachments, removeEquipmentAttachmentsByIds, resolveEquipmentPhotoAssets, serializeEquipmentAttachment, withCurrentAttachments, EquipmentAttachmentKinds } from '../../lib/equipment-attachments.js';
+import { createEquipmentAttachment, createEquipmentPhoto, createGeneratedEquipmentAttachment, equipmentAttachmentsInclude, removeEquipmentAttachments, removeEquipmentAttachmentsByIds, resolveEquipmentPhotoAssets, listCategoryOperationPhotos, resolveOperationPhotoAssets, serializeEquipmentAttachment, withCurrentAttachments, EquipmentAttachmentKinds } from '../../lib/equipment-attachments.js';
 import { generateTechnicalDatasheetPdf } from '../../lib/equipment-technical-docx.js';
+import { withRomaneioCatalogIds } from '../../lib/equipamentos/romaneio-link.js';
+import { buildQrLinkSettings, normalizeQrAccess } from '../../lib/equipamentos/qr-link.js';
+import { pruneOperationPhotos, resolveOperationStepItems } from '../../lib/equipamentos/operation-manual-photos.js';
+import { generateOperationManualPdf, normalizeOperationStepItems, resolveEffectiveOperationSteps, serializeOperationStepItems, MAX_OPERATION_STEPS, MAX_OPERATION_STEP_LENGTH, MAX_OPERATION_STEP_PHOTOS } from '../../lib/equipamentos/operation-manual.js';
 import { notifyCalibrationUpdatedSafely } from '../../lib/calibration-reminders.js';
 import { normalizeFieldSchema, normalizeTechnicalSchema, slugifySystemKey } from '../../lib/equipment-categories.js';
 import { removeTechnicalStandard, saveCategoryTechnicalStandard, updateTechnicalStandard } from '../../lib/equipamentos/technical-standards.js';
@@ -12,6 +16,7 @@ import { getEquipmentNotificationConfig, listEquipmentNotificationRecipients, no
 import { getSlot, resolveRdoSlotMap } from '../../lib/rdo-equipment-slots.js';
 import { measurementCatalog } from '../../lib/equipment-units.js';
 import prisma from '../../lib/prisma.js';
+import { Prisma } from '@prisma/client';
 import { clearEquipmentModuleCaches, clearRomaneioCatalogDependentCaches } from '../../lib/resource-list-cache.js';
 import { syncRomaneioCatalog } from '../../lib/romaneio-catalog.js';
 import { requireAuth, requireEquipamentosAccess, requireEquipamentosManager } from '../../middleware/auth.js';
@@ -57,6 +62,15 @@ const technicalStandardSchema = z.object({
   technicalSchema: z.array(technicalFieldSchema)
 });
 const checklistItemsSchema = z.array(z.string().trim().min(1).max(300)).max(100);
+// Passos do equipamento: texto puro ou { text, photos } — cada foto é uma já salva ({ id })
+// ou uma nova enviada como dataURL.
+const operationStepWithPhotosSchema = z.object({
+  text: z.string().trim().min(1).max(MAX_OPERATION_STEP_LENGTH),
+  photos: z.array(z.union([z.object({ id: z.string().min(1) }), imageUploadSchema])).max(MAX_OPERATION_STEP_PHOTOS).optional()
+});
+const equipmentOperationStepsSchema = z.array(
+  z.union([z.string().trim().min(1).max(MAX_OPERATION_STEP_LENGTH), operationStepWithPhotosSchema])
+).max(MAX_OPERATION_STEPS);
 
 const categorySchema = z.object({
   name: z.string().trim().min(1),
@@ -71,6 +85,8 @@ const categorySchema = z.object({
   checklistEnabled: z.boolean().optional(),
   checklistDisplayMode: z.enum(['AUTO', 'TAG', 'NAME']).optional(),
   checklistItems: checklistItemsSchema.optional(),
+  operationManualEnabled: z.boolean().optional(),
+  operationSteps: equipmentOperationStepsSchema.optional(),
   supportsCalibration: z.boolean().optional(),
   supportsTechnicalDoc: z.boolean().optional(),
   attachmentsEnabled: z.boolean().optional(),
@@ -313,7 +329,8 @@ router.get(
       where: { isActive: true },
       orderBy: [{ order: 'asc' }, { name: 'asc' }]
     });
-    res.json(categories);
+    const photos = await listCategoryOperationPhotos(prisma, categories.map(category => category.id));
+    res.json(categories.map(category => ({ ...category, operationPhotos: photos.get(category.id) || [] })));
   })
 );
 
@@ -336,19 +353,29 @@ router.post(
       checklistEnabled: data.checklistEnabled ?? false,
       checklistDisplayMode: normalizeChecklistDisplayMode(data.checklistDisplayMode),
       checklistItems: normalizeChecklistItems(data.checklistItems),
+      operationManualEnabled: data.operationManualEnabled ?? false,
+      operationSteps: [], // gravados abaixo, depois de existir a categoria (as fotos pertencem a ela)
       technicalDocEnabled: data.technicalDocEnabled ?? false,
       supportsCalibration: data.supportsCalibration ?? false,
       supportsTechnicalDoc: data.supportsTechnicalDoc ?? true,
       attachmentsEnabled: data.attachmentsEnabled ?? false,
       syncToRomaneio: data.syncToRomaneio ?? false
     };
-    const category = data.technicalSchema !== undefined || data.technicalStandardId !== undefined
+    let category = data.technicalSchema !== undefined || data.technicalStandardId !== undefined
       ? await prisma.$transaction(tx => saveCategoryTechnicalStandard(tx, null, payload))
       : await prisma.equipmentCategory.create({ data: payload });
+    if (data.operationSteps?.length) {
+      const items = await resolveOperationStepItems(prisma, { categoryId: category.id, steps: data.operationSteps });
+      category = await prisma.equipmentCategory.update({
+        where: { id: category.id },
+        data: { operationSteps: serializeOperationStepItems(items) }
+      });
+    }
     const importedFromRomaneio = await importRomaneioEquipmentIntoCategory(category);
     invalidateCaches();
     if (category.syncToRomaneio) await syncRomaneioCatalog();
-    res.status(201).json({ ...category, importedFromRomaneio });
+    const operationPhotos = (await listCategoryOperationPhotos(prisma, [category.id])).get(category.id) || [];
+    res.status(201).json({ ...category, operationPhotos, importedFromRomaneio });
   })
 );
 
@@ -379,6 +406,7 @@ router.put(
           }
         : {}),
       ...(data.checklistItems !== undefined ? { checklistItems: normalizeChecklistItems(data.checklistItems) } : {}),
+      ...(data.operationManualEnabled !== undefined ? { operationManualEnabled: data.operationManualEnabled } : {}),
       ...(data.technicalDocEnabled !== undefined ? { technicalDocEnabled: data.technicalDocEnabled } : {}),
       ...(data.supportsCalibration !== undefined ? { supportsCalibration: data.supportsCalibration } : {}),
       ...(data.supportsTechnicalDoc !== undefined ? { supportsTechnicalDoc: data.supportsTechnicalDoc } : {}),
@@ -391,11 +419,28 @@ router.put(
     // na colisão de chave natural do catálogo) a cada salvamento.
     const previous = await prisma.equipmentCategory.findUnique({
       where: { id: req.params.id },
-      select: { name: true, syncToRomaneio: true }
+      select: { name: true, syncToRomaneio: true, operationSteps: true }
     });
-    const category = data.technicalSchema !== undefined || data.technicalStandardId !== undefined
+    let category = data.technicalSchema !== undefined || data.technicalStandardId !== undefined
       ? await prisma.$transaction(tx => saveCategoryTechnicalStandard(tx, req.params.id, payload))
       : await prisma.equipmentCategory.update({ where: { id: req.params.id }, data: payload });
+    if (data.operationSteps !== undefined) {
+      // Modelo de passos (texto + fotos). Se mudou, os equipamentos que herdam (sem passos próprios)
+      // ganham nova revisão e seu PDF anterior passa a constar como desatualizado.
+      const items = await resolveOperationStepItems(prisma, { categoryId: category.id, steps: data.operationSteps });
+      const changed = JSON.stringify(normalizeOperationStepItems(previous?.operationSteps)) !== JSON.stringify(items);
+      category = await prisma.equipmentCategory.update({
+        where: { id: category.id },
+        data: { operationSteps: serializeOperationStepItems(items) }
+      });
+      await pruneOperationPhotos(prisma, { categoryId: category.id }, items);
+      if (changed) {
+        await prisma.companyEquipment.updateMany({
+          where: { categoryId: category.id, operationSteps: { equals: Prisma.DbNull } },
+          data: { operationRevision: { increment: 1 }, operationUpdatedAt: new Date() }
+        });
+      }
+    }
     const nameChanged = data.name !== undefined && previous && data.name !== previous.name;
     const syncChanged = data.syncToRomaneio !== undefined && previous && data.syncToRomaneio !== previous.syncToRomaneio;
     // Ao mudar nome/sync, reaproveita equipamentos do romaneio que casem com a categoria
@@ -409,7 +454,8 @@ router.put(
     if (nameChanged || syncChanged) {
       await syncRomaneioCatalog();
     }
-    res.json({ ...category, importedFromRomaneio });
+    const operationPhotos = (await listCategoryOperationPhotos(prisma, [category.id])).get(category.id) || [];
+    res.json({ ...category, operationPhotos, importedFromRomaneio });
   })
 );
 
@@ -713,7 +759,7 @@ router.get(
         }
       }
     });
-    res.json(items.map(withCurrentAttachments));
+    res.json(await withRomaneioCatalogIds(prisma, items.map(withCurrentAttachments)));
   })
 );
 
@@ -869,7 +915,7 @@ router.post(
       where: { id: item.id },
       include: equipmentAttachmentsInclude
     });
-    res.status(201).json(withCurrentAttachments(fresh));
+    res.status(201).json(await withRomaneioCatalogIds(prisma, withCurrentAttachments(fresh)));
   })
 );
 
@@ -977,7 +1023,7 @@ router.put(
         previousExpiresAt: previous?.expiresAt
       });
     }
-    res.json(withCurrentAttachments(fresh));
+    res.json(await withRomaneioCatalogIds(prisma, withCurrentAttachments(fresh)));
   })
 );
 
@@ -1045,6 +1091,124 @@ router.post(
     });
     invalidateCaches();
     return res.status(201).json(serializeEquipmentAttachment(attachment));
+  })
+);
+
+// Link da página pública do QR code e acesso de cada documento (todos os usuários do módulo veem;
+// só o gestor altera).
+router.get('/:id/qr-link', asyncHandler(async (req, res) => {
+  const settings = await buildQrLinkSettings(prisma, req.params.id);
+  if (!settings) return res.status(404).json({ error: 'Equipamento não encontrado.' });
+  return res.json(settings);
+}));
+
+router.put('/:id/qr-access', requireEquipamentosManager, asyncHandler(async (req, res) => {
+  const { access } = z.object({ access: z.record(z.string(), z.enum(['PUBLIC', 'LOGIN', 'HIDDEN'])) }).parse(req.body);
+  const equipment = await prisma.companyEquipment.findUnique({ where: { id: req.params.id }, select: { id: true, isActive: true } });
+  if (!equipment?.isActive) return res.status(404).json({ error: 'Equipamento não encontrado.' });
+  await prisma.companyEquipment.update({ where: { id: equipment.id }, data: { qrDocumentAccess: normalizeQrAccess(access) } });
+  invalidateCaches();
+  return res.json(await buildQrLinkSettings(prisma, equipment.id));
+}));
+
+// Gera o PDF do Manual de Operação com os passos efetivos (próprios ou da categoria)
+// e o guarda como o manual atual; o anterior é removido (sem histórico de PDFs).
+async function regenerateOperationManual(equipmentId) {
+  const equipment = await prisma.companyEquipment.findUnique({
+    where: { id: equipmentId },
+    include: { category: true }
+  });
+  if (!equipment) return null;
+  if (!resolveEffectiveOperationSteps(equipment, equipment.category).length) return null;
+  const photoAssets = await resolveOperationPhotoAssets(prisma, { equipmentId, categoryId: equipment.categoryId });
+  const { bytes, fileName } = await generateOperationManualPdf(equipment, equipment.category, photoAssets);
+  const attachment = await createGeneratedEquipmentAttachment(prisma, {
+    equipmentId,
+    kind: EquipmentAttachmentKinds.OPERATION_MANUAL_GENERATED,
+    fileName,
+    bytes
+  });
+  if (attachment) {
+    await removeEquipmentAttachments(prisma, equipmentId, EquipmentAttachmentKinds.OPERATION_MANUAL_GENERATED, { exceptIds: [attachment.id] });
+  }
+  return attachment;
+}
+
+async function loadEquipmentWithAttachments(id) {
+  const fresh = await prisma.companyEquipment.findUnique({
+    where: { id },
+    include: { ...equipmentAttachmentsInclude, category: { select: { name: true } } }
+  });
+  return withCurrentAttachments(fresh);
+}
+
+// Salva os passos próprios do equipamento (lista vazia = volta a herdar o modelo da
+// categoria) e regenera o PDF do manual. Só gestor.
+router.put(
+  '/:id/operation-manual',
+  requireEquipamentosManager,
+  asyncHandler(async (req, res) => {
+    const { steps } = z.object({ steps: equipmentOperationStepsSchema }).parse(req.body);
+    const equipment = await prisma.companyEquipment.findUnique({
+      where: { id: req.params.id },
+      include: { category: true }
+    });
+    if (!equipment?.isActive) return res.status(404).json({ error: 'Equipamento não encontrado.' });
+    if (!equipment.category?.operationManualEnabled) {
+      return res.status(400).json({ error: 'A categoria deste equipamento não tem o Manual de Operação habilitado.' });
+    }
+
+    // Fotos: reaproveita as já salvas deste equipamento, grava as novas e copia para o equipamento as
+    // fotos do modelo da categoria quando os passos herdados passam a ser próprios.
+    const nextItems = await resolveOperationStepItems(prisma, {
+      equipmentId: equipment.id,
+      categoryId: equipment.categoryId,
+      steps
+    });
+    const previousItems = Array.isArray(equipment.operationSteps) ? normalizeOperationStepItems(equipment.operationSteps) : [];
+    if (JSON.stringify(previousItems) !== JSON.stringify(nextItems)) {
+      await prisma.companyEquipment.update({
+        where: { id: equipment.id },
+        data: {
+          operationSteps: nextItems.length ? serializeOperationStepItems(nextItems) : Prisma.DbNull,
+          operationRevision: { increment: 1 },
+          operationUpdatedAt: new Date()
+        }
+      });
+    }
+    // Fotos que deixaram de ser referenciadas por algum passo são apagadas.
+    await pruneOperationPhotos(prisma, { equipmentId: equipment.id }, nextItems);
+    let pdfError = null;
+    try {
+      await regenerateOperationManual(equipment.id);
+    } catch (error) {
+      console.error('Falha ao gerar manual de operação:', error);
+      pdfError = 'Os passos foram salvos, mas não foi possível gerar o PDF. Tente novamente.';
+    }
+    invalidateCaches();
+    return res.json({ equipment: await loadEquipmentWithAttachments(equipment.id), pdfError });
+  })
+);
+
+// Regenera apenas o PDF (ex.: manual desatualizado após mudança no modelo da categoria).
+router.post(
+  '/:id/operation-manual/pdf',
+  requireEquipamentosManager,
+  asyncHandler(async (req, res) => {
+    const equipment = await prisma.companyEquipment.findUnique({
+      where: { id: req.params.id },
+      include: { category: true }
+    });
+    if (!equipment?.isActive) return res.status(404).json({ error: 'Equipamento não encontrado.' });
+    if (!equipment.category?.operationManualEnabled) {
+      return res.status(400).json({ error: 'A categoria deste equipamento não tem o Manual de Operação habilitado.' });
+    }
+    if (!resolveEffectiveOperationSteps(equipment, equipment.category).length) {
+      return res.status(400).json({ error: 'Cadastre os passos do manual (no equipamento ou no modelo da categoria) antes de gerar o PDF.' });
+    }
+    await regenerateOperationManual(equipment.id);
+    invalidateCaches();
+    return res.json({ equipment: await loadEquipmentWithAttachments(equipment.id), pdfError: null });
   })
 );
 

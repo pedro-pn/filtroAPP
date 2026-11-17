@@ -729,6 +729,54 @@ Novas tabelas de aplicação exigem o mesmo trigger em sua migration. O teste
 `derived-read-cache.integration.test.js` compara cobertura com o schema Prisma.
 O flag não deve ser habilitado quando esse gate ou a migration falhar.
 
+### Continuação local de recálculo e JSON — 13/11
+
+O usuário informou que a entrega anterior está em produção e alterou o
+espaçamento dos backups. As otimizações seguintes foram feitas somente na
+worktree, sobre a main `1b46fa52`; não alteram esse agendamento.
+
+Custos de projeto e `view=summary` do ponto dispensam a preparação de calendários
+e alertas de workforce que suas respostas não utilizam, no caminho sem snapshot
+mensal. A leitura completa e o snapshot mensal compartilhado continuam completos,
+com as mesmas regras de custo e fontes. Cards, projeto, grupo e colaboradores
+também podem enviar o JSON já codificado no cache de respostas, mantendo a
+verificação de revisão e projeção por usuário. Opções próprias de JSON do Express
+seguem pela renderização normal. A fonte mensal agora tem ordem estável por
+`createdAt`/`id`, inclusive após atualização de pais criados em lote.
+
+Não é necessário adicionar variável, migration ou Redis. O recálculo reduzido
+funciona com `ACOMPANHAMENTO_READ_CACHE_ENABLED=false`. O caminho de JSON pronto
+usa master/respostas já existentes; sua ativação continua dependendo do aceite
+em staging. Snapshot mensal habilitado ainda prepara o grafo completo para
+compartilhar com o ponto; não aplicar a ele o ganho observado sem snapshot.
+
+Validação local: **3.004 testes do backend aprovados, 53 ignorados**, e **30 da
+bateria PostgreSQL/HTTP/snapshots aprovados**, sem falhas finais. O ensaio HTTP
+teve 1.600 respostas 200 e igualdade dos campos; a ordem antes indefinida do
+roster é agora determinística. O cenário financeiro esparso reduziu a mediana
+aquecida em 36,70%; o denso não mostrou ganho consistente. Isso não é aceite
+de p95 publicado ou de carregamento no navegador.
+
+Após publicar em staging, comparar resumo com a visão completa e conferir seus
+alertas, custos, perfis, divisões e atualização em outra sessão. Começar com o
+cache desligado, depois repetir somente respostas, mantendo as demais camadas
+desligadas. Validar a produção pelo roteiro anterior após esse aceite. Ver
+[detalhes da implementação](OTIMIZACOES_RECALCULO_JSON_2026-11-13.md) e
+[evidência](evidence/performance-recalc-json-20261113.json).
+
+No complemento local de 13/11, o caminho financeiro/resumo também deixa de
+consultar `CollaboratorAbsence`, `WorkforceHoliday` e `WorkforceCalendarState`.
+As duas consultas de pacotes continuam necessárias para identidades, histórico
+de cargos e ignorados; foram removidas três subconsultas, sem reduzir a contagem
+dessas duas viagens ao banco. As chaves de referências distinguem os pacotes
+completos e reduzidos, dentro da requisição e entre requisições verificadas.
+O padrão completo e o snapshot mensal compartilhado continuam completos. O
+complemento não exige variável ou migration. Sua validação final aprovou
+**3.009 testes de backend** (53 ignorados), **39 verificações PostgreSQL/HTTP/caches**
+e **39 testes unitários focados**, sem falhas. As medições anteriores acima não
+medem essa mudança adicional; ver a
+[evidência específica](evidence/performance-workforce-source-projection-20261113.json).
+
 ## Observação HTTP por 24 horas
 
 Configurar em homologação e, posteriormente, na janela de produção aprovada:

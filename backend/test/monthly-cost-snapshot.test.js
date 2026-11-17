@@ -29,10 +29,10 @@ test('verified cost and point readers share pending work but receive separate Ma
   let reads = 0, release;
   await readContext(() => request.get('v1', 'pending', async () => {
     const load = options => {
-      reads++; assert.deepEqual(options, { includeIgnoredNames: true });
+      reads++; assert.deepEqual(options, { includeIgnoredNames: true, includeWorkforceDetails: true });
       return new Promise(resolve => { release = () => resolve(snapshot(10)); });
     };
-    const cost = readMonthlyCostSnapshot(null, { includeIgnoredNames: false }, load);
+    const cost = readMonthlyCostSnapshot(null, { includeIgnoredNames: false, includeWorkforceDetails: false }, load);
     const point = readMonthlyCostSnapshot(null, { includeIgnoredNames: true }, load);
     await Promise.resolve();
     release();
@@ -133,7 +133,7 @@ test('large monthly results bypass encoding/copying and each request owns its co
   let calls = 0;
   const trace = { stages: {} };
   const load = options => {
-    assert.deepEqual(options, { includeIgnoredNames: true });
+    assert.deepEqual(options, { includeIgnoredNames: true, includeWorkforceDetails: true });
     calls++;
     const value = snapshot(.1 + .2);
     value.rates[0].longHistory = 'x'.repeat(32 * 1024 * 1024);

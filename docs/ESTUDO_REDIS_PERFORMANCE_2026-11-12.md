@@ -171,6 +171,12 @@ Dados: [evidência do ensaio Redis](evidence/performance-redis-component-study-4
 
 ## Próximos incrementos recomendados
 
+**Atualização de 13/11:** as frentes locais de recálculo e envio do JSON pronto
+receberam implementação e testes, descritos em
+[Recálculo financeiro e envio de JSON](OTIMIZACOES_RECALCULO_JSON_2026-11-13.md).
+O aceite em staging/produção e as limitações do cenário denso continuam em aberto;
+os itens abaixo registram as recomendações que originaram essa continuação.
+
 1. **Homologar somente respostas**, mantendo mensal/referências/avanço desligados.
    Repetir pela interface/HTTPS com perfis financeiros e restritos, divisões e
    atualização em outra sessão após escritas. A comparação atual favorece essa
