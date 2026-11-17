@@ -79,6 +79,25 @@
   justify-self: start;
 }
 
+.epi-page-v2 .epi-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--space-9);
+  margin-inline-end: auto;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.epi-page-v2 .epi-select-all input {
+  width: var(--space-4);
+  height: var(--space-4);
+  flex: none;
+  margin: 0;
+}
+
 .epi-page-v2 :is(.primary-button, .secondary-button, .mini-btn) {
   min-height: var(--space-9);
   border-radius: var(--radius-md);

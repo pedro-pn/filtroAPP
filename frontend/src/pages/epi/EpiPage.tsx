@@ -29,6 +29,7 @@ import {
 import { useAuth } from '../../auth/AuthContext';
 import { Modal } from '../../components/ui/Modal';
 import { SearchBar } from '../../components/ui/SearchBar';
+import { SearchCombobox } from '../../components/ui/SearchCombobox';
 import { useToast } from '../../components/ui/ToastContext';
 import { useConfirmDialog } from '../../components/ui/useConfirmDialog';
 import { downloadBlob } from '../../utils/download';
@@ -244,6 +245,10 @@ export function EpiPage() {
 
   const collaboratorsQuery = useQuery({ queryKey: ['epi-collaborators'], queryFn: listEpiCollaborators });
   const catalogQuery = useQuery({ queryKey: ['epi-catalog'], queryFn: listEpiCatalog });
+  const catalogOptions = useMemo(() => [
+    { value: '', label: 'Novo EPI' },
+    ...(catalogQuery.data || []).map(item => ({ value: item.id, label: `${item.name} · ${caLabel(item.ca)}` }))
+  ], [catalogQuery.data]);
   const selectedCatalogItem = (catalogQuery.data || []).find(item => item.id === recordForm.catalogItemId);
   const jobRolesQuery = useQuery({
     queryKey: ['epi-job-roles'],
@@ -396,7 +401,7 @@ export function EpiPage() {
       ...current,
       catalogItemId: item?.id || null,
       epiName: item?.name || current.epiName,
-      ca: item?.ca || current.ca,
+      ca: item ? item.ca || '' : current.ca,
       size: null
     }));
   }
@@ -579,6 +584,8 @@ export function EpiPage() {
               const visibleRecords = recordTab === 'archived' ? archivedRecords : activeRecords;
               const selectedActiveRecords = activeRecords.filter(record => selectedRecordIds.has(record.id));
               const selectedArchivedRecords = archivedRecords.filter(record => selectedArchivedRecordIds.has(record.id));
+              const selectedVisibleRecords = recordTab === 'archived' ? selectedArchivedRecords : selectedActiveRecords;
+              const allVisibleRecordsSelected = visibleRecords.length > 0 && selectedVisibleRecords.length === visibleRecords.length;
               const hasSelectedSigned = selectedActiveRecords.some(record => record.signedAt);
               const hasSelectedActiveRequest = selectedActiveRecords.some(record =>
                 record.signatureRequest?.status === 'PENDING'
@@ -678,15 +685,19 @@ export function EpiPage() {
 
                       {isTechnician ? (
                         <form className="epi-record-form" onSubmit={submitRecord}>
-                          <div className="field-group">
-                            <label htmlFor={`epi-record-catalog-${collaborator.id}`}>EPI cadastrado</label>
-                            <Select id={`epi-record-catalog-${collaborator.id}`} value={recordForm.catalogItemId || ''} onChange={event => selectCatalog(event.target.value)}>
-                              <option value="">Novo EPI</option>
-                              {(catalogQuery.data || []).map(item => (
-                                <option key={item.id} value={item.id}>{item.name} · {caLabel(item.ca)}</option>
-                              ))}
-                            </Select>
-                          </div>
+                          <SearchCombobox
+                            id={`epi-record-catalog-${collaborator.id}`}
+                            label="EPI cadastrado"
+                            value={recordForm.catalogItemId || ''}
+                            options={catalogOptions}
+                            onChange={selectCatalog}
+                            placeholder="Pesquise pelo nome ou CA"
+                            emptyText="Nenhum EPI encontrado."
+                            loading={catalogQuery.isLoading}
+                            variant="select"
+                            clearOnFocus
+                            portal
+                          />
                           <div className="field-group">
                             <label htmlFor={`epi-record-name-${collaborator.id}`}>Nome do EPI</label>
                             <Input id={`epi-record-name-${collaborator.id}`} value={recordForm.epiName} onChange={event => setRecordForm(current => ({ ...current, epiName: event.target.value, catalogItemId: null, size: null }))} required />
@@ -730,6 +741,21 @@ export function EpiPage() {
                       </div>
 
                       <div className="epi-record-actions">
+                        {isTechnician ? (
+                          <label className="epi-select-all">
+                            <input
+                              type="checkbox"
+                              checked={allVisibleRecordsSelected}
+                              ref={element => { if (element) element.indeterminate = selectedVisibleRecords.length > 0 && !allVisibleRecordsSelected; }}
+                              disabled={!visibleRecords.length}
+                              onChange={event => {
+                                const setSelected = recordTab === 'archived' ? setSelectedArchivedRecordIds : setSelectedRecordIds;
+                                setSelected(event.target.checked ? new Set(visibleRecords.map(record => record.id)) : new Set());
+                              }}
+                            />
+                            Selecionar todos
+                          </label>
+                        ) : null}
                         <Button variant="secondary" size="sm" onClick={() => downloadPdf(collaborator, recordTab === 'archived')}>
                           {recordTab === 'archived' ? 'Baixar PDF arquivados' : 'Baixar PDF'}
                         </Button>
