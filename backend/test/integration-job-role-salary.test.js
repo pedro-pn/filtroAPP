@@ -6,6 +6,7 @@ import YAML from 'yaml';
 
 import { API_SCOPES, getApiOperation, publicApiOperations } from '../src/lib/api-credentials/catalog.js';
 import { getJobRoleSalary } from '../src/lib/api-credentials/job-role-salary.js';
+import { getJobRoleHourlyReference } from '../src/lib/api-credentials/job-role-hourly-reference.js';
 import { executePlaygroundOperation, validatePlaygroundRequest } from '../src/lib/api-credentials/playground.js';
 import { apiRequestContext, integrationApiErrorHandler } from '../src/middleware/api-request-context.js';
 import { createOperationalRouter } from '../src/routes/integrations/v1/operational.js';
@@ -131,7 +132,8 @@ test('scope, required real calendar date and strict cargo-only parameters are en
 test('API central catalog and playground expose the dedicated grant with a required date', async () => {
   const definition = API_SCOPES.find(item => item.code === scope);
   assert.equal(definition.status, 'AVAILABLE');
-  assert.deepEqual(definition.exposedFields, ['jobRoleId', 'jobRoleName', 'salary', 'effectiveDate', 'version']);
+  assert.deepEqual(definition.exposedFields, ['jobRoleId', 'jobRoleName', 'salary', 'effectiveDate', 'version',
+    'referenceDate', 'hhAdjustmentPct', 'hhAdjustmentEffectiveDate', 'hhAdjustmentVersion']);
   const operation = publicApiOperations().find(item => item.operationId === operationId);
   assert.deepEqual(operation.requiredScopes, [scope]);
   assert.deepEqual(operation.parameters.map(item => [item.name, item.required]), [['id', true], ['referenceDate', true]]);
@@ -204,4 +206,68 @@ test('HTTP salary route enforces grants, validation and quotas, and records the 
   assert.equal(exceeded.status, 429);
   assert.equal((await exceeded.json()).code, 'QUOTA_EXCEEDED');
   assert.equal(calls.length, 2);
+});
+
+test('HH reference inherits the last explicit adjustment through salary versions, respects dates and explicit zero', async () => {
+  const start = parameterSet('2026-07-01', 2, 3000); start.params.reajusteHhPct = 0.1;
+  const end = parameterSet('2027-01-01', 4, 3300); end.params.reajusteHhPct = 0;
+  const { db } = database([parameterSet('2026-01-01', 1, 3000), start,
+    parameterSet('2026-10-01', 3, 3300), end]);
+  for (const [referenceDate, salary, pct, date, version] of [
+    ['2026-06-30', '3000', 0, null, null],
+    ['2026-07-01', '3000', 0.1, '2026-07-01', 2],
+    ['2026-10-15', '3300', 0.1, '2026-07-01', 2],
+    ['2027-01-01', '3300', 0, '2027-01-01', 4]
+  ]) {
+    const result = await getJobRoleHourlyReference(db, params, { referenceDate }, context);
+    assert.equal(result.salary, salary); assert.equal(result.hhAdjustmentPct, pct);
+    assert.equal(result.hhAdjustmentEffectiveDate, date); assert.equal(result.hhAdjustmentVersion, version);
+    assert.equal(result.referenceDate, referenceDate);
+    assert.doesNotMatch(JSON.stringify(result), /NEVER_EXPOSE/);
+  }
+  assert.equal((await getJobRoleSalary(db, params, query, context)).salary, '3300');
+});
+
+test('HH reference preserves official adjustment with missing salary and rejects invalid factors or insufficient scope', async () => {
+  const set = parameterSet('2026-01-01', 1, null); set.params.reajusteHhPct = 0.1;
+  const { db } = database([set]);
+  const reference = await getJobRoleHourlyReference(db, params, query, context);
+  assert.equal(reference.salary, null); assert.equal(reference.version, null); assert.equal(reference.effectiveDate, null);
+  assert.equal(reference.hhAdjustmentPct, 0.1);
+  for (const pct of [-0.1, 10, '0.1', Infinity]) {
+    set.params.reajusteHhPct = pct;
+    await assert.rejects(getJobRoleHourlyReference(db, params, query, context), { code: 'HH_ADJUSTMENT_INVALID' });
+  }
+  await assert.rejects(getJobRoleHourlyReference(db, params, query, { scopes: new Set(['cargos.read']) }), { code: 'INSUFFICIENT_SCOPE' });
+  await assert.rejects(getJobRoleHourlyReference(db, params, {}, context), { name: 'ZodError' });
+});
+
+test('HH operation is documented, available in playground and metered over HTTP with no-store', async t => {
+  const hourlyId = 'jobRoles.hourlyReference.get';
+  const { db, credential, logs } = database();
+  const playground = await executePlaygroundOperation(db, credential.id, { operationId: hourlyId, pathParams: params, query });
+  assert.equal(playground.response.body.salary, '4086.57');
+  assert.equal(playground.response.body.hhAdjustmentPct, 0);
+  const contract = YAML.parse(await readFile(new URL('../../specs/015-api-token-playground/contracts/openapi.yaml', import.meta.url), 'utf8'));
+  const operation = contract.paths['/integracoes/v1/cargos/{id}/referencia-hh'].get;
+  assert.equal(operation.operationId, getApiOperation(hourlyId).openApiOperationId);
+  assert.deepEqual(operation['x-required-scopes'], [scope]);
+  const schema = operation.responses['200'].content['application/json'].schema;
+  assert.deepEqual(Object.keys(playground.response.body).sort(), schema.required.slice().sort());
+  const app = express(); app.use(apiRequestContext());
+  app.use((req, _res, next) => {
+    req.apiAuth = { credential, scopeCodes: new Set([req.headers['x-test-scope'] || scope]), projectIds: new Set() }; next();
+  });
+  app.use('/api/integracoes/v1', createOperationalRouter({ prismaClient: db })); app.use(integrationApiErrorHandler);
+  const server = app.listen(0, '127.0.0.1'); await new Promise(resolve => server.once('listening', resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const url = `http://127.0.0.1:${server.address().port}/api/integracoes/v1/cargos/role-1/referencia-hh`;
+  assert.equal((await fetch(url)).status, 400);
+  assert.equal((await fetch(`${url}?referenceDate=2026-10-15`, { headers: { 'x-test-scope': 'cargos.read' } })).status, 403);
+  const response = await fetch(`${url}?referenceDate=2026-10-15`);
+  assert.equal(response.status, 200); assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(await response.json(), playground.response.body);
+  assert.ok(logs.some(row => row.operationId === hourlyId && row.responseRows === 1));
+  db.quotaExceeded = true;
+  assert.equal((await fetch(`${url}?referenceDate=2026-10-15`)).status, 429);
 });

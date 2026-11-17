@@ -38,7 +38,7 @@ export const API_SCOPES = Object.freeze([
     status: 'AVAILABLE', dependencies: [], models: ['LogisticsUnloading'], exposedFields: ['id','romaneioId','projectId','tipo','confirmadaEm','confirmadaPorEmail'], excludedFields: ['dados completos do usuário'] },
   { code: 'rdo.relatorios.todos.read', domain: 'RDO e relatórios', label: 'Ler relatórios em todos os estados', description: 'Consulta relatórios enviados PENDING, RETURNED, APPROVED e SIGNED; inclui carimbos de envio, devolução, assinatura e liberação.', sensitivity: 'INTERNAL', status: 'AVAILABLE', dependencies: [], models: ['Report'], exposedFields: [...Object.keys(OPERATIONAL_RESOURCES.find(resource => resource.model === 'Report').fields), 'submittedAt', 'returnedAt', 'signedAt', 'clientReleasedAt'], excludedFields: ['rascunhos', 'tokens', 'imagens de assinatura'] },
   { code: 'qualidade.registros.create', domain: 'Qualidade', label: 'Criar registro de Qualidade pelo Omni', description: 'Cria desvio, incidente ou reclamação em triagem, com origem OMNI, responsável ativo e idempotência obrigatória.', sensitivity: 'INTERNAL', status: 'AVAILABLE', dependencies: [], models: ['QualityRecord'], exposedFields: ['id', 'number', 'status', 'createdAt'], excludedFields: ['usuário completo', 'dados internos de auditoria'] },
-  { code: 'cargos.salarios.read', domain: 'Pessoas, cargos e acesso', label: 'Consultar salário por cargo', description: 'Salário base do cargo vigente na data de referência. Cadastro global compartilhado, independente do recorte de projetos.', sensitivity: 'PERSONAL', status: 'AVAILABLE', dependencies: [], models: ['JobRole', 'CostProfile', 'CostParameterSet'], exposedFields: ['jobRoleId', 'jobRoleName', 'salary', 'effectiveDate', 'version'], excludedFields: ['colaboradores', 'dados pessoais', 'parâmetros internos de custo', 'observações', 'identidade do editor'] },
+  { code: 'cargos.salarios.read', domain: 'Pessoas, cargos e acesso', label: 'Consultar salário e reajuste HH por cargo', description: 'Salário base e reajuste do HH vigentes na data de referência, em projeções próprias. Cadastro global compartilhado, independente do recorte de projetos.', sensitivity: 'PERSONAL', status: 'AVAILABLE', dependencies: [], models: ['JobRole', 'CostProfile', 'CostParameterSet'], exposedFields: ['jobRoleId', 'jobRoleName', 'salary', 'effectiveDate', 'version', 'referenceDate', 'hhAdjustmentPct', 'hhAdjustmentEffectiveDate', 'hhAdjustmentVersion'], excludedFields: ['colaboradores', 'dados pessoais', 'parâmetros internos de custo', 'observações', 'identidade do editor'] },
   { code: 'qualidade.registros.read', domain: 'Qualidade', label: 'Ler registros', description: 'Consulta registros de qualidade permitidos.', sensitivity: 'INTERNAL', status: 'AVAILABLE', dependencies: [] },
   { code: 'qualidade.naturezas.read', domain: 'Qualidade', label: 'Ler naturezas', description: 'Consulta o catálogo de naturezas e suas subnaturezas de qualidade.', sensitivity: 'INTERNAL', status: 'AVAILABLE', dependencies: [] },
   { code: 'qualidade.evidencias.metadata.read', domain: 'Qualidade', label: 'Ler metadados de evidências', description: 'Inclui metadados allowlisted das evidências.', sensitivity: 'PERSONAL', status: 'AVAILABLE', dependencies: ['qualidade.registros.read'] },
@@ -106,6 +106,11 @@ export const API_OPERATIONS = Object.freeze([
   {
     operationId: 'jobRoles.salary.get', openApiOperationId: 'getIntegrationJobRoleSalary', method: 'GET', path: '/cargos/:id/salario',
     label: 'Consultar salário por cargo e data', requiredScopes: ['cargos.salarios.read'],
+    optionalScopes: [], pathParams: ['id'], queryParams: ['referenceDate'], supportsPlayground: true
+  },
+  {
+    operationId: 'jobRoles.hourlyReference.get', openApiOperationId: 'getIntegrationJobRoleHourlyReference', method: 'GET', path: '/cargos/:id/referencia-hh',
+    label: 'Consultar salário e reajuste do HH por cargo e data', requiredScopes: ['cargos.salarios.read'],
     optionalScopes: [], pathParams: ['id'], queryParams: ['referenceDate'], supportsPlayground: true
   },
   {
