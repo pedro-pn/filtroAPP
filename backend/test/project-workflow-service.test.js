@@ -743,7 +743,26 @@ test('listagem preserva líder e equipe da programação operacional no card do 
   assert.equal(mission.participantCount, 1);
   assert.equal(mission.allocations[0].collaborator.name, 'Líder de Campo');
   assert.equal(mission.allocations[0].collaborator.role, 'Supervisor');
+  assert.deepEqual(mission.allocations[0].periods, [{ startDate: '2026-09-15', endDate: '2026-09-20' }]);
   assert.equal(state.lastProjectFindManyInput.select.efetivoMissionPlans.select.allocations.select.collaborator.select.jobRole.select.name, true);
+});
+
+test('documentação da equipe definitiva usa ciclos individuais e preserva confirmações manuais', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-11-17' }, manager, { database });
+  state.operationalMission = {
+    id: 'mission-docs', stage: 'STANDBY', scheduleStatus: 'CONFIRMED', version: 1,
+    mobilizationDate: new Date('2026-11-17'), executionStartDate: new Date('2026-11-18'), executionEndDate: new Date('2026-12-15'), returnDate: null,
+    allocations: [{ id: 'allocation-docs', collaboratorId: 'person-docs', jobRoleId: 'role-1',
+      collaborator: { id: 'person-docs', name: 'Pessoa', isActive: true }, jobRole: { id: 'role-1', name: 'Mecânico' },
+      cycles: [{ mobilizationDate: new Date('2026-11-20'), demobilizationDate: new Date('2026-11-25') },
+        { mobilizationDate: new Date('2026-12-01'), demobilizationDate: null }] }]
+  };
+  const result = await getProjectWorkflow('project-1', manager, { database });
+  const member = result.workflow.teamPreparation.members[0];
+  assert.deepEqual(member.periods, [{ startDate: '2026-11-20', endDate: '2026-11-25' }, { startDate: '2026-12-01', endDate: '2026-12-15' }]);
+  assert(member.checks.every(check => check.status === 'PENDING' && check.source === 'MANUAL'));
+  assert.equal(result.workflow.resourcePlanning.team.complianceSource, 'CONECTA');
 });
 
 test('fluxo legado resumido nasce direto na etapa escolhida, sincroniza a missão oficial e libera o gate de mobilização', async () => {

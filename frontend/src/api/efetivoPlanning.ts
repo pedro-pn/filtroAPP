@@ -509,3 +509,49 @@ export interface RhComplianceItem {
 export async function getPlanningRhCompliance(collaboratorId: string, date: DateOnly) {
   return (await apiClient.get<RhComplianceItem[]>(`${base}/collaborators/${encodeURIComponent(collaboratorId)}/rh`, { params: { date } })).data;
 }
+
+export interface RhComplianceRequest { collaboratorId: string; date: string; endDate: string }
+export interface RhMissionComplianceItem extends RhComplianceItem {
+  expiresDuringMission: boolean;
+  revision: number;
+  sourceUpdatedAt: string;
+  synchronizedAt: string | null;
+  evidence: { fileName: string; contentType: string } | null;
+}
+export interface RhComplianceSync {
+  status: 'OK' | 'ERROR' | 'STALE' | 'UNKNOWN' | 'NOT_CONFIGURED';
+  lastSuccessfulAt: string | null;
+  lastAttemptAt: string | null;
+}
+export interface RhComplianceReport extends RhComplianceRequest {
+  state: 'AVAILABLE' | 'EMPTY' | 'UNMAPPED' | 'NOT_CONFIGURED';
+  items: RhMissionComplianceItem[];
+  sync: RhComplianceSync;
+}
+interface RhComplianceBatch {
+  source: 'CONECTA'; date: string; endDate: string; sync: RhComplianceSync;
+  collaborators: Array<Pick<RhComplianceReport, 'collaboratorId' | 'state' | 'items'>>;
+}
+
+export function rhComplianceKey(request: RhComplianceRequest) {
+  return `${request.collaboratorId}:${request.date}:${request.endDate}`;
+}
+
+export async function getPlanningRhComplianceBatch(requests: RhComplianceRequest[]): Promise<RhComplianceReport[]> {
+  const groups = new Map<string, { date: string; endDate: string; ids: Set<string> }>();
+  for (const request of requests) {
+    const key = `${request.date}:${request.endDate}`;
+    if (!groups.has(key)) groups.set(key, { date: request.date, endDate: request.endDate, ids: new Set() });
+    groups.get(key)!.ids.add(request.collaboratorId);
+  }
+  const batches = [...groups.values()].flatMap(group => {
+    const ids = [...group.ids].sort();
+    return Array.from({ length: Math.ceil(ids.length / 100) }, (_, index) => ({ date: group.date, endDate: group.endDate, ids: ids.slice(index * 100, (index + 1) * 100).join(',') }));
+  });
+  const responses = await Promise.all(batches.map(params => apiClient.get<RhComplianceBatch>(`${base}/collaborators/rh`, { params })));
+  return responses.flatMap(({ data }) => data.collaborators.map(person => ({ ...person, date: data.date, endDate: data.endDate, sync: data.sync })));
+}
+
+export async function getPlanningRhEvidence(collaboratorId: string, item: Pick<RhMissionComplianceItem, 'id' | 'revision'>) {
+  return (await apiClient.get<{ url: string; expiresAt: string; fileName: string }>(`${base}/collaborators/${encodeURIComponent(collaboratorId)}/rh/${encodeURIComponent(item.id)}/evidence`, { params: { revision: item.revision } })).data;
+}

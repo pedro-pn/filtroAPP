@@ -35,6 +35,17 @@ Todos os cinco agregados são preservados, inclusive cancelamentos e revogaçõe
 
 Os salários alimentam parâmetros do cargo na vigência recebida, preservando os demais parâmetros de custo. Uma ausência de salário não cria valor zero. Ocorrências recebidas com cancelamento ou substituição removem somente a projeção pertencente à integração. A conformidade é mantida por pessoa e seu status é recalculado para a data consultada.
 
+## Documentação no planejamento das missões
+
+A seleção da equipe e os cartões da equipe definitiva exibem os documentos, exames, treinamentos e certificados publicados pelo CONECTA. A consulta considera os períodos individuais e cada ciclo de participação; um item válido na mobilização que vence antes do fim do ciclo recebe aviso. O vencimento é inclusivo. O cadastro de colaboradores usa o mesmo painel.
+
+- `GET /api/efetivo/planning/collaborators/rh?ids=...&date=YYYY-MM-DD&endDate=YYYY-MM-DD`: consulta até 100 colaboradores por período, com acesso ao Efetivo e sem cache HTTP. Informa vínculo ausente, ausência de itens, integração não configurada e última sincronização bem-sucedida. A tela agrupa pessoas pelo período e atualiza a consulta a cada minuto. Uma falha ou mais de 15 minutos sem sincronização bem-sucedida gera aviso.
+- `GET /api/efetivo/planning/collaborators/:collaboratorId/rh/:itemId/evidence?revision=N`: resolve um link temporário novo por clique, usando a credencial de leitura somente no servidor. Confere empresa, pessoa, versão e revogação. O cliente recebe o link temporário e seu vencimento; o caminho autenticado e o token do CONECTA não aparecem no DTO de conformidade. ASO e toxicológico oferecem somente a situação de conformidade.
+
+Quando `evidence=null`, a tela informa que o RH não publicou comprovante. A ação de abrir aparece quando a referência é publicada. Uma alteração de revisão exige atualizar a consulta; ausência, revogação e indisponibilidade da origem têm mensagens próprias.
+
+Esta consulta apoia a conferência humana dos requisitos do cliente. Os checklists continuam manuais. O vínculo estruturado entre exigências do projeto/cargo e tipos de conformidade, a reabertura automática de confirmações e os alertas por vencimento permanecem como etapa posterior.
+
 ## Preparação e homologação
 
 O [roteiro de homologação](HOMOLOGACAO_CONECTA_RH.md) detalha as 12 etapas, os testes nas telas e os resultados esperados.

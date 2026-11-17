@@ -20,6 +20,7 @@ import {
   projectWorkflowVisibleStages
 } from '../../../../../shared/schemas/project-workflow.js';
 import { canEditEfetivoChecklistArea } from '../access.js';
+import { allocationPeriods } from '../planning/allocation-period.js';
 import { assignMissionReportTeam, canOperateReports, reportOperatorUserSelect, validateMissionReportOperator } from '../report-team.js';
 import { hasModuleRole } from '../../module-roles.js';
 import { ensureCommercialProposalSync } from '../../projects/commercial-proposal-sync-state.js';
@@ -146,12 +147,16 @@ const OPERATIONAL_MISSION_QUERY = {
     headquartersResponsibleName: true,
     headquartersResponsibleRole: true,
     headquartersResponsibleCollaboratorId: true,
+    cycles: { select: { id: true, mobilizationDate: true, demobilizationDate: true } },
     allocations: {
       where: { deletedAt: null },
       select: {
         id: true,
         collaboratorId: true,
         jobRoleId: true,
+        mobilizationDate: true,
+        demobilizationDate: true,
+        cycles: { select: { id: true, mobilizationDate: true, demobilizationDate: true } },
         collaborator: {
           select: {
             id: true,
@@ -330,6 +335,8 @@ function operationalMissionSummary(project) {
       id: allocation.id,
       collaboratorId: allocation.collaboratorId,
       jobRoleId: allocation.jobRoleId,
+      periods: mission.mobilizationDate && mission.executionEndDate
+        ? allocationPeriods(allocation, mission).map(({ startDate, endDate }) => ({ startDate, endDate })) : [],
       collaborator: allocation.collaborator ? {
         id: allocation.collaborator.id,
         name: allocation.collaborator.name,
@@ -442,6 +449,7 @@ function publicTeamPreparation(workflow, mission, context) {
     collaboratorId: allocation.collaboratorId,
     name: allocation.collaborator?.name || 'Colaborador',
     role: allocation.jobRole?.name || allocation.collaborator?.role || 'Função não informada',
+    periods: allocation.periods || [],
     checks: PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS.filter(definition => !hiddenTeamChecks.includes(definition.key)).map(definition => {
       const record = recordByKey.get(`${allocation.collaboratorId}:${definition.key}`);
       return {

@@ -67,6 +67,9 @@ apiClient.defaults.adapter = async config => {
     } else data = { items: [signatureDocument], nextCursor: null };
   }
   else if (url.includes('/job-roles')) data = [role];
+  else if (url.endsWith('/collaborators/rh')) data = { source: 'CONECTA', date: config.params.date, endDate: config.params.endDate,
+    sync: { status: 'OK', lastSuccessfulAt: new Date().toISOString(), lastAttemptAt: new Date().toISOString() },
+    collaborators: String(config.params.ids).split(',').map(collaboratorId => ({ collaboratorId, state: 'EMPTY', items: [] })) };
   else if (url.includes('/collaborators')) data = people;
   else if (url.endsWith('/missions')) data = [storedMission];
   if (config.method === 'patch' && url.endsWith('/cycles/own')) {

@@ -117,6 +117,72 @@ paths:
       responses:
         '201': { $ref: '#/components/responses/CollaboratorResponse' }
         '400': { $ref: '#/components/responses/ValidationError' }
+  /planning/collaborators/rh:
+    get:
+      tags: [Collaborators]
+      summary: Consulta documentação CONECTA da equipe por período
+      description: Acesso de leitura ao Efetivo. Resposta sem cache, sem token ou caminho autenticado da origem. A consulta não altera confirmações manuais.
+      parameters:
+        - name: ids
+          in: query
+          required: true
+          style: form
+          explode: false
+          schema: { type: array, minItems: 1, maxItems: 100, items: { type: string, minLength: 1, maxLength: 80 } }
+        - name: date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: endDate
+          in: query
+          description: Fim inclusivo do ciclo, igual ou posterior a date. O padrão é date.
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Documentação, estado do vínculo e saúde da sincronização
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RhComplianceBatch' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '403': { description: Sem acesso ao Efetivo }
+        '404': { description: Colaborador inexistente }
+  /planning/collaborators/{collaboratorId}/rh/{itemId}/evidence:
+    get:
+      tags: [Collaborators]
+      summary: Resolve link temporário de comprovante não clínico do CONECTA
+      description: Exige acesso ao Efetivo, empresa e pessoa correspondentes e a revisão consultada. Resolve novo link a cada chamada. Não retorna o token da origem.
+      parameters:
+        - name: collaboratorId
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 80 }
+        - name: itemId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: revision
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: Link temporário sem cache; abrir fora da aplicação
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url, expiresAt, fileName]
+                properties:
+                  url: { type: string, format: uri }
+                  expiresAt: { type: string, format: date-time }
+                  fileName: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '403': { description: Acesso negado ou comprovante clínico não permitido }
+        '404': { description: Comprovante ausente ou não publicado para esta pessoa }
+        '409': { description: Revisão alterada; atualizar consulta }
+        '410': { description: Comprovante revogado ou versão substituída }
+        '502': { description: Origem indisponível ou resposta incompatível }
+        '503': { description: Leitura de comprovantes não configurada }
   /planning/collaborators/{collaboratorId}:
     patch:
       tags: [Collaborators]
@@ -776,6 +842,54 @@ components:
             requiresMissionOverlapConfirmation: { type: boolean }
             isActive: { type: boolean }
             requiresInactiveConfirmation: { type: boolean }
+    RhComplianceBatch:
+      type: object
+      required: [source, date, endDate, sync, collaborators]
+      properties:
+        source: { const: CONECTA }
+        date: { type: string, format: date }
+        endDate: { type: string, format: date }
+        sync:
+          type: object
+          required: [status, lastSuccessfulAt, lastAttemptAt]
+          properties:
+            status: { enum: [OK, ERROR, STALE, UNKNOWN, NOT_CONFIGURED] }
+            lastSuccessfulAt: { type: [string, 'null'], format: date-time }
+            lastAttemptAt: { type: [string, 'null'], format: date-time }
+        collaborators:
+          type: array
+          items:
+            type: object
+            required: [collaboratorId, state, items]
+            properties:
+              collaboratorId: { type: string }
+              state: { enum: [AVAILABLE, EMPTY, UNMAPPED, NOT_CONFIGURED] }
+              items:
+                type: array
+                items:
+                  type: object
+                  required: [id, category, typeCode, title, status, issuedOn, expiresOn, hasNoExpiry, expiresDuringMission, revision, sourceUpdatedAt, synchronizedAt, evidence]
+                  properties:
+                    id: { type: string, format: uuid }
+                    category: { enum: [DOCUMENT, EXAM, TRAINING, CERTIFICATE] }
+                    typeCode: { type: string }
+                    title: { type: string }
+                    status: { enum: [VALID, EXPIRED, REVOKED, PENDING, UNKNOWN] }
+                    issuedOn: { type: [string, 'null'], format: date }
+                    expiresOn: { type: [string, 'null'], format: date }
+                    hasNoExpiry: { type: boolean }
+                    expiresDuringMission: { type: boolean }
+                    revision: { type: integer, minimum: 1 }
+                    sourceUpdatedAt: { type: string, format: date-time }
+                    synchronizedAt: { type: [string, 'null'], format: date-time }
+                    evidence:
+                      oneOf:
+                        - type: 'null'
+                        - type: object
+                          required: [fileName, contentType]
+                          properties:
+                            fileName: { type: string }
+                            contentType: { type: string }
     CollaboratorInput:
       type: object
       required: [name, jobRoleId, admissionDate]

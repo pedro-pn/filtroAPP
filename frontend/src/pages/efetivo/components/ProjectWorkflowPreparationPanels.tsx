@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { ConectaCompliancePanel, ConectaComplianceProvider } from './ConectaCompliancePanel';
 
 import {
   PROJECT_WORKFLOW_TRANSPORT_MODES,
@@ -506,6 +507,9 @@ export function ProjectWorkflowDefinitiveTeam({ workflow, saving, onPatch, onOpe
 }) {
   const progress = sectionProgress(workflow, 'D15_TEAM');
   const members = workflow.teamPreparation.members;
+  const periodsFor = (member: typeof members[number]) => member.periods?.length ? member.periods
+    : [{ startDate: workflow.plannedMobilizationDate || '', endDate: workflow.demobilizationDate || workflow.plannedMobilizationDate || '' }];
+  const complianceRequests = members.flatMap(member => periodsFor(member).map(period => ({ collaboratorId: member.collaboratorId, date: period.startDate, endDate: period.endDate })));
   const complete = members.length > 0 && progress.percentage === 100;
   return (
     <ProjectWorkflowCategory
@@ -531,6 +535,7 @@ export function ProjectWorkflowDefinitiveTeam({ workflow, saving, onPatch, onOpe
             <p>{members.length} colaborador(es) definido(s) para o primeiro ciclo.</p>
             {showTeamEditAction ? <Button type="button" variant="secondary" onClick={onOpenTeamProgramming}>Editar equipe inicial</Button> : null}
           </div>
+          <ConectaComplianceProvider requests={complianceRequests}>
           <div className="project-workflow-team-members">
             {members.map(member => (
               <article className="project-workflow-team-member" key={member.collaboratorId}>
@@ -556,10 +561,12 @@ export function ProjectWorkflowDefinitiveTeam({ workflow, saving, onPatch, onOpe
                     </label>
                   ))}
                 </div>
+                <div className="project-workflow-team-rh">{periodsFor(member).map(period => <ConectaCompliancePanel key={period.startDate + ':' + period.endDate} collaboratorId={member.collaboratorId} date={period.startDate} endDate={period.endDate} compact />)}</div>
               </article>
             ))}
           </div>
-          <small className="project-workflow-integration-note">Exames e treinamentos estão em confirmação manual. A origem de cada item já está preparada para a futura integração externa.</small>
+          </ConectaComplianceProvider>
+          <small className="project-workflow-integration-note">Consulte os dados do CONECTA e confirme as exigências do cliente. A conferência documental permanece sob responsabilidade da equipe.</small>
         </>
       )}
     </ProjectWorkflowCategory>

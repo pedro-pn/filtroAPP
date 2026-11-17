@@ -19,6 +19,7 @@ import { AVAILABILITY_STATUSES, buildMissionAvailabilityColumns, type Availabili
 import { allocationOverlapsPeriod } from '../../../utils/missionAllocationPeriod';
 import { filterCollaboratorsByActivity, filterMissionTeamCollaborators, missionTeamCollaboratorPeriods, plannedRoleCoverage, plannedRoleIdSet, toggleMissionCollaborator, type CollaboratorActivityFilter, type PlannedTeamRole } from '../../../utils/missionTeam';
 import { MissionPeriodFields, type MissionPeriodDraft } from './MissionPeriodFields';
+import { ConectaCompliancePanel, ConectaComplianceProvider } from './ConectaCompliancePanel';
 import '../EfetivoTeam.ds.css';
 
 const COLUMN_META: Record<AvailabilityStatus, { label: string; description: string }> = {
@@ -126,6 +127,8 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
     collaborator.id,
     missionTeamCollaboratorPeriods({ mission, collaboratorId: collaborator.id, startDate, endDate, allocationPeriods, singleSelection })
   ])), [allocationPeriods, endDate, mission, options, singleSelection, startDate]);
+  const complianceRequests = options.flatMap(person => (periodsByCollaboratorId.get(person.id) || []).map(period => ({ collaboratorId: person.id, date: period.startDate, endDate: period.endDate })));
+  const documentation = (collaboratorId: string) => (periodsByCollaboratorId.get(collaboratorId) || []).map(period => <ConectaCompliancePanel key={period.startDate + ':' + period.endDate} collaboratorId={collaboratorId} date={period.startDate} endDate={period.endDate} compact />);
   const { columns, otherUnavailable, unavailable } = useMemo(() => validPeriod
     ? buildMissionAvailabilityColumns(filterCollaboratorsByActivity(options, 'ACTIVE'), missions.data || [], absences.data || [], startDate, endDate, mission?.id, periodsByCollaboratorId)
     : buildMissionAvailabilityColumns([], [], [], '2000-01-01', '2000-01-01'),
@@ -227,6 +230,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
           <Button variant="secondary" size="sm" onClick={closeDialog}>Cancelar</Button>
           <Button variant="primary" size="sm" disabled={disabled || !validPeriod || queryLoading || queryError || draftIds.length < minSelected || blockedDraftIds.size > 0 || Boolean(editingPeriod)} onClick={requestApplyTeam}>{singleSelection ? 'Adicionar à equipe' : 'Aplicar equipe'}</Button>
         </>}>
+        <ConectaComplianceProvider requests={complianceRequests} enabled={open && validPeriod}>
         <div className="efetivo-team-stack">
           <p className="efetivo-dialog-description" id="mission-team-dialog-description">{validPeriod ? displayDateOnly(startDate) + ' a ' + displayDateOnly(endDate) + ' · ' : ''}Pessoas já alocadas podem ser selecionadas mediante confirmação.</p>
           <div className="efetivo-team-selection-toolbar">
@@ -260,6 +264,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
                     <header><h4>Selecionados fora do quadro</h4><p>Use o filtro Inativos para consultar os colaboradores desligados.</p></header>
                     {hiddenSelected.map(collaborator => <div className="efetivo-team-cycle-row" key={collaborator.id}>
                       <div className="efetivo-team-person-heading"><div><strong>{collaborator.name}</strong><p>{collaborator.role || 'Cargo não informado'}</p></div></div>
+                      {documentation(collaborator.id)}
                       <div className="efetivo-team-actions"><RemoveIconButton label={`Remover colaborador ${collaborator.name}`} disabled={disabled} onClick={() => setDraftIds(current => toggleDraft(current, collaborator.id, false))} /></div>
                     </div>)}
                   </section> : null}
@@ -270,6 +275,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
                       const hasRole = Boolean(person.jobRoleId && operationalRoleIds.has(person.jobRoleId));
                       return <Card padding="sm" selected={selected} className="efetivo-team-choice-card" key={person.id}>
                         <label className="efetivo-team-choice"><input type="checkbox" checked={selected} disabled={disabled || (!hasRole && !selected)} onChange={event => setDraftIds(current => toggleDraft(current, person.id, event.target.checked))} /><div className="efetivo-team-choice-person"><i aria-hidden="true">{initials(person.name)}</i><span><strong>{person.name}</strong><small>{person.role || 'Cargo não informado'} · Inativo</small></span></div></label>
+                        {documentation(person.id)}
                       </Card>;
                     })}{!inactivePeople.length ? <p>Nenhum colaborador inativo encontrado.</p> : null}</div>
                   </section> : null}
@@ -295,6 +301,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
                                 <input type="checkbox" checked={selected} disabled={disabled || (!selectable && !selected)} onChange={event => setDraftIds(current => toggleDraft(current, entry.collaborator.id, event.target.checked))} />
                                 <span className="efetivo-team-choice-person"><i aria-hidden="true">{initials(entry.collaborator.name)}</i><span><strong>{entry.collaborator.name}</strong>{entry.collaborator.rhStatus === 'PRE_ADMISSION' ? <Badge>Pré-admissão</Badge> : null}<small>{entry.collaborator.role || 'Cargo não informado'}</small></span></span>
                               </label>
+                              {documentation(entry.collaborator.id)}
                               {entry.mission ? <p className="efetivo-team-help">{entry.mission.project.code} · {entry.mission.project.name}<br />Mobilização em {displayDateOnly(entry.mission.mobilizationDate)}</p> : null}
                               {hasMissionOverlap ? <p className="efetivo-team-warning">Exige confirmação de sobreposição.</p> : null}
                               {entry.absence ? <p className="efetivo-team-help">Férias no período · até {displayDateOnly(entry.absence.endDate)}</p> : null}
@@ -310,6 +317,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
                   </section> : null}
                 </>}
         </div>
+        </ConectaComplianceProvider>
       </Modal>, document.body)}
       <ConfirmDialog appearance="design-system"
         open={overlapConfirmationIds.length > 0 || inactiveConfirmationIds.length > 0 || preAdmissionConfirmationIds.length > 0}
