@@ -49,9 +49,15 @@ async function resolvePerson(tx, row, jobRoleId) {
   let collaborator = candidates[0];
   if (collaborator?.cpf && input.cpf && collaborator.cpf.replace(/\D/g, '') !== input.cpf) return null;
   if (collaborator && await tx.conectaRhPerson.findUnique({ where: { collaboratorId: collaborator.id } })) return null;
-  if (!collaborator) collaborator = await tx.collaborator.create({ data: {
-    code: `CONECTA-${input.personId}`, name: input.name, jobRoleId, isActive: false
-  } });
+  if (!collaborator) {
+    const codes = await tx.collaborator.findMany({ where: { code: { startsWith: 'COL-' } }, select: { code: true } });
+    // O UUID externo pertence ao vínculo ConectaRhPerson. O código público segue
+    // a sequência local; a transação serializável da recepção repete colisões.
+    const last = codes.reduce((max, { code }) => /^COL-\d+$/.test(code) ? Math.max(max, Number(code.slice(4))) : max, 0);
+    collaborator = await tx.collaborator.create({ data: {
+      code: `COL-${String(last + 1).padStart(3, '0')}`, name: input.name, jobRoleId, isActive: false
+    } });
+  }
   return tx.conectaRhPerson.create({ data: { companyId: row.companyId, personId: input.personId, collaboratorId: collaborator.id } });
 }
 
