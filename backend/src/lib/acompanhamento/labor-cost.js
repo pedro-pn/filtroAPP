@@ -254,6 +254,15 @@ export function effectiveParameterSetAt(sets = [], dateKey) {
   return selected;
 }
 
+// Versões de salário anteriores à criação do campo (inclusive agendadas) não
+// encerram um reajuste. Somente um percentual explícito, inclusive zero, o muda.
+export function effectiveCargoParameterSetAt(sets = [], dateKey) {
+  const selected = effectiveParameterSetAt(sets, dateKey);
+  if (!selected) return null;
+  const adjustment = effectiveParameterSetAt(sets.filter(set => set.params?.reajusteHhPct != null), dateKey);
+  return { ...selected, params: { ...selected.params, reajusteHhPct: adjustment?.params.reajusteHhPct ?? 0 } };
+}
+
 function maxDateKey(...keys) {
   return keys.filter(Boolean).sort().at(-1);
 }
@@ -480,7 +489,7 @@ export function filterIgnoredPontoPeriods(periods = [], ignoredExternalEmployeeI
 }
 
 // Cargo canônico (Collaborator.jobRoleId -> JobRole) -> parâmetros efetivos por data. O cargo herda do modelo
-// que estava vigente na data calculada e sobrescreve o salário base. A insalubridade vem do salário
+// que estava vigente na data calculada e define salário base e reajuste de HH. A insalubridade vem do salário
 // mínimo no motor novo.
 export function buildRoleParamsResolver({ roles = [], models = [] } = {}) {
   const modelSetsByKey = new Map();
@@ -499,7 +508,7 @@ export function buildRoleParamsResolver({ roles = [], models = [] } = {}) {
   }
 
   function paramsFor(roleName, dateKey) {
-    const roleSet = effectiveParameterSetAt(roleSetsByName.get(roleName) || [], dateKey);
+    const roleSet = effectiveCargoParameterSetAt(roleSetsByName.get(roleName) || [], dateKey);
     if (!roleSet) return null;
     const override = roleSet.params || {};
     const modelKey = typeof override.baseModel === 'string' && override.baseModel
@@ -511,6 +520,9 @@ export function buildRoleParamsResolver({ roles = [], models = [] } = {}) {
 
     const effective = { ...(modelSet.params || {}) };
     if (override.salarioBase != null) effective.salarioBase = override.salarioBase;
+    // O reajuste pertence ao cargo, nunca ao modelo compartilhado. Versões
+    // anteriores à configuração conservam o custo original.
+    effective.reajusteHhPct = override.reajusteHhPct ?? 0;
     return effective;
   }
 

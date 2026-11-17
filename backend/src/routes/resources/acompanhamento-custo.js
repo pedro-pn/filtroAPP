@@ -3,6 +3,7 @@
  *   GET  /api/acompanhamento/custo/colaboradores/:id/valor-hora referências por cenário
  *   GET  /api/acompanhamento/custo/perfis                 lista perfis + parâmetros vigentes
  *   PUT  /api/acompanhamento/custo/perfis/:key/parametros nova vigência de parâmetros (gestor)
+ *   PUT  /api/acompanhamento/custo/cargos/reajuste-hh     reajuste versionado dos cargos selecionados
  *   POST /api/acompanhamento/custo/simular                { profileKey|params, inputs } -> custo
  *   GET  /api/acompanhamento/custo/categorias-omie        lista categorias Omie do cálculo
  *   PUT  /api/acompanhamento/custo/categorias-omie/:codigo inclui/remove categoria do cálculo
@@ -14,7 +15,7 @@ import { z } from 'zod';
 import asyncHandler from '../../lib/async-handler.js';
 import { computeMonthlyCost } from '../../lib/acompanhamento/cost-engine.js';
 import { buildCollaboratorHourlyRates } from '../../lib/acompanhamento/collaborator-hourly-rates.js';
-import { getRoleParamsResolver } from '../../lib/acompanhamento/labor-cost.js';
+import { effectiveCargoParameterSetAt, getRoleParamsResolver } from '../../lib/acompanhamento/labor-cost.js';
 import { getAnnualCollaboratorCosts, setAnnualCollaboratorCosts } from '../../lib/acompanhamento/settings.js';
 import prisma from '../../lib/prisma.js';
 import { clearProjectDerivedCaches } from '../../lib/resource-list-cache.js';
@@ -64,19 +65,24 @@ function latestParameterSet(sets = []) {
   })[0] ?? null;
 }
 
-function parameterSetHistory(sets = []) {
+function parameterSetHistory(sets = [], forCargo = false) {
+  let reajusteHhPct = 0;
   return [...sets]
     .sort((left, right) => {
-      const byDate = effectiveDateKey(right).localeCompare(effectiveDateKey(left));
+      const byDate = effectiveDateKey(left).localeCompare(effectiveDateKey(right));
       if (byDate !== 0) return byDate;
-      return (Number(right.version) || 0) - (Number(left.version) || 0);
+      return (Number(left.version) || 0) - (Number(right.version) || 0);
     })
-    .map(set => ({
-      effectiveDate: set.effectiveDate,
-      params: normalizeCostParams(set.params),
-      note: set.note,
-      updatedAt: set.createdAt
-    }));
+    .map(set => {
+      const params = normalizeCostParams(set.params);
+      if (forCargo) reajusteHhPct = params?.reajusteHhPct ?? reajusteHhPct;
+      return {
+        effectiveDate: set.effectiveDate,
+        params: forCargo ? { ...params, reajusteHhPct } : params,
+        note: set.note,
+        updatedAt: set.createdAt
+      };
+    }).reverse();
 }
 
 function maxVersion(sets = []) {
@@ -90,8 +96,7 @@ function normalizeCostParams(params) {
   return normalized;
 }
 
-const dateOnlySchema = z.string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Informe a data de vigência no formato YYYY-MM-DD.')
+const dateOnlySchema = z.iso.date('Informe uma data de vigência válida no formato YYYY-MM-DD.')
   .transform(value => new Date(`${value}T00:00:00.000Z`));
 
 router.get('/perfis', requireAuth, requireAcompanhamentoManager, asyncHandler(async (_req, res) => {
@@ -167,7 +172,8 @@ router.get('/cargos', requireAuth, requireAcompanhamentoManager, asyncHandler(as
   });
   res.json(roles.map(role => {
     const sets = role.costProfile?.parameterSets || [];
-    const set = latestParameterSet(sets);
+    const latest = latestParameterSet(sets);
+    const set = latest ? effectiveCargoParameterSetAt(sets, effectiveDateKey(latest)) : null;
     return {
       jobRoleId: role.id,
       name: role.name,
@@ -175,36 +181,90 @@ router.get('/cargos', requireAuth, requireAcompanhamentoManager, asyncHandler(as
       effectiveDate: set?.effectiveDate ?? null,
       params: normalizeCostParams(set?.params ?? null),
       updatedAt: set?.createdAt ?? role.costProfile?.updatedAt ?? null,
-      history: parameterSetHistory(sets)
+      history: parameterSetHistory(sets, true)
     };
   }));
 }));
 
-router.put('/cargos/:jobRoleId/parametros', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
-  const { params, effectiveDate, note } = paramsSchema.parse(req.body);
-  const role = await prisma.jobRole.findUnique({
-    where: { id: req.params.jobRoleId },
-    include: { costProfile: { include: { parameterSets: true } } }
-  });
-  if (!role) return res.status(404).json({ error: 'Cargo não encontrado.' });
+const reajusteHhSchema = z.number().min(0).max(1);
+const cargoParamsSchema = paramsSchema.extend({
+  params: z.object({
+    baseModel: z.string().min(1).optional(),
+    salarioBase: z.number().min(0).optional(),
+    reajusteHhPct: reajusteHhSchema.optional()
+  }).passthrough()
+});
 
+async function createCargoParameterSet(database, role, params, effectiveDate, note, userId) {
   let profile = role.costProfile;
   if (!profile) {
-    profile = await prisma.costProfile.create({ data: { key: `role:${role.id}`, label: role.name, jobRoleId: role.id } });
+    profile = await database.costProfile.create({ data: { key: `role:${role.id}`, label: role.name, jobRoleId: role.id } });
   }
   const currentVersion = maxVersion(role.costProfile?.parameterSets || []);
-  const created = await prisma.costParameterSet.create({
+  const created = await database.costParameterSet.create({
     data: {
       costProfileId: profile.id,
       version: currentVersion + 1,
       effectiveDate,
       params: normalizeCostParams(params),
       note: note ?? null,
-      createdByUserId: req.auth?.user?.id ?? null
+      createdByUserId: userId
     }
   });
+  return { jobRoleId: role.id, profileId: profile.id, effectiveDate: created.effectiveDate, params: created.params };
+}
+
+router.put('/cargos/reajuste-hh', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+  const { jobRoleIds, reajusteHhPct, effectiveDate } = z.object({
+    jobRoleIds: z.array(z.string().min(1)).min(1).max(500).transform(ids => [...new Set(ids)]),
+    reajusteHhPct: reajusteHhSchema,
+    effectiveDate: dateOnlySchema
+  }).parse(req.body);
+  const result = await prisma.$transaction(async database => {
+    const roles = await database.jobRole.findMany({
+      where: { id: { in: jobRoleIds }, isActive: true },
+      include: { costProfile: { include: { parameterSets: true } } }
+    });
+    if (roles.length !== jobRoleIds.length) {
+      return { status: 404, body: { error: 'Um ou mais cargos não foram encontrados ou estão inativos.' } };
+    }
+    // Usa o salário e modelo vigentes na data escolhida, inclusive em alterações
+    // retroativas. Valida todos os cargos antes de escrever qualquer versão.
+    const entries = roles.map(role => ({ role,
+      set: effectiveCargoParameterSetAt(role.costProfile?.parameterSets || [], effectiveDateKey({ effectiveDate }))
+    }));
+    const missing = entries.filter(({ set }) => !set);
+    if (missing.length) {
+      return { status: 422, body: { error: `Configure o custo vigente antes de reajustar: ${missing.map(({ role }) => role.name).join(', ')}.` } };
+    }
+    const saved = [];
+    for (const { role, set } of entries) {
+      saved.push(await createCargoParameterSet(database, role,
+        { ...set.params, reajusteHhPct }, effectiveDate,
+        `Reajuste do HH: ${Number((reajusteHhPct * 100).toFixed(4))}%`, req.auth?.user?.id ?? null));
+    }
+    return { status: 201, body: { cargos: saved } };
+  });
+  if (result.status === 201) clearProjectDerivedCaches();
+  res.status(result.status).json(result.body);
+}));
+
+router.put('/cargos/:jobRoleId/parametros', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+  const { params, effectiveDate, note } = cargoParamsSchema.parse(req.body);
+  const saved = await prisma.$transaction(async database => {
+    const role = await database.jobRole.findUnique({
+      where: { id: req.params.jobRoleId },
+      include: { costProfile: { include: { parameterSets: true } } }
+    });
+    if (!role) return null;
+    const previous = effectiveCargoParameterSetAt(role.costProfile?.parameterSets || [], effectiveDateKey({ effectiveDate }));
+    return createCargoParameterSet(database, role, {
+      ...params, reajusteHhPct: params.reajusteHhPct ?? previous?.params?.reajusteHhPct ?? 0
+    }, effectiveDate, note, req.auth?.user?.id ?? null);
+  });
+  if (!saved) return res.status(404).json({ error: 'Cargo não encontrado.' });
   clearProjectDerivedCaches();
-  res.status(201).json({ jobRoleId: role.id, profileId: profile.id, effectiveDate: created.effectiveDate, params: created.params });
+  res.status(201).json(saved);
 }));
 
 // === Configuração global de custos anuais por colaborador ===

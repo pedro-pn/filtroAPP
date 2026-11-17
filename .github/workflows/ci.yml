@@ -125,8 +125,13 @@ jobs:
 
       - name: Configure Ubuntu package mirrors
         run: |
-          { printf 'https://mirrors.edge.kernel.org/ubuntu/\tpriority:0\n'; cat /etc/apt/apt-mirrors.txt; } > "$RUNNER_TEMP/ci-apt-mirrors.txt"
-          sudo cp "$RUNNER_TEMP/ci-apt-mirrors.txt" /etc/apt/apt-mirrors.txt
+          if curl --fail --silent --show-error --location --connect-timeout 5 --max-time 10 \
+            https://mirrors.edge.kernel.org/ubuntu/dists/noble/InRelease > /dev/null; then
+            { printf 'https://mirrors.edge.kernel.org/ubuntu/\tpriority:0\n'; cat /etc/apt/apt-mirrors.txt; } > "$RUNNER_TEMP/ci-apt-mirrors.txt"
+            sudo cp "$RUNNER_TEMP/ci-apt-mirrors.txt" /etc/apt/apt-mirrors.txt
+          else
+            echo 'Extra Ubuntu mirror unavailable; keeping the runner default mirrors.'
+          fi
           printf 'Acquire::Retries "1";\nAcquire::http::Timeout "20";\nAcquire::https::Timeout "20";\n' | sudo tee /etc/apt/apt.conf.d/zz-ci-retries > /dev/null
 
       - name: Install Hunspell pt-BR (revisão ortográfica do Data Book)
@@ -509,11 +514,17 @@ jobs:
 
       - name: Configure Ubuntu package mirrors
         run: |
-          { printf 'https://mirrors.edge.kernel.org/ubuntu/\tpriority:0\n'; cat /etc/apt/apt-mirrors.txt; } > "$RUNNER_TEMP/ci-apt-mirrors.txt"
-          sudo cp "$RUNNER_TEMP/ci-apt-mirrors.txt" /etc/apt/apt-mirrors.txt
+          if curl --fail --silent --show-error --location --connect-timeout 5 --max-time 10 \
+            https://mirrors.edge.kernel.org/ubuntu/dists/noble/InRelease > /dev/null; then
+            { printf 'https://mirrors.edge.kernel.org/ubuntu/\tpriority:0\n'; cat /etc/apt/apt-mirrors.txt; } > "$RUNNER_TEMP/ci-apt-mirrors.txt"
+            sudo cp "$RUNNER_TEMP/ci-apt-mirrors.txt" /etc/apt/apt-mirrors.txt
+          else
+            echo 'Extra Ubuntu mirror unavailable; keeping the runner default mirrors.'
+          fi
           printf 'Acquire::Retries "1";\nAcquire::http::Timeout "20";\nAcquire::https::Timeout "20";\n' | sudo tee /etc/apt/apt.conf.d/zz-ci-retries > /dev/null
 
       - name: Install Chromium for notification and equipment regressions
+        timeout-minutes: 5
         run: npx playwright install --with-deps chromium
 
       - name: Verify EPI catalog sizes and required delivery selection in the browser

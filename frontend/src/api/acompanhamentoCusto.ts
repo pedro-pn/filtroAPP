@@ -75,11 +75,12 @@ export async function simulateCost(payload: { profileKey?: string; params?: Cost
   return data;
 }
 
-// --- Perfil de custo por cargo (herda do modelo por vigência, sobrescreve salário) ---
+// --- Perfil de custo por cargo (modelo, salário e reajuste de HH por vigência) ---
 
 export interface CargoCostOverride {
   baseModel?: string; // 'operador' | 'auxiliar' (Modelo 1 / Modelo 2)
   salarioBase?: number;
+  reajusteHhPct?: number; // Fração: 0,1 = 10%; percentual total, não cumulativo.
 }
 
 export interface CargoCostHistoryEntry {
@@ -106,6 +107,13 @@ export async function getCargoCostProfiles(): Promise<CargoCostProfile[]> {
 
 export async function saveCargoCostParams(jobRoleId: string, params: CargoCostOverride, effectiveDate: string, note?: string) {
   const { data } = await apiClient.put(`/acompanhamento/custo/cargos/${jobRoleId}/parametros`, { params, effectiveDate, note });
+  return data;
+}
+
+export async function saveCargoHhAdjustment(jobRoleIds: string[], reajusteHhPct: number, effectiveDate: string) {
+  const { data } = await apiClient.put('/acompanhamento/custo/cargos/reajuste-hh', {
+    jobRoleIds, reajusteHhPct, effectiveDate
+  });
   return data;
 }
 

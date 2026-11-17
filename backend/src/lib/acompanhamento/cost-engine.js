@@ -6,6 +6,7 @@
  *   salarioBase, salarioMinimo, cargaHoraria (220), diasUteis (22),
  *   periculosidadePct, produtividadePct, transferenciaPct, confinamentoPct,
  *   he70Pct (0,7), he100Pct (1), fgtsPct (0,08), multaPct (0,50),
+ *   reajusteHhPct (fração por cargo, 0,1 = 10%; ausente = 0),
  *   beneficios { seguroVida, valeAlimentacao, planoSaude, odonto, cursos, moradia }.
  *
  * inputs:
@@ -55,8 +56,12 @@ function dayFraction(days, diasUteis) {
 }
 
 export function computeMonthlyCost(params = {}, inputs = {}) {
-  const salarioBase = n(params.salarioBase);
-  const insalubridade = derivedInsalubridade(params);
+  // Reajusta a base de custo uma única vez. Os valores cadastrados de salário,
+  // salário mínimo e jornada são preservados; adicionais, HE e reflexos usam
+  // esta base ajustada. Benefícios e custos anuais fixos seguem seus valores.
+  const fatorReajusteHh = 1 + Math.max(0, n(params.reajusteHhPct));
+  const salarioBase = n(params.salarioBase) * fatorReajusteHh;
+  const insalubridade = derivedInsalubridade(params) * fatorReajusteHh;
   const cargaHoraria = n(params.cargaHoraria, 220) || 220;
   const diasUteis = n(params.diasUteis, DEFAULT_DIAS_UTEIS) || DEFAULT_DIAS_UTEIS;
   const periculosidadePct = n(params.periculosidadePct, 0.3);
