@@ -96,6 +96,7 @@ function clienteFalso() {
     ] },
     stockMovement: { findMany: async () => [{ itemId: 'i-acido' }] },
     romaneioItem: { findMany: async () => [] },
+    equipmentAttachment: { findMany: async () => [] },
     calibrationCertificate: { findMany: async ({ where }) => where.id.in.map(id => ({ id, particleCounter: id === 'cert-cp'
       ? { calibratedAt: new Date('2026-01-20'), expiresAt: new Date('2027-01-20'), calibrationCertificates: [{ id: 'cert-cp' }] } : null })) }
   };

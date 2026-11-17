@@ -286,26 +286,37 @@ export async function sugerirCertificados(client, derivados) {
     }
   }
   const avisos = [];
-  const ids = [...usados.values()].map(u => u.certificateId).filter(Boolean);
-  const registros = ids.length
-    ? await client.calibrationCertificate.findMany({ where: { id: { in: ids } }, include: { particleCounter: { include: currentCalibrationCertificateInclude } } })
-    : [];
+  const ids = [...new Set([...usados.values()].map(u => u.certificateId).filter(Boolean))];
+  const [anexos, registros] = ids.length
+    ? await Promise.all([
+      client.equipmentAttachment.findMany({
+        where: { id: { in: ids }, kind: 'CALIBRATION_CERTIFICATE' },
+        include: { equipment: { select: {
+          calibratedAt: true, expiresAt: true,
+          attachments: { where: { kind: 'CALIBRATION_CERTIFICATE' }, orderBy: { createdAt: 'desc' }, take: 1, select: { id: true } }
+        } } }
+      }),
+      client.calibrationCertificate.findMany({ where: { id: { in: ids } }, include: { particleCounter: { include: currentCalibrationCertificateInclude } } })
+    ])
+    : [[], []];
+  const anexosPorId = new Map(anexos.map(c => [c.id, c]));
   const porId = new Map(registros.map(c => [c.id, c]));
   const itens = [];
   for (const u of usados.values()) {
-    const registro = u.certificateId ? porId.get(u.certificateId) : null;
+    const anexo = anexosPorId.get(u.certificateId);
+    const registro = anexo || porId.get(u.certificateId);
     if (!registro) {
       avisos.push(`${u.equipamento} ${u.codigo}: certificado de calibração usado no relatório não está disponível para anexar.`);
       continue;
     }
     const { certificateId, ...resto } = u;
     // Datas do cadastro do contador só valem se este ainda é o certificado vigente dele.
-    const contador = registro.particleCounter;
-    const vigente = contador?.calibrationCertificates?.[0]?.id === registro.id;
+    const contador = anexo ? registro.equipment : registro.particleCounter;
+    const vigente = (anexo ? contador?.attachments?.[0]?.id : contador?.calibrationCertificates?.[0]?.id) === registro.id;
     itens.push({
       ...resto,
       ...(vigente && !resto.calibracao ? { calibracao: dataPt(contador.calibratedAt), validade: dataPt(contador.expiresAt) } : {}),
-      arquivo: `cert:${certificateId}`
+      arquivo: `${anexo ? 'equipmentcert' : 'cert'}:${certificateId}`
     });
   }
   return { itens, avisos };
@@ -317,9 +328,11 @@ function dentroDe(raiz, alvo) {
   return Boolean(rel) && !rel.startsWith('..') && !path.isAbsolute(rel);
 }
 
-async function caminhoCertificado(client, id) {
-  const cert = await client.calibrationCertificate.findUnique({ where: { id } });
-  if (!cert) return null;
+async function caminhoCertificado(client, id, { equipamento = false } = {}) {
+  const cert = equipamento
+    ? await client.equipmentAttachment.findUnique({ where: { id } })
+    : await client.calibrationCertificate.findUnique({ where: { id } });
+  if (!cert || (equipamento && cert.kind !== 'CALIBRATION_CERTIFICATE')) return null;
   const alvo = path.resolve(env.uploadDir, ...cert.storagePath.split('/'));
   return dentroDe(env.uploadDir, alvo) && fsSync.existsSync(alvo) ? alvo : null;
 }
@@ -332,7 +345,7 @@ async function caminhoDocumentoEstoque(client, id) {
 }
 
 /**
- * Troca as referências do app ("upload:", "stockdoc:", "cert:") por caminhos que o gerador lê.
+ * Troca as referências do app ("upload:", "stockdoc:", "cert:", "equipmentcert:") por caminhos que o gerador lê.
  * - modo "verificar": fotos apontam para o arquivo original (só existência importa nos avisos);
  * - modo "gerar": fotos são convertidas/reduzidas (HEIC → JPEG) para dentro de `pasta`.
  * Foto ausente vira caminho inexistente (aviso do gerador); FDS ou certificado ausente é erro.
@@ -370,8 +383,10 @@ export async function materializar(client, dados, { pasta, modo = 'gerar' } = {}
     f.arquivo = alvo;
   }
   for (const c of out.certificados || []) {
-    if (!String(c.arquivo).startsWith('cert:')) continue;
-    const alvo = await caminhoCertificado(client, c.arquivo.slice('cert:'.length));
+    const ref = String(c.arquivo);
+    const equipamento = ref.startsWith('equipmentcert:');
+    if (!equipamento && !ref.startsWith('cert:')) continue;
+    const alvo = await caminhoCertificado(client, ref.slice(ref.indexOf(':') + 1), { equipamento });
     if (!alvo) throw Object.assign(new Error(`Certificado de calibração de ${c.equipamento} ${c.codigo} não encontrado no armazenamento.`), { status: 422 });
     c.arquivo = alvo;
   }
