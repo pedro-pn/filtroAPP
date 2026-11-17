@@ -78,7 +78,10 @@ export function employmentDates(data, firstReceivedAt) {
 
 export function complianceStatusAt(data, referenceDate) {
   if (data.status === 'REVOKED') return 'REVOKED';
-  if (!data.issuedOn || data.issuedOn > referenceDate) return data.status === 'UNKNOWN' ? 'UNKNOWN' : 'PENDING';
+  if (data.status === 'PENDING') return 'PENDING';
+  if (data.issuedOn && data.issuedOn > referenceDate) return 'PENDING';
+  if (data.status === 'UNKNOWN') return 'UNKNOWN';
+  // A emissão é opcional no contrato; sua ausência não invalida um item publicado.
   if (data.hasNoExpiry) return 'VALID';
   if (!data.expiresOn) return 'UNKNOWN';
   return data.expiresOn < referenceDate ? 'EXPIRED' : 'VALID';

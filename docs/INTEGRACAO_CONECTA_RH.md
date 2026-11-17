@@ -48,6 +48,14 @@ O [roteiro de homologação](HOMOLOGACAO_CONECTA_RH.md) detalha as 12 etapas, os
 
 As credenciais reais, a publicação e a ativação do envio não são feitas por essa alteração de código.
 
+## Atualizações de homologação de 16/11/2026
+
+O responsável confirmou que a Engenharia também participa das equipes do Efetivo. A origem publica Operacional e Engenharia; `employment.isOperational` continua descrevendo o setor original e não determina sozinho a atividade local. Vínculos publicados em `ACTIVE`/`PRE_ADMISSION` ficam ativos, e seus cargos passam a ser elegíveis no Efetivo. Os valores originais permanecem nas tabelas de origem. Cargos do catálogo sem vínculo/ocorrência publicada não são liberados indiscriminadamente, e cargos inativos não são reativados por essa regra.
+
+Em conformidade, `issuedOn=null` é permitido: ausência de emissão não torna pendente um item já publicado como válido com vencimento conhecido ou sem prazo. O cálculo por referência preserva revogação, pendência e validade desconhecida, considera emissão futura quando informada e mantém o vencimento inclusivo.
+
+O [resultado do lote 20261116-A](HOMOLOGACAO_CONECTA_RH_LOTE_20261116_A_RESULTADO.md) registra as verificações e correções publicadas no staging naquela rodada. A [conferência de 17/11](HOMOLOGACAO_CONECTA_RH_RESULTADO_20261117.md) confirmou a resolução dos impedimentos cadastrais, a conclusão da carga inicial, o feed real e as entregas do emissor. As [provas finais e o encerramento](HOMOLOGACAO_CONECTA_RH_PROVAS_FINAIS_20261117_RESULTADO.md) foram aprovados na VPS: A/B revogadas retornam `401`, a original retorna `200`, e o worker continua sem erros ou pendências. A homologação funcional está encerrada no staging.
+
 ## Respostas às perguntas do Conecta
 
 O receptor suporta `employmentId` estável por período e preserva as limitações declaradas de histórico de cargo e piso, sem inventar períodos anteriores. CPF continua opcional no contrato e pode ajudar a conciliar cadastros existentes. `statusUrl` fornece `status` e, quando houver pendência, `reasonCode`, além dos identificadores do recibo.

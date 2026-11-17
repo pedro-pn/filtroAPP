@@ -6,6 +6,21 @@ export const aggregateWhere = (companyId, aggregateType, externalId) => ({ compa
 const aggregate = (tx, companyId, type, id) => id ? tx.conectaRhAggregate.findUnique({ where: aggregateWhere(companyId, type, id) }) : null;
 const person = (tx, companyId, personId) => tx.conectaRhPerson.findUnique({ where: { companyId_personId: { companyId, personId } } });
 
+async function roleUsedByPublishedWorkforce(tx, row) {
+  return Boolean(await tx.conectaRhAggregate.findFirst({ where: {
+    companyId: row.companyId,
+    OR: [
+      { aggregateType: 'employment', data: { path: ['currentJobRoleId'], equals: row.externalId } },
+      { aggregateType: 'role_change', data: { path: ['jobRoleId'], equals: row.externalId } }
+    ]
+  }, select: { id: true } }));
+}
+
+async function allowRoleInWorkforce(tx, jobRoleId) {
+  // A origem publica Operacional e Engenharia; o setor original fica no agregado.
+  await tx.jobRole.updateMany({ where: { id: jobRoleId, isOperational: false }, data: { isOperational: true } });
+}
+
 async function projectJobRole(tx, row) {
   const data = row.data;
   const normalizedKey = normalizeJobRoleKey(data.name);
@@ -17,7 +32,8 @@ async function projectJobRole(tx, row) {
   }
   const collision = await tx.jobRole.findFirst({ where: { OR: [{ normalizedKey }, { name: data.name }], ...(existing ? { id: { not: existing.id } } : {}) } });
   if (collision) return { reasonCode: 'JOB_ROLE_MAPPING_CONFLICT' };
-  const update = { name: data.name, normalizedKey, isActive: data.isActive, isOperational: data.isOperational };
+  const update = { name: data.name, normalizedKey, isActive: data.isActive,
+    isOperational: data.isOperational || await roleUsedByPublishedWorkforce(tx, row) };
   const role = existing ? await tx.jobRole.update({ where: { id: existing.id }, data: update }) : await tx.jobRole.create({ data: update });
   return { localId: role.id };
 }
@@ -56,6 +72,7 @@ async function projectEmployment(tx, row) {
   if (!jobRoleId) return { reasonCode: 'JOB_ROLE_PENDING' };
   const mapping = knownPerson || await resolvePerson(tx, row, jobRoleId);
   if (!mapping) return { reasonCode: 'PERSON_MAPPING_AMBIGUOUS' };
+  await allowRoleInWorkforce(tx, jobRoleId);
   const employments = await tx.conectaRhAggregate.findMany({ where: { companyId: row.companyId, aggregateType: 'employment', data: { path: ['personId'], equals: row.data.personId } } });
   const current = currentEmployment(employments);
   if (current.id !== row.id) return { localId: mapping.collaboratorId };
@@ -66,7 +83,7 @@ async function projectEmployment(tx, row) {
     jobRoleId, admissionDate: day(dates.admissionDate), terminationDate: row.data.terminationDate ? day(row.data.terminationDate) : null,
     admissionDateProvisional: dates.admissionDateProvisional, rhFirstReceivedAt: row.firstReceivedAt,
     rhStatus: row.data.status, rhEmploymentId: row.externalId,
-    isActive: row.data.isOperational && ['ACTIVE', 'PRE_ADMISSION'].includes(row.data.status)
+    isActive: ['ACTIVE', 'PRE_ADMISSION'].includes(row.data.status)
   };
   await tx.collaborator.update({ where: { id: mapping.collaboratorId }, data: update });
   if (previous.jobRoleId !== jobRoleId) await markFutureAllocationsForReplanning(tx, previous.id, jobRoleId);
@@ -136,6 +153,7 @@ async function projectRoleChange(tx, row) {
   // Uma ocorrência criada sem data acompanha a data oficial do vínculo quando ela chegar.
   const effectiveDate = input.effectiveDate || reference;
   if (effectiveDate > receiptDate(new Date()) && employment.data.status !== 'PRE_ADMISSION') return { reasonCode: 'FUTURE_ROLE_CHANGE' };
+  await allowRoleInWorkforce(tx, role.localId);
   const baselineId = `conecta:${employment.id}`;
   const id = row.localId || `conecta:${row.id}`;
   const collision = await tx.collaboratorJobRoleHistory.findUnique({ where: { collaboratorId_effectiveDate: { collaboratorId: employment.localId, effectiveDate: day(effectiveDate) } } });

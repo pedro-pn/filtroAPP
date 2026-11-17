@@ -1,0 +1,101 @@
+{
+  "checkedAt": "2026-11-16T14:49:36.887Z",
+  "companyId": "ca682be5-ab0c-43a8-8a26-d3f7eb1d7526",
+  "receipts": [
+    {
+      "id": "cmwjdmx3m001r1gpnwdxni7mv",
+      "eventId": "b92464dd-dce0-4e8c-a0e6-262a912df343",
+      "aggregateId": "cmwjd15x2000e1gpnq8f4e8em",
+      "revision": 3,
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T14:46:46.532Z"
+    },
+    {
+      "id": "cmwjdmxa5001w1gpn9mzr0jih",
+      "eventId": "9368eb4a-9aea-4f95-9e66-6b70d217b801",
+      "aggregateId": "cmwjd161n000l1gpngjy2ytvx",
+      "revision": 2,
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T14:46:46.768Z"
+    }
+  ],
+  "queried": [
+    {
+      "receiptId": "cmwjdmx3m001r1gpnwdxni7mv",
+      "httpStatus": 200,
+      "status": "APPLIED",
+      "requestId": "d2850067-187c-4423-b3a3-319ab767b1b5"
+    },
+    {
+      "receiptId": "cmwjdmxa5001w1gpn9mzr0jih",
+      "httpStatus": 200,
+      "status": "APPLIED",
+      "requestId": "10407354-0980-4e1e-a0bd-6fe3de757310"
+    }
+  ],
+  "collaborator": {
+    "id": "cmwjd15xx000g1gpntyfd1kil",
+    "code": "CONECTA-3a863a37-1018-4a80-949b-914d087ad3ed",
+    "name": "ZZZ Teste Homologação Pré Sem Data",
+    "rhStatus": "ACTIVE",
+    "rhEmploymentId": "a845c54c-387b-44ad-a226-31946cdd012b",
+    "rhFirstReceivedAt": "2026-11-16T14:29:51.529Z",
+    "admissionDate": "2026-11-16T00:00:00.000Z",
+    "admissionDateProvisional": false,
+    "isActive": true,
+    "terminationDate": null,
+    "jobRoleId": "cmwjd15s0000a1gpn0ld7ewrj"
+  },
+  "roleHistory": [
+    {
+      "id": "conecta:cmwjd161n000l1gpngjy2ytvx",
+      "jobRoleId": "cmwjd15s0000a1gpn0ld7ewrj",
+      "effectiveDate": "2026-11-16T00:00:00.000Z"
+    }
+  ],
+  "sourceRequests": [
+    {
+      "requestId": "d16b4668-3b04-48b1-8c47-416ccdd6644e",
+      "statusCode": 202,
+      "outcomeCode": "OK",
+      "simulated": false,
+      "createdAt": "2026-11-16T14:46:46.615Z"
+    },
+    {
+      "requestId": "c9723394-f5bf-47b9-b8ab-78389c2d3a40",
+      "statusCode": 202,
+      "outcomeCode": "OK",
+      "simulated": false,
+      "createdAt": "2026-11-16T14:46:46.827Z"
+    }
+  ],
+  "appRead": {
+    "httpStatus": 200,
+    "returnedItems": 1,
+    "collaboratorId": "cmwjd15xx000g1gpntyfd1kil",
+    "rhStatus": "ACTIVE",
+    "admissionDateProvisional": false
+  },
+  "readApiConfigured": false,
+  "readTokenConfigured": false,
+  "receiptStatus": [
+    {
+      "_count": {
+        "_all": 6
+      },
+      "status": "APPLIED",
+      "reasonCode": null
+    }
+  ],
+  "note": "A data oficial e a provisória eram iguais; esta rodada confirma a retirada do marcador provisório e a vigência expressa enviada pelo CONECTA, sem demonstrar deslocamento de data.",
+  "uiVerification": {
+    "result": "PASS",
+    "matchingRows": 1,
+    "preAdmissionBadgeVisible": false,
+    "provisionalDateMarkerVisible": false,
+    "officialAdmissionDate": "2026-11-16",
+    "screenshot": "output/playwright/conecta-activation-20261116/admissao-oficial.png"
+  }
+}

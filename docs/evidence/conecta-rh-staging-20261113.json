@@ -1,0 +1,629 @@
+{
+  "environment": "staging",
+  "origin": "https://filtrostaging.filtrovali.com.br",
+  "companyId": "83ecb3a8-6c92-4ab9-9e18-9cb1a36a0b13",
+  "companyIdSynthetic": true,
+  "startedAt": "2026-11-13T18:48:36.062Z",
+  "checks": [
+    {
+      "name": "login administrativo e HTTPS do staging",
+      "result": "PASS"
+    },
+    {
+      "name": "emissão de credenciais ALL com escopos RH pelo gerenciamento da API",
+      "result": "PASS",
+      "details": {
+        "credentialId": "cmwfbydff00011gmymh05ygop",
+        "expiresAt": "2026-11-20T18:48:36.748Z"
+      }
+    },
+    {
+      "name": "token inválido recusado com 401",
+      "result": "PASS"
+    },
+    {
+      "name": "empresa não autorizada recusada com 403",
+      "result": "PASS"
+    },
+    {
+      "name": "Idempotency-Key ausente ou diferente recusado com 400",
+      "result": "PASS"
+    },
+    {
+      "name": "ativação sem admissão oficial recusada",
+      "result": "PASS",
+      "details": {
+        "httpStatus": 400,
+        "errorCode": "VALIDATION_ERROR"
+      }
+    },
+    {
+      "name": "SIMULATE e validate-only executam rollback",
+      "result": "PASS"
+    },
+    {
+      "name": "vínculo antes do cargo fica PENDING e preserva o primeiro recebimento",
+      "result": "PASS"
+    },
+    {
+      "name": "cargo resolve dependência e recibo chega a APPLIED",
+      "result": "PASS",
+      "details": {
+        "collaboratorId": "cmwfbzadk00171gmyvjlid1u3",
+        "admissionDate": "2026-11-13",
+        "receivedAt": "2026-11-13T18:49:19.548Z"
+      }
+    },
+    {
+      "name": "reenvio idêntico mantém recibo, data e cadastro únicos",
+      "result": "PASS"
+    },
+    {
+      "name": "evento ou revisão reutilizados com outro conteúdo retornam 409",
+      "result": "PASS"
+    },
+    {
+      "name": "nova revisão sem data mantém referência inicial",
+      "result": "PASS"
+    },
+    {
+      "name": "ocorrência com effectiveDate null usa vigência provisória",
+      "result": "PASS"
+    },
+    {
+      "name": "pré-admissão com data futura mantém PRE_ADMISSION sem marca provisória",
+      "result": "PASS"
+    },
+    {
+      "name": "conformidade válida até vencimento e vencida na consulta posterior",
+      "result": "PASS"
+    },
+    {
+      "name": "API de colaboradores expõe status e admissão provisória corretos",
+      "result": "PASS"
+    },
+    {
+      "name": "missão fictícia preparada para homologar mobilização nas telas",
+      "result": "PASS",
+      "details": {
+        "projectId": "cmwfbzv4k0000ammyf011vry7",
+        "missionId": "cmwfbzvbk0001ammydtqjur5f"
+      }
+    },
+    {
+      "name": "mobilização pela API exige confirmação explícita para as duas pré-admissões",
+      "result": "PASS"
+    },
+    {
+      "name": "telas: badges, data provisória e conformidade válida/vencida",
+      "result": "PASS"
+    },
+    {
+      "name": "telas desktop e mobile: cancelar não grava; confirmar mobiliza sem ativar no RH",
+      "result": "PASS",
+      "details": {
+        "allocations": [
+          {
+            "collaboratorId": "cmwfbzadk00171gmyvjlid1u3",
+            "collaborator": {
+              "rhStatus": "PRE_ADMISSION"
+            }
+          },
+          {
+            "collaboratorId": "cmwfbzata00201gmyvkr2dgc9",
+            "collaborator": {
+              "rhStatus": "PRE_ADMISSION"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "data oficial e ativação atualizam o mesmo cadastro e a vigência derivada",
+      "result": "PASS"
+    },
+    {
+      "name": "vigência expressa pelo RH permanece ao mudar admissão oficial",
+      "result": "PASS"
+    },
+    {
+      "name": "troca de cargo atualiza cargo e histórico",
+      "result": "PASS"
+    },
+    {
+      "name": "desistência de pré-admissão cancela sem inventar desligamento",
+      "result": "PASS"
+    },
+    {
+      "name": "desligamento respeita data oficial e inativa",
+      "result": "PASS"
+    },
+    {
+      "name": "recontratação mantém pessoa, cria vínculo e correção antiga não substitui o atual",
+      "result": "PASS"
+    },
+    {
+      "name": "salário sem permissão salarial retorna 403",
+      "result": "PASS"
+    },
+    {
+      "name": "salário futuro só é considerado a partir da vigência",
+      "result": "PASS"
+    },
+    {
+      "name": "conformidade revogada é devolvida como REVOKED",
+      "result": "PASS"
+    },
+    {
+      "name": "revisão atrasada recebe SUPERSEDED sem alterar cadastro atual",
+      "result": "PASS"
+    },
+    {
+      "name": "credenciais auxiliares de teste revogadas",
+      "result": "PASS"
+    },
+    {
+      "name": "reinício da API e worker preserva recibos, referências e cadastros",
+      "result": "PASS",
+      "details": {
+        "jobs": [
+          {
+            "status": "COMPLETED",
+            "startedAt": "2026-11-13T18:55:10.951Z",
+            "finishedAt": "2026-11-13T18:55:15.536Z",
+            "error": null
+          },
+          {
+            "status": "COMPLETED",
+            "startedAt": "2026-11-13T18:50:51.661Z",
+            "finishedAt": "2026-11-13T18:50:51.697Z",
+            "error": null
+          },
+          {
+            "status": "COMPLETED",
+            "startedAt": "2026-11-13T18:45:51.655Z",
+            "finishedAt": "2026-11-13T18:45:52.753Z",
+            "error": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "consulta de alocações confirmadas continua funcionando com credencial própria",
+      "result": "PASS",
+      "details": {
+        "httpStatus": 200,
+        "returnedItems": 0
+      }
+    }
+  ],
+  "requests": [
+    {
+      "method": "POST",
+      "path": "/api/auth/login",
+      "httpStatus": 200,
+      "requestId": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/api-credentials",
+      "httpStatus": 201,
+      "requestId": "851195ee-a6f5-409a-9ee4-270eca555a6e"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/api-credentials",
+      "httpStatus": 201,
+      "requestId": "b172ee0b-b172-4da7-b578-a4ca193e0ca8"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/api-credentials",
+      "httpStatus": 201,
+      "requestId": "c9baebee-56f4-4a00-a02a-26ca2340a1b7"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 401,
+      "requestId": "b5bd7395-de8e-4914-8292-39779db338ee",
+      "errorCode": "INVALID_TOKEN"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 403,
+      "requestId": "530c6312-25de-4601-a409-dd85a9b849f8",
+      "errorCode": "COMPANY_NOT_ALLOWED"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 400,
+      "requestId": "cdd4d570-9130-4c94-ba7e-9b51ce74f8eb",
+      "errorCode": "IDEMPOTENCY_KEY_REQUIRED"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 400,
+      "requestId": "bc50f967-a2d0-461d-941f-7836b8eb1783",
+      "errorCode": "IDEMPOTENCY_KEY_MISMATCH"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 400,
+      "requestId": "60bd9ded-b757-4f70-9c6a-d4245adf2ac1",
+      "errorCode": "VALIDATION_ERROR"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 200,
+      "requestId": "8e699231-7189-4433-8d8f-b15d8a5043fa"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 200,
+      "requestId": "cb50b6c7-97ad-4923-8bbe-b2a6f53f52b5"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 200,
+      "requestId": "15ba97a2-8cb5-449d-afed-629d26e944a0"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 202,
+      "requestId": "bea11cfc-a6e2-403a-b90b-1782ceebb71d",
+      "receiptId": "cmwfbzaa900101gmyxwi3fynb",
+      "status": "PENDING",
+      "reasonCode": "JOB_ROLE_PENDING"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 202,
+      "requestId": "3b505e0e-2b1f-4386-abb1-fde44f4cfa4d",
+      "receiptId": "cmwfbzad300151gmyfq9ouh41",
+      "status": "APPLIED"
+    },
+    {
+      "method": "GET",
+      "path": "/api/integracoes/v1/rh/conecta/recebimentos/cmwfbzaa900101gmyxwi3fynb",
+      "httpStatus": 200,
+      "requestId": "4126421f-9b47-4db2-8fa9-73d8810420bb",
+      "receiptId": "cmwfbzaa900101gmyxwi3fynb",
+      "status": "APPLIED"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 202,
+      "requestId": "76cd14b0-5203-4861-8601-12b6b0095a89",
+      "receiptId": "cmwfbzaa900101gmyxwi3fynb",
+      "status": "APPLIED"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 409,
+      "requestId": "50ff11ed-b513-4141-81f9-4d5524be21cc",
+      "errorCode": "EVENT_CONTENT_CONFLICT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 409,
+      "requestId": "eb66272c-bfaa-4474-a72a-14cd232de2a4",
+      "errorCode": "REVISION_CONTENT_CONFLICT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 202,
+      "requestId": "3cd384ae-daf7-425d-bbfd-8a0bc2c2f2da",
+      "receiptId": "cmwfbzanm001p1gmyb8uiarb7",
+      "status": "APPLIED"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 202,
+      "requestId": "69284438-bc5c-41c0-a69e-eaaecfd07a22",
+      "receiptId": "cmwfbzapk001u1gmyyfxct2ki",
+      "status": "APPLIED"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 202,
+      "requestId": "e9c0fbca-1205-408d-b31b-a40189af3cbb",
+      "receiptId": "cmwfbzasz001z1gmy60fwfdg0",
+      "status": "APPLIED"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 202,
+      "requestId": "0a77d41e-90c4-41b0-8db0-920bbce8b236",
+      "receiptId": "cmwfbzavm00261gmyj8dmosuu",
+      "status": "APPLIED"
+    },
+    {
+      "method": "GET",
+      "path": "/api/efetivo/planning/collaborators/cmwfbzadk00171gmyvjlid1u3/rh?date=2026-11-13",
+      "httpStatus": 200,
+      "requestId": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/efetivo/planning/collaborators/cmwfbzadk00171gmyvjlid1u3/rh?date=2026-11-14",
+      "httpStatus": 200,
+      "requestId": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/efetivo/planning/collaborators?date=2026-11-13&search=TESTE%20RH%2020261113184836",
+      "httpStatus": 200,
+      "requestId": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/efetivo/planning/missions/cmwfbzvbk0001ammydtqjur5f/allocations",
+      "httpStatus": 409,
+      "requestId": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/efetivo/planning/missions/cmwfbzvbk0001ammydtqjur5f/allocations",
+      "httpStatus": 409,
+      "requestId": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 202,
+      "requestId": "455d35f7-fe24-4a9b-8394-935c24bbdf36",
+      "receiptId": "cmwfc5fvk002f1gmyh276ik0v",
+      "status": "APPLIED"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 202,
+      "requestId": "0be13e83-b0af-4b1f-9220-9b46a70ca32f",
+      "receiptId": "cmwfc5gjk002k1gmyxulm00uj",
+      "status": "APPLIED"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 202,
+      "requestId": "5f718190-6c46-4214-9cca-1dca50f85d00",
+      "receiptId": "cmwfc5grm002p1gmym6hhfhnw",
+      "status": "APPLIED"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 202,
+      "requestId": "131a4523-884a-47c2-b169-180dd93a6bb8",
+      "receiptId": "cmwfc5gwt002u1gmycv1ia0cv",
+      "status": "APPLIED"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 202,
+      "requestId": "5a3e43d1-c0e0-431b-bec2-06ae5da4ddb5",
+      "receiptId": "cmwfc5gzz00301gmyk9ogro74",
+      "status": "APPLIED"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 202,
+      "requestId": "5be76192-2f5a-4d30-946f-b8fcb06ca7b1",
+      "receiptId": "cmwfc5h6s00351gmyr1xxy00i",
+      "status": "APPLIED"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 202,
+      "requestId": "9ed5c960-902b-4903-929a-9b5581c3699f",
+      "receiptId": "cmwfc5h9w003c1gmyah82bt2d",
+      "status": "APPLIED"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 202,
+      "requestId": "39fe6ae6-0461-4523-88bd-5fa675855f9e",
+      "receiptId": "cmwfc5hdt003h1gmykps7l2se",
+      "status": "APPLIED"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 202,
+      "requestId": "82dd01d2-af03-4bdb-9800-741cc447e3a0",
+      "receiptId": "cmwfc5hhh003m1gmy6hd466lz",
+      "status": "APPLIED"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 202,
+      "requestId": "19bf72ad-693b-47be-a43b-5e15e340c973",
+      "receiptId": "cmwfc5hmc003r1gmy2a5upn89",
+      "status": "APPLIED"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 403,
+      "requestId": "32017bad-0b47-4cb4-b796-4f749f1e0ea1",
+      "errorCode": "INSUFFICIENT_SCOPE"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 202,
+      "requestId": "d9578a04-72fd-48e7-ab3e-a77dc35f6e7d",
+      "receiptId": "cmwfc5hrt003x1gmyzdah35e3",
+      "status": "APPLIED"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 202,
+      "requestId": "f1d46544-1140-4349-9554-3027861c4219",
+      "receiptId": "cmwfc5hwe00421gmygl550nlb",
+      "status": "APPLIED"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 202,
+      "requestId": "7d8fa83d-483f-4286-a4f7-68992cb88d99",
+      "receiptId": "cmwfc5i8e00471gmytob4pzca",
+      "status": "APPLIED"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 202,
+      "requestId": "16ebd38d-7491-4270-a2b3-f7e2959cdfbc",
+      "receiptId": "cmwfc5id4004c1gmyi4rzuuno",
+      "status": "APPLIED"
+    },
+    {
+      "method": "GET",
+      "path": "/api/efetivo/planning/collaborators/cmwfbzadk00171gmyvjlid1u3/rh?date=2026-11-13",
+      "httpStatus": 200,
+      "requestId": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 202,
+      "requestId": "ecf3edc5-2344-48c0-9cdc-9870557bc376",
+      "receiptId": "cmwfc5iio004g1gmyb7ffp29y",
+      "status": "SUPERSEDED"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/api-credentials/cmwfbydk100051gmy15xy0bht/revoke",
+      "httpStatus": 200,
+      "requestId": "32dfbe6b-e713-48f7-ae85-85c96eedc191"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/api-credentials/cmwfbydlu00081gmym904ej2g/revoke",
+      "httpStatus": 200,
+      "requestId": "6351584b-6a56-4e9b-a2c9-98c2133af102"
+    },
+    {
+      "method": "GET",
+      "path": "/health",
+      "httpStatus": 200,
+      "requestId": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "httpStatus": 202,
+      "requestId": "04324e93-ce0a-4239-9062-a15cf26c9c8a",
+      "receiptId": "cmwfbzaa900101gmyxwi3fynb",
+      "status": "APPLIED"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/api-credentials",
+      "httpStatus": 201,
+      "requestId": "0b6edd9e-8e2c-4210-94df-a47e07163f07"
+    },
+    {
+      "method": "GET",
+      "path": "/api/integracoes/v1/efetivo/conferencia/alocacoes?from=2026-11-09&to=2026-11-15&limit=10",
+      "httpStatus": 200,
+      "requestId": "cd5f2b3e-1fea-43cb-8616-35442c72e132"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/api-credentials/cmwfc7cdp00031gmy3xgifykk/revoke",
+      "httpStatus": 200,
+      "requestId": "424710ea-7699-4f66-a224-05a69196c9b1"
+    }
+  ],
+  "completedPhase": "final",
+  "finishedAt": "2026-11-13T18:55:35.831Z",
+  "summary": {
+    "passed": 33,
+    "failed": 0
+  },
+  "deployment": {
+    "checkout": "/root/apps/filtroAPP-staging",
+    "branch": "feat/conecta-rh-integration",
+    "commit": "cc265f0a524c468df174aa87f12481436c0c79e4",
+    "migration": "20261113100000_conecta_rh",
+    "migrationFinishedAt": "2026-11-13T18:45:30.056096Z",
+    "health": {
+      "postgres": "healthy",
+      "backend": "healthy",
+      "worker": "healthy",
+      "nginx": "healthy"
+    },
+    "serviceSourceSha256": "d274e5703809c50ad675d20ab7392f8406cc915ba7331c1fb0fa853fa06c65bc",
+    "sourceHashMatches": [
+      "checkout",
+      "backend",
+      "worker"
+    ]
+  },
+  "automatedTests": {
+    "file": "backend/test/conecta-rh.integration.test.js",
+    "environment": "local disposable PostgreSQL WASM",
+    "passed": 12,
+    "failed": 0,
+    "snapshotFeedSource": "simulated fetch responses"
+  },
+  "findings": [
+    {
+      "severity": "low",
+      "component": "FiltroAPP calendar navigation",
+      "reproductionUrl": "https://filtrostaging.filtrovali.com.br/efetivo?section=missoes&missao=cmwfbzvbk0001ammydtqjur5f",
+      "expected": "open mission/project team",
+      "observed": "Visão geral",
+      "source": "backend/src/lib/efetivo/planning/calendar.js:68",
+      "workaround": "Evolução → project → Equipe e ciclos"
+    }
+  ],
+  "pendingConecta": [
+    "real company UUID",
+    "read API URL and token",
+    "egress IP allowlist",
+    "real producer events and nullable role effectiveDate",
+    "real snapshot/feed and recovery",
+    "automatic delivery activation",
+    "existing allocations consumer with real rows"
+  ],
+  "screenshots": [
+    "output/playwright/conecta-staging-20261113/ativacao-recontratacao-revogacao.png",
+    "output/playwright/conecta-staging-20261113/confirmacao-data-futura-mobile.png",
+    "output/playwright/conecta-staging-20261113/confirmacao-pre-admissao.png",
+    "output/playwright/conecta-staging-20261113/conformidade-vencida.png",
+    "output/playwright/conecta-staging-20261113/link-missao-calendario.png",
+    "output/playwright/conecta-staging-20261113/pre-admissao.png"
+  ],
+  "browserConsole": {
+    "errors": 0,
+    "warnings": 0
+  }
+}

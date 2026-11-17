@@ -245,6 +245,49 @@ test('Conecta: recepção real, referência provisória por vínculo, correçõe
   });
 });
 
+test('Engenharia publicada pelo Conecta participa do Efetivo sem alterar a classificação da origem', { timeout: 120_000 }, async () => {
+  const database = await apiSimulationDatabase();
+  const db = database.client;
+  const companyId = randomUUID(), roleId = randomUUID(), secondRoleId = randomUUID();
+  const personId = randomUUID(), employmentId = randomUUID();
+  const event = (aggregateType, data, revision = 1) => ({ schemaVersion: '1.0', companyId, eventId: randomUUID(),
+    eventType: `${aggregateType}.upserted`, aggregateType, aggregateId: aggregateType === 'employment' ? data.employmentId : data.id,
+    revision, occurredAt: '2026-11-16T12:00:00Z', data });
+  const receive = input => receiveConectaEvent(db, input, { companyId, idempotencyKey: input.eventId });
+  const role = { id: roleId, name: 'Engenheiro de homologação', cbo: null, isActive: true, isOperational: false };
+  const employment = { personId, employmentId, name: 'Pessoa fictícia da Engenharia', cpf: null, registrationNumber: null,
+    email: null, isOperational: false, admissionDate: '2026-11-01', terminationDate: null, status: 'ACTIVE', currentJobRoleId: roleId };
+  try {
+    await receive(event('job_role', role));
+    assert.equal((await db.jobRole.findFirstOrThrow()).isOperational, false, 'catálogo sem vínculo publicado conserva sua classificação');
+    await receive(event('employment', employment));
+    const collaborator = await db.collaborator.findFirstOrThrow();
+    assert.equal(collaborator.isActive, true);
+    assert.equal((await db.jobRole.findUniqueOrThrow({ where: { id: collaborator.jobRoleId } })).isOperational, true);
+    assert.deepEqual(collectAllocationConflicts({ collaborator, jobRoleId: collaborator.jobRoleId,
+      period: { startDate: '2026-11-16', endDate: '2026-11-20' } }), []);
+    await receive(event('job_role', { ...role, name: 'Engenheiro de homologação atualizado' }, 2));
+    assert.equal((await db.jobRole.findUniqueOrThrow({ where: { id: collaborator.jobRoleId } })).isOperational, true,
+      'nova revisão do catálogo não retira do Efetivo um cargo já publicado para equipe');
+    await receive(event('job_role', { ...role, id: secondRoleId, name: 'Engenheiro de projeto de homologação' }));
+    await receive(event('role_change', { id: randomUUID(), personId, employmentId, jobRoleId: secondRoleId,
+      effectiveDate: '2026-11-10', status: 'ACTIVE', supersedesId: null }));
+    const updated = await db.collaborator.findUniqueOrThrow({ where: { id: collaborator.id } });
+    assert.notEqual(updated.jobRoleId, collaborator.jobRoleId);
+    assert.equal((await db.jobRole.findUniqueOrThrow({ where: { id: updated.jobRoleId } })).isOperational, true);
+    const team = await resolveSelectedMissionTeam(db, { collaboratorIds: [updated.id], scheduleStatus: 'CONFIRMED',
+      mobilizationDate: '2026-11-16', returnDate: '2026-11-20' }, 'engineering-test-plan');
+    assert.equal(team.allocations[0].collaboratorId, updated.id);
+    const source = await db.conectaRhAggregate.findFirstOrThrow({ where: { aggregateType: 'employment' } });
+    assert.equal(source.data.isOperational, false);
+    assert.ok((await db.conectaRhAggregate.findMany({ where: { aggregateType: 'job_role' } })).every(row => row.data.isOperational === false));
+    await receive(event('employment', { ...employment, status: 'TERMINATED', terminationDate: '2026-11-15' }, 2));
+    assert.equal((await db.collaborator.findUniqueOrThrow({ where: { id: updated.id } })).isActive, false);
+  } finally {
+    await database.close();
+  }
+});
+
 test('contrato não aceita ativação sem admissão oficial ou tipo de evento incompatível', () => {
   const companyId = randomUUID(), employmentId = randomUUID();
   const raw = { schemaVersion: '1.0', eventId: randomUUID(), companyId, eventType: 'employment.upserted', aggregateType: 'employment', aggregateId: employmentId,

@@ -6,6 +6,12 @@ A implementação está na branch `feat/conecta-rh-integration`. A existência d
 
 Contrato, decisões e operação: [Integração de RH do Conecta](INTEGRACAO_CONECTA_RH.md).
 
+Execução inicial no staging em 13/11/2026: [resultados com dados fictícios](HOMOLOGACAO_CONECTA_RH_RESULTADO_20261113.md). Os [envios do CONECTA conferidos em 16/11/2026](HOMOLOGACAO_CONECTA_RH_RESULTADO_20261116.md) foram aplicados corretamente; as conferências ampliadas estão documentadas abaixo. O [prompt de homologação completa em lote](PROMPT_CONECTA_RH_HOMOLOGACAO_COMPLETA.md) reúne o roteiro de testes e a entrega de evidências.
+
+Conferência do lote: [resultado de 16/11](HOMOLOGACAO_CONECTA_RH_LOTE_20261116_A_RESULTADO.md) e [encaminhamento daquela rodada](RESPOSTA_FILTROAPP_CONECTA_LOTE_20261116_A.md).
+
+**Situação em 17/11: homologação funcional encerrada no staging.** [Carga inicial concluída, conciliação resolvida e feed confirmado](HOMOLOGACAO_CONECTA_RH_RESULTADO_20261117.md). As [provas finais e o encerramento passaram](HOMOLOGACAO_CONECTA_RH_PROVAS_FINAIS_20261117_RESULTADO.md): troca de credencial, expiração real do download e `401` após revogação de A/B. A credencial original continua retornando `200`, o worker está sem erros e não há pendências desta homologação. O [retorno atual ao desenvolvedor](RESPOSTA_FILTROAPP_CONECTA_PROVAS_FINAIS_20261117.md) registra o encerramento.
+
 ## 1. Preparar o ambiente do FiltroAPP
 
 Publicar a versão da branch `feat/conecta-rh-integration`, aplicar a migration `20261113100000_conecta_rh` e atualizar frontend, API e worker para a mesma versão.

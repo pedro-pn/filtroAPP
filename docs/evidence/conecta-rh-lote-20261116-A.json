@@ -1,0 +1,1505 @@
+{
+  "runId": "20261116-A",
+  "checkedAt": "2026-11-16T18:53:17.547Z",
+  "companyId": "ca682be5-ab0c-43a8-8a26-d3f7eb1d7526",
+  "checks": [
+    {
+      "name": "rastreamento dos 79 envios e 66 recibos do manifesto",
+      "result": "PASS",
+      "details": {
+        "manifestEntries": 79,
+        "uniqueReceipts": 66,
+        "matchingPayloadHashes": 69,
+        "statusChanges": [
+          {
+            "eventId": "6c1e4f3f-3a62-449b-bb9e-b71e78b71454",
+            "reported": "APPLIED",
+            "now": "SUPERSEDED",
+            "reasonCode": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "fixtures de pessoas e cargos conciliados sem duplicação",
+      "result": "PASS",
+      "details": {
+        "people": 11,
+        "roles": 5
+      }
+    },
+    {
+      "name": "P01: pré-admissão sem data e referência inicial preservadas",
+      "result": "PASS"
+    },
+    {
+      "name": "P02: pré-admissão sem data e referência inicial preservadas",
+      "result": "PASS"
+    },
+    {
+      "name": "P11: pré-admissão sem data e referência inicial preservadas",
+      "result": "PASS"
+    },
+    {
+      "name": "P03: admissão D-2, estado final e situação do evento retido",
+      "result": "PASS",
+      "details": {
+        "heldEventAlreadyReceived": {
+          "id": "cmwjkx6jw07cx1gpnhr1dn4nl",
+          "status": "APPLIED",
+          "receivedAt": "2026-11-16T18:10:42.660Z"
+        },
+        "historicalDerivedCheckpointObserved": false
+      }
+    },
+    {
+      "name": "P04: mudança de admissão preservou vigência expressa",
+      "result": "PASS"
+    },
+    {
+      "name": "P05: data futura permanece PRE_ADMISSION, sem marca provisória",
+      "result": "PASS"
+    },
+    {
+      "name": "P06 e P08: desistência e desligamento sem datas inventadas",
+      "result": "PASS"
+    },
+    {
+      "name": "P07: recontratação única e correção antiga não substitui vínculo atual",
+      "result": "PASS"
+    },
+    {
+      "name": "P09: substituição no mesmo dia conserva uma atribuição por data",
+      "result": "PASS"
+    },
+    {
+      "name": "CS1, CS2, CS3: vigência salarial, correção, substituição e cancelamento",
+      "result": "PASS",
+      "details": {
+        "futureBefore": "1500.00",
+        "futureOnDate": "1650.00",
+        "correctedReplacement": "2150.00",
+        "cancelledFutureFallsBack": "3000.00",
+        "amountsSynthetic": true
+      }
+    },
+    {
+      "name": "P10: conformidade na data do vencimento, posterior, revogada e sem prazo",
+      "result": "PASS",
+      "details": {
+        "nullableIssueDateFixed": true
+      }
+    },
+    {
+      "name": "login administrativo para conferir API e telas",
+      "result": "PASS"
+    },
+    {
+      "name": "API de colaboradores e conformidade reflete os fixtures do lote",
+      "result": "PASS",
+      "details": {
+        "listedFixtures": 11
+      }
+    },
+    {
+      "name": "credencial sem salário recebe 403 e não persiste evento",
+      "result": "PASS",
+      "details": {
+        "http": 403,
+        "errorCode": "INSUFFICIENT_SCOPE",
+        "requestId": "3960e254-684d-4ab4-ae11-7a1092bd38ca",
+        "temporaryCredentialRevoked": true
+      }
+    },
+    {
+      "name": "Prefer validate-only não cria recibo nem cargo",
+      "result": "PASS"
+    },
+    {
+      "name": "fixture de missão preparado; API exige confirmação para P01 e P05",
+      "result": "PASS",
+      "details": {
+        "projectId": "cmwjmg0wz00008ap37mf2b5lo",
+        "missionId": "cmwjmg0zh00018ap351rnqndr"
+      }
+    },
+    {
+      "name": "autoalocação não confirma pré-admissão implicitamente (SQL com rollback)",
+      "result": "PASS",
+      "details": {
+        "rolledBack": true
+      }
+    },
+    {
+      "name": "vigência derivada desloca D para D-2 antes da revisão expressa (SQL com rollback)",
+      "result": "PASS",
+      "details": {
+        "rolledBack": true,
+        "derivedDate": "2026-11-14"
+      }
+    },
+    {
+      "name": "parâmetros manuais preservados na correção/cancelamento salarial (SQL com rollback)",
+      "result": "PASS",
+      "details": {
+        "rolledBack": true
+      }
+    },
+    {
+      "name": "conciliação ambígua e resolução controlada sem fusão (SQL com rollback)",
+      "result": "PASS",
+      "details": {
+        "rolledBack": true,
+        "existingPersonSelected": true
+      }
+    },
+    {
+      "name": "Engenharia ativa e cargo elegível com classificação original preservada (SQL com rollback)",
+      "result": "PASS",
+      "details": {
+        "rolledBack": true
+      }
+    },
+    {
+      "name": "snapshot real: reimportação idempotente e falha parcial não avança watermark",
+      "result": "PASS",
+      "details": {
+        "sourceReadBlocked": true,
+        "cursorUnchanged": true,
+        "peopleNotDuplicated": true
+      }
+    },
+    {
+      "name": "alocações em produção: 35 itens, três pessoas confirmadas e credencial ALL",
+      "result": "PASS",
+      "details": {
+        "environment": "production-read-only",
+        "log": {
+          "requestId": "dfede4bd-3c2d-445f-ae68-475b641dd25f",
+          "credentialId": "cmw3jri2s00by1grzwqd5soi0",
+          "statusCode": 200,
+          "responseRows": 35,
+          "createdAt": "2026-11-16T16:49:00.570Z"
+        },
+        "credential": {
+          "projectAccessMode": "ALL",
+          "allowedIpCidrs": [],
+          "scopes": [
+            {
+              "scopeCode": "qualidade.registros.read"
+            },
+            {
+              "scopeCode": "efetivo.conferencia.read"
+            }
+          ]
+        },
+        "confirmedPeople": 3
+      }
+    },
+    {
+      "name": "tela desktop: cancelar não grava e confirmar mobiliza P01 sem ativar RH",
+      "result": "PASS"
+    },
+    {
+      "name": "tela mobile: cancelar não grava e confirmar mobiliza P05 com data futura",
+      "result": "PASS"
+    },
+    {
+      "name": "tela de conformidade: vencimento inclusivo, vencido no dia seguinte, demais estados corretos",
+      "result": "PASS"
+    }
+  ],
+  "requests": [
+    {
+      "method": "POST",
+      "path": "/api/auth/login",
+      "http": 200,
+      "requestId": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/efetivo/planning/collaborators?date=2026-11-16&includeInactive=true&search=ZZZ%20HOMOLOG%20RH%20LOTE%2020261116-A",
+      "http": 200,
+      "requestId": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/efetivo/planning/collaborators/cmwjhw0yf00fv1gpnwzcv84qj/rh?date=2026-11-16",
+      "http": 200,
+      "requestId": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/efetivo/planning/collaborators/cmwjhw0yf00fv1gpnwzcv84qj/rh?date=2026-11-17",
+      "http": 200,
+      "requestId": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/api-credentials",
+      "http": 201,
+      "requestId": "f45e30c0-24cd-4f2f-bc92-fe6fc4e00e69"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "http": 403,
+      "requestId": "3960e254-684d-4ab4-ae11-7a1092bd38ca",
+      "errorCode": "INSUFFICIENT_SCOPE"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/api-credentials/cmwjmg0km00011gp3mz5bsy0g/revoke",
+      "http": 200,
+      "requestId": "3421cea6-79c6-41f7-8a08-353af894d2aa"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integracoes/v1/rh/conecta/eventos",
+      "http": 200,
+      "requestId": "a53dfa31-809b-4c7c-be98-1d6bb2cb707c"
+    },
+    {
+      "method": "POST",
+      "path": "/api/efetivo/planning/missions/cmwjmg0zh00018ap351rnqndr/allocations",
+      "http": 409,
+      "requestId": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/efetivo/planning/missions/cmwjmg0zh00018ap351rnqndr/allocations",
+      "http": 409,
+      "requestId": null
+    }
+  ],
+  "fixtures": {
+    "CA": {
+      "externalId": "5e15ed06-8b14-4038-8cbf-6cc96d5f9003",
+      "localId": "cmwjhuwql002f1gpnow6pz9c1",
+      "name": "ZZZ HOMOLOG RH LOTE 20261116-A Cargo A"
+    },
+    "P01": {
+      "externalId": "97f80efd-b7d4-4904-901d-cdb1b603e9c7",
+      "id": "cmwjhuwws002l1gpnosvstkct",
+      "code": "CONECTA-97f80efd-b7d4-4904-901d-cdb1b603e9c7",
+      "name": "ZZZ HOMOLOG RH LOTE 20261116-A P01 Pre Sem Data",
+      "rhStatus": "PRE_ADMISSION",
+      "rhEmploymentId": "bb265af6-8c50-4383-a292-f4e64b38d595",
+      "rhFirstReceivedAt": "2026-11-16T16:44:57.984Z",
+      "admissionDate": "2026-11-16T00:00:00.000Z",
+      "admissionDateProvisional": true,
+      "terminationDate": null,
+      "isActive": true,
+      "jobRoleId": "cmwjhuwql002f1gpnow6pz9c1",
+      "history": [
+        {
+          "id": "conecta:cmwjhux38002q1gpnbtwi1dl9",
+          "jobRoleId": "cmwjhuwql002f1gpnow6pz9c1",
+          "effectiveDate": "2026-11-16T00:00:00.000Z"
+        }
+      ]
+    },
+    "CB": {
+      "externalId": "a0ff060c-dff2-4289-8106-1d017e92a255",
+      "localId": "cmwjhvcr300531gpn2t27nbzx",
+      "name": "ZZZ HOMOLOG RH LOTE 20261116-A Cargo B"
+    },
+    "P02": {
+      "externalId": "c13023a8-b101-4d0b-8a94-58b7e0e16ced",
+      "id": "cmwjhvcrh00541gpnotg6t38z",
+      "code": "CONECTA-c13023a8-b101-4d0b-8a94-58b7e0e16ced",
+      "name": "ZZZ HOMOLOG RH LOTE 20261116-A P02 Dependencia",
+      "rhStatus": "PRE_ADMISSION",
+      "rhEmploymentId": "70f72c12-5bfe-4534-aedf-c1ec53b05dd7",
+      "rhFirstReceivedAt": "2026-11-16T16:45:02.247Z",
+      "admissionDate": "2026-11-16T00:00:00.000Z",
+      "admissionDateProvisional": true,
+      "terminationDate": null,
+      "isActive": true,
+      "jobRoleId": "cmwjhvcr300531gpn2t27nbzx",
+      "history": [
+        {
+          "id": "conecta:cmwjhv0fc00421gpneo57kaoz",
+          "jobRoleId": "cmwjhvcr300531gpn2t27nbzx",
+          "effectiveDate": "2026-11-16T00:00:00.000Z"
+        }
+      ]
+    },
+    "P03": {
+      "externalId": "f6312be2-c8e8-4599-98a2-898fcaeceaeb",
+      "id": "cmwjhvdpp005k1gpnxc0u0k8r",
+      "code": "CONECTA-f6312be2-c8e8-4599-98a2-898fcaeceaeb",
+      "name": "ZZZ HOMOLOG RH LOTE 20261116-A P03 Admissao D-2",
+      "rhStatus": "ACTIVE",
+      "rhEmploymentId": "0f2cc514-f34a-4663-9a57-53b9e9f3f2ba",
+      "rhFirstReceivedAt": "2026-11-16T16:45:19.774Z",
+      "admissionDate": "2026-11-14T00:00:00.000Z",
+      "admissionDateProvisional": false,
+      "terminationDate": null,
+      "isActive": true,
+      "jobRoleId": "cmwjhuwql002f1gpnow6pz9c1",
+      "history": [
+        {
+          "id": "conecta:cmwjhvdsr005p1gpnn3mlpwxo",
+          "jobRoleId": "cmwjhuwql002f1gpnow6pz9c1",
+          "effectiveDate": "2026-11-14T00:00:00.000Z"
+        }
+      ]
+    },
+    "P04": {
+      "externalId": "a092590d-6f1b-4f5d-a346-749738cb110f",
+      "id": "cmwjhvfyq006a1gpnat34q92c",
+      "code": "CONECTA-a092590d-6f1b-4f5d-a346-749738cb110f",
+      "name": "ZZZ HOMOLOG RH LOTE 20261116-A P04 Vigencia Expressa",
+      "rhStatus": "ACTIVE",
+      "rhEmploymentId": "eeac8723-c112-4bc5-b4c8-7051b2c1b590",
+      "rhFirstReceivedAt": "2026-11-16T16:45:22.698Z",
+      "admissionDate": "2026-10-25T00:00:00.000Z",
+      "admissionDateProvisional": false,
+      "terminationDate": null,
+      "isActive": true,
+      "jobRoleId": "cmwjhvcr300531gpn2t27nbzx",
+      "history": [
+        {
+          "id": "conecta:cmwjhvg0x006f1gpnntg3mdrq",
+          "jobRoleId": "cmwjhuwql002f1gpnow6pz9c1",
+          "effectiveDate": "2026-10-27T00:00:00.000Z"
+        },
+        {
+          "id": "conecta:cmwjhvhav006v1gpnkj9ayf6z",
+          "jobRoleId": "cmwjhvcr300531gpn2t27nbzx",
+          "effectiveDate": "2026-11-11T00:00:00.000Z"
+        }
+      ]
+    },
+    "P05": {
+      "externalId": "2c007e62-700e-475b-85bc-6ea46f949a0f",
+      "id": "cmwjhvj70007n1gpnihxwsxui",
+      "code": "CONECTA-2c007e62-700e-475b-85bc-6ea46f949a0f",
+      "name": "ZZZ HOMOLOG RH LOTE 20261116-A P05 Pre Futura",
+      "rhStatus": "PRE_ADMISSION",
+      "rhEmploymentId": "5289526d-47c5-412a-a69f-e825e3b2765d",
+      "rhFirstReceivedAt": "2026-11-16T16:45:26.873Z",
+      "admissionDate": "2026-11-26T00:00:00.000Z",
+      "admissionDateProvisional": false,
+      "terminationDate": null,
+      "isActive": true,
+      "jobRoleId": "cmwjhuwql002f1gpnow6pz9c1",
+      "history": [
+        {
+          "id": "conecta:cmwjhvj9r007s1gpn2ni0m8cl",
+          "jobRoleId": "cmwjhuwql002f1gpnow6pz9c1",
+          "effectiveDate": "2026-11-26T00:00:00.000Z"
+        }
+      ]
+    },
+    "P06": {
+      "externalId": "fff037f1-832b-4295-a45b-fea55c34bf43",
+      "id": "cmwjhvk6z00851gpnd8l9gsrv",
+      "code": "CONECTA-fff037f1-832b-4295-a45b-fea55c34bf43",
+      "name": "ZZZ HOMOLOG RH LOTE 20261116-A P06 Desistencia",
+      "rhStatus": "CANCELLED",
+      "rhEmploymentId": "a5c63809-09c5-4d2c-a7c5-066b317ed336",
+      "rhFirstReceivedAt": "2026-11-16T16:45:28.170Z",
+      "admissionDate": "2026-11-21T00:00:00.000Z",
+      "admissionDateProvisional": false,
+      "terminationDate": null,
+      "isActive": false,
+      "jobRoleId": "cmwjhuwql002f1gpnow6pz9c1",
+      "history": []
+    },
+    "P08": {
+      "externalId": "1a56c6bd-db3b-48aa-8700-806da5b15917",
+      "id": "cmwjhvlyd008v1gpnmwhhjgrz",
+      "code": "CONECTA-1a56c6bd-db3b-48aa-8700-806da5b15917",
+      "name": "ZZZ HOMOLOG RH LOTE 20261116-A P08 Desligado",
+      "rhStatus": "TERMINATED",
+      "rhEmploymentId": "a08a4a33-b7ec-4dd5-9e98-af4cdfe5b9a7",
+      "rhFirstReceivedAt": "2026-11-16T16:45:30.459Z",
+      "admissionDate": "2026-08-18T00:00:00.000Z",
+      "admissionDateProvisional": false,
+      "terminationDate": "2026-11-13T00:00:00.000Z",
+      "isActive": false,
+      "jobRoleId": "cmwjhuwql002f1gpnow6pz9c1",
+      "history": [
+        {
+          "id": "conecta:cmwjhvm0g00901gpn46qirort",
+          "jobRoleId": "cmwjhuwql002f1gpnow6pz9c1",
+          "effectiveDate": "2026-08-18T00:00:00.000Z"
+        }
+      ]
+    },
+    "P07": {
+      "externalId": "e8b499c5-870a-4baa-84f3-db3fa8010ad7",
+      "id": "cmwjhvnuc009t1gpnm7ieu9yy",
+      "code": "CONECTA-e8b499c5-870a-4baa-84f3-db3fa8010ad7",
+      "name": "ZZZ HOMOLOG RH LOTE 20261116-A P07 Recontratado",
+      "rhStatus": "ACTIVE",
+      "rhEmploymentId": "18eba0e9-f324-4da8-9fcc-79ae0ed5578b",
+      "rhFirstReceivedAt": "2026-11-16T16:45:35.570Z",
+      "admissionDate": "2026-11-16T00:00:00.000Z",
+      "admissionDateProvisional": false,
+      "terminationDate": null,
+      "isActive": true,
+      "jobRoleId": "cmwjhuwql002f1gpnow6pz9c1",
+      "history": [
+        {
+          "id": "conecta:cmwjhvnx2009y1gpnsvjlpi8y",
+          "jobRoleId": "cmwjhuwql002f1gpnow6pz9c1",
+          "effectiveDate": "2026-09-17T00:00:00.000Z"
+        },
+        {
+          "id": "conecta:cmwjhvpyh00au1gpnz3gi412b",
+          "jobRoleId": "cmwjhuwql002f1gpnow6pz9c1",
+          "effectiveDate": "2026-11-16T00:00:00.000Z"
+        }
+      ]
+    },
+    "P09": {
+      "externalId": "add33488-7661-4cea-a1ad-866e2c983827",
+      "id": "cmwjhvroq00bf1gpn85fkv3hk",
+      "code": "CONECTA-add33488-7661-4cea-a1ad-866e2c983827",
+      "name": "ZZZ HOMOLOG RH LOTE 20261116-A P09 Troca de Cargo",
+      "rhStatus": "ACTIVE",
+      "rhEmploymentId": "ef9e4a59-b8e3-4095-8f26-f375795500dc",
+      "rhFirstReceivedAt": "2026-11-16T16:45:37.885Z",
+      "admissionDate": "2026-10-17T00:00:00.000Z",
+      "admissionDateProvisional": false,
+      "terminationDate": null,
+      "isActive": true,
+      "jobRoleId": "cmwjhuwql002f1gpnow6pz9c1",
+      "history": [
+        {
+          "id": "conecta:cmwjhvud300cl1gpngzgk163j",
+          "jobRoleId": "cmwjhuwql002f1gpnow6pz9c1",
+          "effectiveDate": "2026-11-09T00:00:00.000Z"
+        },
+        {
+          "id": "conecta:cmwjhvrrz00bk1gpnbcd11tqu",
+          "jobRoleId": "cmwjhuwql002f1gpnow6pz9c1",
+          "effectiveDate": "2026-10-17T00:00:00.000Z"
+        }
+      ]
+    },
+    "CS1": {
+      "externalId": "097bdb90-c1a8-40c2-b2c6-9a5939f5df23",
+      "localId": "cmwjhvvfg00d11gpnm7p0njiw",
+      "name": "ZZZ HOMOLOG RH LOTE 20261116-A Cargo Salario Futuro"
+    },
+    "CS2": {
+      "externalId": "ca60cfa1-0a84-47fc-9fb6-40fb2664de89",
+      "localId": "cmwjhvwd200dr1gpnpa8vgm2x",
+      "name": "ZZZ HOMOLOG RH LOTE 20261116-A Cargo Salario Corrigido"
+    },
+    "CS3": {
+      "externalId": "47cab03e-2f32-4929-b3d2-eb7363f4df46",
+      "localId": "cmwjhvz2m00ex1gpn8lpxm9fj",
+      "name": "ZZZ HOMOLOG RH LOTE 20261116-A Cargo Salario Cancelado"
+    },
+    "P10": {
+      "externalId": "dfc4f663-5c72-40e5-9709-bde996f3214e",
+      "id": "cmwjhw0yf00fv1gpnwzcv84qj",
+      "code": "CONECTA-dfc4f663-5c72-40e5-9709-bde996f3214e",
+      "name": "ZZZ HOMOLOG RH LOTE 20261116-A P10 Conformidade",
+      "rhStatus": "ACTIVE",
+      "rhEmploymentId": "92e160bf-b92c-45c4-8b5f-d7e6e21ad721",
+      "rhFirstReceivedAt": "2026-11-16T16:45:49.900Z",
+      "admissionDate": "2026-10-17T00:00:00.000Z",
+      "admissionDateProvisional": false,
+      "terminationDate": null,
+      "isActive": true,
+      "jobRoleId": "cmwjhuwql002f1gpnow6pz9c1",
+      "history": [
+        {
+          "id": "conecta:cmwjhw11m00g01gpn2cadouqo",
+          "jobRoleId": "cmwjhuwql002f1gpnow6pz9c1",
+          "effectiveDate": "2026-10-17T00:00:00.000Z"
+        }
+      ]
+    },
+    "P11": {
+      "externalId": "229ad984-ad74-4267-b1ef-1910bf908def",
+      "id": "cmwjhw68b00il1gpnw6pn3jsd",
+      "code": "CONECTA-229ad984-ad74-4267-b1ef-1910bf908def",
+      "name": "ZZZ HOMOLOG RH LOTE 20261116-A P11 Recusas",
+      "rhStatus": "PRE_ADMISSION",
+      "rhEmploymentId": "b6ae9874-2147-4467-883f-cca3a5cede72",
+      "rhFirstReceivedAt": "2026-11-16T16:45:56.738Z",
+      "admissionDate": "2026-11-16T00:00:00.000Z",
+      "admissionDateProvisional": true,
+      "terminationDate": null,
+      "isActive": true,
+      "jobRoleId": "cmwjhuwql002f1gpnow6pz9c1",
+      "history": [
+        {
+          "id": "conecta:cmwjhw6aa00iq1gpna9nwtmgw",
+          "jobRoleId": "cmwjhuwql002f1gpnow6pz9c1",
+          "effectiveDate": "2026-11-16T00:00:00.000Z"
+        }
+      ]
+    }
+  },
+  "lotReceipts": [
+    {
+      "id": "cmwjhuwq5002e1gpnqppbayyn",
+      "eventId": "e25fb7bf-53f5-4cc9-9a41-46f1cb87dd12",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:44:57.753Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhuwwd002k1gpn3mppy0q6",
+      "eventId": "c0960f64-0a1a-4dce-821b-e68608fa8c99",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:44:57.984Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhuxz7003b1gpnx87e0k65",
+      "eventId": "49bf8c24-ccb3-4824-991a-5a83cce69af4",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:44:59.386Z",
+      "revision": 2
+    },
+    {
+      "id": "cmwjhvezm00611gpnkpu38anj",
+      "eventId": "b6b1f09a-91ae-4614-b77a-da734f973606",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:21.435Z",
+      "revision": 2
+    },
+    {
+      "id": "cmwjhuywr003j1gpnhdwdk4ei",
+      "eventId": "e20921a4-7e3b-4695-ad0a-4199f5819a95",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:00.585Z",
+      "revision": 4
+    },
+    {
+      "id": "cmwjhux39002r1gpng6cxnzxr",
+      "eventId": "378bb9bd-c0ab-4ac3-91dc-5a2eb3a737f8",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:44:58.239Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhuz3p003q1gpnwzz9puze",
+      "eventId": "49739501-28e0-4af3-a1ec-d998a4eb055c",
+      "status": "SUPERSEDED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:00.847Z",
+      "revision": 3
+    },
+    {
+      "id": "cmwjhvdss005q1gpnnc9nah4v",
+      "eventId": "36fb12d9-f9ce-4792-a27d-c2a9bcd695cb",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:19.897Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhvcqs00521gpnf1re5r75",
+      "eventId": "75fa5fca-1863-4ac0-9c47-16c0c5e1043e",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:18.526Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhv079003y1gpnk8xb4p11",
+      "eventId": "68db87b2-01a0-48a7-82d1-f72bdc9a8200",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:02.247Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhv0fe00431gpnwps5f5wc",
+      "eventId": "37b1b0d0-a9c5-4082-a99b-83278b07efa4",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:02.562Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhvdpe005j1gpnvk1wkzmv",
+      "eventId": "4a0529bb-557a-4aac-baca-6029a6d276a2",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:19.774Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhvfym00691gpntrfwfahu",
+      "eventId": "19b95cf5-6776-432f-9ea1-6235f5151b2c",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:22.698Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhvh20006r1gpn9x0u6vxy",
+      "eventId": "81a4d6d2-8899-49c2-8a5e-8c79f8c4e5a7",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:24.109Z",
+      "revision": 2
+    },
+    {
+      "id": "cmwjhvi8r00771gpn94lovc7e",
+      "eventId": "2d30f1e7-e342-486d-9c03-9cae718c480c",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:25.653Z",
+      "revision": 3
+    },
+    {
+      "id": "cmwjhvg11006g1gpnclx2gmkj",
+      "eventId": "9dfd79c5-e435-4632-b40a-9c1650ebe4e9",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:22.779Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhvhax006w1gpnsznf5gsf",
+      "eventId": "148a3b89-7142-43c2-bf1e-29910709ade3",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:24.427Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhvj6p007m1gpn695fvf65",
+      "eventId": "267ca058-ed30-4ce4-80fd-6a053a0fe1a9",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:26.873Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhvj9s007t1gpnuwntxjp0",
+      "eventId": "9cf46edb-650e-40ae-8fc3-034fb2ca90b7",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:26.983Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhvk6o00841gpn3b5rycf9",
+      "eventId": "879ea7c1-3252-429a-8e58-4eed4c0a09fb",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:28.170Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhvpyi00av1gpn9tt8h554",
+      "eventId": "ff214116-92eb-45e2-9e24-44c1b53ea3ed",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:35.653Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhvua400ch1gpn3opoxkgy",
+      "eventId": "227abb08-d834-40db-87e9-8000e5727059",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:41.251Z",
+      "revision": 2
+    },
+    {
+      "id": "cmwjhvx1b00e81gpn2p2nxnb4",
+      "eventId": "93c63b82-42c0-4a98-8d3d-38f5497006ec",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:44.820Z",
+      "revision": 2
+    },
+    {
+      "id": "cmwjhvmxr009h1gpngjntzgqd",
+      "eventId": "0fd2455d-0c2b-41f2-ad46-688af8925e45",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:31.727Z",
+      "revision": 3
+    },
+    {
+      "id": "cmwjhvm0i00911gpnewaztx8y",
+      "eventId": "3e38d5e3-4ae6-46e1-ba44-66fdb89dff9b",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:30.541Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhw3e500gm1gpn0wfazvaf",
+      "eventId": "0e2fdd6c-9045-418d-a566-9e57001b65c4",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:53.057Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhvp0e00af1gpnkpgcupf1",
+      "eventId": "6bc72026-8e2c-433e-8f04-9d3199540410",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:34.415Z",
+      "revision": 3
+    },
+    {
+      "id": "cmwjhvnx4009z1gpnd7jqkrwx",
+      "eventId": "fa908793-9606-4953-bc38-a24ac86b27e8",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:33.012Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhvxyx00eg1gpnw0dz244o",
+      "eventId": "7e97562d-028b-472c-bfd6-2999c975421a",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:46.037Z",
+      "revision": 3
+    },
+    {
+      "id": "cmwjhvvh600d61gpnxwskf3uj",
+      "eventId": "14fe3f63-2e1f-4f6f-b315-4cbe80fcc210",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:42.806Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhvz7500f81gpnoqm9tofb",
+      "eventId": "bc782178-c32e-4135-a170-b0e3f986c69e",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:47.627Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhvrs200bl1gpn9fsy0hec",
+      "eventId": "ba665063-23e5-4899-9241-e3e1846dd0c6",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:37.999Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhvszj00c11gpnxzraz6v9",
+      "eventId": "c1a9a743-7a8d-46c1-abcf-e9384e8bc7b7",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:39.575Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhvwcy00dq1gpnszmo620y",
+      "eventId": "86ce0de9-0846-4506-9776-3523ef837f3b",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:43.949Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhvz2800ew1gpns8pyscri",
+      "eventId": "a451a78d-492e-4a45-9611-8f52f4601dc6",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:47.449Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhw3nh00h61gpnti78iz7z",
+      "eventId": "364fd0e1-0f78-4b07-8946-8be4ed986edb",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:53.396Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhvzv700fm1gpnuxz9b64u",
+      "eventId": "d0af79a3-b437-4eb5-8929-a48edccbe463",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:48.493Z",
+      "revision": 2
+    },
+    {
+      "id": "cmwjhw0y900fu1gpnvk8ps6mn",
+      "eventId": "86c66a74-6fc1-48fb-b2d4-8811f6acd0d2",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:49.900Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhw38i00gc1gpniiacdo2o",
+      "eventId": "fdbd37b7-44aa-4c13-bd24-45af951aeca8",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:52.854Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhw3iw00gw1gpnu2l6gkhw",
+      "eventId": "369c5dbd-3eeb-4b74-9179-7d5b7b2575a9",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:53.229Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhw50700i41gpnj2v5i5t1",
+      "eventId": "ca1acd5d-ed1b-4fe1-9073-42dcac0a89a9",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:55.152Z",
+      "revision": 2
+    },
+    {
+      "id": "cmwjhw68600ik1gpnzhvlhz1k",
+      "eventId": "6511203b-c6a0-4282-a14c-66bf400eb568",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:56.738Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhvl51008m1gpn2bs0qabz",
+      "eventId": "02efecba-0a3f-414e-9fe5-4f77d8229a26",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:29.408Z",
+      "revision": 2
+    },
+    {
+      "id": "cmwjhvly8008u1gpnyapujxfq",
+      "eventId": "dd973677-d23e-414e-a5c3-21a24fb3037e",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:30.459Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhvmux009c1gpn9r8wwjm8",
+      "eventId": "18973994-13ee-4cf0-b150-8ac4bf29863b",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:31.637Z",
+      "revision": 2
+    },
+    {
+      "id": "cmwjhvnu4009s1gpnz84hzt4a",
+      "eventId": "a2b5e266-c276-45de-aebc-d6e37ead2324",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:32.902Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhvovf00aa1gpnbivix8el",
+      "eventId": "63614589-e97b-4bff-989a-fa87eab9aa9f",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:34.243Z",
+      "revision": 2
+    },
+    {
+      "id": "cmwjhvpwb00aq1gpnuqm6vqej",
+      "eventId": "5c2cb96c-d1f7-4f86-8424-9f6bf0751035",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:35.570Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhvqv100b61gpnu1mkpek5",
+      "eventId": "a8baddb5-d6b2-4194-af34-aafa1e18fbfd",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:36.825Z",
+      "revision": 4
+    },
+    {
+      "id": "cmwjhvroj00be1gpnts7b87oq",
+      "eventId": "fbfdd983-039e-4866-bc39-a435f858a80b",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:37.885Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhvsve00bw1gpnzuhm5pzj",
+      "eventId": "cfe84d90-b35c-4381-8f04-eefbc97afa94",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:39.416Z",
+      "revision": 2
+    },
+    {
+      "id": "cmwjhvu7200cc1gpnpjuxfqab",
+      "eventId": "3053fe81-5f6a-4150-b0db-ab261370a5c0",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:41.143Z",
+      "revision": 3
+    },
+    {
+      "id": "cmwjhvud400cm1gpnq0159ab2",
+      "eventId": "894bd240-7c8c-49d3-81a9-7589e6348c64",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:41.364Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhvvfb00d01gpnf75f05ag",
+      "eventId": "cc9e7db0-4c15-4132-ad89-4917e95d4e8c",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:42.736Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhvvk300dc1gpn9g9556nv",
+      "eventId": "c9dfa18c-828b-4980-83db-9799a16d2e1b",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:42.908Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhvwf200dw1gpnx04nsk0h",
+      "eventId": "ccb7cdb7-7eea-48a7-8d8b-2676a942f0bd",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:44.026Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhvy1z00el1gpnswjbpqs4",
+      "eventId": "0c5ea4ea-bfa8-4db9-8905-c5095696f842",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:46.143Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhvz4j00f21gpntnujynbc",
+      "eventId": "a022c2f9-6003-4518-a51c-d06184974c85",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:47.534Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhw11n00g11gpntf9ny88e",
+      "eventId": "fe90e1b7-570f-4296-9a0b-701d6e881b13",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:50.023Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhw3br00gh1gpndf7gsa6f",
+      "eventId": "d5018d00-d22a-4006-8ad4-c6fd53de4b25",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:52.975Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhw3gi00gr1gpnrrdjbqzg",
+      "eventId": "948e2604-749c-4d0b-a4b6-9602b79689aa",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:53.148Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhw3l000h11gpn943gdgqd",
+      "eventId": "23902484-3d4f-4891-83e9-475d79321a81",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:53.312Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhw3qr00hb1gpnbif6wale",
+      "eventId": "d6eb4402-a600-4c82-9ed8-5a9785448702",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:53.503Z",
+      "revision": 2
+    },
+    {
+      "id": "cmwjhw5af00i91gpnnfrpruuc",
+      "eventId": "6c920987-2048-49bb-b812-458d9f721bb9",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:55.503Z",
+      "revision": 2
+    },
+    {
+      "id": "cmwjhw6ac00ir1gpnaft6hil9",
+      "eventId": "f66ef957-1687-4895-8c1e-87902ae18245",
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:56.814Z",
+      "revision": 1
+    },
+    {
+      "id": "cmwjhvk9r008b1gpn4ybfa5os",
+      "eventId": "6c1e4f3f-3a62-449b-bb9e-b71e78b71454",
+      "status": "SUPERSEDED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T16:45:28.283Z",
+      "revision": 1
+    }
+  ],
+  "intentionalRefusals": [
+    {
+      "eventId": "2a0e77f1-d423-4286-b9b7-eae13bb19574",
+      "http": 401,
+      "errorCode": "INVALID_TOKEN",
+      "requestId": "9f3584c1-d496-4ed8-bb41-9a7e18934018"
+    },
+    {
+      "eventId": "981ee6a4-75cc-4633-9d0a-43cbdb74c0ca",
+      "http": 403,
+      "errorCode": "COMPANY_NOT_ALLOWED",
+      "requestId": "f3b377a5-794f-47f7-9665-fdc33c541b37"
+    },
+    {
+      "eventId": "8ba4342e-df2c-4b9f-b4fb-43a5c86efd53",
+      "http": 400,
+      "errorCode": "IDEMPOTENCY_KEY_REQUIRED",
+      "requestId": "71d92251-3885-4adc-a930-4bf714e36fd1"
+    },
+    {
+      "eventId": "4cd98a05-96e2-4e5b-8c7c-5ff40c7f7dc4",
+      "http": 400,
+      "errorCode": "IDEMPOTENCY_KEY_MISMATCH",
+      "requestId": "d08720c8-9293-428b-a770-7b23bd9e79fb"
+    },
+    {
+      "eventId": "6511203b-c6a0-4282-a14c-66bf400eb568",
+      "http": 409,
+      "errorCode": "EVENT_CONTENT_CONFLICT",
+      "requestId": "432b64c5-26f5-493d-90a4-e0ad7f788716"
+    },
+    {
+      "eventId": "93d07323-e32b-48c4-87b6-8c93dbcb0e6a",
+      "http": 409,
+      "errorCode": "REVISION_CONTENT_CONFLICT",
+      "requestId": "8295e150-d681-4c64-9aca-e5caf7ba0488"
+    },
+    {
+      "eventId": "7e52ef3c-53be-411f-a310-2a95f31e90fb",
+      "http": 400,
+      "errorCode": "VALIDATION_ERROR",
+      "requestId": "2d3cd2ba-7144-4835-a856-cf96b5157fea"
+    },
+    {
+      "eventId": "0ec80c38-5386-4d35-8d72-952fc9011ddb",
+      "http": 400,
+      "errorCode": "VALIDATION_ERROR",
+      "requestId": "873055d4-f51a-46e9-8abb-eeff86c0d5da"
+    },
+    {
+      "eventId": "9a7f8bda-b18b-46b9-8000-0a2c6b3d26db",
+      "http": 400,
+      "errorCode": "VALIDATION_ERROR",
+      "requestId": "187d65c8-26c4-4656-8afe-9354007b1d59"
+    }
+  ],
+  "snapshot": {
+    "calls": [
+      {
+        "method": "POST",
+        "path": "/api/integracoes/filtroapp/v1/snapshots",
+        "http": 201
+      },
+      {
+        "method": "GET",
+        "path": "/api/integracoes/filtroapp/v1/snapshots/639ffebd-b5f5-4411-8746-f6d80ce5bea2/job-roles",
+        "http": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/integracoes/filtroapp/v1/snapshots/639ffebd-b5f5-4411-8746-f6d80ce5bea2/employments",
+        "http": 200
+      }
+    ],
+    "error": {
+      "name": "ZodError",
+      "issues": [
+        {
+          "path": [
+            "admissionDate"
+          ],
+          "message": "A admissão oficial é obrigatória após a ativação."
+        }
+      ]
+    },
+    "beforeCursorPresent": false,
+    "afterCursorPresent": false,
+    "blockedBySourceInvalidEmployment": true
+  },
+  "pending": [
+    {
+      "aggregateType": "employment",
+      "externalId": "101170b1-22aa-4827-9493-80648756c209",
+      "revision": 1,
+      "reasonCode": "PERSON_MAPPING_AMBIGUOUS"
+    },
+    {
+      "aggregateType": "role_change",
+      "externalId": "bc01719c-08cb-455e-a1e2-785277b74ac3",
+      "revision": 1,
+      "reasonCode": "DEPENDENCY_PENDING"
+    },
+    {
+      "aggregateType": "role_change",
+      "externalId": "bf8052c8-c80e-46bf-85bd-ab58288aab78",
+      "revision": 1,
+      "reasonCode": "DEPENDENCY_PENDING"
+    }
+  ],
+  "summary": {
+    "passed": 28,
+    "failed": 0
+  },
+  "finishedAt": "2026-11-16T19:04:11.320Z",
+  "resolvedFindings": [
+    {
+      "name": "P10: conformidade na data do vencimento, posterior, revogada e sem prazo",
+      "result": "PASS",
+      "details": {
+        "nullableIssueDateFixed": true
+      }
+    },
+    {
+      "name": "alocações em produção: 35 itens, três pessoas confirmadas e credencial ALL",
+      "result": "PASS",
+      "details": {
+        "environment": "production-read-only",
+        "log": {
+          "requestId": "dfede4bd-3c2d-445f-ae68-475b641dd25f",
+          "credentialId": "cmw3jri2s00by1grzwqd5soi0",
+          "statusCode": 200,
+          "responseRows": 35,
+          "createdAt": "2026-11-16T16:49:00.570Z"
+        },
+        "credential": {
+          "projectAccessMode": "ALL",
+          "allowedIpCidrs": [],
+          "scopes": [
+            {
+              "scopeCode": "qualidade.registros.read"
+            },
+            {
+              "scopeCode": "efetivo.conferencia.read"
+            }
+          ]
+        },
+        "confirmedPeople": 3
+      }
+    }
+  ],
+  "compliance": {
+    "onExpiry": [
+      {
+        "id": "0ead8d2d-57e6-406f-9ee3-b3e123f80a5c",
+        "typeCode": "NR-12",
+        "status": "EXPIRED",
+        "issuedOn": null,
+        "expiresOn": "2026-11-15",
+        "hasNoExpiry": false
+      },
+      {
+        "id": "c25b8092-d85f-4dfa-b349-a1b5ad411acd",
+        "typeCode": "ZZZ-261116",
+        "status": "VALID",
+        "issuedOn": null,
+        "expiresOn": null,
+        "hasNoExpiry": true
+      },
+      {
+        "id": "31f1832e-08bb-42a5-91ba-e17e9a9534c1",
+        "typeCode": "ASO",
+        "status": "PENDING",
+        "issuedOn": null,
+        "expiresOn": null,
+        "hasNoExpiry": false
+      },
+      {
+        "id": "42daa4c0-ac56-43a8-aa04-865934a30a9e",
+        "typeCode": "NR-33",
+        "status": "VALID",
+        "issuedOn": null,
+        "expiresOn": "2026-12-26",
+        "hasNoExpiry": false
+      },
+      {
+        "id": "538781d2-5d35-48a0-99b4-5e0aa6f8bf47",
+        "typeCode": "NR-06",
+        "status": "VALID",
+        "issuedOn": null,
+        "expiresOn": "2026-11-16",
+        "hasNoExpiry": false
+      },
+      {
+        "id": "2377a4c0-00d9-4af7-a2df-4507e7005124",
+        "typeCode": "CNH",
+        "status": "UNKNOWN",
+        "issuedOn": "2026-08-08",
+        "expiresOn": null,
+        "hasNoExpiry": false
+      },
+      {
+        "id": "3b955137-0884-424d-8408-93dc5c1ee720",
+        "typeCode": "NR-26",
+        "status": "REVOKED",
+        "issuedOn": null,
+        "expiresOn": "2027-06-04",
+        "hasNoExpiry": false
+      }
+    ],
+    "afterExpiry": [
+      {
+        "id": "0ead8d2d-57e6-406f-9ee3-b3e123f80a5c",
+        "status": "EXPIRED"
+      },
+      {
+        "id": "c25b8092-d85f-4dfa-b349-a1b5ad411acd",
+        "status": "VALID"
+      },
+      {
+        "id": "31f1832e-08bb-42a5-91ba-e17e9a9534c1",
+        "status": "PENDING"
+      },
+      {
+        "id": "42daa4c0-ac56-43a8-aa04-865934a30a9e",
+        "status": "VALID"
+      },
+      {
+        "id": "538781d2-5d35-48a0-99b4-5e0aa6f8bf47",
+        "status": "EXPIRED"
+      },
+      {
+        "id": "2377a4c0-00d9-4af7-a2df-4507e7005124",
+        "status": "UNKNOWN"
+      },
+      {
+        "id": "3b955137-0884-424d-8408-93dc5c1ee720",
+        "status": "REVOKED"
+      }
+    ]
+  },
+  "productionAllocationProof": {
+    "environment": "production-read-only",
+    "log": {
+      "requestId": "dfede4bd-3c2d-445f-ae68-475b641dd25f",
+      "credentialId": "cmw3jri2s00by1grzwqd5soi0",
+      "statusCode": 200,
+      "responseRows": 35,
+      "createdAt": "2026-11-16T16:49:00.570Z"
+    },
+    "credential": {
+      "projectAccessMode": "ALL",
+      "allowedIpCidrs": [],
+      "scopes": [
+        {
+          "scopeCode": "qualidade.registros.read"
+        },
+        {
+          "scopeCode": "efetivo.conferencia.read"
+        }
+      ]
+    },
+    "confirmedPeople": 3
+  },
+  "lastVerifiedAt": "2026-11-16T18:58:35.339Z",
+  "ui": {
+    "allocations": [
+      {
+        "collaboratorId": "cmwjhuwws002l1gpnosvstkct",
+        "collaborator": {
+          "rhStatus": "PRE_ADMISSION"
+        }
+      },
+      {
+        "collaboratorId": "cmwjhvj70007n1gpnihxwsxui",
+        "collaborator": {
+          "rhStatus": "PRE_ADMISSION"
+        }
+      }
+    ],
+    "cancelledWrites": {
+      "P01": 0,
+      "P05": 0
+    },
+    "consoleErrors": 0,
+    "consoleWarnings": 0
+  },
+  "deployment": {
+    "baseCommit": "cc265f0a524c468df174aa87f12481436c0c79e4",
+    "sourceHashes": {
+      "projection.js": "4999a0113174910787bc9cf641450eba19b458311d09280e4acdda16cc1a823c",
+      "schema.js": "b84b49e53430796da9d2795fd8e1a8bd30a568d26631f4402991f29162cc3954"
+    }
+  },
+  "scope": {
+    "engineeringRequested": true,
+    "engineeringPublished": 0
+  },
+  "currentReceipts": [
+    {
+      "_count": {
+        "_all": 2
+      },
+      "status": "SUPERSEDED",
+      "reasonCode": null
+    },
+    {
+      "_count": {
+        "_all": 1120
+      },
+      "status": "APPLIED",
+      "reasonCode": null
+    },
+    {
+      "_count": {
+        "_all": 1
+      },
+      "status": "PENDING",
+      "reasonCode": "PERSON_MAPPING_AMBIGUOUS"
+    },
+    {
+      "_count": {
+        "_all": 2
+      },
+      "status": "PENDING",
+      "reasonCode": "DEPENDENCY_PENDING"
+    }
+  ],
+  "latestJob": {
+    "status": "FAILED",
+    "startedAt": "2026-11-16T19:02:05.262Z",
+    "error": "Error: Falha ao sincronizar RH do Conecta. Verifique configuração e recebimentos pendentes.\n    at runTrackedJob.prismaClient (file:///workspace/backend/src/lib/conecta-rh/job.js:21:13)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async runTrackedJob (file:///workspace/backend/src/lib/jobs/runner.js:188:20)"
+  },
+  "apiReadPreflight": {
+    "checkedAt": "2026-11-16T18:41:01.224141+00:00",
+    "snapshotHttp": 201,
+    "snapshotId": "e60f7bba-0566-46c9-8e1f-7ae1968151f8",
+    "resources": {
+      "job-roles": {
+        "http": 200,
+        "pages": 1,
+        "items": 141
+      },
+      "employments": {
+        "http": 200,
+        "pages": 1,
+        "items": 116
+      },
+      "role-changes": {
+        "http": 200,
+        "pages": 1,
+        "items": 119
+      },
+      "compliance": {
+        "http": 200,
+        "pages": 2,
+        "items": 581
+      },
+      "job-role-salaries": {
+        "http": 200,
+        "pages": 1,
+        "items": 127
+      }
+    },
+    "invalidEmployments": [
+      {
+        "aggregateId": "9cff896e-e637-42d1-ad26-9c18ae621ec8",
+        "revision": 1,
+        "status": "TERMINATED",
+        "reason": "MISSING_OFFICIAL_ADMISSION"
+      }
+    ],
+    "feedAfterSnapshot": {
+      "items": 0,
+      "hasMore": false,
+      "nextCursorPresent": true
+    }
+  },
+  "automatedTests": {
+    "rhIntegrationAndCompliance": {
+      "passed": 19,
+      "failed": 0
+    },
+    "planningConflictsMissionTeamAutoAllocation": {
+      "passed": 12,
+      "failed": 0
+    }
+  },
+  "network": {
+    "stagingAllowsAllIPv4": true,
+    "productionHasGlobalIpAllowlist": false,
+    "productionAllocationCredentialIpRestrictions": false,
+    "configChangedByThisAudit": false
+  },
+  "screenshots": [
+    "output/playwright/conecta-lote-20261116-A/conformidade-dia-seguinte.png",
+    "output/playwright/conecta-lote-20261116-A/conformidade-vencimento.png",
+    "output/playwright/conecta-lote-20261116-A/pre-admissao-confirmacao.png",
+    "output/playwright/conecta-lote-20261116-A/pre-futura-mobile.png"
+  ],
+  "inputFiles": [
+    {
+      "name": "evidencias-lote-20261116-A.zip",
+      "sha256": "6b8c55fa84bc26103b6ef1c6e0d3f309e6cf6a831f2a71ee26b7f0d3acdf3a78"
+    },
+    {
+      "name": "RESPOSTA_CONECTA_RH_HOMOLOGACAO_ATUALIZACAO_20261116.md",
+      "sha256": "651fc47b583b17cf8fca29639e344b6057036f63efcb419aeabbb1338e8def2c"
+    },
+    {
+      "name": "RESPOSTA_CONECTA_RH_HOMOLOGACAO_LOTE_20261116.md",
+      "sha256": "3ce83c6fe3a61bb0f851ae15cdb605e54e162950d0d57454de7f6ffe3342fa94"
+    }
+  ],
+  "identityConflict": {
+    "personId": "4a510bb5-7928-4f0c-84e7-504babb8bdef",
+    "employmentId": "101170b1-22aa-4827-9493-80648756c209",
+    "registration": "103",
+    "matchingLocalCandidates": 1,
+    "cpfMatches": false,
+    "registrationMatches": true,
+    "sameName": false,
+    "existingLocalId": "cmwjkq7nu04wn1gpnm6oedxty",
+    "existingSourcePersonId": "249d11af-5969-4589-9b17-08b92148c51f",
+    "resolution": "Not automatically merged; RH identity confirmation required"
+  },
+  "outstanding": [
+    "source TERMINATED without official admission blocks complete snapshot",
+    "RH identity conflict: registration matches but CPF differs",
+    "Engineering source publication has not started: zero nonoperational employment aggregates",
+    "live feed-only update after successful snapshot",
+    "automatic RH sender and scheduled allocations importer in Conecta",
+    "evidence document expiry/version and credential rotation mid-feed not proven by supplied batch"
+  ]
+}

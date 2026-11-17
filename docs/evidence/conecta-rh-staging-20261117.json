@@ -1,0 +1,698 @@
+{
+  "checkedAt": "2026-11-17T17:26:36.277Z",
+  "companyId": "ca682be5-ab0c-43a8-8a26-d3f7eb1d7526",
+  "environment": "staging",
+  "scope": "Consultas de leitura no staging, GET do feed e consulta de logs de alocações em produção. Nenhum evento RH, configuração, deploy ou cadastro foi alterado.",
+  "syncState": {
+    "exists": true,
+    "hasCursor": true,
+    "cursorSha256": "dcec28c1dc13237c49e864e8ff58fc526b9e1721dad9db007b1712b9f1ada5fc",
+    "updatedAt": "2026-11-17T17:22:08.085Z"
+  },
+  "receiptCounts": [
+    {
+      "_count": 3,
+      "status": "SUPERSEDED",
+      "reasonCode": null
+    },
+    {
+      "_count": 1129,
+      "status": "APPLIED",
+      "reasonCode": null
+    }
+  ],
+  "aggregateCounts": [
+    {
+      "_count": 119,
+      "aggregateType": "role_change",
+      "status": "APPLIED",
+      "reasonCode": null
+    },
+    {
+      "_count": 141,
+      "aggregateType": "job_role",
+      "status": "APPLIED",
+      "reasonCode": null
+    },
+    {
+      "_count": 116,
+      "aggregateType": "employment",
+      "status": "APPLIED",
+      "reasonCode": null
+    },
+    {
+      "_count": 581,
+      "aggregateType": "compliance",
+      "status": "APPLIED",
+      "reasonCode": null
+    },
+    {
+      "_count": 127,
+      "aggregateType": "job_role_salary",
+      "status": "APPLIED",
+      "reasonCode": null
+    }
+  ],
+  "pending": [
+    "Troca de credenciais temporárias de leitura no meio do feed, sem alterar a instalada.",
+    "Download de arquivo fictício permitido e verificação de expiração, substituição e revogação."
+  ],
+  "receipts": [
+    {
+      "id": "cmwjk6zj700xw1gpnldo8c3zy",
+      "eventId": "85b05c47-733b-4f12-926c-c96de2566736",
+      "revision": 1,
+      "status": "SUPERSEDED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T17:50:20.507Z"
+    },
+    {
+      "id": "cmwjk702p00y11gpnm7ybxlq7",
+      "eventId": "5b8c495c-d951-4da4-94c1-13be5034e56d",
+      "revision": 1,
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T17:50:21.213Z"
+    },
+    {
+      "id": "cmwjp2xk401bq01lc8y3767bw",
+      "eventId": "4ee5d68b-ea66-47d1-9eab-6ae4959cbbe4",
+      "revision": 2,
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T20:07:09.345Z"
+    },
+    {
+      "id": "cmwjrkz2n01fl01lcak1nijvr",
+      "eventId": "370e311f-416d-481b-88a8-9fd0a6128cb5",
+      "revision": 3,
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T21:17:10.407Z"
+    },
+    {
+      "id": "cmwjrkzyb01fp01lcskh69j48",
+      "eventId": "d1ed166d-5c89-4cdd-bb29-56e1df08c999",
+      "revision": 2,
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T21:17:11.550Z"
+    },
+    {
+      "id": "cmwko9l6j058701lcfegw3ls2",
+      "eventId": "150be3fc-79a7-43c9-b742-c932e369ae01",
+      "revision": 4,
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-17T12:32:06.486Z"
+    },
+    {
+      "id": "cmwkpp1g206ho01lcssl2wbej",
+      "eventId": "0326c982-9ade-46c6-821c-aea2029fcf63",
+      "revision": 4,
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-17T13:12:07.006Z"
+    },
+    {
+      "id": "cmwkt37po06mt01lc5qp9ayu0",
+      "eventId": "0e94d876-85b4-446e-a1d9-328bf05244ae",
+      "revision": 2,
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-17T14:47:07.202Z"
+    }
+  ],
+  "aggregates": [
+    {
+      "externalId": "8fb257d0-3d77-4da0-ad34-978f684d6efb",
+      "aggregateType": "employment",
+      "revision": 5,
+      "status": "APPLIED",
+      "reasonCode": null,
+      "firstReceivedAt": "2026-11-16T16:45:32.902Z",
+      "occurredAt": "2026-11-17T14:46:09.000Z",
+      "localId": "cmwjhvnuc009t1gpnm7ieu9yy",
+      "data": {
+        "personId": "e8b499c5-870a-4baa-84f3-db3fa8010ad7",
+        "employmentId": "8fb257d0-3d77-4da0-ad34-978f684d6efb",
+        "status": "TERMINATED",
+        "admissionDate": "2026-09-17",
+        "terminationDate": "2026-11-07",
+        "isOperational": true
+      },
+      "local": {
+        "id": "cmwjhvnuc009t1gpnm7ieu9yy",
+        "rhStatus": "ACTIVE",
+        "rhEmploymentId": "18eba0e9-f324-4da8-9fcc-79ae0ed5578b",
+        "isActive": true,
+        "admissionDate": "2026-11-16T00:00:00.000Z",
+        "admissionDateProvisional": false,
+        "terminationDate": null,
+        "rhFirstReceivedAt": "2026-11-16T16:45:35.570Z",
+        "jobRoleId": "cmwjhuwql002f1gpnow6pz9c1",
+        "nameMatchesSource": true
+      }
+    },
+    {
+      "externalId": "18eba0e9-f324-4da8-9fcc-79ae0ed5578b",
+      "aggregateType": "employment",
+      "revision": 2,
+      "status": "APPLIED",
+      "reasonCode": null,
+      "firstReceivedAt": "2026-11-16T16:45:35.570Z",
+      "occurredAt": "2026-11-17T14:46:09.000Z",
+      "localId": "cmwjhvnuc009t1gpnm7ieu9yy",
+      "data": {
+        "personId": "e8b499c5-870a-4baa-84f3-db3fa8010ad7",
+        "employmentId": "18eba0e9-f324-4da8-9fcc-79ae0ed5578b",
+        "status": "ACTIVE",
+        "admissionDate": "2026-11-16",
+        "terminationDate": null,
+        "isOperational": true
+      },
+      "local": {
+        "id": "cmwjhvnuc009t1gpnm7ieu9yy",
+        "rhStatus": "ACTIVE",
+        "rhEmploymentId": "18eba0e9-f324-4da8-9fcc-79ae0ed5578b",
+        "isActive": true,
+        "admissionDate": "2026-11-16T00:00:00.000Z",
+        "admissionDateProvisional": false,
+        "terminationDate": null,
+        "rhFirstReceivedAt": "2026-11-16T16:45:35.570Z",
+        "jobRoleId": "cmwjhuwql002f1gpnow6pz9c1",
+        "nameMatchesSource": true
+      }
+    },
+    {
+      "externalId": "bc01719c-08cb-455e-a1e2-785277b74ac3",
+      "aggregateType": "role_change",
+      "revision": 2,
+      "status": "APPLIED",
+      "reasonCode": null,
+      "firstReceivedAt": "2026-11-16T18:05:13.403Z",
+      "occurredAt": "2026-11-16T21:12:50.000Z",
+      "localId": null,
+      "data": {
+        "personId": "74259657-d8bb-4629-9b79-9defd3ddf774",
+        "employmentId": "9cff896e-e637-42d1-ad26-9c18ae621ec8",
+        "status": "CANCELLED",
+        "effectiveDate": "2026-11-11"
+      },
+      "local": null
+    },
+    {
+      "externalId": "101170b1-22aa-4827-9493-80648756c209",
+      "aggregateType": "employment",
+      "revision": 2,
+      "status": "APPLIED",
+      "reasonCode": null,
+      "firstReceivedAt": "2026-11-16T17:50:20.507Z",
+      "occurredAt": "2026-11-16T20:06:11.000Z",
+      "localId": "cmwjp2xlp01br01lcmmz07310",
+      "data": {
+        "personId": "4a510bb5-7928-4f0c-84e7-504babb8bdef",
+        "employmentId": "101170b1-22aa-4827-9493-80648756c209",
+        "status": "TERMINATED",
+        "admissionDate": "2025-01-29",
+        "terminationDate": "2025-06-11",
+        "isOperational": true,
+        "registrationNumber": "800001"
+      },
+      "local": {
+        "id": "cmwjp2xlp01br01lcmmz07310",
+        "registrationNumber": "800001",
+        "rhStatus": "TERMINATED",
+        "rhEmploymentId": "101170b1-22aa-4827-9493-80648756c209",
+        "isActive": false,
+        "admissionDate": "2025-01-29T00:00:00.000Z",
+        "admissionDateProvisional": false,
+        "terminationDate": "2025-06-11T00:00:00.000Z",
+        "rhFirstReceivedAt": "2026-11-16T17:50:20.507Z",
+        "jobRoleId": "cmwjkq7hj04wk1gpnhvcefklq",
+        "nameMatchesSource": true
+      }
+    },
+    {
+      "externalId": "bf8052c8-c80e-46bf-85bd-ab58288aab78",
+      "aggregateType": "role_change",
+      "revision": 1,
+      "status": "APPLIED",
+      "reasonCode": null,
+      "firstReceivedAt": "2026-11-16T17:50:21.213Z",
+      "occurredAt": "2026-11-11T16:46:33.000Z",
+      "localId": "conecta:cmwjk702o00y01gpnra2xwaj6",
+      "data": {
+        "personId": "4a510bb5-7928-4f0c-84e7-504babb8bdef",
+        "employmentId": "101170b1-22aa-4827-9493-80648756c209",
+        "status": "ACTIVE",
+        "effectiveDate": "2026-11-11"
+      },
+      "local": null
+    },
+    {
+      "externalId": "9cff896e-e637-42d1-ad26-9c18ae621ec8",
+      "aggregateType": "employment",
+      "revision": 3,
+      "status": "APPLIED",
+      "reasonCode": null,
+      "firstReceivedAt": "2026-11-16T21:17:10.407Z",
+      "occurredAt": "2026-11-16T21:12:50.000Z",
+      "localId": "cmwjrkz3001fm01lc88t0v2hg",
+      "data": {
+        "personId": "74259657-d8bb-4629-9b79-9defd3ddf774",
+        "employmentId": "9cff896e-e637-42d1-ad26-9c18ae621ec8",
+        "status": "CANCELLED",
+        "admissionDate": null,
+        "terminationDate": null,
+        "isOperational": true
+      },
+      "local": {
+        "id": "cmwjrkz3001fm01lc88t0v2hg",
+        "rhStatus": "CANCELLED",
+        "rhEmploymentId": "9cff896e-e637-42d1-ad26-9c18ae621ec8",
+        "isActive": false,
+        "admissionDate": "2026-11-16T00:00:00.000Z",
+        "admissionDateProvisional": true,
+        "terminationDate": null,
+        "rhFirstReceivedAt": "2026-11-16T21:17:10.407Z",
+        "jobRoleId": "779e4b09-c8dc-47b3-8073-1a3395afc533",
+        "nameMatchesSource": true
+      }
+    },
+    {
+      "externalId": "eeac8723-c112-4bc5-b4c8-7051b2c1b590",
+      "aggregateType": "employment",
+      "revision": 4,
+      "status": "APPLIED",
+      "reasonCode": null,
+      "firstReceivedAt": "2026-11-16T16:45:22.698Z",
+      "occurredAt": "2026-11-17T12:31:45.000Z",
+      "localId": "cmwjhvfyq006a1gpnat34q92c",
+      "data": {
+        "personId": "a092590d-6f1b-4f5d-a346-749738cb110f",
+        "employmentId": "eeac8723-c112-4bc5-b4c8-7051b2c1b590",
+        "status": "ACTIVE",
+        "admissionDate": "2026-10-25",
+        "terminationDate": null,
+        "isOperational": true
+      },
+      "local": {
+        "id": "cmwjhvfyq006a1gpnat34q92c",
+        "rhStatus": "ACTIVE",
+        "rhEmploymentId": "eeac8723-c112-4bc5-b4c8-7051b2c1b590",
+        "isActive": true,
+        "admissionDate": "2026-10-25T00:00:00.000Z",
+        "admissionDateProvisional": false,
+        "terminationDate": null,
+        "rhFirstReceivedAt": "2026-11-16T16:45:22.698Z",
+        "jobRoleId": "cmwjhvcr300531gpn2t27nbzx",
+        "nameMatchesSource": true
+      }
+    },
+    {
+      "externalId": "ef9e4a59-b8e3-4095-8f26-f375795500dc",
+      "aggregateType": "employment",
+      "revision": 4,
+      "status": "APPLIED",
+      "reasonCode": null,
+      "firstReceivedAt": "2026-11-16T16:45:37.885Z",
+      "occurredAt": "2026-11-17T13:08:42.000Z",
+      "localId": "cmwjhvroq00bf1gpn85fkv3hk",
+      "data": {
+        "personId": "add33488-7661-4cea-a1ad-866e2c983827",
+        "employmentId": "ef9e4a59-b8e3-4095-8f26-f375795500dc",
+        "status": "ACTIVE",
+        "admissionDate": "2026-10-17",
+        "terminationDate": null,
+        "isOperational": true
+      },
+      "local": {
+        "id": "cmwjhvroq00bf1gpn85fkv3hk",
+        "rhStatus": "ACTIVE",
+        "rhEmploymentId": "ef9e4a59-b8e3-4095-8f26-f375795500dc",
+        "isActive": true,
+        "admissionDate": "2026-10-17T00:00:00.000Z",
+        "admissionDateProvisional": false,
+        "terminationDate": null,
+        "rhFirstReceivedAt": "2026-11-16T16:45:37.885Z",
+        "jobRoleId": "cmwjhuwql002f1gpnow6pz9c1",
+        "nameMatchesSource": true
+      }
+    }
+  ],
+  "identity": {
+    "mappings": [
+      {
+        "personId": "249d11af-5969-4589-9b17-08b92148c51f",
+        "collaboratorId": "cmwjkq7nu04wn1gpnm6oedxty",
+        "registrationNumber": "103",
+        "rhStatus": "TERMINATED"
+      },
+      {
+        "personId": "4a510bb5-7928-4f0c-84e7-504babb8bdef",
+        "collaboratorId": "cmwjp2xlp01br01lcmmz07310",
+        "registrationNumber": "800001",
+        "rhStatus": "TERMINATED"
+      }
+    ],
+    "distinctCollaborators": true,
+    "distinctCpf": true,
+    "mappedPeople": 115,
+    "duplicateRegistrationCount": 0
+  },
+  "latestJobs": [
+    {
+      "id": "cmwkymil006v001lcduq4nm7u",
+      "status": "COMPLETED",
+      "startedAt": "2026-11-17T17:22:05.836Z",
+      "finishedAt": "2026-11-17T17:22:08.110Z",
+      "durationMs": 2274,
+      "error": null
+    },
+    {
+      "id": "cmwkyg33p06us01lcbe44b0m8",
+      "status": "COMPLETED",
+      "startedAt": "2026-11-17T17:17:05.832Z",
+      "finishedAt": "2026-11-17T17:17:08.231Z",
+      "durationMs": 2399,
+      "error": null
+    },
+    {
+      "id": "cmwky9nma06uk01lc05idspof",
+      "status": "COMPLETED",
+      "startedAt": "2026-11-17T17:12:05.830Z",
+      "finishedAt": "2026-11-17T17:12:07.950Z",
+      "durationMs": 2120,
+      "error": null
+    },
+    {
+      "id": "cmwky384s06u801lc860q45t1",
+      "status": "COMPLETED",
+      "startedAt": "2026-11-17T17:07:05.829Z",
+      "finishedAt": "2026-11-17T17:07:08.250Z",
+      "durationMs": 2421,
+      "error": null
+    },
+    {
+      "id": "cmwkxwsnn06u101lc1i3mvuwk",
+      "status": "COMPLETED",
+      "startedAt": "2026-11-17T17:02:05.826Z",
+      "finishedAt": "2026-11-17T17:02:06.967Z",
+      "durationMs": 1141,
+      "error": null
+    }
+  ],
+  "lastFailedJob": {
+    "status": "FAILED",
+    "startedAt": "2026-11-16T21:12:05.340Z",
+    "finishedAt": "2026-11-16T21:12:09.764Z"
+  },
+  "firstCompletedAfterLastFailure": {
+    "status": "COMPLETED",
+    "startedAt": "2026-11-16T21:17:05.343Z",
+    "finishedAt": "2026-11-16T21:17:15.692Z"
+  },
+  "feedEventCorrelation": {
+    "from": "2026-11-17T12:30:36.486Z",
+    "to": "2026-11-17T12:33:36.486Z",
+    "jobs": [
+      {
+        "status": "COMPLETED",
+        "startedAt": "2026-11-17T12:32:05.701Z",
+        "finishedAt": "2026-11-17T12:32:06.856Z"
+      }
+    ],
+    "apiRequests": []
+  },
+  "scheduledPushRequests": [
+    {
+      "requestId": "20ad7f81-efb4-4ff7-99d3-c292cc63592c",
+      "operationId": "rh.conecta.receipts.get",
+      "statusCode": 200,
+      "outcomeCode": "OK",
+      "createdAt": "2026-11-17T13:35:16.006Z",
+      "simulated": false
+    },
+    {
+      "requestId": "2af9b298-7631-489b-85ab-c4ed2672d68b",
+      "operationId": "rh.conecta.receipts.get",
+      "statusCode": 200,
+      "outcomeCode": "OK",
+      "createdAt": "2026-11-17T13:35:16.313Z",
+      "simulated": false
+    },
+    {
+      "requestId": "219a5016-74d2-4d51-aea5-dd7da4bb5304",
+      "operationId": "rh.conecta.receipts.get",
+      "statusCode": 200,
+      "outcomeCode": "OK",
+      "createdAt": "2026-11-17T13:35:16.570Z",
+      "simulated": false
+    },
+    {
+      "requestId": "fef6b6fb-af1a-4a92-8048-6add3b34936f",
+      "operationId": "rh.conecta.receipts.get",
+      "statusCode": 200,
+      "outcomeCode": "OK",
+      "createdAt": "2026-11-17T13:35:16.845Z",
+      "simulated": false
+    },
+    {
+      "requestId": "a98464f5-5be7-40e8-b007-5688638f92d2",
+      "operationId": "rh.conecta.events.post",
+      "statusCode": 202,
+      "outcomeCode": "OK",
+      "createdAt": "2026-11-17T13:35:17.277Z",
+      "simulated": false
+    },
+    {
+      "requestId": "b3a4530a-b1d6-46c6-8001-a35027b5c008",
+      "operationId": "rh.conecta.events.post",
+      "statusCode": 400,
+      "outcomeCode": "VALIDATION_ERROR",
+      "createdAt": "2026-11-17T13:35:17.560Z",
+      "simulated": false
+    },
+    {
+      "requestId": "ad548463-1044-4b23-939c-7e00c41962a2",
+      "operationId": "rh.conecta.events.post",
+      "statusCode": 202,
+      "outcomeCode": "OK",
+      "createdAt": "2026-11-17T13:35:17.846Z",
+      "simulated": false
+    },
+    {
+      "requestId": "b55ae23f-7b70-4e5b-ba22-8f3ae20f9083",
+      "operationId": "rh.conecta.events.post",
+      "statusCode": 202,
+      "outcomeCode": "OK",
+      "createdAt": "2026-11-17T13:35:18.155Z",
+      "simulated": false
+    },
+    {
+      "requestId": "0ae26341-1ce2-408e-a249-b02b55b7d28a",
+      "operationId": "rh.conecta.events.post",
+      "statusCode": 202,
+      "outcomeCode": "OK",
+      "createdAt": "2026-11-17T13:35:18.455Z",
+      "simulated": false
+    },
+    {
+      "requestId": "5cd6943e-8c6b-41c9-b5e4-9563d9e70c37",
+      "operationId": "rh.conecta.events.post",
+      "statusCode": 202,
+      "outcomeCode": "OK",
+      "createdAt": "2026-11-17T13:35:18.922Z",
+      "simulated": false
+    },
+    {
+      "requestId": "794beab2-0262-41a7-8ecb-73278db53b39",
+      "operationId": "rh.conecta.receipts.get",
+      "statusCode": 200,
+      "outcomeCode": "OK",
+      "createdAt": "2026-11-17T13:40:16.158Z",
+      "simulated": false
+    },
+    {
+      "requestId": "995419ac-6306-4e4f-ae3d-c215810f9293",
+      "operationId": "rh.conecta.receipts.get",
+      "statusCode": 200,
+      "outcomeCode": "OK",
+      "createdAt": "2026-11-17T13:40:16.475Z",
+      "simulated": false
+    },
+    {
+      "requestId": "ca0435fc-ae7f-4e3c-af69-6bbba5ebde4e",
+      "operationId": "rh.conecta.receipts.get",
+      "statusCode": 200,
+      "outcomeCode": "OK",
+      "createdAt": "2026-11-17T13:40:16.790Z",
+      "simulated": false
+    },
+    {
+      "requestId": "250d2f1d-97d5-46d3-9657-b2ff8126aad1",
+      "operationId": "rh.conecta.receipts.get",
+      "statusCode": 200,
+      "outcomeCode": "OK",
+      "createdAt": "2026-11-17T13:40:17.086Z",
+      "simulated": false
+    },
+    {
+      "requestId": "dcc6f666-eabf-4abb-a43e-9fb3049efb70",
+      "operationId": "rh.conecta.receipts.get",
+      "statusCode": 200,
+      "outcomeCode": "OK",
+      "createdAt": "2026-11-17T13:40:17.377Z",
+      "simulated": false
+    },
+    {
+      "requestId": "efe4a968-ed87-44e5-bc08-8acc7c940bc7",
+      "operationId": "rh.conecta.events.post",
+      "statusCode": 202,
+      "outcomeCode": "OK",
+      "createdAt": "2026-11-17T14:50:18.458Z",
+      "simulated": false
+    },
+    {
+      "requestId": "1a00b99d-d737-4dc9-8c87-ca0084491bac",
+      "operationId": "rh.conecta.events.post",
+      "statusCode": 202,
+      "outcomeCode": "OK",
+      "createdAt": "2026-11-17T14:50:18.805Z",
+      "simulated": false
+    },
+    {
+      "requestId": "e4263849-60aa-444e-8daa-2373f8943ec7",
+      "operationId": "rh.conecta.receipts.get",
+      "statusCode": 200,
+      "outcomeCode": "OK",
+      "createdAt": "2026-11-17T14:55:16.701Z",
+      "simulated": false
+    },
+    {
+      "requestId": "245fe082-6bd1-4a9d-83e3-0f70eb926fb9",
+      "operationId": "rh.conecta.receipts.get",
+      "statusCode": 200,
+      "outcomeCode": "OK",
+      "createdAt": "2026-11-17T14:55:17.038Z",
+      "simulated": false
+    }
+  ],
+  "publishedWorkforce": {
+    "total": 116,
+    "nonOperational": 0,
+    "terminatedWithoutAdmission": 0,
+    "terminatedWithoutTermination": 0,
+    "cancelledWithTermination": 0
+  },
+  "publishedCompliance": {
+    "total": 581,
+    "withEvidence": []
+  },
+  "feedRead": {
+    "httpStatus": 200,
+    "itemCount": 0,
+    "hasMore": false,
+    "hasNextCursor": true,
+    "nextCursorSha256": "dcec28c1dc13237c49e864e8ff58fc526b9e1721dad9db007b1712b9f1ada5fc"
+  },
+  "inputFile": {
+    "name": "RESPOSTA_CONECTA_RH_HOMOLOGACAO_20261117.md",
+    "sha256": "dbb543e22e16b3feed25e7b7e5aebcc5114d27d1e76982d611f9a0cd627fc3cd"
+  },
+  "productionAllocationProof": {
+    "environment": "production-read-only",
+    "rows": [
+      {
+        "requestId": "f25e049f-f760-49d1-bc6a-452d8c29f542",
+        "operationId": "efetivo.allocationReview.list",
+        "statusCode": 200,
+        "responseRows": 17,
+        "filterSummary": {},
+        "createdAt": "2026-11-17T13:01:03.129Z",
+        "simulated": false
+      },
+      {
+        "requestId": "cd7cfb7f-15ae-4677-a35d-a75b5670fd38",
+        "operationId": "efetivo.allocationReview.list",
+        "statusCode": 200,
+        "responseRows": 18,
+        "filterSummary": {},
+        "createdAt": "2026-11-17T13:01:03.943Z",
+        "simulated": false
+      }
+    ]
+  },
+  "checks": [
+    {
+      "name": "desistência sem admissão oficial e sem desligamento inventado",
+      "result": "PASS"
+    },
+    {
+      "name": "ocorrência do vínculo cancelado aplicada e sem histórico local ativo",
+      "result": "PASS"
+    },
+    {
+      "name": "identidades distintas e matrículas 103/800001 conciliadas sem fusão",
+      "result": "PASS"
+    },
+    {
+      "name": "revisão antiga da matrícula conflitante substituída e dependência aplicada",
+      "result": "PASS"
+    },
+    {
+      "name": "recibos coincidem com os totais declarados e não há pendências",
+      "result": "PASS"
+    },
+    {
+      "name": "cinco recursos e 1084 agregados integralmente aplicados",
+      "result": "PASS"
+    },
+    {
+      "name": "snapshot recuperado após a correção de 16/11",
+      "result": "PASS"
+    },
+    {
+      "name": "evento P04 recuperado pelo feed antes da ativação do push",
+      "result": "PASS"
+    },
+    {
+      "name": "feed atual responde 200 com checkpoint válido e sem itens pendentes",
+      "result": "PASS"
+    },
+    {
+      "name": "P07/P09 aplicados e entregas HTTP nos horários informados pelo emissor",
+      "result": "PASS"
+    },
+    {
+      "name": "recontratação preserva o vínculo atual após correção do vínculo anterior",
+      "result": "PASS"
+    },
+    {
+      "name": "publicação atual sem desligamentos sem data nem cancelamentos com saída",
+      "result": "PASS"
+    },
+    {
+      "name": "alocações consultadas com sucesso em produção nos horários informados",
+      "result": "PASS"
+    }
+  ],
+  "summary": {
+    "passed": 13,
+    "failed": 0,
+    "fullAcceptance": false,
+    "coreSynchronizationVerified": true
+  },
+  "limits": [
+    "A configuração e o disparo interno da agenda Netlify e as migrações do CONECTA são declarações do emissor, corroboradas pelas requisições/dados recebidos; não auditamos o código ou a base do CONECTA.",
+    "P07 e P09 foram recebidos pelo feed antes dos envios HTTP agendados; os horários do emissor não são os primeiros recebimentos no FiltroAPP. Não há appliedAt histórico no recibo para inferir horário de aplicação só por sua consulta atual.",
+    "A explicação de Engenharia dentro do setor Operacional é do CONECTA. Há zero vínculos publicados com isOperational=false; não foi exigida publicação fictícia de outro setor.",
+    "Nenhum dos 581 itens atuais tem arquivo de evidência. Não houve prova de download nesta conferência."
+  ],
+  "deployedSourceHashes": {
+    "projection.js": "4999a0113174910787bc9cf641450eba19b458311d09280e4acdda16cc1a823c",
+    "schema.js": "b84b49e53430796da9d2795fd8e1a8bd30a568d26631f4402991f29162cc3954"
+  },
+  "sourceHashesMatchStagingContainer": true
+}
