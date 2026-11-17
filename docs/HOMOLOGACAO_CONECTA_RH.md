@@ -14,7 +14,7 @@ Conferência do lote: [resultado de 16/11](HOMOLOGACAO_CONECTA_RH_LOTE_20261116_
 
 ## 1. Preparar o ambiente do FiltroAPP
 
-Publicar a versão da branch `feat/conecta-rh-integration`, aplicar a migration `20261113100000_conecta_rh` e atualizar frontend, API e worker para a mesma versão.
+Publicar a versão da branch `feat/conecta-rh-integration`, aplicar as migrations `20261113100000_conecta_rh` e `20261117190000_conecta_rh_read_revision` e atualizar frontend, API e worker para a mesma versão. A segunda migration registra as fontes de RH na invalidação transacional de cache, conforme a validação de CI do PR.
 
 Usar inicialmente cadastros fictícios identificados como teste.
 

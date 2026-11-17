@@ -9,7 +9,8 @@ const caches = new Set();
 // Authentication/authorization still read sessions before entering this cache.
 export const UNTRACKED_READ_CACHE_MODELS = Object.freeze([
   'PerformanceReadRevision', 'JobRun', 'JobLock', 'UserSession', 'ApiRequestLog',
-  'ApiUsageBucket', 'DataRetentionRun', 'NotificationRead', 'NotificationPreferenceToken'
+  'ApiUsageBucket', 'DataRetentionRun', 'NotificationRead', 'NotificationPreferenceToken',
+  'ConectaRhReceipt', 'ConectaRhSyncState'
 ]);
 
 export const currentDerivedReadVersion = () => versions.getStore() ?? null;

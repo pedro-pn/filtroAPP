@@ -39,7 +39,7 @@ Os salários alimentam parâmetros do cargo na vigência recebida, preservando o
 
 O [roteiro de homologação](HOMOLOGACAO_CONECTA_RH.md) detalha as 12 etapas, os testes nas telas e os resultados esperados.
 
-1. Publicar a migration `20261113100000_conecta_rh` e os processos API/worker da mesma versão.
+1. Aplicar as migrations `20261113100000_conecta_rh` e `20261117190000_conecta_rh_read_revision` e publicar API/worker da mesma versão. A migration complementar registra os agregados e o mapeamento de pessoas como fontes do cache derivado; recibos e cursores são metadados operacionais e não invalidam os cálculos financeiros.
 2. Configurar `CONECTA_RH_COMPANY_ID` com o UUID real da empresa, informado pelo Conecta.
 3. Criar uma credencial técnica de RH com os escopos de eventos e, se desejado, de salário, ou rotacionar a credencial existente para ampliar os privilégios. Uma credencial `SIMULATE` não serve para ativar o envio real.
 4. Para carga inicial e recuperação automática, configurar no backend `CONECTA_RH_API_URL` com a URL completa terminada em `/api/integracoes/filtroapp/v1` e `CONECTA_RH_READ_TOKEN` com o token de leitura emitido pelo Conecta. Não incluir segredos no frontend.
