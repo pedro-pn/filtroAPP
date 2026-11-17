@@ -5,10 +5,16 @@ import { validatePlaygroundRequest, executePlaygroundOperation } from '../src/li
 import { API_SCOPES, API_OPERATIONS, publicApiOperations } from '../src/lib/api-credentials/catalog.js';
 import { projectEfetivoStatus, validateEfetivoProjectStatusRequest } from '../src/lib/api-credentials/efetivo-project-status.js';
 
-test('every implemented scope and operation is testable with complete typed parameter descriptions', () => {
+test('playground publishes supported operations with complete typed parameter descriptions', () => {
   const operations = publicApiOperations();
-  assert.equal(operations.length, API_OPERATIONS.length);
-  for (const scope of API_SCOPES) assert.ok(operations.some(op => [...op.requiredScopes, ...op.optionalScopes].includes(scope.code)), scope.code);
+  const supported = API_OPERATIONS.filter(operation => operation.supportsPlayground);
+  assert.deepEqual(operations.map(operation => operation.operationId), supported.map(operation => operation.operationId));
+  for (const scope of API_SCOPES) {
+    const scopedOperations = API_OPERATIONS.filter(op => [...op.requiredScopes, ...op.optionalScopes].includes(scope.code));
+    assert.ok(scopedOperations.length, scope.code);
+    assert.equal(operations.some(op => [...op.requiredScopes, ...op.optionalScopes].includes(scope.code)),
+      scopedOperations.some(op => op.supportsPlayground), scope.code);
+  }
   for (const operation of operations) {
     assert.ok(operation.domain);
     assert.ok(['JSON', 'DOWNLOAD_CHECK'].includes(operation.responseKind));
@@ -27,6 +33,14 @@ test('every implemented scope and operation is testable with complete typed para
   assert.deepEqual(reportType.options, ['RDO', 'RDO_MAINTENANCE', 'RDO_PRODUCTION', 'RTP', 'RLQ', 'RCPU', 'RLM', 'RLF', 'RLI']);
   assert.match(reportType.help, /reportType=RCPU/);
   assert.equal(operations.filter(op => op.responseKind === 'DOWNLOAD_CHECK').length, 5);
+});
+
+test('Conecta RH server operations stay unavailable in the playground', () => {
+  for (const operationId of ['rh.conecta.events.post', 'rh.conecta.receipts.get']) {
+    assert.equal(publicApiOperations().some(operation => operation.operationId === operationId), false);
+    assert.throws(() => validatePlaygroundRequest({ operationId, pathParams: {}, query: {} }),
+      error => error.code === 'UNKNOWN_OPERATION');
+  }
 });
 
 test('playground accepts only allowlisted operationId, pathParams and query keys', () => {
