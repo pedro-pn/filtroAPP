@@ -13,6 +13,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { useToast } from '../ui/ToastContext';
 import { Button, Card, DataTable, EmptyState, Field, Input, Select, Skeleton } from '../ui/ds';
 import { brl, modelNumber } from './costFields';
+import { CargoHhAdjustmentPanel } from './CargoHhAdjustmentPanel';
 
 function num(params: CostProfile['params'], key: string): number {
   const v = params?.[key];
@@ -48,7 +49,11 @@ function moneyParam(entry: CargoCostHistoryEntry, key: 'salarioBase') {
   return typeof value === 'number' ? brl(value) : '—';
 }
 
-// Custo por cargo: o cargo herda os adicionais do modelo escolhido e só define salário base.
+function hhAdjustmentLabel(value = 0) {
+  return `${(value * 100).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}%`;
+}
+
+// Custo por cargo: herda o modelo e define salário base e reajuste de HH.
 // Cada alteração cria uma versão com data de vigência.
 export function CargoProfilesPanel() {
   const queryClient = useQueryClient();
@@ -68,7 +73,13 @@ export function CargoProfilesPanel() {
   const [selectedId, setSelectedId] = useState('');
   const [baseModel, setBaseModel] = useState('');
   const [salarioBase, setSalarioBase] = useState('');
+  const [reajusteHh, setReajusteHh] = useState('0');
   const [effectiveDate, setEffectiveDate] = useState(todayKey());
+
+  const refreshCosts = () => Promise.all([
+    'cost-cargos', 'ponto-colaboradores', 'project-cards', 'project-detail', 'mission-group-detail',
+    'commercial-dashboard', 'sede-costs', 'collaborator-hourly-rates', 'ponto-auditoria-alocacao'
+  ].map(key => queryClient.invalidateQueries({ queryKey: [key] })));
 
   const selectedCargo = (cargos ?? []).find(c => c.jobRoleId === selectedId) ?? null;
   const selectedModel = models.find(m => m.key === baseModel) ?? null;
@@ -85,19 +96,19 @@ export function CargoProfilesPanel() {
     const model = models.find(m => m.key === modelKey) ?? models[0];
     setBaseModel(model.key);
     setSalarioBase(String(params?.salarioBase ?? num(model.params, 'salarioBase')));
+    setReajusteHh(String(Number(((params?.reajusteHhPct ?? 0) * 100).toFixed(4))));
     setEffectiveDate(todayKey());
   }, [cargos, selectedId, models]);
 
   const saveMutation = useMutation({
     mutationFn: () => saveCargoCostParams(selectedId, {
       baseModel,
-      salarioBase: Number(salarioBase) || 0
+      salarioBase: Number(salarioBase) || 0,
+      reajusteHhPct: Number(reajusteHh) / 100
     }, effectiveDate),
     onSuccess: () => {
       showToast('Custo do cargo salvo com nova vigência.');
-      queryClient.invalidateQueries({ queryKey: ['cost-cargos'] });
-      queryClient.invalidateQueries({ queryKey: ['ponto-colaboradores'] });
-      queryClient.invalidateQueries({ queryKey: ['project-cards'] });
+      return refreshCosts();
     },
     onError: () => showToast('Não foi possível salvar o custo do cargo.')
   });
@@ -112,8 +123,8 @@ export function CargoProfilesPanel() {
   return (
     <Card className="acp-cost-ds__panel" title="Custo por cargo">
       <p className="acp-cost-ds__copy">
-        Cada cargo é calculado com base em um <strong>modelo</strong> (planilha base) e define apenas o
-        <strong> salário base</strong>. Os demais parâmetros (salário mínimo, adicionais, FGTS, multa rescisória,
+        Cada cargo usa um <strong>modelo</strong> (planilha base) e define o
+        <strong> salário base</strong> e o <strong>reajuste do HH</strong>. Os demais parâmetros (salário mínimo, adicionais, FGTS, multa rescisória,
         benefícios) vêm do modelo vigente na data calculada. Ao salvar, informe a data a partir da qual os novos
         valores passam a valer. A insalubridade é calculada por salário mínimo × 20%.
       </p>
@@ -123,9 +134,12 @@ export function CargoProfilesPanel() {
         </p>
       ) : null}
 
-      <div className="acp-cost-ds__fields">
+      <form id="cargo-cost-form" className="acp-cost-ds__fields" onSubmit={event => {
+        event.preventDefault();
+        saveMutation.mutate();
+      }}>
         <Field label="Cargo" optionalText="">
-          <Select value={selectedId} onChange={e => setSelectedId(e.target.value)}>
+          <Select value={selectedId} disabled={saveMutation.isPending} onChange={e => setSelectedId(e.target.value)}>
             {list.map(c => (
               <option key={c.jobRoleId} value={c.jobRoleId}>
                 {c.name}{c.profileId ? '' : ' — sem custo'}
@@ -134,19 +148,28 @@ export function CargoProfilesPanel() {
           </Select>
         </Field>
         <Field label="Modelo base de cálculo" optionalText="">
-          <Select value={baseModel} disabled={!isManager} onChange={e => setBaseModel(e.target.value)}>
+          <Select value={baseModel} disabled={!isManager || saveMutation.isPending} onChange={e => setBaseModel(e.target.value)}>
             {models.map((m, i) => (
               <option key={m.key} value={m.key}>Modelo {modelNumber(m.key, i + 1)} ({m.label})</option>
             ))}
           </Select>
         </Field>
         <Field label="Salário base (R$)" optionalText="">
-          <Input type="number" step="any" disabled={!isManager} value={salarioBase} onChange={e => setSalarioBase(e.target.value)} />
+          <Input type="number" min="0" required step="any" disabled={!isManager || saveMutation.isPending} value={salarioBase} onChange={e => setSalarioBase(e.target.value)} />
+        </Field>
+        <Field label="Reajuste do HH (%)" required>
+          <Input type="number" min="0" max="100" step="any" required disabled={!isManager || saveMutation.isPending}
+            value={reajusteHh} onChange={e => setReajusteHh(e.target.value)} />
         </Field>
         <Field label="Vigente a partir de" required>
-          <Input type="date" required disabled={!isManager} value={effectiveDate} onChange={e => setEffectiveDate(e.target.value)} />
+          <Input type="date" required disabled={!isManager || saveMutation.isPending} value={effectiveDate} onChange={e => setEffectiveDate(e.target.value)} />
         </Field>
-      </div>
+      </form>
+      <p className="acp-cost-ds__copy">
+        Informe 10 para aumentar a base da hora normal em 10%, com reflexo nas horas extras,
+        adicionais e encargos. Salário e jornada cadastrados, benefícios e custos anuais fixos
+        mantêm seus valores. O percentual substitui o anterior; informe 0 para encerrar o reajuste na nova vigência.
+      </p>
 
       {selectedCargo && !selectedCargo.profileId ? (
         <p className="acp-cost-ds__notice">
@@ -167,13 +190,17 @@ export function CargoProfilesPanel() {
               { key: 'date', sortValue: entry => entry.effectiveDate, header: 'Vigente desde', render: entry => fmtDate(entry.effectiveDate) },
               { key: 'model', header: 'Modelo', render: entry => modelLabel(entry.params?.baseModel, models) },
               { key: 'salary', header: 'Salário base', render: entry => moneyParam(entry, 'salarioBase') },
+              { key: 'hh', header: 'Reajuste HH', render: entry => hhAdjustmentLabel(entry.params?.reajusteHhPct) },
               { key: 'saved', sortValue: entry => entry.updatedAt, header: 'Salvo em', render: entry => fmtDateTime(entry.updatedAt) }
             ]}
             mobile={{ renderItem: entry => ({
               title: fmtDate(entry.effectiveDate),
               subtitle: modelLabel(entry.params?.baseModel, models),
               value: moneyParam(entry, 'salarioBase'),
-              metadata: [{ label: 'Salvo em', value: fmtDateTime(entry.updatedAt) }]
+              metadata: [
+                { label: 'Reajuste HH', value: hhAdjustmentLabel(entry.params?.reajusteHhPct) },
+                { label: 'Salvo em', value: fmtDateTime(entry.updatedAt) }
+              ]
             }) }}
           />
         )}
@@ -197,11 +224,13 @@ export function CargoProfilesPanel() {
 
       {isManager ? (
         <div className="acp-cost-ds__actions">
-          <Button variant="primary" size="sm" loading={saveMutation.isPending} disabled={!selectedId || !effectiveDate} onClick={() => saveMutation.mutate()}>
+          <Button type="submit" form="cargo-cost-form" variant="primary" size="sm" loading={saveMutation.isPending} disabled={!selectedId || !effectiveDate}>
             {saveMutation.isPending ? 'Salvando…' : 'Salvar custo do cargo'}
           </Button>
         </div>
       ) : null}
+
+      {isManager ? <CargoHhAdjustmentPanel cargos={list} onSaved={refreshCosts} /> : null}
     </Card>
   );
 }
