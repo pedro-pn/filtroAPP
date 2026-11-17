@@ -69,6 +69,10 @@ export interface EpiRecordPayload {
   devolutionDate?: string | null;
 }
 
+export interface CreateEpiRecordPayload extends EpiRecordPayload {
+  newCatalogItem?: { hasSizes: boolean; sizes: string[] };
+}
+
 export interface EpiPublicSignaturePayload {
   status: 'ACTIVE' | 'SIGNED' | 'EXPIRED' | 'INVALID';
   expiresAt?: string | null;
@@ -126,7 +130,7 @@ export async function removeEpiCatalogItem(id: string) {
   await apiClient.delete(epiApiPath(`/catalog/${id}`));
 }
 
-export async function createEpiRecord(collaboratorId: string, payload: EpiRecordPayload) {
+export async function createEpiRecord(collaboratorId: string, payload: CreateEpiRecordPayload) {
   const { data } = await apiClient.post<EpiRecord>(epiApiPath(`/collaborators/${collaboratorId}/records`), payload);
   return data;
 }

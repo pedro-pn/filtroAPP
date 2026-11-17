@@ -103,6 +103,13 @@ const recordSchema = z.object({
   devolutionDate: z.string().trim().optional().nullable()
 });
 
+const createRecordSchema = recordSchema.extend({
+  newCatalogItem: catalogSchema.pick({ hasSizes: true, sizes: true }).optional()
+}).refine(data => !data.catalogItemId || !data.newCatalogItem, {
+  message: 'Configure tamanhos apenas ao cadastrar um novo EPI.',
+  path: ['newCatalogItem']
+});
+
 const signatureRequestSchema = z.object({
   recordIds: commonSchemas.stringIdList({ min: 1, max: 100 })
 });
@@ -722,11 +729,23 @@ async function ensureCatalogForRecord(data, tx = prisma) {
     return item;
   }
 
-  return tx.epiCatalogItem.upsert({
+  const newCatalogData = data.newCatalogItem
+    ? parseEpiCatalogData({ name: data.epiName, ca, ...data.newCatalogItem })
+    : null;
+  const item = await tx.epiCatalogItem.upsert({
     where: { name_ca: { name: data.epiName, ca } },
-    create: { name: data.epiName, ca, isActive: true },
+    create: newCatalogData || { name: data.epiName, ca, isActive: true },
     update: { isActive: true }
   });
+  if (newCatalogData && (item.hasSizes !== newCatalogData.hasSizes
+    || item.sizes.length !== newCatalogData.sizes.length
+    || !item.sizes.every(size => newCatalogData.sizes.includes(size)))) {
+    const error = new Error('Já existe um EPI com este nome e CA e outra configuração de tamanhos. Selecione o EPI cadastrado ou ajuste-o no catálogo.');
+    error.status = 409;
+    error.statusCode = 409;
+    throw error;
+  }
+  return item;
 }
 
 async function sendCollaboratorPdf(res, collaboratorId, options = {}) {
@@ -1148,7 +1167,7 @@ router.get('/collaborators/:id/pdf', asyncHandler(async (req, res) => {
 }));
 
 router.post('/collaborators/:id/records', requireEpiTechnician, asyncHandler(async (req, res) => {
-  const data = recordSchema.parse(req.body || {});
+  const data = createRecordSchema.parse(req.body || {});
   const item = await prisma.$transaction(async tx => {
     const collaborator = await tx.collaborator.findFirst({ where: { id: req.params.id, isActive: true } });
     if (!collaborator) {

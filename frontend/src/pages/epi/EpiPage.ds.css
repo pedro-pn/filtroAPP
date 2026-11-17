@@ -230,6 +230,21 @@
   grid-column: span 3;
 }
 
+.epi-page-v2 .epi-record-form > .field-group {
+  grid-column: span 3;
+}
+
+.epi-page-v2 .epi-record-form > .field-group:nth-child(-n+2) {
+  grid-column: span 4;
+}
+
+.epi-page-v2 .epi-record-catalog-options {
+  display: grid;
+  min-width: 0;
+  grid-column: 1 / -1;
+  gap: var(--space-3);
+}
+
 .epi-page-v2 .epi-catalog-row-main,
 .epi-page-v2 .epi-record-row {
   gap: var(--space-3);

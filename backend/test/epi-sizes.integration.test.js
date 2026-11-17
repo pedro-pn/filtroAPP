@@ -70,6 +70,50 @@ test('EPI HTTP + PostgreSQL: tamanhos disponíveis, seleção obrigatória e his
   const deliveries = `/collaborators/${collaborator.id}/records`;
   const delivery = { epiName: 'Camisa', quantity: 3, lendDate: '16/11/2026' };
 
+  // Inline catalog creation and the delivery must commit or roll back together.
+  const inline = { ...delivery, epiName: 'Uniforme criado na ficha', ca: '12345', size: '42',
+    newCatalogItem: { hasSizes: true, sizes: ['M', '42'] } };
+  const inlineKey = { name_ca: { name: inline.epiName, ca: inline.ca } };
+  const originalCount = await client.epiRecord.count();
+  for (const size of [undefined, null, '', 'XXXL']) {
+    assert.equal((await request(deliveries, { ...inline, size })).status, 400);
+    assert.equal(await client.epiCatalogItem.findUnique({ where: inlineKey }), null);
+    assert.equal(await client.epiRecord.count(), originalCount);
+  }
+  for (const sizes of [[], ['M', 'm'], ['  '], ['A'.repeat(41)]]) {
+    assert.equal((await request(deliveries, { ...inline, newCatalogItem: { hasSizes: true, sizes } })).status, 400);
+    assert.equal(await client.epiCatalogItem.findUnique({ where: inlineKey }), null);
+  }
+  assert.equal((await request(deliveries, { ...inline, lendDate: '31/02/2026' })).status, 400);
+  assert.equal(await client.epiCatalogItem.findUnique({ where: inlineKey }), null);
+  const inlineResult = await request(deliveries, inline);
+  assert.equal(inlineResult.status, 201, JSON.stringify(inlineResult.data));
+  assert.equal(inlineResult.data.size, '42');
+  const inlineCatalog = await client.epiCatalogItem.findUniqueOrThrow({ where: inlineKey });
+  assert.equal(inlineResult.data.catalogItemId, inlineCatalog.id);
+  assert.equal(inlineCatalog.hasSizes, true);
+  assert.deepEqual(inlineCatalog.sizes, ['M', '42']);
+  assert.deepEqual((await request('/catalog')).data.find(item => item.id === inlineCatalog.id).sizes, ['M', '42']);
+
+  // A duplicate name/CA cannot silently reconfigure an existing catalog item.
+  await client.epiCatalogItem.update({ where: { id: inlineCatalog.id }, data: { isActive: false } });
+  const conflict = await request(deliveries, { ...inline, size: 'G', newCatalogItem: { hasSizes: true, sizes: ['G'] } });
+  assert.equal(conflict.status, 409, JSON.stringify(conflict.data));
+  const unchanged = await client.epiCatalogItem.findUniqueOrThrow({ where: inlineKey });
+  assert.deepEqual(unchanged.sizes, ['M', '42']);
+  assert.equal(unchanged.isActive, false);
+  assert.equal(await client.epiRecord.count(), originalCount + 1);
+  const reuse = await request(deliveries, { ...inline, newCatalogItem: { hasSizes: true, sizes: ['42', 'M'] } });
+  assert.equal(reuse.status, 201, JSON.stringify(reuse.data));
+  assert.equal(reuse.data.catalogItemId, inlineCatalog.id);
+  assert.equal((await client.epiCatalogItem.findUniqueOrThrow({ where: inlineKey })).isActive, true);
+  assert.equal((await request(deliveries, { ...inline, catalogItemId: inlineCatalog.id })).status, 400);
+  const inlinePlain = await request(deliveries, { ...delivery, epiName: 'EPI novo sem tamanhos', size: 'M', newCatalogItem: { hasSizes: false, sizes: [] } });
+  assert.equal(inlinePlain.status, 201, JSON.stringify(inlinePlain.data));
+  assert.equal(inlinePlain.data.size, null);
+  assert.equal(inlinePlain.data.catalogItem.hasSizes, false);
+  assert.deepEqual(inlinePlain.data.catalogItem.sizes, []);
+
   const defaults = await request('/catalog', { name: 'Camisa', hasSizes: true });
   assert.equal(defaults.status, 201, JSON.stringify(defaults.data));
   assert.deepEqual(defaults.data.sizes, ['P', 'M', 'G', 'GG', 'XG', 'Especial']);
