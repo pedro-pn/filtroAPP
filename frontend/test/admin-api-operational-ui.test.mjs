@@ -53,12 +53,16 @@ test('unified catalog renders one selectable row per available scope and operati
     assert.match(render('operational.MaintenanceThirdPartyService.list'), /playground-maintenanceId/);
     assert.match(render('operational.ReportAttachment.download'), /ID do anexo do relatório/);
     assert.match(render('operational.ReportAttachment.download'), /sem transferir/);
-    assert.match(markup, /Consultar salário por cargo/);
+    assert.match(markup, /Consultar salário e reajuste HH por cargo/);
     assert.deepEqual(toggleApiScope(scopes, [], 'cargos.salarios.read'), ['cargos.salarios.read']);
     assert.match(render('jobRoles.salary.get'), /ID do cargo/);
     assert.match(render('jobRoles.salary.get'), /Data de referência/);
     assert.match(render('jobRoles.salary.get'), /referenceDate=AAAA-MM-DD/);
     assert.doesNotMatch(render('jobRoles.salary.get'), /playground-limit|playground-project/);
+    assert.match(render('jobRoles.hourlyReference.get'), /ID do cargo/);
+    assert.match(render('jobRoles.hourlyReference.get'), /Data de referência/);
+    assert.match(render('jobRoles.hourlyReference.get'), /referenceDate=AAAA-MM-DD/);
+    assert.doesNotMatch(render('jobRoles.hourlyReference.get'), /playground-limit|playground-project/);
   } finally { await server.close(); }
 });
 
