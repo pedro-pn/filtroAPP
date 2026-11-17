@@ -11,14 +11,14 @@ test('performance cache markers remain infrastructure without external API acces
   assert.equal(OPERATIONAL_RESOURCES.some(item => item.model === 'PerformanceReadRevision'), false);
 });
 
-test('executable catalog classifies every one of the 182 business Prisma models exactly once', async () => {
+test('executable catalog classifies every one of the 186 business Prisma models exactly once', async () => {
   const schema = await readFile(new URL('../prisma/schema.prisma', import.meta.url), 'utf8');
   const prismaModels = [...schema.matchAll(/^model\s+(\w+)\s*\{/gm)].map(match => match[1]);
   const excluded = new Set(CATALOG_EXCLUDED_INFRASTRUCTURE_MODELS.map(item => item.model));
   const businessModels = prismaModels.filter(model => !excluded.has(model));
   const catalogModels = flattenDataCatalogModels().map(item => item.model);
   assert.equal(API_DATA_DOMAINS.length, 20);
-  assert.equal(businessModels.length, 182);
+  assert.equal(businessModels.length, 186);
   assert.equal(new Set(catalogModels).size, catalogModels.length);
   assert.deepEqual([...catalogModels].sort(), [...businessModels].sort());
   const invoiceModel = flattenDataCatalogModels().find(item => item.model === 'OmieInvoice');
@@ -27,6 +27,16 @@ test('executable catalog classifies every one of the 182 business Prisma models 
   for (const item of flattenDataCatalogModels()) {
     assert.ok(['AVAILABLE', 'PLANNED', 'SENSITIVE', 'RESERVED', 'PROHIBITED'].includes(item.availability));
     assert.ok(item.domainCode);
+  }
+});
+
+test('Conecta RH bookkeeping stays reserved without generic external read access', () => {
+  const models = flattenDataCatalogModels();
+  for (const name of ['ConectaRhAggregate', 'ConectaRhReceipt', 'ConectaRhPerson', 'ConectaRhSyncState']) {
+    const model = models.find(item => item.model === name);
+    assert.equal(model?.domainCode, 'people-access');
+    assert.equal(model?.availability, 'RESERVED');
+    assert.equal(OPERATIONAL_RESOURCES.some(item => item.model === name), false);
   }
 });
 
