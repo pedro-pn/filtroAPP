@@ -58,6 +58,7 @@ export function ProjectLegacySummaryStartForm({ projectId, mission, fullMission,
   const [collaboratorIds, setCollaboratorIds] = useState<string[]>(() => selectedMissionCollaboratorIds(fullMission));
   const [allocationPeriods, setAllocationPeriods] = useState<MissionAllocationPeriodDraft[]>([]);
   const [confirmedOverlapIds, setConfirmedOverlapIds] = useState<string[]>([]);
+  const [confirmedPreAdmissionIds, setConfirmedPreAdmissionIds] = useState<string[]>([]);
   const [confirmedInactiveIds, setConfirmedInactiveIds] = useState<string[]>([]);
   const hydratedMissionKey = useRef('');
   const teamDates = resolveLegacySummaryTeamDates(
@@ -170,7 +171,8 @@ export function ProjectLegacySummaryStartForm({ projectId, mission, fullMission,
                 demobilizationDate: dateOnly(period.demobilizationDate) || teamPeriodEnd
               })),
             confirmedMissionOverlapCollaboratorIds: confirmedOverlapIds,
-            confirmedInactiveCollaboratorIds: confirmedInactiveIds
+            confirmedInactiveCollaboratorIds: confirmedInactiveIds,
+            confirmedPreAdmissionCollaboratorIds: confirmedPreAdmissionIds
           });
         } catch (mutationError) {
           toast((mutationError as Error).message, 'error');
@@ -235,11 +237,12 @@ export function ProjectLegacySummaryStartForm({ projectId, mission, fullMission,
             endDate={teamPeriodEnd}
             loading={false}
             disabled={disabled}
-            onChange={(ids, overlapIds, inactiveIds) => {
+            onChange={(ids, overlapIds, inactiveIds, _selected, preAdmissionIds) => {
               setCollaboratorIds(ids);
               setAllocationPeriods(current => synchronizeMissionAllocationPeriods(ids, current, teamPeriodStart, teamPeriodEnd));
               setConfirmedOverlapIds(overlapIds);
               setConfirmedInactiveIds(inactiveIds);
+              setConfirmedPreAdmissionIds(preAdmissionIds);
             }}
             onAllocationPeriodsChange={setAllocationPeriods}
           />

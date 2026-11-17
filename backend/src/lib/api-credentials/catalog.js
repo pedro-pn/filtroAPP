@@ -4,7 +4,7 @@ import { OPERATIONAL_DOWNLOADS } from './extended-operational-resources.js';
 import { describePlaygroundParameters } from './playground-parameters.js';
 import { CRM_PLANNING_EXAMPLE } from '../../../../shared/modules/crm-planning-example.js';
 
-export const API_CATALOG_VERSION = '2026-11-11.1';
+export const API_CATALOG_VERSION = '2026-11-13.1';
 export { API_DATA_DOMAINS, DATA_CATALOG_VERSION, flattenDataCatalogModels, futureScopeDefinitions } from './data-catalog.js';
 
 const QUALITY_RECORD_FIELDS = ['id', 'number', 'type', 'registeredAt', 'origin', 'project', 'eventDate', 'nature', 'subnature', 'description', 'impact', 'recurrence', 'linkedRnc', 'disposition', 'definedAction', 'actionOwner', 'actionDeadline', 'evidenceSummary', 'resultVerification', 'status', 'createdAt', 'updatedAt'];
@@ -17,6 +17,13 @@ const QUALITY_SCOPE_FIELDS = {
 };
 
 export const API_SCOPES = Object.freeze([
+  { code: 'rh.conecta.eventos.write', domain: 'Pessoas, cargos e acesso', label: 'Receber eventos de RH do Conecta',
+    description: 'Recebe cargos, vínculos, histórico e conformidade com idempotência. Exige acesso global.',
+    sensitivity: 'PERSONAL', status: 'AVAILABLE', dependencies: [], models: ['ConectaRhAggregate', 'ConectaRhReceipt', 'ConectaRhPerson'],
+    exposedFields: ['receiptId', 'statusUrl', 'status', 'reasonCode', 'receivedAt'], excludedFields: ['corpo dos eventos', 'CPF', 'salários'] },
+  { code: 'rh.conecta.salarios.write', domain: 'Pessoas, cargos e acesso', label: 'Receber salários-base do Conecta',
+    description: 'Autoriza eventos job_role_salary; não publica remuneração individual.', sensitivity: 'FINANCIAL', status: 'AVAILABLE',
+    dependencies: ['rh.conecta.eventos.write'], models: ['CostParameterSet'], exposedFields: ['receiptId', 'status'], excludedFields: ['salário individual'] },
   { code: 'colaboradores.contato_corporativo.read', domain: 'Pessoas, cargos e acesso', label: 'Ler contato corporativo do colaborador',
     description: 'Acrescenta emailCorporativo exclusivamente @filtrovali.com.br e userId da conta vinculada. Sem conta, retorna null. Não inclui e-mail pessoal, CPF nem outros dados PII.',
     sensitivity: 'PERSONAL', status: 'AVAILABLE', dependencies: ['colaboradores.operacional.read'], models: ['Collaborator', 'User'],
@@ -69,6 +76,16 @@ export const API_SCOPES = Object.freeze([
 ].map(scope => QUALITY_SCOPE_FIELDS[scope.code] ? { ...scope, exposedFields: QUALITY_SCOPE_FIELDS[scope.code] } : scope));
 
 export const API_OPERATIONS = Object.freeze([
+  { operationId: 'rh.conecta.events.post', openApiOperationId: 'receiveConectaRhEvent', method: 'POST', path: '/rh/conecta/eventos',
+    label: 'Receber evento de RH do Conecta', requiredScopes: ['rh.conecta.eventos.write'], optionalScopes: ['rh.conecta.salarios.write'],
+    pathParams: [], queryParams: [], headerParams: ['Idempotency-Key'], supportsPlayground: false,
+    simulation: { strategy: 'rollback', testCase: 'rh.conecta.events.post' },
+    bodyExample: { schemaVersion: '1.0', eventId: '00000000-0000-4000-8000-000000000002', companyId: '00000000-0000-4000-8000-000000000001',
+      eventType: 'job_role.upserted', aggregateType: 'job_role', aggregateId: '00000000-0000-4000-8000-000000000003', revision: 1, occurredAt: '2026-11-13T12:00:00Z',
+      data: { id: '00000000-0000-4000-8000-000000000003', name: 'Cargo fictício Conecta', cbo: null, isActive: true, isOperational: true } } },
+  { operationId: 'rh.conecta.receipts.get', openApiOperationId: 'getConectaRhReceipt', method: 'GET', path: '/rh/conecta/recebimentos/:id',
+    label: 'Consultar aplicação de evento de RH', requiredScopes: ['rh.conecta.eventos.write'], optionalScopes: [],
+    pathParams: ['id'], queryParams: [], supportsPlayground: false },
   { operationId: 'efetivo.allocationReview.list', openApiOperationId: 'listIntegrationConfirmedAllocations', method: 'GET', path: '/efetivo/conferencia/alocacoes',
     label: 'Consultar alocações conferidas para o Conecta', requiredScopes: ['efetivo.conferencia.read'], optionalScopes: [], pathParams: [],
     queryParams: ['from', 'to', 'collaboratorId', 'limit', 'cursor'], supportsPlayground: true },

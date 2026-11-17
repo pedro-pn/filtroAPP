@@ -1,7 +1,7 @@
 import { OPERATIONAL_RESOURCES } from './operational-resources.js';
 import { OPERATIONAL_DOWNLOADS } from './extended-operational-resources.js';
 
-export const DATA_CATALOG_VERSION = '2026-11-11';
+export const DATA_CATALOG_VERSION = '2026-11-13';
 const publishedModels = new Set(OPERATIONAL_RESOURCES.map(item => item.model));
 const publishedScopes = new Set([...OPERATIONAL_RESOURCES, ...OPERATIONAL_DOWNLOADS].flatMap(item => [item.scope, ...Object.keys(item.scopedFields || {})]));
 
@@ -21,7 +21,7 @@ export const API_DATA_DOMAINS = Object.freeze([
     models: [
       ...modelEntries(['Collaborator', 'JobRole'], 'PLANNED'),
       ...modelEntries(['CollaboratorJobRoleHistory', 'User'], 'SENSITIVE'),
-      ...modelEntries(['CollaboratorSignatureNoticeLog', 'ModuleRole', 'ProjectAuthorizedUser'], 'RESERVED')
+      ...modelEntries(['CollaboratorSignatureNoticeLog', 'ModuleRole', 'ProjectAuthorizedUser', 'ConectaRhAggregate', 'ConectaRhReceipt', 'ConectaRhPerson', 'ConectaRhSyncState'], 'RESERVED')
     ],
     candidateScopes: ['colaboradores.operacional.read', 'colaboradores.contato_corporativo.read', 'colaboradores.pii.read', 'cargos.read', 'usuarios.diretorio.read'],
     candidateAvailability: 'SENSITIVE', endpointFamilies: ['/colaboradores', '/cargos', '/usuarios'],

@@ -169,6 +169,7 @@ export async function resolveSelectedMissionTeam(tx, payload, planId, ignoredMis
         allocations: allocations.filter(allocation => allocation.collaboratorId === collaborator.id),
         ignoredMissionId,
         allowMissionOverlap: Boolean(teamAllocation?.allowMissionOverlap),
+        allowPreAdmissionCollaborator: (payload.confirmedPreAdmissionCollaboratorIds || []).includes(collaborator.id),
         allowInactiveCollaborator: (payload.confirmedInactiveCollaboratorIds || []).includes(collaborator.id),
         requireCandidateMissionOverlapConfirmation: true
       });

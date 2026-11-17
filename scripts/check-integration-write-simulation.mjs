@@ -16,7 +16,8 @@ export function integrationWriteSimulationFailures(operations, routeSources, tes
       const declaredPath = handler.match(/^\s*['"]([^'"]+)['"]/)?.[1];
       const id = handler.match(/requireApiOperation\(['"]([^'"]+)['"]\)/)?.[1];
       const operation = operations.find(item => item.operationId === id);
-      const fullPath = path.endsWith('/qualidade.js') ? `/qualidade${declaredPath}` : declaredPath;
+      const fullPath = path.endsWith('/qualidade.js') ? `/qualidade${declaredPath}`
+        : path.endsWith('/conecta-rh.js') ? `/rh/conecta${declaredPath}` : declaredPath;
       if (!operation || operation.method !== method.toUpperCase() || operation.path !== fullPath) {
         failures.push(`${path}: rota ${method.toUpperCase()} ${declaredPath} exige operação correspondente no catálogo.`);
       }

@@ -5,6 +5,7 @@ import { apiRequestContext, integrationApiBoundary, integrationApiErrorHandler, 
 import { coarseApiTokenIpLimit, requireApiToken } from '../../../middleware/api-token-auth.js';
 import qualidadeRouter from './qualidade.js';
 import operationalRouter from './operational.js';
+import conectaRhRouter from './conecta-rh.js';
 
 const router = Router();
 
@@ -13,6 +14,7 @@ router.use(integrationApiBoundary({ allowedOrigins: env.allowedOrigins, requireH
 router.use((req, res, next) => req.apiCoarseLimitApplied ? next() : coarseApiTokenIpLimit(req, res, next));
 router.use(requireApiToken);
 router.use('/qualidade', qualidadeRouter);
+router.use('/rh/conecta', conectaRhRouter);
 router.use(operationalRouter);
 router.use((req, res) => sendIntegrationError(res, req, 404, 'NOT_FOUND', 'Operação de integração não encontrada.'));
 router.use(integrationApiErrorHandler);

@@ -542,6 +542,9 @@ jobs:
       - name: Verify Efetivo project closeout and satisfaction surveys in the browser
         run: npx playwright test --config=playwright.efetivo.config.ts
 
+      - name: Verify CONECTA RH pre-admission confirmation in the browser
+        run: npx playwright test --config=playwright.conecta.config.ts
+
       - name: Upload page performance browser regression report
         if: failure()
         uses: actions/upload-artifact@v7
@@ -556,6 +559,14 @@ jobs:
         with:
           name: efetivo-closeout-browser-report
           path: output/playwright/efetivo
+          if-no-files-found: warn
+
+      - name: Upload CONECTA RH browser regression report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: conecta-rh-browser-report
+          path: output/playwright/conecta
           if-no-files-found: warn
 
       - name: Upload EPI browser regression report

@@ -110,9 +110,9 @@ export async function loadPlanningProjection({ date, returnDate = null, planId =
     database.collaborator.findMany({
       where: {
         OR: [{ isActive: true }, { terminationDate: { gte: utcDate(startDate) } }],
-        AND: [{ OR: [{ admissionDate: null }, { admissionDate: { lte: utcDate(endDate) } }] }]
+        AND: [{ OR: [{ rhStatus: 'PRE_ADMISSION' }, { admissionDate: null }, { admissionDate: { lte: utcDate(endDate) } }] }]
       },
-      select: { id: true, name: true, jobRoleId: true, jobRole: { select: { id: true, name: true } }, admissionDate: true, terminationDate: true, isActive: true }
+      select: { id: true, name: true, jobRoleId: true, jobRole: { select: { id: true, name: true } }, admissionDate: true, terminationDate: true, isActive: true, rhStatus: true, admissionDateProvisional: true }
     }),
     database.jobRole.findMany({ where: { isActive: true, isOperational: true }, orderBy: [{ order: 'asc' }, { name: 'asc' }] }),
     database.efetivoMissionPlan.findMany({
@@ -282,7 +282,7 @@ export async function listPlanningCollaborators(filters, dependencies = {}) {
     const database = await resolvePlanningDatabase(dependencies.database);
     const inactive = await database.collaborator.findMany({
       where: { isActive: false },
-      select: { id: true, name: true, jobRoleId: true, jobRole: { select: { id: true, name: true } }, admissionDate: true, terminationDate: true, isActive: true }
+      select: { id: true, name: true, jobRoleId: true, jobRole: { select: { id: true, name: true } }, admissionDate: true, terminationDate: true, isActive: true, rhStatus: true, admissionDateProvisional: true }
     });
     const includedIds = new Set(collaborators.map(person => person.id));
     collaborators.push(...inactive.filter(person => !includedIds.has(person.id)));
@@ -298,6 +298,8 @@ export async function listPlanningCollaborators(filters, dependencies = {}) {
     admissionDate: collaborator.admissionDate ? parseDateKey(collaborator.admissionDate) : null,
     terminationDate: collaborator.terminationDate ? parseDateKey(collaborator.terminationDate) : null,
     isActive: collaborator.isActive,
+    rhStatus: collaborator.rhStatus,
+    admissionDateProvisional: collaborator.admissionDateProvisional,
     status: statusById.get(collaborator.id) || 'OUTSIDE_EMPLOYMENT',
     plannedUtilization90d: availableByPerson.get(collaborator.id)
       ? committedByPerson.get(collaborator.id) / availableByPerson.get(collaborator.id) * 100 : null,

@@ -112,6 +112,7 @@ export async function allocateCollaboratorInTransaction(tx, mission, payload, co
       period: requestedPeriod,
       ignoredMissionId: mission.id,
       allowMissionOverlap: Boolean(payload.allowMissionOverlap),
+      allowPreAdmissionCollaborator: payload.allowPreAdmissionCollaborator === true,
       allowInactiveCollaborator: payload.allowInactiveCollaborator === true,
       requireCandidateMissionOverlapConfirmation: true
     }));
@@ -195,6 +196,7 @@ export async function listEligibleCollaborators(missionId, jobRoleId, filters = 
       allocations: overlapping.filter(item => item.collaboratorId === collaborator.id),
       ignoredMissionId: mission.id,
       allowInactiveCollaborator: filters.includeInactive === true,
+      allowPreAdmissionCollaborator: true,
       requireCandidateMissionOverlapConfirmation: true
     }));
     const hardConflicts = conflicts.filter(conflict => conflict.sourceType !== 'MISSION');
@@ -223,7 +225,7 @@ export async function addMissionAllocation(missionId, payload, context = {}, dep
     await recordEfetivoAudit(tx, {
       planId: plan.id, actorUserId: context.actorUserId, action: 'ALLOCATION_ADD', entityType: 'ALLOCATION', entityId: allocation.id,
       summary: 'Colaborador alocado na missão.',
-      afterData: { ...allocation, inactiveCollaboratorConfirmed: payload.allowInactiveCollaborator === true }, evidence: context.evidence
+      afterData: { ...allocation, preAdmissionCollaboratorConfirmed: payload.allowPreAdmissionCollaborator === true, inactiveCollaboratorConfirmed: payload.allowInactiveCollaborator === true }, evidence: context.evidence
     });
     return allocation;
   });
@@ -270,6 +272,7 @@ export async function updateMissionAllocationPeriod(missionId, allocationId, pay
       period,
       ignoredMissionId: mission.id,
       allowMissionOverlap,
+      allowPreAdmissionCollaborator: payload.allowPreAdmissionCollaborator === true,
       allowInactiveCollaborator: payload.allowInactiveCollaborator === true
     }));
     const updated = await tx.efetivoMissionAllocation.update({
@@ -297,7 +300,7 @@ export async function updateMissionAllocationPeriod(missionId, allocationId, pay
       entityId: allocationId,
       summary: 'Período individual do colaborador atualizado.',
       beforeData: existing,
-      afterData: { ...updated, inactiveCollaboratorConfirmed: payload.allowInactiveCollaborator === true },
+      afterData: { ...updated, preAdmissionCollaboratorConfirmed: payload.allowPreAdmissionCollaborator === true, inactiveCollaboratorConfirmed: payload.allowInactiveCollaborator === true },
       evidence: context.evidence
     });
     return updated;

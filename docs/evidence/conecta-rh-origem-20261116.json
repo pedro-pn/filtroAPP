@@ -1,0 +1,367 @@
+{
+  "checkedAt": "2026-11-16T14:36:48.230Z",
+  "companyId": "ca682be5-ab0c-43a8-8a26-d3f7eb1d7526",
+  "origin": "https://filtrostaging.filtrovali.com.br",
+  "readApiConfigured": false,
+  "readTokenConfigured": false,
+  "checks": [
+    {
+      "name": "todos os eventos recebidos foram aplicados, sem pendências",
+      "result": "PASS",
+      "details": {
+        "distinctEvents": 4,
+        "aggregates": 3
+      }
+    },
+    {
+      "name": "pessoa e cargo únicos com identificadores externos conciliados",
+      "result": "PASS"
+    },
+    {
+      "name": "revisão 2 sem data preserva a referência do primeiro recebimento",
+      "result": "PASS",
+      "details": {
+        "firstReceivedAt": "2026-11-16T14:29:51.529Z",
+        "admissionDate": "2026-11-16T00:00:00.000Z"
+      }
+    },
+    {
+      "name": "vigência de cargo null usa a referência provisória sem duplicar histórico",
+      "result": "PASS"
+    },
+    {
+      "name": "os quatro recibos retornam APPLIED pela API HTTPS autenticada",
+      "result": "PASS"
+    },
+    {
+      "name": "a API usada pela tela exibe a pessoa, cargo e data provisória",
+      "result": "PASS"
+    },
+    {
+      "name": "job de conciliação concluído sem erro",
+      "result": "PASS"
+    },
+    {
+      "name": "tela: um resultado, badge de pré-admissão, cargo e admissão provisória corretos",
+      "result": "PASS"
+    }
+  ],
+  "aggregates": [
+    {
+      "id": "cmwjd15x2000e1gpnq8f4e8em",
+      "aggregateType": "employment",
+      "externalId": "a845c54c-387b-44ad-a226-31946cdd012b",
+      "revision": 2,
+      "status": "APPLIED",
+      "reasonCode": null,
+      "localId": "cmwjd15xx000g1gpntyfd1kil",
+      "firstReceivedAt": "2026-11-16T14:29:51.529Z",
+      "occurredAt": "2026-11-16T14:30:14.000Z",
+      "data": {
+        "personId": "3a863a37-1018-4a80-949b-914d087ad3ed",
+        "employmentId": "a845c54c-387b-44ad-a226-31946cdd012b",
+        "name": "ZZZ Teste Homologação Pré Sem Data",
+        "status": "PRE_ADMISSION",
+        "admissionDate": null,
+        "terminationDate": null,
+        "currentJobRoleId": "8b574de8-038b-45ab-bb3e-8551c1e0418b",
+        "isOperational": true
+      }
+    },
+    {
+      "id": "cmwjd15rj00081gpnr6yyn6tx",
+      "aggregateType": "job_role",
+      "externalId": "8b574de8-038b-45ab-bb3e-8551c1e0418b",
+      "revision": 1,
+      "status": "APPLIED",
+      "reasonCode": null,
+      "localId": "cmwjd15s0000a1gpn0ld7ewrj",
+      "firstReceivedAt": "2026-11-16T14:29:51.336Z",
+      "occurredAt": "2026-11-16T14:29:31.000Z",
+      "data": {
+        "name": "ZZZ Teste Homologação Cargo A",
+        "isActive": true,
+        "isOperational": true
+      }
+    },
+    {
+      "id": "cmwjd161n000l1gpngjy2ytvx",
+      "aggregateType": "role_change",
+      "externalId": "d7a9f595-c7af-430c-a395-1fa9bfcebd9d",
+      "revision": 1,
+      "status": "APPLIED",
+      "reasonCode": null,
+      "localId": "conecta:cmwjd161n000l1gpngjy2ytvx",
+      "firstReceivedAt": "2026-11-16T14:29:51.702Z",
+      "occurredAt": "2026-11-16T14:29:31.000Z",
+      "data": {
+        "personId": "3a863a37-1018-4a80-949b-914d087ad3ed",
+        "employmentId": "a845c54c-387b-44ad-a226-31946cdd012b",
+        "jobRoleId": "8b574de8-038b-45ab-bb3e-8551c1e0418b",
+        "effectiveDate": null,
+        "status": "ACTIVE",
+        "supersedesId": null
+      }
+    }
+  ],
+  "receipts": [
+    {
+      "id": "cmwjd15rm00091gpnios06v77",
+      "eventId": "e02657c7-543b-4b7c-9d99-e80db2964724",
+      "aggregateId": "cmwjd15rj00081gpnr6yyn6tx",
+      "revision": 1,
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T14:29:51.336Z"
+    },
+    {
+      "id": "cmwjd15x4000f1gpnykmnseqd",
+      "eventId": "b3acc34b-a37c-402e-8f85-fc1fa25c2400",
+      "aggregateId": "cmwjd15x2000e1gpnq8f4e8em",
+      "revision": 1,
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T14:29:51.529Z"
+    },
+    {
+      "id": "cmwjd161o000m1gpnnpnoeuj0",
+      "eventId": "d444c79d-49c3-4d56-a7c3-a0d4970536ad",
+      "aggregateId": "cmwjd161n000l1gpngjy2ytvx",
+      "revision": 1,
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T14:29:51.702Z"
+    },
+    {
+      "id": "cmwjd1y7x00161gpn0tbrxsza",
+      "eventId": "481538e6-4181-4235-a4f7-6d1abf8fb33b",
+      "aggregateId": "cmwjd15x2000e1gpnq8f4e8em",
+      "revision": 2,
+      "status": "APPLIED",
+      "reasonCode": null,
+      "receivedAt": "2026-11-16T14:30:28.212Z"
+    }
+  ],
+  "sourceRequestLogs": [
+    {
+      "requestId": "df37874e-d91f-49f4-9492-4583f1bba980",
+      "operationId": "rh.conecta.events.post",
+      "statusCode": 400,
+      "outcomeCode": "VALIDATION_ERROR",
+      "simulated": false,
+      "createdAt": "2026-11-16T14:15:31.567Z",
+      "credentialId": "cmwfbydff00011gmymh05ygop"
+    },
+    {
+      "requestId": "43e8327f-ae52-4fee-a30b-9bf6212029fb",
+      "operationId": "rh.conecta.events.post",
+      "statusCode": 200,
+      "outcomeCode": "SIMULATED",
+      "simulated": true,
+      "createdAt": "2026-11-16T14:24:08.614Z",
+      "credentialId": "cmwfbydff00011gmymh05ygop"
+    },
+    {
+      "requestId": "bd3a030a-db78-4041-9444-fb1e555e499d",
+      "operationId": "rh.conecta.events.post",
+      "statusCode": 202,
+      "outcomeCode": "OK",
+      "simulated": false,
+      "createdAt": "2026-11-16T14:29:51.403Z",
+      "credentialId": "cmwfbydff00011gmymh05ygop"
+    },
+    {
+      "requestId": "fe13aab2-947a-435a-920b-7099555fc43e",
+      "operationId": "rh.conecta.events.post",
+      "statusCode": 202,
+      "outcomeCode": "OK",
+      "simulated": false,
+      "createdAt": "2026-11-16T14:29:51.632Z",
+      "credentialId": "cmwfbydff00011gmymh05ygop"
+    },
+    {
+      "requestId": "276e1ee4-c476-4a35-b92a-0fc4921c13d3",
+      "operationId": "rh.conecta.events.post",
+      "statusCode": 202,
+      "outcomeCode": "OK",
+      "simulated": false,
+      "createdAt": "2026-11-16T14:29:51.763Z",
+      "credentialId": "cmwfbydff00011gmymh05ygop"
+    },
+    {
+      "requestId": "9fccd4e5-6ba8-44c5-8876-243b13dffd1d",
+      "operationId": "rh.conecta.receipts.get",
+      "statusCode": 200,
+      "outcomeCode": "OK",
+      "simulated": false,
+      "createdAt": "2026-11-16T14:29:51.834Z",
+      "credentialId": "cmwfbydff00011gmymh05ygop"
+    },
+    {
+      "requestId": "6442f640-cbb6-4976-8da6-822d4c700d61",
+      "operationId": "rh.conecta.receipts.get",
+      "statusCode": 200,
+      "outcomeCode": "OK",
+      "simulated": false,
+      "createdAt": "2026-11-16T14:29:51.900Z",
+      "credentialId": "cmwfbydff00011gmymh05ygop"
+    },
+    {
+      "requestId": "411569a8-9da5-402b-9913-1266b8395f42",
+      "operationId": "rh.conecta.receipts.get",
+      "statusCode": 200,
+      "outcomeCode": "OK",
+      "simulated": false,
+      "createdAt": "2026-11-16T14:29:51.960Z",
+      "credentialId": "cmwfbydff00011gmymh05ygop"
+    },
+    {
+      "requestId": "bc8a77c9-61d7-4acf-8ae4-24adc1e1785b",
+      "operationId": "rh.conecta.events.post",
+      "statusCode": 202,
+      "outcomeCode": "OK",
+      "simulated": false,
+      "createdAt": "2026-11-16T14:30:06.840Z",
+      "credentialId": "cmwfbydff00011gmymh05ygop"
+    },
+    {
+      "requestId": "2e18c39b-aa39-4e17-8ee7-d059f2e5e291",
+      "operationId": "rh.conecta.receipts.get",
+      "statusCode": 200,
+      "outcomeCode": "OK",
+      "simulated": false,
+      "createdAt": "2026-11-16T14:30:07.274Z",
+      "credentialId": "cmwfbydff00011gmymh05ygop"
+    },
+    {
+      "requestId": "eef85d88-c3ef-45ef-ad44-7c3f4eab5ef9",
+      "operationId": "rh.conecta.events.post",
+      "statusCode": 202,
+      "outcomeCode": "OK",
+      "simulated": false,
+      "createdAt": "2026-11-16T14:30:28.295Z",
+      "credentialId": "cmwfbydff00011gmymh05ygop"
+    },
+    {
+      "requestId": "95a266b7-e7e3-4f1e-849b-d8a2916e5ad4",
+      "operationId": "rh.conecta.receipts.get",
+      "statusCode": 200,
+      "outcomeCode": "OK",
+      "simulated": false,
+      "createdAt": "2026-11-16T14:30:28.444Z",
+      "credentialId": "cmwfbydff00011gmymh05ygop"
+    }
+  ],
+  "collaborator": {
+    "id": "cmwjd15xx000g1gpntyfd1kil",
+    "code": "CONECTA-3a863a37-1018-4a80-949b-914d087ad3ed",
+    "name": "ZZZ Teste Homologação Pré Sem Data",
+    "isActive": true,
+    "rhStatus": "PRE_ADMISSION",
+    "rhEmploymentId": "a845c54c-387b-44ad-a226-31946cdd012b",
+    "rhFirstReceivedAt": "2026-11-16T14:29:51.529Z",
+    "admissionDate": "2026-11-16T00:00:00.000Z",
+    "admissionDateProvisional": true,
+    "terminationDate": null,
+    "jobRoleId": "cmwjd15s0000a1gpn0ld7ewrj",
+    "jobRole": {
+      "id": "cmwjd15s0000a1gpn0ld7ewrj",
+      "name": "ZZZ Teste Homologação Cargo A"
+    }
+  },
+  "roleHistory": [
+    {
+      "id": "conecta:cmwjd161n000l1gpngjy2ytvx",
+      "jobRoleId": "cmwjd15s0000a1gpn0ld7ewrj",
+      "effectiveDate": "2026-11-16T00:00:00.000Z",
+      "note": "Integração Conecta."
+    }
+  ],
+  "receiptQueries": [
+    {
+      "receiptId": "cmwjd15rm00091gpnios06v77",
+      "status": "APPLIED",
+      "receivedAt": "2026-11-16T14:29:51.336Z",
+      "requestId": "8fd3df28-8c0f-4df4-b72a-579482b694c9",
+      "httpStatus": 200
+    },
+    {
+      "receiptId": "cmwjd15x4000f1gpnykmnseqd",
+      "status": "APPLIED",
+      "receivedAt": "2026-11-16T14:29:51.529Z",
+      "requestId": "ebb73eea-6fa0-4cca-8ccb-f0d02d8d6024",
+      "httpStatus": 200
+    },
+    {
+      "receiptId": "cmwjd161o000m1gpnnpnoeuj0",
+      "status": "APPLIED",
+      "receivedAt": "2026-11-16T14:29:51.702Z",
+      "requestId": "e2b70045-d47f-4aab-b5bf-769a153e9153",
+      "httpStatus": 200
+    },
+    {
+      "receiptId": "cmwjd1y7x00161gpn0tbrxsza",
+      "status": "APPLIED",
+      "receivedAt": "2026-11-16T14:30:28.212Z",
+      "requestId": "f2f98381-b748-44e5-b6b5-3c2635703faf",
+      "httpStatus": 200
+    }
+  ],
+  "appRead": {
+    "httpStatus": 200,
+    "returnedItems": 1,
+    "collaboratorId": "cmwjd15xx000g1gpntyfd1kil"
+  },
+  "latestRhJobs": [
+    {
+      "status": "COMPLETED",
+      "startedAt": "2026-11-16T14:33:16.925Z",
+      "finishedAt": "2026-11-16T14:33:16.956Z",
+      "error": null
+    },
+    {
+      "status": "COMPLETED",
+      "startedAt": "2026-11-16T14:28:16.921Z",
+      "finishedAt": "2026-11-16T14:28:16.942Z",
+      "error": null
+    },
+    {
+      "status": "COMPLETED",
+      "startedAt": "2026-11-16T14:23:16.917Z",
+      "finishedAt": "2026-11-16T14:23:18.065Z",
+      "error": null
+    }
+  ],
+  "summary": {
+    "passed": 8,
+    "failed": 0
+  },
+  "deployment": {
+    "checkout": "/root/apps/filtroAPP-staging",
+    "commit": "cc265f0a524c468df174aa87f12481436c0c79e4",
+    "health": {
+      "backend": "healthy",
+      "worker": "healthy",
+      "nginx": "healthy",
+      "postgres": "healthy"
+    },
+    "publicHealthStatus": 200
+  },
+  "screenshots": [
+    "output/playwright/conecta-real-20261116/pre-admissao-recebida.png"
+  ],
+  "browserConsole": {
+    "errors": 0,
+    "warnings": 0
+  },
+  "scope": "Verificação somente de leitura dos eventos enviados pelo CONECTA; nenhum evento de RH foi enviado ou modificado nesta conferência.",
+  "pending": [
+    "pré-admissão com data futura e mobilização pela rodada da origem",
+    "ativação com data oficial",
+    "desligamento, desistência e recontratação pela origem",
+    "troca de cargo pela origem",
+    "salários e conformidade pela origem",
+    "snapshot/feed reais com URL e token de leitura",
+    "envio automático e consumo de alocações"
+  ]
+}

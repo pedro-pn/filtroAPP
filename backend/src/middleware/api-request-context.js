@@ -127,12 +127,16 @@ export function sendIntegrationError(res, req, statusCode, code, message, extra 
     res.setHeader('Retry-After', String(extra.retryAfterSeconds));
   }
   const fields = safeErrorFields(extra.fields);
-  return res.status(statusCode).json({
+  const body = {
     code: String(code || 'REQUEST_FAILED').replace(/[^A-Z0-9_]/g, '').slice(0, 80),
     message: safeErrorText(message, 'A requisição não pôde ser processada.'),
     requestId: REQUEST_ID_PATTERN.test(req?.requestId || '') ? req.requestId : randomUUID(),
     ...(fields ? { fields } : {})
-  });
+  };
+  if (/^\/api\/integracoes\/v1\/rh\/conecta(?:\/|$)/.test(String(req.originalUrl || req.url || '').split('?')[0])) {
+    return res.status(statusCode).json({ error: { code: body.code, message: body.message, ...(fields ? { fields } : {}) }, requestId: body.requestId });
+  }
+  return res.status(statusCode).json(body);
 }
 
 export function integrationApiErrorHandler(error, req, res, _next) {

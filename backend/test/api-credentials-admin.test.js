@@ -80,10 +80,12 @@ test('admin routes require accountType ADMIN, not a legacy manager role', () => 
   assert.equal(nextCalled, true);
 });
 
-test('catalog preserves quality reads and adds Omni scopes alongside reviewed operational scopes', () => {
+test('catalog preserves quality reads and includes reviewed Omni and Conecta RH scopes', () => {
   assert.equal(assertApiCatalogIntegrity(), true);
   assert.equal(API_SCOPES.filter(scope => scope.code.startsWith('qualidade.') && scope.status === 'AVAILABLE').length, 6);
-  assert.equal(API_SCOPES.filter(scope => scope.status === 'AVAILABLE').length, 60);
+  assert.equal(API_SCOPES.filter(scope => scope.status === 'AVAILABLE').length, 62);
+  assert.deepEqual(API_SCOPES.filter(scope => scope.code.startsWith('rh.conecta.')).map(scope => scope.code).sort(),
+    ['rh.conecta.eventos.write', 'rh.conecta.salarios.write']);
 });
 
 test('new issuance can select operational scopes without changing an existing quality credential', async () => {

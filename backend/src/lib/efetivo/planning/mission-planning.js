@@ -29,7 +29,7 @@ export const missionInclude = {
   allocations: {
     where: { deletedAt: null },
     include: {
-      collaborator: { select: { id: true, name: true, isActive: true, jobRoleId: true, jobRole: { select: { id: true, name: true } } } },
+      collaborator: { select: { id: true, name: true, isActive: true, rhStatus: true, jobRoleId: true, jobRole: { select: { id: true, name: true } } } },
       jobRole: { select: { id: true, name: true } },
       cycles: { orderBy: { mobilizationDate: 'asc' } }
     },
@@ -270,6 +270,7 @@ async function validateExistingAllocations(tx, mission, payload) {
         period,
         ignoredMissionId: mission.id,
         allowMissionOverlap: allocation.allowMissionOverlap,
+        allowPreAdmissionCollaborator: (payload.confirmedPreAdmissionCollaboratorIds || []).includes(allocation.collaboratorId),
         allowInactiveCollaborator: (payload.confirmedInactiveCollaboratorIds || []).includes(allocation.collaboratorId)
       }));
     }
@@ -391,7 +392,7 @@ export async function createMission(payload, context = {}, dependencies = {}) {
         ? `Programação restaurada para ${project.name}.`
         : `Programação criada para ${project.name}.`,
       beforeData: existing,
-      afterData: { ...mission, confirmedInactiveCollaboratorIds: payload.confirmedInactiveCollaboratorIds || [] },
+      afterData: { ...mission, confirmedPreAdmissionCollaboratorIds: payload.confirmedPreAdmissionCollaboratorIds || [], confirmedInactiveCollaboratorIds: payload.confirmedInactiveCollaboratorIds || [] },
       evidence: context.evidence
     });
     return missionWithCurrentRoles(mission);
@@ -456,7 +457,7 @@ export async function updateMission(missionId, payload, context = {}, dependenci
       actorUserId: context.actorUserId,
       action: 'MISSION_UPDATE', entityType: 'MISSION', entityId: missionId,
       summary: `Programação de ${updated.project.name} atualizada.`,
-      beforeData: existing, afterData: { ...updated, confirmedInactiveCollaboratorIds: payload.confirmedInactiveCollaboratorIds || [] }, evidence: context.evidence
+      beforeData: existing, afterData: { ...updated, confirmedPreAdmissionCollaboratorIds: payload.confirmedPreAdmissionCollaboratorIds || [], confirmedInactiveCollaboratorIds: payload.confirmedInactiveCollaboratorIds || [] }, evidence: context.evidence
     });
     return missionWithCurrentRoles(updated);
   });

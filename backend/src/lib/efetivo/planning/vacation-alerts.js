@@ -10,7 +10,7 @@ function anniversaryDate(admissionDate, years) {
 }
 
 export function buildVacationAlert(collaborator, absences = [], positionValue) {
-  if (!collaborator.admissionDate) return null;
+  if (collaborator.rhStatus === 'PRE_ADMISSION' || collaborator.admissionDateProvisional || !collaborator.admissionDate) return null;
   const position = parseDateKey(positionValue);
   const admission = parseDateKey(collaborator.admissionDate);
   if (position < admission) return null;

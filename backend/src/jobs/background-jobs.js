@@ -1,4 +1,5 @@
 import env from '../config/env.js';
+import { startConectaRhJob } from '../lib/conecta-rh/job.js';
 import { startReportEmailJob } from '../lib/reports/email-jobs.js';
 import { startMonthlyAllocationReportJob } from '../lib/allocation-monthly-report.js';
 import { startAssinaturasJobs } from '../lib/assinaturas/jobs.js';
@@ -17,6 +18,7 @@ import { startSurveyReminderJob } from '../lib/survey-reminders.js';
 import { startLegacyZapSignReconciliationJob } from '../lib/zapsign-legacy-reconciliation.js';
 
 export function startBackgroundJobs({ keepAlive = false } = {}) {
+  startConectaRhJob();
   startDataRetentionJob({ enabled: env.dataRetentionJobEnabled });
   startSurveyReminderJob();
   startSignatureReminderJob();

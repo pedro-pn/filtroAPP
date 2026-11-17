@@ -79,7 +79,7 @@ test('seleção e gestão compartilham campos, tema, ações compactas e o contr
   assert.match(read('components/ProjectWorkflowModal.tsx'), /<MissionAllocationModal[^>]*readOnly=\{!editable\}/);
   assert.match(allocation,/enabled: open && canManage/);
   assert.match(allocation,/canManageTeam && teamPickerOpen \? <MissionTeamSelector/);
-  assert.match(selector,/open=\{overlapConfirmationIds\.length > 0 \|\| inactiveConfirmationIds\.length > 0\}/);
+  assert.match(selector,/open=\{overlapConfirmationIds\.length > 0 \|\| inactiveConfirmationIds\.length > 0 \|\| preAdmissionConfirmationIds\.length > 0\}/);
   assert.match(allocation,/demobilizationDate: draft\.demobilizationDate \|\| null/);
   const fields=read('components/MissionPeriodFields.tsx');
   assert.match(fields,/min=\{value\.mobilizationDate \|\| min\}/);

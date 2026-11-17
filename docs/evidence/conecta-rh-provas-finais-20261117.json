@@ -1,0 +1,1959 @@
+{
+  "runId": "conecta-rh-provas-finais-20261117",
+  "companyId": "ca682be5-ab0c-43a8-8a26-d3f7eb1d7526",
+  "startedAt": "2026-11-17T18:18:36.743Z",
+  "finishedAt": "2026-11-17T18:48:20.310Z",
+  "summary": {
+    "passed": 35,
+    "failed": 0,
+    "remainingFunctionalProofs": [],
+    "closurePending": [],
+    "functionalHomologationComplete": true,
+    "acceptanceEnvironment": "staging"
+  },
+  "checks": [
+    {
+      "name": "A ativo: emissão de link para a versão publicada",
+      "result": "PASS",
+      "details": {
+        "http": 200,
+        "id": "42daa4c0-ac56-43a8-aa04-865934a30a9e",
+        "version": "663092a4-7078-4045-ad9b-223dd68e3bd5",
+        "expiresAt": "2026-11-17T18:23:38.495Z",
+        "requestId": "d3a8e271-dba5-4a28-bc5e-701a832fbe11"
+      }
+    },
+    {
+      "name": "A ativo: PDF íntegro por HTTPS, sem Bearer no armazenamento",
+      "result": "PASS",
+      "details": {
+        "case": "A ativo",
+        "http": 200,
+        "contentType": "application/pdf",
+        "bytes": 743,
+        "sha256": "f48e182bbd5d5922c04a04f9e13436853600c47322fc1a4e22a6755b44f2d152",
+        "downloadedAt": "2026-11-17T18:18:39.213Z"
+      }
+    },
+    {
+      "name": "B v2 ativa: emissão de link para a versão publicada",
+      "result": "PASS",
+      "details": {
+        "http": 200,
+        "id": "538781d2-5d35-48a0-99b4-5e0aa6f8bf47",
+        "version": "31e1de6c-5765-40ef-8276-208fb1f8d24e",
+        "expiresAt": "2026-11-17T18:23:39.980Z",
+        "requestId": "0efbc406-3670-4d0d-a760-1e62b3984ecb"
+      }
+    },
+    {
+      "name": "B v2 ativa: PDF íntegro por HTTPS, sem Bearer no armazenamento",
+      "result": "PASS",
+      "details": {
+        "case": "B v2 ativa",
+        "http": 200,
+        "contentType": "application/pdf",
+        "bytes": 746,
+        "sha256": "b452b54c5f1503bde4e3da9ac25cf11dd6bca0a9101588f1dd29113cae7ef01b",
+        "downloadedAt": "2026-11-17T18:18:40.515Z"
+      }
+    },
+    {
+      "name": "B v1 substituída: recusa documentada sem emissão de link",
+      "result": "PASS",
+      "details": {
+        "http": 410,
+        "errorCode": "EVIDENCE_SUPERSEDED",
+        "requestId": "cd3990a5-0adb-44cc-8e5f-2136a57ea590"
+      }
+    },
+    {
+      "name": "C revogado: recusa documentada sem emissão de link",
+      "result": "PASS",
+      "details": {
+        "http": 410,
+        "errorCode": "EVIDENCE_REVOKED",
+        "requestId": "9f37f04d-94ef-4d1b-af12-df6f43e28622"
+      }
+    },
+    {
+      "name": "D removido: recusa documentada sem emissão de link",
+      "result": "PASS",
+      "details": {
+        "http": 404,
+        "errorCode": "NOT_FOUND",
+        "requestId": "6ff21a44-9441-4f87-a481-5cf83522d8cd"
+      }
+    },
+    {
+      "name": "ASO: documento fora dos tipos permitidos não é disponibilizado",
+      "result": "PASS",
+      "details": {
+        "http": 404,
+        "errorCode": "NOT_FOUND",
+        "requestId": "5bc160d5-105b-46c5-b08f-1d0fc1340510"
+      }
+    },
+    {
+      "name": "A lê quatro páginas; B continua a partir do checkpoint de A",
+      "result": "PASS",
+      "details": {
+        "pagesA": 4,
+        "itemsA": 100,
+        "pagesB": 42,
+        "referencePages": 3,
+        "catchupPages": 0,
+        "switchedEvents": 1141,
+        "referenceEvents": 1141,
+        "commonLength": 1141,
+        "handoffCursorSha256": "22bcc009f5831a5b23566d8a535f3276089bd55769e5802f90d53f73b5046e94",
+        "switchedSequenceSha256": "71dfac05cd59e9a271f863c7b402db7795a7ba774a7a9d8020649afd49d3905c",
+        "referenceSequenceSha256": "71dfac05cd59e9a271f863c7b402db7795a7ba774a7a9d8020649afd49d3905c",
+        "uniqueSwitchedEvents": 1141
+      }
+    },
+    {
+      "name": "Sequência A→B coincide com B integral sem lacunas no checkpoint comum",
+      "result": "PASS",
+      "details": {
+        "comparedEvents": 1141,
+        "exactEquality": true
+      }
+    },
+    {
+      "name": "Feed sem repetição de eventId",
+      "result": "PASS",
+      "details": {
+        "switched": 1141,
+        "reference": 1141
+      }
+    },
+    {
+      "name": "Checkpoint final válido e sem itens pendentes na consulta",
+      "result": "PASS",
+      "details": {
+        "itemCount": 0,
+        "hasMore": false
+      }
+    },
+    {
+      "name": "A abre snapshot isolado",
+      "result": "PASS",
+      "details": {
+        "http": 201,
+        "snapshotId": "dc9e7afb-a5bb-4785-9a0c-43e259b12345",
+        "expiresAt": "2026-11-18T18:19:01.635906+00:00",
+        "requestId": "c670df92-abf5-4ebb-9341-3c763c141517"
+      }
+    },
+    {
+      "name": "A lê o próprio snapshot",
+      "result": "PASS",
+      "details": {
+        "http": 200,
+        "items": 5,
+        "requestId": "b43871a1-aca4-4330-b751-5c9c429e7694"
+      }
+    },
+    {
+      "name": "B não acessa snapshot de A",
+      "result": "PASS",
+      "details": {
+        "http": 404,
+        "errorCode": "NOT_FOUND",
+        "requestId": "e6fec143-d1e3-45e8-bd24-09814cf7d154"
+      }
+    },
+    {
+      "name": "Watermark do snapshot de A funciona no feed com B",
+      "result": "PASS",
+      "details": {
+        "items": 0,
+        "hasMore": false
+      }
+    },
+    {
+      "name": "A: o mesmo link falha após a expiração real",
+      "result": "PASS",
+      "details": {
+        "http": 400,
+        "errorCode": "InvalidJWT",
+        "checkedAt": "2026-11-17T18:23:53.964Z",
+        "expiresAt": "2026-11-17T18:23:38.495Z"
+      }
+    },
+    {
+      "name": "A renovado com B: emissão de link para a versão publicada",
+      "result": "PASS",
+      "details": {
+        "http": 200,
+        "id": "42daa4c0-ac56-43a8-aa04-865934a30a9e",
+        "version": "663092a4-7078-4045-ad9b-223dd68e3bd5",
+        "expiresAt": "2026-11-17T18:28:55.467Z",
+        "requestId": "ac0b8835-bcc1-46c6-b7e3-e89b8e0a7ee1"
+      }
+    },
+    {
+      "name": "A: renovação emite acesso posterior ao vencido",
+      "result": "PASS",
+      "details": {
+        "previousExpiresAt": "2026-11-17T18:23:38.495Z",
+        "newExpiresAt": "2026-11-17T18:28:55.467Z"
+      }
+    },
+    {
+      "name": "A renovado com B: PDF íntegro por HTTPS, sem Bearer no armazenamento",
+      "result": "PASS",
+      "details": {
+        "case": "A renovado com B",
+        "http": 200,
+        "contentType": "application/pdf",
+        "bytes": 743,
+        "sha256": "f48e182bbd5d5922c04a04f9e13436853600c47322fc1a4e22a6755b44f2d152",
+        "downloadedAt": "2026-11-17T18:23:56.253Z"
+      }
+    },
+    {
+      "name": "Credencial original de leitura continua instalada",
+      "result": "PASS"
+    },
+    {
+      "name": "Recebimentos e agregados sem pendências ou falhas",
+      "result": "PASS"
+    },
+    {
+      "name": "Caso A: envelope, evidência e recibo da origem aplicados",
+      "result": "PASS"
+    },
+    {
+      "name": "Caso B: envelope, evidência e recibo da origem aplicados",
+      "result": "PASS"
+    },
+    {
+      "name": "Caso C: envelope, evidência e recibo da origem aplicados",
+      "result": "PASS"
+    },
+    {
+      "name": "Caso D: envelope, evidência e recibo da origem aplicados",
+      "result": "PASS"
+    },
+    {
+      "name": "Serviço usado pelo painel conserva quatro casos e versões atuais",
+      "result": "PASS"
+    },
+    {
+      "name": "Worker de sincronização continua saudável",
+      "result": "PASS"
+    },
+    {
+      "name": "Cursor do worker continua persistido",
+      "result": "PASS"
+    },
+    {
+      "name": "Credencial original e cursor do worker mantidos durante a coleta",
+      "result": "PASS",
+      "details": {
+        "credentialUnchanged": true,
+        "cursorUnchanged": true
+      }
+    },
+    {
+      "name": "Credencial temporária A revogada",
+      "result": "PASS",
+      "details": {
+        "credential": "A",
+        "httpStatus": 401,
+        "errorCode": "UNAUTHORIZED",
+        "requestId": "8262fdcb-02de-4c54-91da-ada172bfedbc",
+        "requestIdMatchesBody": true,
+        "validFeed": false,
+        "checkedAt": "2026-11-17T18:48:19.278Z"
+      }
+    },
+    {
+      "name": "Credencial temporária B revogada",
+      "result": "PASS",
+      "details": {
+        "credential": "B",
+        "httpStatus": 401,
+        "errorCode": "UNAUTHORIZED",
+        "requestId": "43a99634-1719-4d0e-91c7-4cf8da6ccf8a",
+        "requestIdMatchesBody": true,
+        "validFeed": false,
+        "checkedAt": "2026-11-17T18:48:19.583Z"
+      }
+    },
+    {
+      "name": "Credencial original preservada e autorizada",
+      "result": "PASS",
+      "details": {
+        "credential": "original",
+        "httpStatus": 200,
+        "errorCode": null,
+        "requestId": "c9b0657e-7c91-4760-aa40-c7d417da92db",
+        "requestIdMatchesBody": null,
+        "validFeed": true,
+        "checkedAt": "2026-11-17T18:48:19.932Z"
+      }
+    },
+    {
+      "name": "Worker segue concluindo os ciclos sem erros",
+      "result": "PASS",
+      "details": {}
+    },
+    {
+      "name": "Sincronização sem pendências após revogar temporárias",
+      "result": "PASS",
+      "details": {}
+    }
+  ],
+  "httpProof": {
+    "startedAt": "2026-11-17T18:18:36.743Z",
+    "environment": "VPS / container backend de staging",
+    "companyId": "ca682be5-ab0c-43a8-8a26-d3f7eb1d7526",
+    "requests": [
+      {
+        "at": "2026-11-17T18:18:38.596Z",
+        "token": "A",
+        "method": "GET",
+        "resource": "A ativo",
+        "http": 200,
+        "requestId": "d3a8e271-dba5-4a28-bc5e-701a832fbe11",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:38.730Z",
+        "token": "A",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "efb0be1c-81d5-4408-acbe-74b05d4badd3",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:39.345Z",
+        "token": "A",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "c02d29ef-6eca-47a5-998f-956f683a6559",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:39.929Z",
+        "token": "A",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "e19f9c5e-8b28-48e6-ab01-07087f663905",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:40.053Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "B v2 ativa",
+        "http": 200,
+        "requestId": "0efbc406-3670-4d0d-a760-1e62b3984ecb",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:40.400Z",
+        "token": "A",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "f0c7d6f1-1f22-4714-b0b0-f358a076ad82",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:40.929Z",
+        "token": "A",
+        "method": "GET",
+        "resource": "B v1 substituída",
+        "http": 410,
+        "requestId": "cd3990a5-0adb-44cc-8e5f-2136a57ea590",
+        "errorCode": "EVIDENCE_SUPERSEDED",
+        "requestIdMatchesBody": true
+      },
+      {
+        "at": "2026-11-17T18:18:40.967Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "049c6c9a-e6b3-4f07-9ee9-8d77204f4a9b",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:41.285Z",
+        "token": "A",
+        "method": "GET",
+        "resource": "C revogado",
+        "http": 410,
+        "requestId": "9f37f04d-94ef-4d1b-af12-df6f43e28622",
+        "errorCode": "EVIDENCE_REVOKED",
+        "requestIdMatchesBody": true
+      },
+      {
+        "at": "2026-11-17T18:18:41.425Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "f788d921-e372-499c-a595-0feaa8a58a43",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:41.666Z",
+        "token": "A",
+        "method": "GET",
+        "resource": "D removido",
+        "http": 404,
+        "requestId": "6ff21a44-9441-4f87-a481-5cf83522d8cd",
+        "errorCode": "NOT_FOUND",
+        "requestIdMatchesBody": true
+      },
+      {
+        "at": "2026-11-17T18:18:42.285Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "e2e3e482-93a7-4cdd-b3cf-14590762d5a8",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:42.298Z",
+        "token": "A",
+        "method": "GET",
+        "resource": "ASO não permitido",
+        "http": 404,
+        "requestId": "5bc160d5-105b-46c5-b08f-1d0fc1340510",
+        "errorCode": "NOT_FOUND",
+        "requestIdMatchesBody": true
+      },
+      {
+        "at": "2026-11-17T18:18:42.760Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "ee1fbb54-1de7-4100-ba33-af34db183b59",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:43.261Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "19c06cdd-c59d-4f53-81b0-7ba8cd5f2321",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:43.655Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "9edca680-3c48-4610-9a6e-3eb6edc742bf",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:44.097Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "3f17ea7d-99cb-431c-b598-0bcc027e5a89",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:44.569Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "22f647d2-a66b-4b0e-b5da-d54daf08ed0d",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:45.035Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "241bfe7e-191a-4adc-9a31-e3f75f735ad7",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:45.493Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "58ba047f-2234-4882-b024-fb9caf6ea8cb",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:46.080Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "83eb17a3-d319-4826-baa1-a8b20f36a6d4",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:46.536Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "2b298b38-33c1-481a-8476-acb23a8b77fd",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:46.985Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "2a8a5ca1-70b6-4ca6-8efa-0ecc80508695",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:47.479Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "0236e383-d9c7-49a5-8545-cba78dac5f1e",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:47.902Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "68baf0f4-800b-40e4-8dc0-97c2f2dc5810",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:48.350Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "99ce60ab-ebd7-40ac-b04b-c97345550df8",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:48.776Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "675838b1-7261-4dc9-bde1-ac19a4efd4db",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:49.201Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "e0577cc3-ae42-40aa-a3cd-fdf017c0568e",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:49.620Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "a11dcaa5-1183-4416-be7a-a650913e9ca2",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:50.031Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "4187d3d6-5017-4061-b3a4-ae2f56feb1bc",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:50.485Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "bde89886-d0a3-4b30-8c4a-9e8f4e2bece6",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:51.003Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "1b1f789f-7b7b-40ce-84d0-d191a6bfeee0",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:51.408Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "bef07a3c-874d-4ee9-9723-dd9510090648",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:51.834Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "e946405d-6b20-4c3b-b1b1-b1fa224a9031",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:52.280Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "4699c83b-41a8-467e-a567-d43280410af4",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:52.704Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "b0da930f-0b65-40dc-b5c2-6f1087908cca",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:53.105Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "1f594311-2ed7-4767-b18f-70fa7b265786",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:53.547Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "e1b48f2a-781b-4f98-b799-92766df62520",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:54.022Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "3d89c457-3cdb-466e-a07c-b6d0dcad6ed2",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:54.395Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "a93b5853-e1f7-49d5-a951-fcccf7d3c6b9",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:54.759Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "54f4fb11-20e5-419f-9abe-56679a339c26",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:55.200Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "2cc4841e-8716-40d5-aca5-f03899a42230",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:55.638Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "c17bdac9-d772-488e-8ca5-2d3eb3abee4f",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:56.092Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "007ea63a-e734-4c64-af93-7b5cabd61de6",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:56.504Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "44393ead-6e9c-4732-9d11-3a09e4d66dde",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:57.005Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "91bd124f-2613-460d-9657-e3cbfd6393fe",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:57.443Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "f3a4066b-54be-4398-bc70-6088eae3c60e",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:57.898Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "86ed0765-e564-434a-8ad5-d0538bba3e2c",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:58.276Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "2e259ebc-d157-42c2-b8ff-76e353299971",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:58.663Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "a034fbf1-4f9f-4623-b16e-d65cd2d88347",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:59.100Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "22fa4ce5-ea7a-498f-a1c2-f79960c55794",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:59.574Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "e1dadf17-ce05-4f69-bd5c-c4661237ce5c",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:18:59.996Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "cb179302-9034-40d5-9ed0-511c8f82466e",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:19:00.445Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "70ffced6-4a93-4661-9736-edeef54506bb",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:19:00.933Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "97f9a52f-74ad-40e1-ace0-2a85d9552191",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:19:01.369Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "93a505c4-f7c7-472e-93dd-154733a77b6f",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:19:01.893Z",
+        "token": "A",
+        "method": "POST",
+        "resource": "/snapshots",
+        "http": 201,
+        "requestId": "c670df92-abf5-4ebb-9341-3c763c141517",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:19:02.379Z",
+        "token": "A",
+        "method": "GET",
+        "resource": "snapshot de A / job-roles / A",
+        "http": 200,
+        "requestId": "b43871a1-aca4-4330-b751-5c9c429e7694",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:19:02.682Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "snapshot de A / job-roles / B",
+        "http": 404,
+        "requestId": "e6fec143-d1e3-45e8-bd24-09814cf7d154",
+        "errorCode": "NOT_FOUND",
+        "requestIdMatchesBody": true
+      },
+      {
+        "at": "2026-11-17T18:19:03.091Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "/changes",
+        "http": 200,
+        "requestId": "0844782c-3fe4-4407-a74a-027559d50c64",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      },
+      {
+        "at": "2026-11-17T18:23:55.554Z",
+        "token": "B",
+        "method": "GET",
+        "resource": "A renovado com B",
+        "http": 200,
+        "requestId": "ac0b8835-bcc1-46c6-b7e3-e89b8e0a7ee1",
+        "errorCode": null,
+        "requestIdMatchesBody": null
+      }
+    ],
+    "checks": [
+      {
+        "name": "A ativo: emissão de link para a versão publicada",
+        "result": "PASS",
+        "details": {
+          "http": 200,
+          "id": "42daa4c0-ac56-43a8-aa04-865934a30a9e",
+          "version": "663092a4-7078-4045-ad9b-223dd68e3bd5",
+          "expiresAt": "2026-11-17T18:23:38.495Z",
+          "requestId": "d3a8e271-dba5-4a28-bc5e-701a832fbe11"
+        }
+      },
+      {
+        "name": "A ativo: PDF íntegro por HTTPS, sem Bearer no armazenamento",
+        "result": "PASS",
+        "details": {
+          "case": "A ativo",
+          "http": 200,
+          "contentType": "application/pdf",
+          "bytes": 743,
+          "sha256": "f48e182bbd5d5922c04a04f9e13436853600c47322fc1a4e22a6755b44f2d152",
+          "downloadedAt": "2026-11-17T18:18:39.213Z"
+        }
+      },
+      {
+        "name": "B v2 ativa: emissão de link para a versão publicada",
+        "result": "PASS",
+        "details": {
+          "http": 200,
+          "id": "538781d2-5d35-48a0-99b4-5e0aa6f8bf47",
+          "version": "31e1de6c-5765-40ef-8276-208fb1f8d24e",
+          "expiresAt": "2026-11-17T18:23:39.980Z",
+          "requestId": "0efbc406-3670-4d0d-a760-1e62b3984ecb"
+        }
+      },
+      {
+        "name": "B v2 ativa: PDF íntegro por HTTPS, sem Bearer no armazenamento",
+        "result": "PASS",
+        "details": {
+          "case": "B v2 ativa",
+          "http": 200,
+          "contentType": "application/pdf",
+          "bytes": 746,
+          "sha256": "b452b54c5f1503bde4e3da9ac25cf11dd6bca0a9101588f1dd29113cae7ef01b",
+          "downloadedAt": "2026-11-17T18:18:40.515Z"
+        }
+      },
+      {
+        "name": "B v1 substituída: recusa documentada sem emissão de link",
+        "result": "PASS",
+        "details": {
+          "http": 410,
+          "errorCode": "EVIDENCE_SUPERSEDED",
+          "requestId": "cd3990a5-0adb-44cc-8e5f-2136a57ea590"
+        }
+      },
+      {
+        "name": "C revogado: recusa documentada sem emissão de link",
+        "result": "PASS",
+        "details": {
+          "http": 410,
+          "errorCode": "EVIDENCE_REVOKED",
+          "requestId": "9f37f04d-94ef-4d1b-af12-df6f43e28622"
+        }
+      },
+      {
+        "name": "D removido: recusa documentada sem emissão de link",
+        "result": "PASS",
+        "details": {
+          "http": 404,
+          "errorCode": "NOT_FOUND",
+          "requestId": "6ff21a44-9441-4f87-a481-5cf83522d8cd"
+        }
+      },
+      {
+        "name": "ASO: documento fora dos tipos permitidos não é disponibilizado",
+        "result": "PASS",
+        "details": {
+          "http": 404,
+          "errorCode": "NOT_FOUND",
+          "requestId": "5bc160d5-105b-46c5-b08f-1d0fc1340510"
+        }
+      },
+      {
+        "name": "A lê quatro páginas; B continua a partir do checkpoint de A",
+        "result": "PASS",
+        "details": {
+          "pagesA": 4,
+          "itemsA": 100,
+          "pagesB": 42,
+          "referencePages": 3,
+          "catchupPages": 0,
+          "switchedEvents": 1141,
+          "referenceEvents": 1141,
+          "commonLength": 1141,
+          "handoffCursorSha256": "22bcc009f5831a5b23566d8a535f3276089bd55769e5802f90d53f73b5046e94",
+          "switchedSequenceSha256": "71dfac05cd59e9a271f863c7b402db7795a7ba774a7a9d8020649afd49d3905c",
+          "referenceSequenceSha256": "71dfac05cd59e9a271f863c7b402db7795a7ba774a7a9d8020649afd49d3905c",
+          "uniqueSwitchedEvents": 1141
+        }
+      },
+      {
+        "name": "Sequência A→B coincide com B integral sem lacunas no checkpoint comum",
+        "result": "PASS",
+        "details": {
+          "comparedEvents": 1141,
+          "exactEquality": true
+        }
+      },
+      {
+        "name": "Feed sem repetição de eventId",
+        "result": "PASS",
+        "details": {
+          "switched": 1141,
+          "reference": 1141
+        }
+      },
+      {
+        "name": "Checkpoint final válido e sem itens pendentes na consulta",
+        "result": "PASS",
+        "details": {
+          "itemCount": 0,
+          "hasMore": false
+        }
+      },
+      {
+        "name": "A abre snapshot isolado",
+        "result": "PASS",
+        "details": {
+          "http": 201,
+          "snapshotId": "dc9e7afb-a5bb-4785-9a0c-43e259b12345",
+          "expiresAt": "2026-11-18T18:19:01.635906+00:00",
+          "requestId": "c670df92-abf5-4ebb-9341-3c763c141517"
+        }
+      },
+      {
+        "name": "A lê o próprio snapshot",
+        "result": "PASS",
+        "details": {
+          "http": 200,
+          "items": 5,
+          "requestId": "b43871a1-aca4-4330-b751-5c9c429e7694"
+        }
+      },
+      {
+        "name": "B não acessa snapshot de A",
+        "result": "PASS",
+        "details": {
+          "http": 404,
+          "errorCode": "NOT_FOUND",
+          "requestId": "e6fec143-d1e3-45e8-bd24-09814cf7d154"
+        }
+      },
+      {
+        "name": "Watermark do snapshot de A funciona no feed com B",
+        "result": "PASS",
+        "details": {
+          "items": 0,
+          "hasMore": false
+        }
+      },
+      {
+        "name": "A: o mesmo link falha após a expiração real",
+        "result": "PASS",
+        "details": {
+          "http": 400,
+          "errorCode": "InvalidJWT",
+          "checkedAt": "2026-11-17T18:23:53.964Z",
+          "expiresAt": "2026-11-17T18:23:38.495Z"
+        }
+      },
+      {
+        "name": "A renovado com B: emissão de link para a versão publicada",
+        "result": "PASS",
+        "details": {
+          "http": 200,
+          "id": "42daa4c0-ac56-43a8-aa04-865934a30a9e",
+          "version": "663092a4-7078-4045-ad9b-223dd68e3bd5",
+          "expiresAt": "2026-11-17T18:28:55.467Z",
+          "requestId": "ac0b8835-bcc1-46c6-b7e3-e89b8e0a7ee1"
+        }
+      },
+      {
+        "name": "A: renovação emite acesso posterior ao vencido",
+        "result": "PASS",
+        "details": {
+          "previousExpiresAt": "2026-11-17T18:23:38.495Z",
+          "newExpiresAt": "2026-11-17T18:28:55.467Z"
+        }
+      },
+      {
+        "name": "A renovado com B: PDF íntegro por HTTPS, sem Bearer no armazenamento",
+        "result": "PASS",
+        "details": {
+          "case": "A renovado com B",
+          "http": 200,
+          "contentType": "application/pdf",
+          "bytes": 743,
+          "sha256": "f48e182bbd5d5922c04a04f9e13436853600c47322fc1a4e22a6755b44f2d152",
+          "downloadedAt": "2026-11-17T18:23:56.253Z"
+        }
+      }
+    ],
+    "downloads": [
+      {
+        "case": "A ativo",
+        "http": 200,
+        "contentType": "application/pdf",
+        "bytes": 743,
+        "sha256": "f48e182bbd5d5922c04a04f9e13436853600c47322fc1a4e22a6755b44f2d152",
+        "downloadedAt": "2026-11-17T18:18:39.213Z"
+      },
+      {
+        "case": "B v2 ativa",
+        "http": 200,
+        "contentType": "application/pdf",
+        "bytes": 746,
+        "sha256": "b452b54c5f1503bde4e3da9ac25cf11dd6bca0a9101588f1dd29113cae7ef01b",
+        "downloadedAt": "2026-11-17T18:18:40.515Z"
+      },
+      {
+        "case": "A renovado com B",
+        "http": 200,
+        "contentType": "application/pdf",
+        "bytes": 743,
+        "sha256": "f48e182bbd5d5922c04a04f9e13436853600c47322fc1a4e22a6755b44f2d152",
+        "downloadedAt": "2026-11-17T18:23:56.253Z"
+      }
+    ],
+    "expiration": {
+      "issuedAt": "2026-11-17T18:18:39.213Z",
+      "expiresAt": "2026-11-17T18:23:38.495Z",
+      "retryAfter": "2026-11-17T18:23:53.495Z",
+      "checkedAt": "2026-11-17T18:23:53.964Z",
+      "http": 400,
+      "errorCode": "InvalidJWT"
+    },
+    "feed": {
+      "pagesA": 4,
+      "itemsA": 100,
+      "pagesB": 42,
+      "referencePages": 3,
+      "catchupPages": 0,
+      "switchedEvents": 1141,
+      "referenceEvents": 1141,
+      "commonLength": 1141,
+      "handoffCursorSha256": "22bcc009f5831a5b23566d8a535f3276089bd55769e5802f90d53f73b5046e94",
+      "switchedSequenceSha256": "71dfac05cd59e9a271f863c7b402db7795a7ba774a7a9d8020649afd49d3905c",
+      "referenceSequenceSha256": "71dfac05cd59e9a271f863c7b402db7795a7ba774a7a9d8020649afd49d3905c",
+      "uniqueSwitchedEvents": 1141
+    },
+    "finishedAt": "2026-11-17T18:23:56.253Z",
+    "summary": {
+      "passed": 20,
+      "failed": 0
+    }
+  },
+  "applicationBefore": {
+    "checkedAt": "2026-11-17T18:20:24.723Z",
+    "environment": "staging",
+    "checks": [
+      {
+        "name": "Credencial original de leitura continua instalada",
+        "result": "PASS"
+      },
+      {
+        "name": "Recebimentos e agregados sem pendências ou falhas",
+        "result": "PASS"
+      },
+      {
+        "name": "Caso A: envelope, evidência e recibo da origem aplicados",
+        "result": "PASS"
+      },
+      {
+        "name": "Caso B: envelope, evidência e recibo da origem aplicados",
+        "result": "PASS"
+      },
+      {
+        "name": "Caso C: envelope, evidência e recibo da origem aplicados",
+        "result": "PASS"
+      },
+      {
+        "name": "Caso D: envelope, evidência e recibo da origem aplicados",
+        "result": "PASS"
+      },
+      {
+        "name": "Serviço usado pelo painel conserva quatro casos e versões atuais",
+        "result": "PASS"
+      },
+      {
+        "name": "Worker de sincronização continua saudável",
+        "result": "PASS"
+      },
+      {
+        "name": "Cursor do worker continua persistido",
+        "result": "PASS"
+      }
+    ],
+    "installedReadCredentialIsOriginal": true,
+    "receiptCounts": [
+      {
+        "_count": 3,
+        "status": "SUPERSEDED",
+        "reasonCode": null
+      },
+      {
+        "_count": 1136,
+        "status": "APPLIED",
+        "reasonCode": null
+      }
+    ],
+    "pendingAggregates": [],
+    "fixtures": [
+      {
+        "case": "A",
+        "externalId": "42daa4c0-ac56-43a8-aa04-865934a30a9e",
+        "revision": 3,
+        "status": "APPLIED",
+        "complianceStatus": "VALID",
+        "typeCode": "NR-33",
+        "evidence": {
+          "id": "42daa4c0-ac56-43a8-aa04-865934a30a9e",
+          "version": "663092a4-7078-4045-ad9b-223dd68e3bd5",
+          "fileName": "ZZZ-HOMOLOG-evidencia-A-ativo.pdf",
+          "expiresAt": null,
+          "contentType": "application/pdf",
+          "authenticatedDownloadPath": "/api/integracoes/filtroapp/v1/evidence/42daa4c0-ac56-43a8-aa04-865934a30a9e?version=663092a4-7078-4045-ad9b-223dd68e3bd5"
+        },
+        "localId": "cmwjhw0yf00fv1gpnwzcv84qj",
+        "receipt": {
+          "id": "cmwkziotp06wf01lcbd56708w",
+          "eventId": "8410afdf-a502-4d28-8a5e-4d3cc8913b64",
+          "status": "APPLIED",
+          "revision": 3,
+          "receivedAt": "2026-11-17T17:47:06.856Z",
+          "reasonCode": null
+        }
+      },
+      {
+        "case": "B",
+        "externalId": "538781d2-5d35-48a0-99b4-5e0aa6f8bf47",
+        "revision": 3,
+        "status": "APPLIED",
+        "complianceStatus": "VALID",
+        "typeCode": "NR-06",
+        "evidence": {
+          "id": "538781d2-5d35-48a0-99b4-5e0aa6f8bf47",
+          "version": "31e1de6c-5765-40ef-8276-208fb1f8d24e",
+          "fileName": "ZZZ-HOMOLOG-evidencia-B-v2-ativa.pdf",
+          "expiresAt": null,
+          "contentType": "application/pdf",
+          "authenticatedDownloadPath": "/api/integracoes/filtroapp/v1/evidence/538781d2-5d35-48a0-99b4-5e0aa6f8bf47?version=31e1de6c-5765-40ef-8276-208fb1f8d24e"
+        },
+        "localId": "cmwjhw0yf00fv1gpnwzcv84qj",
+        "receipt": {
+          "id": "cmwkzip0k06wj01lct7fp5amh",
+          "eventId": "c976cb85-9ac6-4afa-846c-9200d098115f",
+          "status": "APPLIED",
+          "revision": 3,
+          "receivedAt": "2026-11-17T17:47:07.159Z",
+          "reasonCode": null
+        }
+      },
+      {
+        "case": "C",
+        "externalId": "0ead8d2d-57e6-406f-9ee3-b3e123f80a5c",
+        "revision": 3,
+        "status": "APPLIED",
+        "complianceStatus": "REVOKED",
+        "typeCode": "NR-12",
+        "evidence": {
+          "id": "0ead8d2d-57e6-406f-9ee3-b3e123f80a5c",
+          "version": "fe54cfb0-9244-43de-aab3-082219fa69eb",
+          "fileName": "ZZZ-HOMOLOG-evidencia-C-revogado.pdf",
+          "expiresAt": null,
+          "contentType": "application/pdf",
+          "authenticatedDownloadPath": "/api/integracoes/filtroapp/v1/evidence/0ead8d2d-57e6-406f-9ee3-b3e123f80a5c?version=fe54cfb0-9244-43de-aab3-082219fa69eb"
+        },
+        "localId": "cmwjhw0yf00fv1gpnwzcv84qj",
+        "receipt": {
+          "id": "cmwkzip8b06wn01lcdoz61z1b",
+          "eventId": "8b46afd6-ea19-4358-9b84-b877f6680b35",
+          "status": "APPLIED",
+          "revision": 3,
+          "receivedAt": "2026-11-17T17:47:07.390Z",
+          "reasonCode": null
+        }
+      },
+      {
+        "case": "D",
+        "externalId": "c25b8092-d85f-4dfa-b349-a1b5ad411acd",
+        "revision": 3,
+        "status": "APPLIED",
+        "complianceStatus": "VALID",
+        "typeCode": "ZZZ-261116",
+        "evidence": null,
+        "localId": "cmwjhw0yf00fv1gpnwzcv84qj",
+        "receipt": {
+          "id": "cmwkzip9t06wr01lcf8s10wl8",
+          "eventId": "89bf0b2d-4ad7-48e1-a8ed-9e1beaca306b",
+          "status": "APPLIED",
+          "revision": 3,
+          "receivedAt": "2026-11-17T17:47:07.499Z",
+          "reasonCode": null
+        }
+      }
+    ],
+    "appCompliance": [
+      {
+        "id": "c25b8092-d85f-4dfa-b349-a1b5ad411acd",
+        "typeCode": "ZZZ-261116",
+        "status": "VALID",
+        "expiresOn": "2027-11-17",
+        "evidence": null
+      },
+      {
+        "id": "31f1832e-08bb-42a5-91ba-e17e9a9534c1",
+        "typeCode": "ASO",
+        "status": "PENDING",
+        "expiresOn": null,
+        "evidence": null
+      },
+      {
+        "id": "2377a4c0-00d9-4af7-a2df-4507e7005124",
+        "typeCode": "CNH",
+        "status": "UNKNOWN",
+        "expiresOn": null,
+        "evidence": null
+      },
+      {
+        "id": "3b955137-0884-424d-8408-93dc5c1ee720",
+        "typeCode": "NR-26",
+        "status": "REVOKED",
+        "expiresOn": "2027-06-04",
+        "evidence": null
+      },
+      {
+        "id": "42daa4c0-ac56-43a8-aa04-865934a30a9e",
+        "typeCode": "NR-33",
+        "status": "VALID",
+        "expiresOn": "2027-11-17",
+        "evidence": {
+          "id": "42daa4c0-ac56-43a8-aa04-865934a30a9e",
+          "version": "663092a4-7078-4045-ad9b-223dd68e3bd5",
+          "fileName": "ZZZ-HOMOLOG-evidencia-A-ativo.pdf",
+          "expiresAt": null,
+          "contentType": "application/pdf",
+          "authenticatedDownloadPath": "/api/integracoes/filtroapp/v1/evidence/42daa4c0-ac56-43a8-aa04-865934a30a9e?version=663092a4-7078-4045-ad9b-223dd68e3bd5"
+        }
+      },
+      {
+        "id": "538781d2-5d35-48a0-99b4-5e0aa6f8bf47",
+        "typeCode": "NR-06",
+        "status": "VALID",
+        "expiresOn": "2027-11-17",
+        "evidence": {
+          "id": "538781d2-5d35-48a0-99b4-5e0aa6f8bf47",
+          "version": "31e1de6c-5765-40ef-8276-208fb1f8d24e",
+          "fileName": "ZZZ-HOMOLOG-evidencia-B-v2-ativa.pdf",
+          "expiresAt": null,
+          "contentType": "application/pdf",
+          "authenticatedDownloadPath": "/api/integracoes/filtroapp/v1/evidence/538781d2-5d35-48a0-99b4-5e0aa6f8bf47?version=31e1de6c-5765-40ef-8276-208fb1f8d24e"
+        }
+      },
+      {
+        "id": "0ead8d2d-57e6-406f-9ee3-b3e123f80a5c",
+        "typeCode": "NR-12",
+        "status": "REVOKED",
+        "expiresOn": "2027-11-17",
+        "evidence": {
+          "id": "0ead8d2d-57e6-406f-9ee3-b3e123f80a5c",
+          "version": "fe54cfb0-9244-43de-aab3-082219fa69eb",
+          "fileName": "ZZZ-HOMOLOG-evidencia-C-revogado.pdf",
+          "expiresAt": null,
+          "contentType": "application/pdf",
+          "authenticatedDownloadPath": "/api/integracoes/filtroapp/v1/evidence/0ead8d2d-57e6-406f-9ee3-b3e123f80a5c?version=fe54cfb0-9244-43de-aab3-082219fa69eb"
+        }
+      }
+    ],
+    "latestJobs": [
+      {
+        "status": "COMPLETED",
+        "startedAt": "2026-11-17T18:17:05.857Z",
+        "finishedAt": "2026-11-17T18:17:07.196Z",
+        "error": null
+      },
+      {
+        "status": "COMPLETED",
+        "startedAt": "2026-11-17T18:12:05.856Z",
+        "finishedAt": "2026-11-17T18:12:08.539Z",
+        "error": null
+      },
+      {
+        "status": "COMPLETED",
+        "startedAt": "2026-11-17T18:07:05.853Z",
+        "finishedAt": "2026-11-17T18:07:08.258Z",
+        "error": null
+      }
+    ],
+    "syncState": {
+      "hasCursor": true,
+      "cursorSha256": "80a6b9437f6c54b734408151fac7b68664586075377d1040f8d7b7c4f3f80eb9",
+      "updatedAt": "2026-11-17T18:17:07.180Z"
+    },
+    "summary": {
+      "passed": 9,
+      "failed": 0
+    }
+  },
+  "applicationAfter": {
+    "checkedAt": "2026-11-17T18:24:26.108Z",
+    "environment": "staging",
+    "checks": [
+      {
+        "name": "Credencial original de leitura continua instalada",
+        "result": "PASS"
+      },
+      {
+        "name": "Recebimentos e agregados sem pendências ou falhas",
+        "result": "PASS"
+      },
+      {
+        "name": "Caso A: envelope, evidência e recibo da origem aplicados",
+        "result": "PASS"
+      },
+      {
+        "name": "Caso B: envelope, evidência e recibo da origem aplicados",
+        "result": "PASS"
+      },
+      {
+        "name": "Caso C: envelope, evidência e recibo da origem aplicados",
+        "result": "PASS"
+      },
+      {
+        "name": "Caso D: envelope, evidência e recibo da origem aplicados",
+        "result": "PASS"
+      },
+      {
+        "name": "Serviço usado pelo painel conserva quatro casos e versões atuais",
+        "result": "PASS"
+      },
+      {
+        "name": "Worker de sincronização continua saudável",
+        "result": "PASS"
+      },
+      {
+        "name": "Cursor do worker continua persistido",
+        "result": "PASS"
+      }
+    ],
+    "installedReadCredentialIsOriginal": true,
+    "receiptCounts": [
+      {
+        "_count": 3,
+        "status": "SUPERSEDED",
+        "reasonCode": null
+      },
+      {
+        "_count": 1136,
+        "status": "APPLIED",
+        "reasonCode": null
+      }
+    ],
+    "pendingAggregates": [],
+    "fixtures": [
+      {
+        "case": "A",
+        "externalId": "42daa4c0-ac56-43a8-aa04-865934a30a9e",
+        "revision": 3,
+        "status": "APPLIED",
+        "complianceStatus": "VALID",
+        "typeCode": "NR-33",
+        "evidence": {
+          "id": "42daa4c0-ac56-43a8-aa04-865934a30a9e",
+          "version": "663092a4-7078-4045-ad9b-223dd68e3bd5",
+          "fileName": "ZZZ-HOMOLOG-evidencia-A-ativo.pdf",
+          "expiresAt": null,
+          "contentType": "application/pdf",
+          "authenticatedDownloadPath": "/api/integracoes/filtroapp/v1/evidence/42daa4c0-ac56-43a8-aa04-865934a30a9e?version=663092a4-7078-4045-ad9b-223dd68e3bd5"
+        },
+        "localId": "cmwjhw0yf00fv1gpnwzcv84qj",
+        "receipt": {
+          "id": "cmwkziotp06wf01lcbd56708w",
+          "eventId": "8410afdf-a502-4d28-8a5e-4d3cc8913b64",
+          "status": "APPLIED",
+          "revision": 3,
+          "receivedAt": "2026-11-17T17:47:06.856Z",
+          "reasonCode": null
+        }
+      },
+      {
+        "case": "B",
+        "externalId": "538781d2-5d35-48a0-99b4-5e0aa6f8bf47",
+        "revision": 3,
+        "status": "APPLIED",
+        "complianceStatus": "VALID",
+        "typeCode": "NR-06",
+        "evidence": {
+          "id": "538781d2-5d35-48a0-99b4-5e0aa6f8bf47",
+          "version": "31e1de6c-5765-40ef-8276-208fb1f8d24e",
+          "fileName": "ZZZ-HOMOLOG-evidencia-B-v2-ativa.pdf",
+          "expiresAt": null,
+          "contentType": "application/pdf",
+          "authenticatedDownloadPath": "/api/integracoes/filtroapp/v1/evidence/538781d2-5d35-48a0-99b4-5e0aa6f8bf47?version=31e1de6c-5765-40ef-8276-208fb1f8d24e"
+        },
+        "localId": "cmwjhw0yf00fv1gpnwzcv84qj",
+        "receipt": {
+          "id": "cmwkzip0k06wj01lct7fp5amh",
+          "eventId": "c976cb85-9ac6-4afa-846c-9200d098115f",
+          "status": "APPLIED",
+          "revision": 3,
+          "receivedAt": "2026-11-17T17:47:07.159Z",
+          "reasonCode": null
+        }
+      },
+      {
+        "case": "C",
+        "externalId": "0ead8d2d-57e6-406f-9ee3-b3e123f80a5c",
+        "revision": 3,
+        "status": "APPLIED",
+        "complianceStatus": "REVOKED",
+        "typeCode": "NR-12",
+        "evidence": {
+          "id": "0ead8d2d-57e6-406f-9ee3-b3e123f80a5c",
+          "version": "fe54cfb0-9244-43de-aab3-082219fa69eb",
+          "fileName": "ZZZ-HOMOLOG-evidencia-C-revogado.pdf",
+          "expiresAt": null,
+          "contentType": "application/pdf",
+          "authenticatedDownloadPath": "/api/integracoes/filtroapp/v1/evidence/0ead8d2d-57e6-406f-9ee3-b3e123f80a5c?version=fe54cfb0-9244-43de-aab3-082219fa69eb"
+        },
+        "localId": "cmwjhw0yf00fv1gpnwzcv84qj",
+        "receipt": {
+          "id": "cmwkzip8b06wn01lcdoz61z1b",
+          "eventId": "8b46afd6-ea19-4358-9b84-b877f6680b35",
+          "status": "APPLIED",
+          "revision": 3,
+          "receivedAt": "2026-11-17T17:47:07.390Z",
+          "reasonCode": null
+        }
+      },
+      {
+        "case": "D",
+        "externalId": "c25b8092-d85f-4dfa-b349-a1b5ad411acd",
+        "revision": 3,
+        "status": "APPLIED",
+        "complianceStatus": "VALID",
+        "typeCode": "ZZZ-261116",
+        "evidence": null,
+        "localId": "cmwjhw0yf00fv1gpnwzcv84qj",
+        "receipt": {
+          "id": "cmwkzip9t06wr01lcf8s10wl8",
+          "eventId": "89bf0b2d-4ad7-48e1-a8ed-9e1beaca306b",
+          "status": "APPLIED",
+          "revision": 3,
+          "receivedAt": "2026-11-17T17:47:07.499Z",
+          "reasonCode": null
+        }
+      }
+    ],
+    "appCompliance": [
+      {
+        "id": "c25b8092-d85f-4dfa-b349-a1b5ad411acd",
+        "typeCode": "ZZZ-261116",
+        "status": "VALID",
+        "expiresOn": "2027-11-17",
+        "evidence": null
+      },
+      {
+        "id": "31f1832e-08bb-42a5-91ba-e17e9a9534c1",
+        "typeCode": "ASO",
+        "status": "PENDING",
+        "expiresOn": null,
+        "evidence": null
+      },
+      {
+        "id": "2377a4c0-00d9-4af7-a2df-4507e7005124",
+        "typeCode": "CNH",
+        "status": "UNKNOWN",
+        "expiresOn": null,
+        "evidence": null
+      },
+      {
+        "id": "3b955137-0884-424d-8408-93dc5c1ee720",
+        "typeCode": "NR-26",
+        "status": "REVOKED",
+        "expiresOn": "2027-06-04",
+        "evidence": null
+      },
+      {
+        "id": "42daa4c0-ac56-43a8-aa04-865934a30a9e",
+        "typeCode": "NR-33",
+        "status": "VALID",
+        "expiresOn": "2027-11-17",
+        "evidence": {
+          "id": "42daa4c0-ac56-43a8-aa04-865934a30a9e",
+          "version": "663092a4-7078-4045-ad9b-223dd68e3bd5",
+          "fileName": "ZZZ-HOMOLOG-evidencia-A-ativo.pdf",
+          "expiresAt": null,
+          "contentType": "application/pdf",
+          "authenticatedDownloadPath": "/api/integracoes/filtroapp/v1/evidence/42daa4c0-ac56-43a8-aa04-865934a30a9e?version=663092a4-7078-4045-ad9b-223dd68e3bd5"
+        }
+      },
+      {
+        "id": "538781d2-5d35-48a0-99b4-5e0aa6f8bf47",
+        "typeCode": "NR-06",
+        "status": "VALID",
+        "expiresOn": "2027-11-17",
+        "evidence": {
+          "id": "538781d2-5d35-48a0-99b4-5e0aa6f8bf47",
+          "version": "31e1de6c-5765-40ef-8276-208fb1f8d24e",
+          "fileName": "ZZZ-HOMOLOG-evidencia-B-v2-ativa.pdf",
+          "expiresAt": null,
+          "contentType": "application/pdf",
+          "authenticatedDownloadPath": "/api/integracoes/filtroapp/v1/evidence/538781d2-5d35-48a0-99b4-5e0aa6f8bf47?version=31e1de6c-5765-40ef-8276-208fb1f8d24e"
+        }
+      },
+      {
+        "id": "0ead8d2d-57e6-406f-9ee3-b3e123f80a5c",
+        "typeCode": "NR-12",
+        "status": "REVOKED",
+        "expiresOn": "2027-11-17",
+        "evidence": {
+          "id": "0ead8d2d-57e6-406f-9ee3-b3e123f80a5c",
+          "version": "fe54cfb0-9244-43de-aab3-082219fa69eb",
+          "fileName": "ZZZ-HOMOLOG-evidencia-C-revogado.pdf",
+          "expiresAt": null,
+          "contentType": "application/pdf",
+          "authenticatedDownloadPath": "/api/integracoes/filtroapp/v1/evidence/0ead8d2d-57e6-406f-9ee3-b3e123f80a5c?version=fe54cfb0-9244-43de-aab3-082219fa69eb"
+        }
+      }
+    ],
+    "latestJobs": [
+      {
+        "status": "COMPLETED",
+        "startedAt": "2026-11-17T18:22:05.857Z",
+        "finishedAt": "2026-11-17T18:22:07.280Z",
+        "error": null
+      },
+      {
+        "status": "COMPLETED",
+        "startedAt": "2026-11-17T18:17:05.857Z",
+        "finishedAt": "2026-11-17T18:17:07.196Z",
+        "error": null
+      },
+      {
+        "status": "COMPLETED",
+        "startedAt": "2026-11-17T18:12:05.856Z",
+        "finishedAt": "2026-11-17T18:12:08.539Z",
+        "error": null
+      }
+    ],
+    "syncState": {
+      "hasCursor": true,
+      "cursorSha256": "80a6b9437f6c54b734408151fac7b68664586075377d1040f8d7b7c4f3f80eb9",
+      "updatedAt": "2026-11-17T18:22:07.269Z"
+    },
+    "summary": {
+      "passed": 9,
+      "failed": 0
+    }
+  },
+  "sourceManifest": {
+    "preparadoEm": "2026-11-17T17:45:42.362Z",
+    "personId": "dfc4f663-5c72-40e5-9709-bde996f3214e",
+    "casos": {
+      "A": {
+        "descricao": "ativo",
+        "complianceId": "42daa4c0-ac56-43a8-aa04-865934a30a9e",
+        "revision": 3,
+        "eventId": "8410afdf-a502-4d28-8a5e-4d3cc8913b64",
+        "typeCode": "NR-33",
+        "status": "VALID",
+        "evidence": {
+          "id": "42daa4c0-ac56-43a8-aa04-865934a30a9e",
+          "version": "663092a4-7078-4045-ad9b-223dd68e3bd5",
+          "fileName": "ZZZ-HOMOLOG-evidencia-A-ativo.pdf",
+          "expiresAt": null,
+          "contentType": "application/pdf",
+          "authenticatedDownloadPath": "/api/integracoes/filtroapp/v1/evidence/42daa4c0-ac56-43a8-aa04-865934a30a9e?version=663092a4-7078-4045-ad9b-223dd68e3bd5"
+        },
+        "arquivos": [
+          {
+            "versao": "663092a4-7078-4045-ad9b-223dd68e3bd5",
+            "nome": "ZZZ-HOMOLOG-evidencia-A-ativo.pdf",
+            "bytes": 743,
+            "sha256": "f48e182bbd5d5922c04a04f9e13436853600c47322fc1a4e22a6755b44f2d152",
+            "mime": "application/pdf"
+          }
+        ]
+      },
+      "B": {
+        "descricao": "substituído (v1 → v2)",
+        "complianceId": "538781d2-5d35-48a0-99b4-5e0aa6f8bf47",
+        "revision": 3,
+        "eventId": "c976cb85-9ac6-4afa-846c-9200d098115f",
+        "typeCode": "NR-06",
+        "status": "VALID",
+        "evidence": {
+          "id": "538781d2-5d35-48a0-99b4-5e0aa6f8bf47",
+          "version": "31e1de6c-5765-40ef-8276-208fb1f8d24e",
+          "fileName": "ZZZ-HOMOLOG-evidencia-B-v2-ativa.pdf",
+          "expiresAt": null,
+          "contentType": "application/pdf",
+          "authenticatedDownloadPath": "/api/integracoes/filtroapp/v1/evidence/538781d2-5d35-48a0-99b4-5e0aa6f8bf47?version=31e1de6c-5765-40ef-8276-208fb1f8d24e"
+        },
+        "arquivos": [
+          {
+            "versao": "f11c97aa-3220-4605-b0fa-57251b021f36",
+            "nome": "ZZZ-HOMOLOG-evidencia-B-v1-substituida.pdf",
+            "bytes": 752,
+            "sha256": "b87287790984616cdfbc118c8adb227383f2bb6d5b9dc75294a34937789e4190",
+            "mime": "application/pdf"
+          },
+          {
+            "versao": "31e1de6c-5765-40ef-8276-208fb1f8d24e",
+            "nome": "ZZZ-HOMOLOG-evidencia-B-v2-ativa.pdf",
+            "bytes": 746,
+            "sha256": "b452b54c5f1503bde4e3da9ac25cf11dd6bca0a9101588f1dd29113cae7ef01b",
+            "mime": "application/pdf"
+          }
+        ]
+      },
+      "C": {
+        "descricao": "item revogado depois do anexo",
+        "complianceId": "0ead8d2d-57e6-406f-9ee3-b3e123f80a5c",
+        "revision": 3,
+        "eventId": "8b46afd6-ea19-4358-9b84-b877f6680b35",
+        "typeCode": "NR-12",
+        "status": "REVOKED",
+        "evidence": {
+          "id": "0ead8d2d-57e6-406f-9ee3-b3e123f80a5c",
+          "version": "fe54cfb0-9244-43de-aab3-082219fa69eb",
+          "fileName": "ZZZ-HOMOLOG-evidencia-C-revogado.pdf",
+          "expiresAt": null,
+          "contentType": "application/pdf",
+          "authenticatedDownloadPath": "/api/integracoes/filtroapp/v1/evidence/0ead8d2d-57e6-406f-9ee3-b3e123f80a5c?version=fe54cfb0-9244-43de-aab3-082219fa69eb"
+        },
+        "arquivos": [
+          {
+            "versao": "fe54cfb0-9244-43de-aab3-082219fa69eb",
+            "nome": "ZZZ-HOMOLOG-evidencia-C-revogado.pdf",
+            "bytes": 746,
+            "sha256": "25d46e0785a2b80ed1db9c15396888cf5381e3766c1909a3953aada5065b0856",
+            "mime": "application/pdf"
+          }
+        ]
+      },
+      "D": {
+        "descricao": "comprovante removido",
+        "complianceId": "c25b8092-d85f-4dfa-b349-a1b5ad411acd",
+        "revision": 3,
+        "eventId": "89bf0b2d-4ad7-48e1-a8ed-9e1beaca306b",
+        "typeCode": "ZZZ-261116",
+        "status": "VALID",
+        "evidence": null,
+        "arquivos": [
+          {
+            "versao": "e55c6721-a581-4042-bfb9-a6dcc85059b5",
+            "nome": "ZZZ-HOMOLOG-evidencia-D-removido.pdf",
+            "bytes": 746,
+            "sha256": "459453432e51f9311b7ed61a2babb44b16c4615d5b832e6167d24577a76a69bd",
+            "mime": "application/pdf"
+          }
+        ]
+      }
+    }
+  },
+  "packageFiles": [
+    {
+      "name": "ZZZ-HOMOLOG-evidencia-A-ativo.pdf",
+      "bytes": 743,
+      "sha256": "f48e182bbd5d5922c04a04f9e13436853600c47322fc1a4e22a6755b44f2d152"
+    },
+    {
+      "name": "ZZZ-HOMOLOG-evidencia-B-v1-substituida.pdf",
+      "bytes": 752,
+      "sha256": "b87287790984616cdfbc118c8adb227383f2bb6d5b9dc75294a34937789e4190"
+    },
+    {
+      "name": "ZZZ-HOMOLOG-evidencia-B-v2-ativa.pdf",
+      "bytes": 746,
+      "sha256": "b452b54c5f1503bde4e3da9ac25cf11dd6bca0a9101588f1dd29113cae7ef01b"
+    },
+    {
+      "name": "ZZZ-HOMOLOG-evidencia-C-revogado.pdf",
+      "bytes": 746,
+      "sha256": "25d46e0785a2b80ed1db9c15396888cf5381e3766c1909a3953aada5065b0856"
+    },
+    {
+      "name": "ZZZ-HOMOLOG-evidencia-D-removido.pdf",
+      "bytes": 746,
+      "sha256": "459453432e51f9311b7ed61a2babb44b16c4615d5b832e6167d24577a76a69bd"
+    }
+  ],
+  "inputFiles": [
+    {
+      "name": "RESPOSTA_CONECTA_RH_PROVAS_FINAIS_20261117.md",
+      "sha256": "dac7de5d665718d8232cce4e0f6bd1826a16664f6e8e0e272cfadb038175aa49"
+    },
+    {
+      "name": "provas-finais-20261117.zip",
+      "sha256": "6c0b5d9ee39b94a71945b9d4f1765cfbc9f47c42e6edf97b0b99ab6151146e18"
+    }
+  ],
+  "scope": "Provas reais na VPS usando somente credenciais temporárias, leituras HTTP e download de PDFs fictícios. Snapshot isolado aberto por A, sem alteração cadastral. Credencial original, cursor e configuração do worker preservados. Nenhum deploy ou envio RH realizado nesta rodada.",
+  "limits": [
+    "A/B retornaram 401 na conferência do FiltroAPP em 17/11/2026 às 15:48, horário de São Paulo. O horário administrativo exato da revogação no CONECTA não foi informado; o registro é da observação HTTP.",
+    "A troca ocorreu entre requisições de um consumidor isolado na VPS; a configuração do worker instalado não foi trocada.",
+    "Os testes de evidência comprovam a API da origem e a importação de metadados/estados no FiltroAPP. Não foi criado nem homologado um novo fluxo de download na interface do app.",
+    "Links já emitidos antes de substituição/revogação permanecem utilizáveis até o vencimento de cinco minutos, conforme contrato informado pela origem. As recusas testadas impedem a emissão de links novos para versões substituídas/revogadas. A sobrevivência de link emitido antes da transição não foi reproduzida nesta rodada estática."
+  ],
+  "revocation": {
+    "checkedAt": "2026-11-17T18:48:18.570Z",
+    "environment": "staging / VPS",
+    "requests": [
+      {
+        "credential": "A",
+        "httpStatus": 401,
+        "errorCode": "UNAUTHORIZED",
+        "requestId": "8262fdcb-02de-4c54-91da-ada172bfedbc",
+        "requestIdMatchesBody": true,
+        "validFeed": false,
+        "checkedAt": "2026-11-17T18:48:19.278Z"
+      },
+      {
+        "credential": "B",
+        "httpStatus": 401,
+        "errorCode": "UNAUTHORIZED",
+        "requestId": "43a99634-1719-4d0e-91c7-4cf8da6ccf8a",
+        "requestIdMatchesBody": true,
+        "validFeed": false,
+        "checkedAt": "2026-11-17T18:48:19.583Z"
+      },
+      {
+        "credential": "original",
+        "httpStatus": 200,
+        "errorCode": null,
+        "requestId": "c9b0657e-7c91-4760-aa40-c7d417da92db",
+        "requestIdMatchesBody": null,
+        "validFeed": true,
+        "checkedAt": "2026-11-17T18:48:19.932Z"
+      }
+    ],
+    "checks": [
+      {
+        "name": "Credencial temporária A revogada",
+        "result": "PASS",
+        "details": {
+          "credential": "A",
+          "httpStatus": 401,
+          "errorCode": "UNAUTHORIZED",
+          "requestId": "8262fdcb-02de-4c54-91da-ada172bfedbc",
+          "requestIdMatchesBody": true,
+          "validFeed": false,
+          "checkedAt": "2026-11-17T18:48:19.278Z"
+        }
+      },
+      {
+        "name": "Credencial temporária B revogada",
+        "result": "PASS",
+        "details": {
+          "credential": "B",
+          "httpStatus": 401,
+          "errorCode": "UNAUTHORIZED",
+          "requestId": "43a99634-1719-4d0e-91c7-4cf8da6ccf8a",
+          "requestIdMatchesBody": true,
+          "validFeed": false,
+          "checkedAt": "2026-11-17T18:48:19.583Z"
+        }
+      },
+      {
+        "name": "Credencial original preservada e autorizada",
+        "result": "PASS",
+        "details": {
+          "credential": "original",
+          "httpStatus": 200,
+          "errorCode": null,
+          "requestId": "c9b0657e-7c91-4760-aa40-c7d417da92db",
+          "requestIdMatchesBody": null,
+          "validFeed": true,
+          "checkedAt": "2026-11-17T18:48:19.932Z"
+        }
+      },
+      {
+        "name": "Worker segue concluindo os ciclos sem erros",
+        "result": "PASS",
+        "details": {}
+      },
+      {
+        "name": "Sincronização sem pendências após revogar temporárias",
+        "result": "PASS",
+        "details": {}
+      }
+    ],
+    "latestJobs": [
+      {
+        "status": "COMPLETED",
+        "startedAt": "2026-11-17T18:47:05.863Z",
+        "finishedAt": "2026-11-17T18:47:07.578Z",
+        "error": null
+      },
+      {
+        "status": "COMPLETED",
+        "startedAt": "2026-11-17T18:42:05.862Z",
+        "finishedAt": "2026-11-17T18:42:07.200Z",
+        "error": null
+      },
+      {
+        "status": "COMPLETED",
+        "startedAt": "2026-11-17T18:37:05.861Z",
+        "finishedAt": "2026-11-17T18:37:07.378Z",
+        "error": null
+      }
+    ],
+    "receiptCounts": [
+      {
+        "_count": 3,
+        "status": "SUPERSEDED",
+        "reasonCode": null
+      },
+      {
+        "_count": 1136,
+        "status": "APPLIED",
+        "reasonCode": null
+      }
+    ],
+    "pendingAggregates": 0,
+    "finishedAt": "2026-11-17T18:48:20.310Z",
+    "summary": {
+      "passed": 5,
+      "failed": 0
+    }
+  }
+}

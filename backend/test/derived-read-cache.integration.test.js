@@ -66,6 +66,39 @@ test('PostgreSQL: late commits, rollbacks and independent writers invalidate der
     assert.equal(await databaseReadVersion(database), before);
   });
 
+  await t.test('Conecta sources invalidate derived reads without receipt or cursor polling churn', async t => {
+    const companyId = randomUUID(), personId = randomUUID(), externalId = randomUUID();
+    const role = await database.jobRole.create({ data: { name: prefix, normalizedKey: prefix } });
+    const collaborator = await database.collaborator.create({ data: { code: prefix, name: prefix, jobRoleId: role.id } });
+    t.after(async () => {
+      await database.conectaRhReceipt.deleteMany({ where: { companyId } });
+      await database.conectaRhSyncState.deleteMany({ where: { companyId } });
+      await database.conectaRhPerson.deleteMany({ where: { companyId } });
+      await database.conectaRhAggregate.deleteMany({ where: { companyId } });
+      await database.collaborator.delete({ where: { id: collaborator.id } });
+      await database.jobRole.delete({ where: { id: role.id } });
+    });
+    const initial = await databaseReadVersion(database);
+    await database.conectaRhSyncState.create({ data: { companyId, cursor: 'initial-checkpoint' } });
+    assert.equal(await databaseReadVersion(database), initial, 'A feed checkpoint alone is not a financial source');
+
+    const aggregate = await database.conectaRhAggregate.create({ data: {
+      companyId, aggregateType: 'job_role', externalId, revision: 1, data: { name: prefix }, occurredAt: new Date()
+    } });
+    const sourceVersion = await databaseReadVersion(database);
+    assert.notEqual(sourceVersion, initial, 'A new RH source must invalidate derived reads');
+    const receipt = await database.conectaRhReceipt.create({ data: {
+      companyId, eventId: randomUUID(), aggregateId: aggregate.id, revision: 1,
+      payloadHash: 'a'.repeat(64), versionHash: 'b'.repeat(64), status: 'PENDING'
+    } });
+    await database.conectaRhReceipt.update({ where: { id: receipt.id }, data: { status: 'APPLIED' } });
+    await database.conectaRhSyncState.update({ where: { companyId }, data: { cursor: 'next-checkpoint' } });
+    assert.equal(await databaseReadVersion(database), sourceVersion, 'Receipt state and polling checkpoints preserve the cached source version');
+
+    await database.conectaRhPerson.create({ data: { companyId, personId, collaboratorId: collaborator.id } });
+    assert.notEqual(await databaseReadVersion(database), sourceVersion, 'A changed RH identity mapping must invalidate derived reads');
+  });
+
   await t.test('statement triggers cover every Prisma source, including future model additions', async () => {
     const expected = Prisma.dmmf.datamodel.models.map(model => model.dbName || model.name)
       .filter(name => !UNTRACKED_READ_CACHE_MODELS.includes(name)).sort();

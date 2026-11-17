@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { z } from 'zod';
-import { API_SCOPES, publicApiOperations } from '../../backend/src/lib/api-credentials/catalog.js';
+import { API_SCOPES, API_OPERATIONS, publicApiOperations } from '../../backend/src/lib/api-credentials/catalog.js';
 import { makePlaygroundParameterSchema, buildPlaygroundInput, playgroundParameterDefaults } from '../../shared/schemas/playground-parameters.js';
 import { exampleOperationForCredential, operationsForScope } from '../src/components/admin/api-tokens/apiOperations.ts';
 import { redactedRequestPreview } from '../src/components/admin/api-tokens/apiRequestFormatting.ts';
@@ -33,12 +33,17 @@ test('one-time token example never falls back to unauthorized queries or operati
   ], scopes)?.path, '/qualidade/registros');
 });
 
-test('all implemented permissions select matching operations, including optional quality and downloads', () => {
+test('permissions select their supported playground operations, including optional quality and downloads', () => {
   for (const scope of API_SCOPES) {
     const matches = operationsForScope(operations, scope.code);
-    assert.ok(matches.length, scope.code);
+    const supported = API_OPERATIONS.filter(op => op.supportsPlayground
+      && [...op.requiredScopes, ...op.optionalScopes].includes(scope.code));
+    assert.deepEqual(matches.map(op => op.operationId), supported.map(op => op.operationId), scope.code);
     assert.ok(matches.every(op => [...op.requiredScopes, ...op.optionalScopes].includes(scope.code)));
   }
+  assert.deepEqual(operationsForScope(operations, 'rh.conecta.eventos.write'), []);
+  assert.deepEqual(operationsForScope(operations, 'rh.conecta.salarios.write'), []);
+  assert.equal(exampleOperationForCredential(operations, ['rh.conecta.eventos.write', 'rh.conecta.salarios.write']), undefined);
   assert.equal(operationsForScope(operations, '').length, operations.length);
   assert.equal(operationsForScope(operations, 'rdo.anexos.download')[0].responseKind, 'DOWNLOAD_CHECK');
   assert.equal(operationsForScope(operations, 'ponto.resumos.read')[0].path, '/ponto/projetos/semanas');

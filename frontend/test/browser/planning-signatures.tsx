@@ -19,7 +19,7 @@ import '../../src/pages/efetivo/efetivo.css';
 const options = new URLSearchParams(window.location.search);
 const mode = options.get('mode');
 const role = { id: 'role', name: 'Técnico', isActive: true, isOperational: true };
-const people = ['Ana', 'Bruno', 'Carla'].map((name, index) => ({ id: `c${index + 1}`, name, role: role.name, jobRoleId: role.id, isActive: true, admissionDate: null, terminationDate: null, status: 'FREE', vacationAlert: null }));
+const people = ['Ana', 'Bruno', 'Carla'].map((name, index) => ({ id: `c${index + 1}`, name, role: role.name, jobRoleId: role.id, isActive: true, rhStatus: options.get('preAdmission') === '1' && index === 2 ? 'PRE_ADMISSION' : null, admissionDate: options.get('preAdmission') === '1' && index === 2 ? '2027-01-01' : null, terminationDate: null, status: 'FREE', vacationAlert: null }));
 let storedMission = {
   id: 'mission', planId: 'plan', projectId: 'project', stage: options.get('stage') === 'mobilization' ? 'MOBILIZATION' : 'EXECUTION',
   project: { id: 'project', code: 'P1', name: 'Planejamento de teste' }, scheduleStatus: 'CONFIRMED',
