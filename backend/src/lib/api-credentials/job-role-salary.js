@@ -10,6 +10,15 @@ export function validateJobRoleSalaryRequest(params, query) {
   return { ...paramsSchema.parse(params), ...querySchema.parse(query) };
 }
 
+export function configuredJobRoleSalary(set) {
+  const rawSalary = set?.params?.salarioBase;
+  if ((typeof rawSalary !== 'number' && typeof rawSalary !== 'string') || !String(rawSalary).trim()) return null;
+  try {
+    const salary = new Prisma.Decimal(rawSalary);
+    return salary.isFinite() && !salary.isNegative() ? salary : null;
+  } catch { return null; }
+}
+
 export async function getJobRoleSalary(client, params, query, context) {
   if (!context.scopes?.has('cargos.salarios.read')) {
     throw new IntegrationApiError(403, 'INSUFFICIENT_SCOPE', 'A credencial não possui o escopo necessário.');
@@ -33,12 +42,8 @@ export async function getJobRoleSalary(client, params, query, context) {
   if (!role) throw new IntegrationApiError(404, 'NOT_FOUND', 'Cargo não encontrado.');
 
   const set = role.costProfile?.parameterSets[0];
-  const rawSalary = set?.params?.salarioBase;
-  let salary;
-  if ((typeof rawSalary === 'number' || typeof rawSalary === 'string') && String(rawSalary).trim()) {
-    try { salary = new Prisma.Decimal(rawSalary); } catch { /* parâmetro legado inválido */ }
-  }
-  if (!salary?.isFinite() || salary.isNegative()) {
+  const salary = configuredJobRoleSalary(set);
+  if (!salary) {
     throw new IntegrationApiError(404, 'SALARY_NOT_FOUND', 'Salário do cargo não configurado para a data de referência.');
   }
 

@@ -32,7 +32,7 @@ const queryDefinitions = {
 };
 
 export function describePlaygroundParameters(operation) {
-  const identity = operation.operationId === 'jobRoles.salary.get'
+  const identity = ['jobRoles.salary.get', 'jobRoles.hourlyReference.get'].includes(operation.operationId)
     ? { label: 'ID do cargo', help: 'Copie id da operação Listar cargos. A consulta de salários exige a permissão cargos.salarios.read.' }
     : operation.operationId === 'quality.records.get'
     ? { label: 'ID do registro de Qualidade', help: 'Copie o campo id de um item retornado em Listar registros de Qualidade. Não é o número do registro nem o ID do token.' }

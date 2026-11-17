@@ -8,6 +8,7 @@ import { OPERATIONAL_RESOURCES } from '../../../lib/api-credentials/operational-
 import { OPERATIONAL_DOWNLOADS } from '../../../lib/api-credentials/extended-operational-resources.js';
 import { getEfetivoProjectStatus, validateEfetivoProjectStatusRequest } from '../../../lib/api-credentials/efetivo-project-status.js';
 import { getJobRoleSalary, validateJobRoleSalaryRequest } from '../../../lib/api-credentials/job-role-salary.js';
+import { getJobRoleHourlyReference } from '../../../lib/api-credentials/job-role-hourly-reference.js';
 import { ALLOCATION_REVIEW_OPERATION, listConfirmedAllocations, validateAllocationReviewQuery } from '../../../lib/api-credentials/allocation-review.js';
 import { createCrmDocument, createCrmProject, upsertCrmCommercialFact, validateCommercialFact, validateCrmDocument, validateProjectCreation, validateProjectWriteAccess } from '../../../lib/api-credentials/efetivo-project-writes.js';
 import { receiveCrmOpportunity, validateCrmOpportunity } from '../../../lib/projects/crm-opportunities.js';
@@ -99,6 +100,15 @@ export function createOperationalRouter({
     const result = await runMeteredApiOperation(req, {
       prismaClient, operationId: 'acompanhamento.opportunities.get', requestedRows: 1,
       execute: async () => ({ rows: 1, body: { ...await getCrmPlanningState(prismaClient, externalId, envConfig), requestId: req.requestId } })
+    });
+    res.json(result.body);
+  }));
+  router.get('/cargos/:id/referencia-hh', requireApiOperation('jobRoles.hourlyReference.get'), asyncHandler(async (req, res) => {
+    validateJobRoleSalaryRequest(req.params, req.query);
+    const result = await runMeteredApiOperation(req, {
+      prismaClient, operationId: 'jobRoles.hourlyReference.get', requestedRows: 1,
+      execute: async () => ({ rows: 1,
+        body: await getJobRoleHourlyReference(prismaClient, req.params, req.query, { scopes: req.apiAuth.scopeCodes }) })
     });
     res.json(result.body);
   }));
