@@ -1,5 +1,12 @@
 # Search regression in a browser
 
+For the app update notice, build the frontend and start `npm run preview -- --port 4187`.
+Open `http://127.0.0.1:4187/login` in an isolated Playwright CLI session and run
+`playwright-cli run-code --filename frontend/test/browser/app-update-notice.js` from the repository root.
+It simulates version metadata and authentication, checking the compact card, adaptive logo,
+both themes, 320–1440 px layouts, keyboard focus, postponing/reopening without losing the form,
+print hiding and reloading the current URL only after clicking Atualizar. No records change.
+
 For stock by product and project, open `/test/browser/estoque.html` and run
 `playwright-cli run-code --filename frontend/test/browser/estoque.js`.
 It checks running balances in both tabs (including project filters and audit history),
