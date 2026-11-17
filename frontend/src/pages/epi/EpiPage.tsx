@@ -20,6 +20,7 @@ import {
   updateEpiCatalogItem,
   updateEpiCollaboratorProfile,
   updateEpiRecord,
+  type CreateEpiRecordPayload,
   type EpiCatalogItem,
   type EpiCollaborator,
   type EpiRecord,
@@ -40,15 +41,20 @@ type Tab = 'collaborators' | 'catalog';
 type RecordTab = 'active' | 'archived';
 const TABS: Tab[] = ['collaborators', 'catalog'];
 const DEFAULT_EPI_SIZES = ['P', 'M', 'G', 'GG', 'XG', 'Especial'];
-type CatalogForm = { name: string; ca: string; hasSizes: boolean; sizes: string[] };
+type CatalogSizeSettings = { hasSizes: boolean; sizes: string[] };
+type CatalogForm = CatalogSizeSettings & { name: string; ca: string };
 
-function emptyCatalogForm(): CatalogForm {
-  return { name: '', ca: '', hasSizes: false, sizes: [...DEFAULT_EPI_SIZES] };
+function emptyCatalogSizes(): CatalogSizeSettings {
+  return { hasSizes: false, sizes: [...DEFAULT_EPI_SIZES] };
 }
 
-function CatalogSizesToggle({ value, onChange }: {
-  value: CatalogForm;
-  onChange: (next: CatalogForm) => void;
+function emptyCatalogForm(): CatalogForm {
+  return { name: '', ca: '', ...emptyCatalogSizes() };
+}
+
+function CatalogSizesToggle<T extends CatalogSizeSettings>({ value, onChange }: {
+  value: T;
+  onChange: (next: T) => void;
 }) {
   return (
     <Switch
@@ -60,10 +66,10 @@ function CatalogSizesToggle({ value, onChange }: {
   );
 }
 
-function CatalogSizes({ id, value, onChange }: {
+function CatalogSizes<T extends CatalogSizeSettings>({ id, value, onChange }: {
   id: string;
-  value: CatalogForm;
-  onChange: (next: CatalogForm) => void;
+  value: T;
+  onChange: (next: T) => void;
 }) {
   const [newSize, setNewSize] = useState('');
   const [error, setError] = useState('');
@@ -234,6 +240,7 @@ export function EpiPage() {
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
   const [profileForm, setProfileForm] = useState({ cpf: '', registrationNumber: '', admissionDate: '', roleOverrideJobRoleId: '' });
   const [recordForm, setRecordForm] = useState<EpiRecordPayload>(emptyRecord);
+  const [newRecordSizes, setNewRecordSizes] = useState<CatalogSizeSettings>(emptyCatalogSizes);
   const [recordTab, setRecordTab] = useState<RecordTab>('active');
   const [selectedRecordIds, setSelectedRecordIds] = useState<Set<string>>(() => new Set());
   const [selectedArchivedRecordIds, setSelectedArchivedRecordIds] = useState<Set<string>>(() => new Set());
@@ -250,6 +257,7 @@ export function EpiPage() {
     ...(catalogQuery.data || []).map(item => ({ value: item.id, label: `${item.name} · ${caLabel(item.ca)}` }))
   ], [catalogQuery.data]);
   const selectedCatalogItem = (catalogQuery.data || []).find(item => item.id === recordForm.catalogItemId);
+  const recordSizeSettings = selectedCatalogItem || newRecordSizes;
   const jobRolesQuery = useQuery({
     queryKey: ['epi-job-roles'],
     queryFn: listEpiJobRoles,
@@ -291,10 +299,11 @@ export function EpiPage() {
   });
 
   const createRecordMutation = useMutation({
-    mutationFn: ({ collaboratorId, payload }: { collaboratorId: string; payload: EpiRecordPayload }) => createEpiRecord(collaboratorId, payload),
+    mutationFn: ({ collaboratorId, payload }: { collaboratorId: string; payload: CreateEpiRecordPayload }) => createEpiRecord(collaboratorId, payload),
     onSuccess: () => {
       invalidate();
       setRecordForm(emptyRecord);
+      setNewRecordSizes(emptyCatalogSizes());
       showToast('EPI adicionado.', 'success');
     },
     onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível adicionar o EPI.', 'error')
@@ -392,10 +401,12 @@ export function EpiPage() {
         roleOverrideJobRoleId: collaborator.roleOverrideJobRole?.id || ''
       });
       setRecordForm(emptyRecord);
+      setNewRecordSizes(emptyCatalogSizes());
     }
   }
 
   function selectCatalog(id: string) {
+    setNewRecordSizes(emptyCatalogSizes());
     const item = (catalogQuery.data || []).find(catalog => catalog.id === id);
     setRecordForm(current => ({
       ...current,
@@ -404,6 +415,16 @@ export function EpiPage() {
       ca: item ? item.ca || '' : current.ca,
       size: null
     }));
+  }
+
+  function changeRecordIdentity(field: 'epiName' | 'ca', value: string) {
+    if (recordForm.catalogItemId) setNewRecordSizes(emptyCatalogSizes());
+    setRecordForm(current => ({ ...current, [field]: value, catalogItemId: null, size: null }));
+  }
+
+  function changeNewRecordSizes(next: CatalogSizeSettings) {
+    setNewRecordSizes(next);
+    setRecordForm(current => ({ ...current, size: next.hasSizes && next.sizes.includes(current.size || '') ? current.size : null }));
   }
 
   function saveProfile(collaboratorId: string) {
@@ -445,7 +466,8 @@ export function EpiPage() {
   function submitRecord(event: FormEvent) {
     event.preventDefault();
     if (!expandedCollaborator) return;
-    if (selectedCatalogItem?.hasSizes && !selectedCatalogItem.sizes.includes(recordForm.size || '')) {
+    if (!recordForm.catalogItemId && !validateCatalogSizes(newRecordSizes)) return;
+    if (recordSizeSettings.hasSizes && !recordSizeSettings.sizes.includes(recordForm.size || '')) {
       showToast('Selecione um tamanho disponível para este EPI.', 'error');
       return;
     }
@@ -454,7 +476,11 @@ export function EpiPage() {
       catalogItemId: recordForm.catalogItemId || null,
       epiName: recordForm.epiName.trim(),
       ca: String(recordForm.ca || '').trim(),
-      size: selectedCatalogItem?.hasSizes ? recordForm.size : null,
+      size: recordSizeSettings.hasSizes ? recordForm.size : null,
+      ...(!recordForm.catalogItemId ? { newCatalogItem: {
+        hasSizes: newRecordSizes.hasSizes,
+        sizes: newRecordSizes.hasSizes ? newRecordSizes.sizes : []
+      } } : {}),
       quantity: Number(recordForm.quantity) || 1,
       lendDate: inputDateToPtBr(recordForm.lendDate) || '',
       devolutionDate: inputDateToPtBr(recordForm.devolutionDate)
@@ -481,7 +507,7 @@ export function EpiPage() {
     setEditCatalogForm({ name: item.name, ca: item.ca || '', hasSizes: !!item.hasSizes, sizes: item.sizes?.length ? [...item.sizes] : [...DEFAULT_EPI_SIZES] });
   }
 
-  function validateCatalogSizes(form: CatalogForm) {
+  function validateCatalogSizes(form: CatalogSizeSettings) {
     if (form.hasSizes && !form.sizes.length) {
       showToast('Acrescente ao menos um tamanho disponível.', 'error');
       return false;
@@ -700,18 +726,24 @@ export function EpiPage() {
                           />
                           <div className="field-group">
                             <label htmlFor={`epi-record-name-${collaborator.id}`}>Nome do EPI</label>
-                            <Input id={`epi-record-name-${collaborator.id}`} value={recordForm.epiName} onChange={event => setRecordForm(current => ({ ...current, epiName: event.target.value, catalogItemId: null, size: null }))} required />
+                            <Input id={`epi-record-name-${collaborator.id}`} value={recordForm.epiName} onChange={event => changeRecordIdentity('epiName', event.target.value)} required />
                           </div>
                           <div className="field-group">
                             <label htmlFor={`epi-record-ca-${collaborator.id}`}>C.A</label>
-                            <Input id={`epi-record-ca-${collaborator.id}`} value={recordForm.ca || ''} onChange={event => setRecordForm(current => ({ ...current, ca: event.target.value, catalogItemId: null, size: null }))} />
+                            <Input id={`epi-record-ca-${collaborator.id}`} value={recordForm.ca || ''} onChange={event => changeRecordIdentity('ca', event.target.value)} />
                           </div>
-                          {selectedCatalogItem?.hasSizes ? (
+                          {!recordForm.catalogItemId ? (
+                            <div className="epi-record-catalog-options">
+                              <CatalogSizesToggle value={newRecordSizes} onChange={changeNewRecordSizes} />
+                              {newRecordSizes.hasSizes ? <CatalogSizes id={`epi-record-${collaborator.id}`} value={newRecordSizes} onChange={changeNewRecordSizes} /> : null}
+                            </div>
+                          ) : null}
+                          {recordSizeSettings.hasSizes ? (
                             <div className="field-group epi-record-size">
                               <label htmlFor={`epi-record-size-${collaborator.id}`}>Tamanho</label>
                               <Select id={`epi-record-size-${collaborator.id}`} value={recordForm.size || ''} onChange={event => setRecordForm(current => ({ ...current, size: event.target.value || null }))} required>
                                 <option value="">Selecione o tamanho</option>
-                                {selectedCatalogItem.sizes.map(size => <option key={size} value={size}>{size}</option>)}
+                                {recordSizeSettings.sizes.map(size => <option key={size} value={size}>{size}</option>)}
                               </Select>
                             </div>
                           ) : null}

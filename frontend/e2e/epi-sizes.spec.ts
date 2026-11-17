@@ -8,7 +8,8 @@ const account = {
 };
 
 type CatalogItem = { id: string; name: string; ca: string; isActive: boolean; hasSizes: boolean; sizes: string[] };
-type RecordPayload = { catalogItemId: string | null; epiName: string; ca: string; size: string | null; quantity: number; lendDate: string };
+type RecordPayload = { catalogItemId: string | null; epiName: string; ca: string; size: string | null; quantity: number; lendDate: string;
+  newCatalogItem?: { hasSizes: boolean; sizes: string[] } };
 
 async function fixtures(page: Page) {
   await page.addInitScript(() => {
@@ -62,8 +63,14 @@ async function fixtures(page: Page) {
     } else if (pathname === '/api/epi/collaborators/collaborator-1/records' && request.method() === 'POST') {
       const payload = request.postDataJSON() as RecordPayload;
       submissions.push(payload);
+      let catalogItem = catalog.find(item => payload.catalogItemId ? item.id === payload.catalogItemId : item.name === payload.epiName && item.ca === payload.ca);
+      if (!catalogItem) {
+        catalogItem = { id: `catalog-inline-${catalog.length}`, name: payload.epiName, ca: payload.ca, isActive: true,
+          hasSizes: payload.newCatalogItem?.hasSizes || false, sizes: payload.newCatalogItem?.sizes || [] };
+        catalog.push(catalogItem);
+      }
       const item = {
-        ...payload, id: `record-${records.length}`, collaboratorId: collaborator.id,
+        ...payload, catalogItemId: catalogItem.id, id: `record-${records.length}`, collaboratorId: collaborator.id,
         archivedAt: null, signedAt: null, createdAt: '2026-11-16', updatedAt: '2026-11-16'
       };
       records.push(item);
@@ -108,6 +115,71 @@ test('EPI: configura tamanhos padrão e personalizados e preserva edição', asy
 });
 
 for (const width of [1280, 390]) {
+  test(`EPI: cria catálogo com tamanhos diretamente na ficha em ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const state = await fixtures(page);
+    await page.goto('/epi');
+    await page.getByRole('button', { name: /Marina Operações/ }).click();
+    const form = page.locator('.epi-record-form');
+    const toggle = form.getByRole('checkbox', { name: 'Este EPI possui tamanhos' });
+    const size = form.getByLabel('Tamanho', { exact: true });
+    await form.getByLabel('Nome do EPI', { exact: true }).fill('Botina personalizada');
+    await form.getByLabel('C.A', { exact: true }).fill('9876');
+    await toggle.check();
+    await expect(form.getByRole('button', { name: /^Remover tamanho / })).toHaveCount(defaults.length);
+    await expect(size).toHaveAttribute('required', '');
+    await form.getByRole('button', { name: 'Adicionar EPI', exact: true }).click();
+    expect(state.submissions).toHaveLength(0);
+    for (const option of defaults) await form.getByRole('button', { name: `Remover tamanho ${option}`, exact: true }).click();
+    await form.getByRole('button', { name: 'Adicionar EPI', exact: true }).click();
+    expect(state.submissions).toHaveLength(0);
+    await expect(form.getByText('Acrescente ao menos um tamanho antes de salvar.')).toBeVisible();
+    await form.getByLabel('Novo tamanho').fill('42');
+    await form.getByRole('button', { name: 'Acrescentar tamanho' }).click();
+    await size.selectOption('42');
+    await form.getByRole('button', { name: 'Remover tamanho 42', exact: true }).click();
+    await expect(size).toHaveValue('');
+    for (const option of ['42', '43']) {
+      await form.getByLabel('Novo tamanho').fill(option);
+      await form.getByRole('button', { name: 'Acrescentar tamanho' }).click();
+    }
+    await size.selectOption('42');
+    await toggle.uncheck();
+    await expect(size).toHaveCount(0);
+    await toggle.check();
+    await expect(size).toHaveValue('');
+    await size.selectOption('42');
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+    await form.getByRole('button', { name: 'Adicionar EPI', exact: true }).click();
+    await expect.poll(() => state.submissions).toMatchObject([{ catalogItemId: null, size: '42',
+      newCatalogItem: { hasSizes: true, sizes: ['42', '43'] } }]);
+    expect(state.catalogSubmissions).toHaveLength(0);
+    await expect(toggle).not.toBeChecked();
+    await expect(size).toHaveCount(0);
+    await expect(page.locator('.epi-record-row').filter({ hasText: 'Botina personalizada' })).toContainText('Tam. 42');
+
+    await form.getByLabel('EPI cadastrado').fill('9876');
+    await page.getByRole('option', { name: 'Botina personalizada · C.A 9876', exact: true }).click();
+    await expect(toggle).toHaveCount(0);
+    await expect(size.locator('option')).toHaveText(['Selecione o tamanho', '42', '43']);
+    await size.selectOption('43');
+    await form.getByRole('button', { name: 'Adicionar EPI', exact: true }).click();
+    await expect.poll(() => state.submissions).toHaveLength(2);
+    expect(state.submissions[1].newCatalogItem).toBeUndefined();
+
+    await toggle.check();
+    await size.selectOption('M');
+    await form.getByLabel('EPI cadastrado').fill('auricular');
+    await page.getByRole('option', { name: 'Protetor auricular · C.A 789', exact: true }).click();
+    await expect(size).toHaveCount(0);
+    await form.getByLabel('Nome do EPI', { exact: true }).fill('Outro EPI sem tamanho');
+    await form.getByLabel('C.A', { exact: true }).fill('');
+    await expect(toggle).not.toBeChecked();
+    await form.getByRole('button', { name: 'Adicionar EPI', exact: true }).click();
+    await expect.poll(() => state.submissions).toHaveLength(3);
+    expect(state.submissions[2]).toMatchObject({ size: null, newCatalogItem: { hasSizes: false, sizes: [] } });
+  });
+
   test(`EPI: exige tamanho, limpa seleção e exibe tamanho na ficha e assinatura em ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     const state = await fixtures(page);
