@@ -315,8 +315,11 @@ API e worker conectam com o papel `filtrovali_app` (`DATABASE_URL`), que só lê
 grava linhas: não é superusuário, não cria nem altera tabelas, não trunca e não
 mexe em `_prisma_migrations`. As migrations rodam no serviço `migrate` com o dono
 das tabelas (`MIGRATION_DATABASE_URL`, hoje `postgres`). O Compose zera
-`MIGRATION_DATABASE_URL` em backend e worker, então a credencial do dono só
-existe no container `migrate`, que termina logo após aplicar as migrations.
+`MIGRATION_DATABASE_URL`, `POSTGRES_PASSWORD` e `STAGING_POSTGRES_PASSWORD` em
+backend e worker (o env-file é o mesmo do container do Postgres), então a
+credencial do dono só existe no container `migrate`, que termina logo após
+aplicar as migrations. `check-database-role.js --require-restricted` reprova se
+alguma dessas variáveis estiver preenchida no ambiente da aplicação.
 
 Os GRANTs ficam em `deploy/db/app-role.sql` (idempotente). Ele também define
 `ALTER DEFAULT PRIVILEGES`, então tabelas, sequences e funções criadas por

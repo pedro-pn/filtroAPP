@@ -6,6 +6,8 @@
 // Com --require-restricted, sai com código 1 se o papel for superusuário, puder
 // criar objetos no schema public ou no banco, for dono de tabelas, ou não tiver
 // SELECT/INSERT/UPDATE/DELETE em alguma tabela do schema public.
+// Também reprova se MIGRATION_DATABASE_URL ou a senha do postgres estiverem no
+// ambiente (o Compose zera essas variáveis em backend e worker).
 // Não imprime a URL nem a senha.
 import 'dotenv/config';
 import pg from 'pg';
@@ -21,6 +23,10 @@ if (!connectionString) {
   console.error('DATABASE_URL não definido.');
   process.exit(2);
 }
+
+// Credenciais do dono que não podem estar visíveis no ambiente da API/worker.
+const OWNER_CREDENTIAL_ENV = ['MIGRATION_DATABASE_URL', 'POSTGRES_PASSWORD', 'STAGING_POSTGRES_PASSWORD'];
+const ownerCredentialsInEnvironment = OWNER_CREDENTIAL_ENV.filter(name => Boolean(process.env[name]));
 
 const client = new pg.Client({ connectionString, connectionTimeoutMillis: 10_000 });
 
@@ -70,7 +76,8 @@ try {
     ...classification,
     publicTables: tables,
     tablesMissingGrants: missing.map(row => row.table),
-    sequencesMissingUsage: missingSequences.map(row => row.sequence)
+    sequencesMissingUsage: missingSequences.map(row => row.sequence),
+    ownerCredentialsInEnvironment
   };
   console.log(JSON.stringify(report, null, 2));
 
@@ -80,6 +87,9 @@ try {
     if (report.tablesMissingGrants.length) failures.push(`${report.tablesMissingGrants.length} tabela(s) sem SELECT/INSERT/UPDATE/DELETE`);
     if (report.sequencesMissingUsage.length) failures.push(`${report.sequencesMissingUsage.length} sequence(s) sem USAGE`);
     if (!tables) failures.push('nenhuma tabela visível no schema public');
+    if (ownerCredentialsInEnvironment.length) {
+      failures.push(`credencial do dono visível no ambiente (${ownerCredentialsInEnvironment.join(', ')})`);
+    }
     if (failures.length) {
       console.error(`Papel do banco reprovado: ${failures.join('; ')}.`);
       process.exitCode = 1;
