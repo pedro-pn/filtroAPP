@@ -588,9 +588,21 @@ export function OperationsPage({ preview = false }: { preview?: boolean }) {
                         : 'Ausente'
                     },
                     {
+                      label: 'E-mail',
+                      value: status.alerting.emailRecipientsConfigured
+                        ? `${status.alerting.emailRecipientsConfigured} destinatário(s)`
+                        : 'Ausente'
+                    },
+                    {
                       label: 'Intervalo de verificação',
                       value: duration(status.alerting.intervalMs)
-                    }
+                    },
+                    ...(status.alerting.repeatMs
+                      ? [{
+                          label: 'Repetição do mesmo alerta',
+                          value: duration(status.alerting.repeatMs)
+                        }]
+                      : [])
                   ]}
                 />
               </Card>

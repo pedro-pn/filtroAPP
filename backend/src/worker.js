@@ -21,8 +21,18 @@ process.on('unhandledRejection', reason => {
   reportProcessError(reason instanceof Error ? reason : new Error(String(reason)), 'worker.unhandledRejection');
 });
 
-process.on('uncaughtExceptionMonitor', error => {
-  reportProcessError(error, 'worker.uncaughtException');
+// Com o monitor, o processo caía antes de o alerta sair. Agora o erro é
+// reportado (prazo de 5 s) e só então o processo
+// encerra com código 1, como antes; o Docker reinicia o container.
+const UNCAUGHT_REPORT_TIMEOUT_MS = 5000;
+process.on('uncaughtException', error => {
+  console.error('[worker] exceção não tratada; encerrando.', error);
+  const deadline = new Promise(resolve => setTimeout(resolve, UNCAUGHT_REPORT_TIMEOUT_MS));
+  const report = captureOperationalError(error, {
+    source: 'worker.uncaughtException',
+    context: { process: 'worker' }
+  }).catch(() => null);
+  Promise.race([report, deadline]).finally(() => process.exit(1));
 });
 
 let stopHealthReporter;

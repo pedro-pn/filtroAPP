@@ -8,6 +8,7 @@
     "start": "node src/server.js",
     "start:worker": "node src/worker.js",
     "assets:brand": "node scripts/generate-web-brand-assets.js",
+    "ops:test-alert": "node scripts/send-test-ops-alert.js",
     "performance:report": "node scripts/report-performance.js",
     "performance:http": "node scripts/benchmark-http-performance.js",
     "test": "node --test test/*.test.js",

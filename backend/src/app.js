@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import { Prisma } from '@prisma/client';
 import cors from 'cors';
@@ -270,18 +271,25 @@ app.use((err, req, res, _next) => {
 
   const isProduction = env.nodeEnv === 'production';
   const status = err.status || err.statusCode || 500;
+  const requestId = status >= 500 ? (req.requestId || randomUUID()) : null;
   if (status >= 500) {
+    // O mesmo id vai na resposta, no log e no alerta, para cruzar os três.
+    console.error(`[http-5xx] requestId=${requestId} ${req.method} ${req.path}`);
     captureOperationalError(observableError, {
       source: 'backend.http',
       context: {
         method: req.method,
         path: req.path,
-        statusCode: status
+        statusCode: status,
+        requestId,
+        userId: req.auth?.user?.id ?? null
       }
     }).catch(captureError => {
       console.warn('Falha ao reportar erro HTTP operacional.', captureError);
     });
   }
+  // Vai no cabeçalho (não no corpo) para não alterar o contrato das respostas.
+  if (requestId) res.setHeader('X-Request-Id', requestId);
   res.status(status).json({
     error: status >= 500
       ? (isProduction ? 'Erro interno do servidor.' : observableError.message)

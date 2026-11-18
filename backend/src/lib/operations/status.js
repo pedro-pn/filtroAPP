@@ -453,7 +453,9 @@ export async function getOperationalStatus({
     alerting: {
       enabled: config.operationsAlertJobEnabled,
       webhookConfigured: Boolean(config.operationsAlertWebhookUrl),
-      intervalMs: config.operationsAlertIntervalMs
+      emailRecipientsConfigured: Array.isArray(config.operationsAlertEmails) ? config.operationsAlertEmails.length : 0,
+      intervalMs: config.operationsAlertIntervalMs,
+      repeatMs: config.operationsAlertRepeatMs ?? null
     }
   };
 }

@@ -5,6 +5,7 @@ import os from 'node:os';
 import { Prisma } from '@prisma/client';
 
 import prisma from '../prisma.js';
+import { captureOperationalError } from '../operations/error-tracking.js';
 
 export const JOB_RUN_STATUS = {
   RUNNING: 'RUNNING',
@@ -119,6 +120,25 @@ async function recordSkippedJobRun(name, {
   });
 }
 
+// Avisa a equipe (webhook/e-mail, conforme configurado) sem atrasar nem
+// alterar o fluxo do job: o erro continua sendo relançado para o chamador.
+const DATABASE_UNAVAILABLE_CODES = new Set(['P1001', 'P1002', 'P1017', 'ECONNREFUSED']);
+
+function isDatabaseUnavailableError(error) {
+  return error?.name === 'PrismaClientInitializationError' || DATABASE_UNAVAILABLE_CODES.has(error?.code);
+}
+
+function reportJobFailure(error, { name, logger }) {
+  // Com o banco fora, todos os jobs falham juntos: agrupa num único alerta.
+  const databaseDown = isDatabaseUnavailableError(error);
+  captureOperationalError(error, {
+    source: databaseDown ? 'job.database-unavailable' : `job.${name}`,
+    context: { job: databaseDown ? 'todos' : name }
+  }).catch(captureError => {
+    logger.warn?.('Falha ao reportar erro de job.', captureError?.message || captureError);
+  });
+}
+
 export async function runTrackedJob(name, runFn, {
   prismaClient = prisma,
   metadata = null,
@@ -127,7 +147,8 @@ export async function runTrackedJob(name, runFn, {
   recordSkipped = true,
   logger = console,
   nowFn,
-  hasWork
+  hasWork,
+  reportFailure = reportJobFailure
 } = {}) {
   if (!name) throw new TypeError('Job name is required.');
   if (typeof runFn !== 'function') throw new TypeError('Job runner must be a function.');
@@ -213,6 +234,7 @@ export async function runTrackedJob(name, runFn, {
         logger.error('Falha ao registrar execução de job com erro.', updateError);
       });
     }
+    reportFailure(error, { name, logger });
     if (!run && hasWork) {
       await prismaClient.jobRun.create({ data: { name, status: JOB_RUN_STATUS.FAILED, startedAt, finishedAt,
         durationMs: durationMs(startedAt, finishedAt), metadata: jsonValue(metadata), error: jobErrorText(error) } })
