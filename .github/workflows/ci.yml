@@ -297,13 +297,18 @@ jobs:
           test/integration-omni-status-batch.test.js
           test/acompanhamento-current-progress.test.js
           test/acompanhamento-detail-performance.integration.test.js
-          test/acompanhamento-financial-permissions.integration.test.js
-          test/acompanhamento-project-card-name.integration.test.js
           test/jobs-performance.integration.test.js
           test/api-simulation-db.test.js
 
       - name: Verify labor source parity and freshness on PostgreSQL
         run: node --test test/acompanhamento-labor-performance.integration.test.js
+
+      # Passo separado: escritas concorrentes no mesmo banco mudam a versão derivada
+      # do cache e quebram a contagem de leituras de acompanhamento-detail-performance.
+      - name: Verify Acompanhamento financial permissions and project card names
+        run: >-
+          node --test test/acompanhamento-financial-permissions.integration.test.js
+          test/acompanhamento-project-card-name.integration.test.js
 
   http-performance:
     name: HTTP performance contracts (PostgreSQL)

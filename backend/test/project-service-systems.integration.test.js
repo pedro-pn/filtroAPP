@@ -102,7 +102,7 @@ test('project systems HTTP + PostgreSQL: scope, all UGs, permissions, aliases, h
   const unitSystem = unitSaved.data.services[0].systems.at(-1);
   assert.equal(unitSystem.unit, 'UN');
   const suggestion = (await request(suggestionsPath, 'GET', undefined, tokens[1])).data.find(item => item.id === unitSystem.projectSystemId);
-  assert.deepEqual(suggestion.measurements, [{ serviceType: 'LIMPEZA_QUIMICA', systemType: 'SISTEMA' }]);
+  assert.deepEqual(suggestion.measurements, [{ serviceType: 'LIMPEZA_QUIMICA', systemType: 'SISTEMA', unit: 'UN' }]);
   assert.equal(suggestion.measurements[0].quantity, undefined); // suggestion cannot imply execution of the planned total
   const unitsCsv = 'Relatorio;Numero;Data;Servico;Equipamento do cliente;Sistema;Diametro;Quantidade;Unidade\nRLQ;20;08/01/2026;Limpeza;Unidade Geradora 02;Mancal de escora;;1;UN';
   const unitsPreview = await request(`${historyBase}/preview`, 'POST', { csv: unitsCsv });
