@@ -21,20 +21,21 @@ import { previewDataRetention, runDataRetention } from '../src/lib/data-retentio
 
 const NOW = new Date('2026-11-18T12:00:00.000Z');
 
-function collaboratorTx({ collaborator, aggregates = [] }) {
+function collaboratorTx({ collaborator, aggregates = [], hold = null }) {
   const calls = [];
   const record = model => new Proxy({}, {
     get: (_target, action) => async args => {
       calls.push([model, action, args]);
       if (model === 'collaborator' && action === 'findFirst') return collaborator;
       if (model === 'conectaRhAggregate' && action === 'findMany') return aggregates;
+      if (model === 'dataRetentionHold' && action === 'findUnique') return hold;
       if (action === 'deleteMany' || action === 'updateMany') return { count: 2 };
       return {};
     }
   });
   const tx = {};
   for (const model of ['collaborator', 'collaboratorAbsence', 'pontoNameAlias', 'pontoExternalEmployeeLink',
-    'pontoPeriodSummary', 'conectaRhAggregate']) tx[model] = record(model);
+    'pontoPeriodSummary', 'conectaRhAggregate', 'dataRetentionHold']) tx[model] = record(model);
   return { tx, calls };
 }
 
@@ -42,8 +43,9 @@ test('cutoff is 5 calendar years and only inactive, terminated, unheld, not yet 
   const cutoff = collaboratorRetentionCutoff(NOW);
   assert.equal(cutoff.toISOString(), '2021-11-18T12:00:00.000Z');
   assert.deepEqual(collaboratorRetentionWhere(cutoff), {
-    isActive: false, retentionHold: false, privacyAnonymizedAt: null, terminationDate: { lt: cutoff }
+    isActive: false, privacyAnonymizedAt: null, terminationDate: { lt: cutoff }
   });
+  assert.deepEqual(collaboratorRetentionWhere(cutoff, ['held']).id, { notIn: ['held'] });
 });
 
 test('collaborator with EPI or RDO history keeps name/CPF but loses contacts, signature, absences and RH payloads', async () => {
@@ -68,8 +70,9 @@ test('collaborator with EPI or RDO history keeps name/CPF but loses contacts, si
   assert.deepEqual(update.data, { email: null, efetivoNote: null, signatureImage: null, privacyAnonymizedAt: NOW });
   assert.equal(calls.some(([model]) => model === 'pontoPeriodSummary'), false);
   const eligibility = calls.find(([model, action]) => model === 'collaborator' && action === 'findFirst')[2].where;
-  assert.equal(eligibility.retentionHold, false);
   assert.equal(eligibility.isActive, false);
+  const holdCheck = calls.find(([model]) => model === 'dataRetentionHold')[2].where;
+  assert.deepEqual(holdCheck, { kind_targetId: { kind: 'COLLABORATOR', targetId: 'c1' } });
 
   const redacted = calls.filter(([model, action]) => model === 'conectaRhAggregate' && action === 'update').map(call => call[2]);
   assert.deepEqual(redacted.map(item => item.where.id), ['a1', 'a2']);
@@ -96,10 +99,16 @@ test('collaborator without long-retention records is fully pseudonymized, ponto 
     registrationNumber: null, externalEmployeeId: null });
 });
 
-test('a collaborator that is no longer eligible (hold, reactivated, already done) is left untouched', async () => {
-  const { tx, calls } = collaboratorTx({ collaborator: null });
-  assert.equal(await anonymizeCollaborator(tx, 'c3', { now: NOW }), null);
-  assert.deepEqual(calls.map(([model, action]) => `${model}.${action}`), ['collaborator.findFirst']);
+test('a collaborator that is no longer eligible (reactivated, already done) or got a hold meanwhile is left untouched', async () => {
+  const gone = collaboratorTx({ collaborator: null });
+  assert.equal(await anonymizeCollaborator(gone.tx, 'c3', { now: NOW }), null);
+  assert.deepEqual(gone.calls.map(([model, action]) => `${model}.${action}`), ['collaborator.findFirst']);
+
+  const held = collaboratorTx({
+    collaborator: { id: 'c4', code: 'C-4', conectaPerson: null, _count: {} }, hold: { id: 'h1' }
+  });
+  assert.equal(await anonymizeCollaborator(held.tx, 'c4', { now: NOW }), null);
+  assert.equal(held.calls.some(([model, action]) => model === 'collaborator' && action === 'update'), false);
 });
 
 test('redaction keeps only identifiers and employment state', () => {
@@ -123,6 +132,7 @@ test('collaborator retention runs one transaction per collaborator and totals th
     pontoNameAlias: { deleteMany: async () => ({ count: 0 }) },
     pontoExternalEmployeeLink: { deleteMany: async () => ({ count: 0 }) },
     pontoPeriodSummary: { updateMany: async () => ({ count: 5 }) },
+    dataRetentionHold: { findMany: async () => [], findUnique: async () => null },
     $transaction: async callback => callback(prismaClient)
   };
   let locks = 0;
@@ -133,14 +143,17 @@ test('collaborator retention runs one transaction per collaborator and totals th
 });
 
 test('collaborator preview returns counts and ids only', async () => {
-  const prismaClient = { collaborator: {
-    count: async ({ where }) => where.terminationDate === null ? 7 : (where.retentionHold ? 0 : 2),
-    findMany: async ({ select }) => { assert.deepEqual(select, { id: true, code: true }); return [{ id: 'c1', code: 'C-1' }]; }
-  } };
+  const prismaClient = {
+    collaborator: {
+      count: async ({ where }) => (where.terminationDate === null ? 7 : 2),
+      findMany: async ({ select }) => { assert.deepEqual(select, { id: true, code: true }); return [{ id: 'c1', code: 'C-1' }]; }
+    },
+    dataRetentionHold: { findMany: async () => [{ targetId: 'held-1' }] }
+  };
   assert.deepEqual(await previewCollaboratorRetention({ prismaClient, now: NOW }), {
     collaboratorAnonymizeBefore: '2021-11-18T12:00:00.000Z', collaboratorsToAnonymize: 2,
     collaboratorsToAnonymizeSample: [{ id: 'c1', code: 'C-1' }], inactiveCollaboratorsWithoutTerminationDate: 7,
-    collaboratorsOnRetentionHold: 0
+    collaboratorsOnRetentionHold: 1
   });
 });
 
@@ -177,7 +190,7 @@ function emptyRetentionClient(extra = {}) {
   const client = {
     userSession: emptyModel(), passwordResetToken: emptyModel(), reportAuditLog: emptyModel(),
     epiSignatureRequestAuditLog: emptyModel(), satisfactionSurvey: emptyModel(), reportDraft: emptyModel(),
-    collaborator: emptyModel(), jobRun: emptyModel(),
+    collaborator: emptyModel(), jobRun: emptyModel(), dataRetentionHold: emptyModel(),
     dataRetentionRun: { create: async args => { client.audit.push(args); return { id: 'run' }; },
       update: async args => { client.audit.push(args); } },
     audit: [],

@@ -26,6 +26,7 @@ test('retenção LGPD anonimiza desligado há mais de 5 anos e respeita exceçã
     await prisma.conectaRhAggregate.deleteMany({ where: { companyId } });
     await prisma.conectaRhPerson.deleteMany({ where: { companyId } });
     await prisma.collaboratorAbsence.deleteMany({ where: { collaboratorId: { in: ids.collaborators } } });
+    await prisma.dataRetentionHold.deleteMany({ where: { targetId: { in: ids.collaborators } } });
     await prisma.collaborator.deleteMany({ where: { id: { in: ids.collaborators } } });
     await prisma.jobRole.deleteMany({ where: { name: `Cargo LGPD ${suffix}` } });
     await prisma.$disconnect();
@@ -41,7 +42,8 @@ test('retenção LGPD anonimiza desligado há mais de 5 anos e respeita exceçã
     return collaborator;
   };
   const target = await make('alvo', { isActive: false, terminationDate: longAgo });
-  const held = await make('excecao', { isActive: false, terminationDate: longAgo, retentionHold: true, retentionHoldReason: 'processo' });
+  const held = await make('excecao', { isActive: false, terminationDate: longAgo });
+  await prisma.dataRetentionHold.create({ data: { kind: 'COLLABORATOR', targetId: held.id, reason: 'processo' } });
   const recentlyTerminated = await make('recente', { isActive: false, terminationDate: recent });
   const active = await make('ativo', { isActive: true, terminationDate: longAgo });
 

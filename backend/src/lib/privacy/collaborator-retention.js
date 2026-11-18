@@ -10,11 +10,12 @@
 //     registro com guarda mais longa (fichas/solicitações de EPI — 20 anos — ou
 //     RDO). Sem esses vínculos, viram "Colaborador anonimizado <código>".
 // Salário não é dado individual aqui: o Conecta envia salário por cargo.
-// Colaboradores com retentionHold, ativos ou sem data de desligamento nunca são
-// tocados (os sem data aparecem só na contagem da simulação).
+// Colaboradores com exceção (DataRetentionHold kind COLLABORATOR), ativos ou sem
+// data de desligamento nunca são tocados (os sem data aparecem só na simulação).
 
 export const COLLABORATOR_RETENTION_YEARS = 5;
 export const ANONYMIZED_COLLABORATOR_PREFIX = 'Colaborador anonimizado';
+export const COLLABORATOR_HOLD_KIND = 'COLLABORATOR';
 const CONECTA_PERSON_AGGREGATES = ['employment', 'compliance'];
 
 export function collaboratorRetentionCutoff(now = new Date(), years = COLLABORATOR_RETENTION_YEARS) {
@@ -23,13 +24,20 @@ export function collaboratorRetentionCutoff(now = new Date(), years = COLLABORAT
   return cutoff;
 }
 
-export function collaboratorRetentionWhere(cutoff) {
+export function collaboratorRetentionWhere(cutoff, heldIds = []) {
   return {
     isActive: false,
-    retentionHold: false,
     privacyAnonymizedAt: null,
-    terminationDate: { lt: cutoff }
+    terminationDate: { lt: cutoff },
+    ...(heldIds.length ? { id: { notIn: heldIds } } : {})
   };
+}
+
+export async function heldCollaboratorIds(prismaClient) {
+  const holds = await prismaClient.dataRetentionHold.findMany({
+    where: { kind: COLLABORATOR_HOLD_KIND }, select: { targetId: true }
+  });
+  return holds.map(hold => hold.targetId);
 }
 
 export function anonymizedCollaboratorName(code) {
@@ -64,15 +72,16 @@ export function redactConectaAggregateData(aggregateType, data, now = new Date()
 
 export async function previewCollaboratorRetention({ prismaClient, now = new Date(), sampleLimit = 20 }) {
   const cutoff = collaboratorRetentionCutoff(now);
-  const where = collaboratorRetentionWhere(cutoff);
-  const [eligible, sample, inactiveWithoutTerminationDate, onHold] = await Promise.all([
+  const heldIds = await heldCollaboratorIds(prismaClient);
+  const where = collaboratorRetentionWhere(cutoff, heldIds);
+  const [eligible, sample, inactiveWithoutTerminationDate] = await Promise.all([
     prismaClient.collaborator.count({ where }),
     prismaClient.collaborator.findMany({
       where, orderBy: { terminationDate: 'asc' }, take: sampleLimit, select: { id: true, code: true }
     }),
-    prismaClient.collaborator.count({ where: { isActive: false, terminationDate: null, privacyAnonymizedAt: null } }),
-    prismaClient.collaborator.count({ where: { ...where, retentionHold: true } })
+    prismaClient.collaborator.count({ where: { isActive: false, terminationDate: null, privacyAnonymizedAt: null } })
   ]);
+  const onHold = heldIds.length;
   return {
     collaboratorAnonymizeBefore: cutoff.toISOString(),
     collaboratorsToAnonymize: eligible,
@@ -95,6 +104,11 @@ export async function anonymizeCollaborator(tx, collaboratorId, { now = new Date
     }
   });
   if (!collaborator) return null;
+  // Exceção marcada depois da seleção vence (lida dentro da mesma transação).
+  const hold = await tx.dataRetentionHold.findUnique({
+    where: { kind_targetId: { kind: COLLABORATOR_HOLD_KIND, targetId: collaborator.id } }, select: { id: true }
+  });
+  if (hold) return null;
 
   const links = collaborator._count || {};
   const keepIdentity = (links.epiRecords || 0) + (links.epiSignatureRequests || 0) + (links.reportLinks || 0) > 0;
@@ -159,8 +173,9 @@ export async function runCollaboratorRetention({
   onlyIds = null
 }) {
   const cutoff = collaboratorRetentionCutoff(now);
+  const baseWhere = collaboratorRetentionWhere(cutoff, await heldCollaboratorIds(prismaClient));
   // onlyIds restringe a execução (testes de integração em banco compartilhado).
-  const where = onlyIds ? { AND: [collaboratorRetentionWhere(cutoff), { id: { in: onlyIds } }] } : collaboratorRetentionWhere(cutoff);
+  const where = onlyIds ? { AND: [baseWhere, { id: { in: onlyIds } }] } : baseWhere;
   const totals = {
     collaboratorsAnonymized: 0,
     collaboratorsIdentityKept: 0,

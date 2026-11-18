@@ -1,5 +1,16 @@
--- LGPD: marca de anonimização por retenção e exceção (legal hold) por colaborador.
+-- LGPD: marca de anonimização por retenção e exceções (legal hold) em tabela própria.
 ALTER TABLE "Collaborator" ADD COLUMN "privacyAnonymizedAt" TIMESTAMP(3);
-ALTER TABLE "Collaborator" ADD COLUMN "retentionHold" BOOLEAN NOT NULL DEFAULT false;
-ALTER TABLE "Collaborator" ADD COLUMN "retentionHoldReason" TEXT;
-ALTER TABLE "Collaborator" ADD COLUMN "retentionHoldSetAt" TIMESTAMP(3);
+
+CREATE TABLE "DataRetentionHold" (
+    "id" TEXT NOT NULL,
+    "kind" TEXT NOT NULL,
+    "targetId" TEXT NOT NULL,
+    "reason" TEXT NOT NULL,
+    "setByUserId" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "DataRetentionHold_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX "DataRetentionHold_kind_targetId_key" ON "DataRetentionHold"("kind", "targetId");

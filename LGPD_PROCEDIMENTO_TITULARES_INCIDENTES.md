@@ -56,8 +56,8 @@ Registrar evidência da ação executada: data, responsável, comando/rotina usa
 Retenção automática (independe de pedido): colaboradores desligados há mais de 5 anos são anonimizados pelo job de
 retenção (`COLLABORATOR_RETENTION_ENABLED`), e respostas de pesquisa com mais de 2 anos perdem e-mail e texto livre
 (`SURVEY_RESPONSE_RETENTION_ENABLED`). Se houver processo, fiscalização ou pedido de preservação envolvendo um
-colaborador, marcar a exceção antes do prazo (`Collaborator.retentionHold = true`, com motivo em
-`retentionHoldReason`); a rotina não toca colaboradores marcados. Cada execução fica registrada em `DataRetentionRun`.
+colaborador, marcar a exceção antes do prazo (registro em `DataRetentionHold`, com o motivo); a rotina não toca
+colaboradores marcados. Cada execução fica registrada em `DataRetentionRun`.
 
 ## 2. Incidentes de segurança com dados pessoais
 

@@ -614,10 +614,6 @@ model Collaborator {
   rdoCostSimulationExcluded      Boolean                          @default(false)
   // LGPD: anonimização 5 anos após o desligamento (lib/privacy/collaborator-retention.js).
   privacyAnonymizedAt            DateTime?
-  // Exceção (ex.: processo trabalhista): a rotina de retenção não toca o colaborador.
-  retentionHold                  Boolean                          @default(false)
-  retentionHoldReason            String?
-  retentionHoldSetAt             DateTime?
   createdAt                      DateTime                         @default(now())
   updatedAt                      DateTime                         @updatedAt
   projectsLed                    Project[]                        @relation("ProjectOperator")
@@ -3644,6 +3640,20 @@ model DataRetentionRun {
 
   @@index([status, startedAt])
   @@index([startedAt])
+}
+
+// Exceções (legal hold) da retenção LGPD: o job nunca toca o alvo listado aqui.
+// Tabela própria para o motivo não sair em respostas genéricas de projeto/colaborador.
+model DataRetentionHold {
+  id          String   @id @default(cuid())
+  kind        String // COLLABORATOR | PROJECT
+  targetId    String
+  reason      String
+  setByUserId String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([kind, targetId])
 }
 
 model JobRun {
