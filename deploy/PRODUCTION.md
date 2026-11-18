@@ -456,6 +456,29 @@ use:
 docker compose -f docker-compose.prod.yml exec backend npm run audit:report-files -- --fail-on-missing
 ```
 
+## Saúde do backend e chamadas externas
+
+`GET /health` (healthcheck do Docker do `backend` e rota pública via nginx)
+executa `SELECT 1` no banco com prazo de `HEALTH_DB_TIMEOUT_MS` (padrão 2000 ms)
+e responde:
+
+- `200 {"ok":true,"database":"ok","version":"<sha>"}` com o banco respondendo;
+- `503 {"ok":false,"database":"unavailable"|"timeout","version":"<sha>"}` quando
+  o banco não responde. Depois de 10 falhas seguidas (intervalo de 15 s) o
+  container fica `unhealthy` em `docker compose ps`.
+
+`version` vem de `APP_GIT_SHA` gravado na imagem (ou `unknown`). O resultado é
+reaproveitado por 2 s, para que chamadas repetidas à rota pública não virem
+carga no banco.
+
+Chamadas a serviços externos têm prazo máximo: Omie (`OMIE_TIMEOUT_MS`, padrão
+30000, com até 2 novas tentativas em falha de rede, tempo esgotado ou
+502/503/504), ZapSign (`ZAPSIGN_TIMEOUT_MS`, padrão 30000, novas tentativas só
+em GET/downloads) e imagens remotas do PDF de relatório
+(`REMOTE_IMAGE_TIMEOUT_MS`, padrão 15000; sem resposta, o PDF sai sem a
+imagem). Conecta RH, ComercialAPP, PontoMais, OpenAI e o token OAuth2 do SMTP
+já tinham prazo próprio.
+
 ## Observabilidade operacional
 
 O backend expõe `GET /api/operations/status` para administradores. O endpoint

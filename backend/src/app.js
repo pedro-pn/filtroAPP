@@ -14,6 +14,7 @@ import { equipmentAttachmentFileName, inlineContentDisposition, resolvePublicEqu
 import prisma from './lib/prisma.js';
 import { buildPublicQrPage, resolveQrDownload } from './lib/equipamentos/qr-link.js';
 import { captureOperationalError } from './lib/operations/error-tracking.js';
+import { checkHealth } from './lib/operations/health.js';
 import { resolvePublicStockAttachment, stockAttachmentFileName } from './lib/estoque/stock-attachments.js';
 import { qualityAttachmentFileName, resolvePublicQualityAttachment } from './lib/qualidade/attachments.js';
 import { localizedZodErrorDetails, localizedZodIssues } from './lib/zod-error.js';
@@ -216,9 +217,14 @@ app.get('/api/qualidade-anexos/:token', asyncHandler(async (req, res) => {
 app.get('/relatorios/*storedFilePath', requireAuth, asyncHandler(serveAuthorizedStoredFile));
 app.get('/uploads/*storedFilePath', requireAuth, asyncHandler(serveAuthorizedStoredFile));
 
-app.get('/health', (_req, res) => {
-  res.json({ ok: true });
-});
+// Responde 503 quando o banco não responde em HEALTH_DB_TIMEOUT_MS, para que o
+// healthcheck do Docker marque o container como unhealthy. `version` é o SHA
+// do commit da imagem (APP_GIT_SHA).
+app.get('/health', asyncHandler(async (_req, res) => {
+  const health = await checkHealth();
+  res.setHeader('Cache-Control', 'no-store');
+  res.status(health.ok ? 200 : 503).json(health);
+}));
 
 app.use('/api', apiRouter);
 
