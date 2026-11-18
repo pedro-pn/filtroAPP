@@ -11,6 +11,7 @@ import {
   reportPdfAttachmentOrder, reportPdfAttachmentOrderSchema, reportPdfAttachmentPath, reportPdfAttachmentSchema,
   reportPdfAttachmentSelect, validateReportPdfAttachment
 } from '../../lib/reports/pdf-attachments.js';
+import { expensiveRouteLimit } from '../../lib/rate-limit.js';
 
 export function registerReportPdfAttachmentRoutes(router, { database, uploadDir, isUnavailable, sendDownloadBuffer }) {
   const access = [requireAuth, requireModuleRole(...RDO_ACCESS_ROLES), requireRdoReviewer];
@@ -43,7 +44,7 @@ export function registerReportPdfAttachmentRoutes(router, { database, uploadDir,
     }));
   }));
 
-  router.post('/:id/pdf-attachments', ...access, asyncHandler(async (req, res) => {
+  router.post('/:id/pdf-attachments', ...access, ...expensiveRouteLimit('upload'), asyncHandler(async (req, res) => {
     if (!await accessibleReport(database, req, res)) return;
     const data = reportPdfAttachmentSchema.parse(req.body);
     const { bytes, pageCount } = await validateReportPdfAttachment(data.pdfDataUrl);
@@ -101,7 +102,7 @@ export function registerReportPdfAttachmentRoutes(router, { database, uploadDir,
     if (ordered) res.json(ordered);
   }));
 
-  router.get('/:id/pdf-attachments/:attachmentId/pdf', ...access, asyncHandler(async (req, res) => {
+  router.get('/:id/pdf-attachments/:attachmentId/pdf', ...access, ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
     if (!await accessibleReport(database, req, res)) return;
     const attachment = await database.reportPdfAttachment.findFirst({
       where: { id: req.params.attachmentId, reportId: req.params.id }

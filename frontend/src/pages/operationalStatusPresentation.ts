@@ -46,7 +46,10 @@ const STATUS_PRESENTATION: Record<
   SEM_EXECUCAO: { label: 'Sem execução', tone: 'neutral' },
   SEM_RECEBIMENTO: { label: 'Sem recebimento', tone: 'neutral' },
   DISABLED: { label: 'Desativado', tone: 'neutral' },
-  UNKNOWN: { label: 'Desconhecido', tone: 'neutral' }
+  UNKNOWN: { label: 'Desconhecido', tone: 'neutral' },
+  OK: { label: 'Normal', tone: 'success' },
+  ALERT: { label: 'Uso fora do normal', tone: 'danger' },
+  UNAVAILABLE: { label: 'Indisponível', tone: 'neutral' }
 };
 
 export function operationalStatusLabel(status: string) {

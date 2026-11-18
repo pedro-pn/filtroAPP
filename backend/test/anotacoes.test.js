@@ -7,7 +7,7 @@ import test from 'node:test';
 import OpenAI from 'openai';
 
 process.env.OPENAI_API_KEY = '';
-const { adequarAnotacao, limparCacheAdequacao, traduzirErro, MAX_CARACTERES } = await import('../src/lib/anotacoes/adequar.js');
+const { adequarAnotacao, definirOrcamentoOpenAi, limparCacheAdequacao, traduzirErro, MAX_CARACTERES } = await import('../src/lib/anotacoes/adequar.js');
 const { ARQUIVO_EXEMPLOS, ARQUIVO_INSTRUCOES, REGRAS_DO_SISTEMA, montarInstrucoes } = await import('../src/lib/anotacoes/instrucoes.js');
 const { problemasDeFormato, verificarAderencia } = await import('../src/lib/anotacoes/aderencia.js');
 const { createAnotacoesRouter } = await import('../src/routes/resources/anotacoes.js');
@@ -38,7 +38,36 @@ function instanciaDe(Classe, props = {}) {
   return Object.assign(Object.create(Classe.prototype), props);
 }
 
-test.beforeEach(() => limparCacheAdequacao());
+// Orçamento falso (sem banco): registra reservas e tokens para as asserções.
+const orcamentoFalso = { reservas: [], tokens: [], bloquear: null };
+test.beforeEach(() => {
+  limparCacheAdequacao();
+  orcamentoFalso.reservas = [];
+  orcamentoFalso.tokens = [];
+  orcamentoFalso.bloquear = null;
+  definirOrcamentoOpenAi({
+    reservar: async ({ userId }) => {
+      if (orcamentoFalso.bloquear) throw orcamentoFalso.bloquear;
+      orcamentoFalso.reservas.push(userId);
+    },
+    registrar: async ({ tokens }) => { orcamentoFalso.tokens.push(tokens); }
+  });
+});
+
+test('orçamento: chamada real reserva antes e soma entrada + saída depois; cache não gasta', async () => {
+  const openai = openaiFalso(() => respostaFalsa('Texto.'));
+  await adequarAnotacao('texto para orçar', { usuarioId: 'u9', openai });
+  await adequarAnotacao('texto para orçar', { usuarioId: 'u9', openai });
+  assert.deepEqual(orcamentoFalso.reservas, ['u9']);
+  assert.deepEqual(orcamentoFalso.tokens, [1020]);
+});
+
+test('orçamento: teto atingido devolve 429 com código e não chama a OpenAI', async () => {
+  orcamentoFalso.bloquear = Object.assign(new Error('O limite diário de uso da adequação por IA foi atingido.'), { status: 429, codigo: 'ORCAMENTO_DIARIO' });
+  const openai = openaiFalso(() => assert.fail('não deveria chamar'));
+  await assert.rejects(adequarAnotacao('qualquer', { usuarioId: 'u1', openai }), e => e.status === 429 && e.codigo === 'ORCAMENTO_DIARIO');
+  assert.equal(openai.chamadas.length, 0);
+});
 
 test('instruções: arquivo do GPT personalizado na íntegra + exemplos + regras do sistema, nessa ordem', () => {
   const instrucoes = montarInstrucoes();

@@ -22,11 +22,11 @@ export function createAnotacoesRouter({
   authenticate = requireAuth,
   adequar = adequarAnotacao,
   configurada = adequacaoConfigurada,
+  // Rajada por minuto em memória. O limite diário por usuário e o teto global de
+  // tokens ficam no banco (lib/abuse/openai-budget.js) e sobrevivem a deploys.
   limites = [
-    createMemoryRateLimit({ windowMs: 60 * 1000, max: 10, keyGenerator: porUsuario,
-      message: 'Muitas adequações em sequência. Aguarde um minuto e tente novamente.' }),
-    createMemoryRateLimit({ windowMs: 24 * 60 * 60 * 1000, max: 100, keyGenerator: porUsuario,
-      message: 'Limite diário de adequações atingido. Tente novamente amanhã.' })
+    createMemoryRateLimit({ name: 'anotacoes-minuto', windowMs: 60 * 1000, max: 10, keyGenerator: porUsuario,
+      message: 'Muitas adequações em sequência. Aguarde um minuto e tente novamente.' })
   ]
 } = {}) {
   const router = Router();

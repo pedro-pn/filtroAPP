@@ -5,6 +5,8 @@ import env from './config/env.js';
 import { captureOperationalError } from './lib/operations/error-tracking.js';
 import prisma from './lib/prisma.js';
 import { startWorkforceVisibilityRefresh } from './lib/collaborators/workforce-visibility.js';
+import { recordRateLimitHit, startAbuseMonitor } from './lib/abuse/monitor.js';
+import { setRateLimitObserver } from './lib/rate-limit.js';
 
 const server = http.createServer(app);
 
@@ -49,6 +51,11 @@ server.on('error', (error) => {
 
 const stopWorkforceVisibilityRefresh = await startWorkforceVisibilityRefresh(prisma);
 server.once('close', stopWorkforceVisibilityRefresh);
+// Detecção de abuso (pilar 10.3): bloqueios 429 e falhas de login vão para um
+// buffer que é gravado no banco em lote e comparado com os limites de alerta.
+setRateLimitObserver(recordRateLimitHit);
+const stopAbuseMonitor = startAbuseMonitor();
+server.once('close', stopAbuseMonitor);
 server.listen(env.port, () => {
   console.log(`API running on http://localhost:${env.port}`);
   if (!env.surveyTokenSecret) {

@@ -38,6 +38,7 @@ import {
 import { saveRomaneioDocx } from '../../lib/romaneio-docx.js';
 import { convertDocxToPdf } from '../../lib/report-pdf-from-docx.js';
 import { requireAuth, requireModuleRole } from '../../middleware/auth.js';
+import { expensiveRouteLimit } from '../../lib/rate-limit.js';
 
 const router = Router();
 const ROMANEIO_DRAFT_MODULE = 'romaneio';
@@ -1106,7 +1107,7 @@ router.delete('/drafts/:id', requireAuth, requireRomaneioAccess, asyncHandler(as
   res.status(204).end();
 }));
 
-router.get('/catalog/pdf', requireAuth, requireRomaneioAccess, asyncHandler(async (_req, res) => {
+router.get('/catalog/pdf', requireAuth, requireRomaneioAccess, ...expensiveRouteLimit('document'), asyncHandler(async (_req, res) => {
   await ensureRomaneioCatalogSynced();
   const items = await prisma.romaneioCatalogItem.findMany({
     where: { isActive: true },
@@ -1284,7 +1285,7 @@ async function sendConsolidatedChecklistPdf(res, romaneio) {
   return sendRomaneioStoredFile(res, current, 'checklistPdfUrl', 'application/pdf', 'pdf');
 }
 
-router.get('/:id/checklist/pdf', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
+router.get('/:id/checklist/pdf', requireAuth, requireRomaneioAccess, ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
   const romaneio = await prisma.romaneio.findFirstOrThrow({
     where: visibleRomaneioWhere({ id: req.params.id }, req.auth.user),
     ...selectedFields()
@@ -1292,7 +1293,7 @@ router.get('/:id/checklist/pdf', requireAuth, requireRomaneioAccess, asyncHandle
   return sendConsolidatedChecklistPdf(res, romaneio);
 }));
 
-router.get('/:id/checklists/:checklistId/pdf', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
+router.get('/:id/checklists/:checklistId/pdf', requireAuth, requireRomaneioAccess, ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
   const romaneio = await prisma.romaneio.findFirstOrThrow({
     where: visibleRomaneioWhere({ id: req.params.id }, req.auth.user),
     ...selectedFields()
@@ -1302,7 +1303,7 @@ router.get('/:id/checklists/:checklistId/pdf', requireAuth, requireRomaneioAcces
   return sendConsolidatedChecklistPdf(res, romaneio);
 }));
 
-router.get('/:id/pdf', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
+router.get('/:id/pdf', requireAuth, requireRomaneioAccess, ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
   const item = await prisma.romaneio.findFirstOrThrow({
     where: visibleRomaneioWhere({ id: req.params.id }, req.auth.user),
     ...selectedFields()
@@ -1310,7 +1311,7 @@ router.get('/:id/pdf', requireAuth, requireRomaneioAccess, asyncHandler(async (r
   return sendRomaneioStoredFile(res, item, 'pdfUrl', 'application/pdf', 'pdf');
 }));
 
-router.get('/:id/docx', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
+router.get('/:id/docx', requireAuth, requireRomaneioAccess, ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
   const item = await prisma.romaneio.findFirstOrThrow({
     where: visibleRomaneioWhere({ id: req.params.id }, req.auth.user),
     ...selectedFields()

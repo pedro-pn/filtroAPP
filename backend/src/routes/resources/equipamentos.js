@@ -25,6 +25,7 @@ import { maintenanceConfigSchema, maintenanceProfileSchema, maintenanceRecordInc
 import { serializeMaintenanceAttachment } from '../../lib/operational-reports/maintenance-attachments.js';
 import { hasModuleRole } from '../../lib/module-roles.js';
 import { removeEquipmentDocument } from '../../lib/equipment-attachments.js';
+import { expensiveRouteLimit } from '../../lib/rate-limit.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -1040,7 +1041,7 @@ router.get('/:id/documents', asyncHandler(async (req, res) => {
   res.json(documents.map(serializeEquipmentAttachment));
 }));
 
-router.post('/:id/documents', requireEquipamentosManager, asyncHandler(async (req, res) => {
+router.post('/:id/documents', requireEquipamentosManager, ...expensiveRouteLimit('upload'), asyncHandler(async (req, res) => {
   const upload = pdfUploadSchema.unwrap().unwrap().parse(req.body);
   const equipment = await prisma.companyEquipment.findUnique({ where: { id: req.params.id }, include: { category: true } });
   if (!equipment?.isActive) return res.status(404).json({ error: 'Equipamento não encontrado.' });
@@ -1067,6 +1068,7 @@ router.delete('/:id/documents/:documentId', requireEquipamentosManager, asyncHan
 router.post(
   '/:id/technical-doc',
   requireEquipamentosManager,
+  ...expensiveRouteLimit('generation'),
   asyncHandler(async (req, res) => {
     const equipment = await prisma.companyEquipment.findUnique({
       where: { id: req.params.id },
@@ -1197,6 +1199,7 @@ router.put(
 router.post(
   '/:id/operation-manual/pdf',
   requireEquipamentosManager,
+  ...expensiveRouteLimit('generation'),
   asyncHandler(async (req, res) => {
     const equipment = await prisma.companyEquipment.findUnique({
       where: { id: req.params.id },

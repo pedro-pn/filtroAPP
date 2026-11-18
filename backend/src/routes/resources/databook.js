@@ -16,6 +16,7 @@ import {
 } from '../../lib/databook/service.js';
 import { pdfDaPrevia } from '../../lib/databook/previas.js';
 import { requireAuth, requireModuleRole } from '../../middleware/auth.js';
+import { expensiveRouteLimit } from '../../lib/rate-limit.js';
 
 // Data Book do projeto: gestor e coordenador do RDO (abas Projetos e Arquivados).
 export const DATABOOK_ROLES = ['rdo:manager', 'rdo:coordinator'];
@@ -57,14 +58,14 @@ export function createDatabookRouter({ authenticate = requireAuth, servicos = se
     }, req.auth.user));
   }));
 
-  router.get('/previas/:id/pdf', asyncHandler(async (req, res) => {
+  router.get('/previas/:id/pdf', ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
     const arquivo = await s.pdfDaPrevia(req.params.id, req.auth.user);
     res.setHeader('Cache-Control', 'no-store');
     // O caminho já foi validado e autorizado ao autor; a pasta das prévias é oculta.
     res.type('pdf').sendFile(arquivo, { dotfiles: 'allow' });
   }));
 
-  router.post('/projects/:projectId/gerar', asyncHandler(async (req, res) => {
+  router.post('/projects/:projectId/gerar', ...expensiveRouteLimit('generation'), asyncHandler(async (req, res) => {
     const revisao = await s.solicitarGeracao(req.params.projectId, {
       ...intervalo(req.body),
       edicoes: req.body?.edicoes,
@@ -83,7 +84,7 @@ export function createDatabookRouter({ authenticate = requireAuth, servicos = se
     res.json(await s.prepararEdicao(req.params.id));
   }));
 
-  router.get('/revisoes/:id/pdf', asyncHandler(async (req, res) => {
+  router.get('/revisoes/:id/pdf', ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
     const revisao = await s.obterRevisao(req.params.id);
     res.download(caminhoDoPdf(revisao), nomeDoArquivo(revisao));
   }));

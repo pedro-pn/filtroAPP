@@ -703,6 +703,9 @@ Onde ficam: em produção, todas as variáveis abaixo vão em `backend/.env.prod
 | `OPERATIONS_ALERT_INTERVAL_MS` | Não | Intervalo do job de alertas operacionais |
 | `OPERATIONS_ALERT_WEBHOOK_URL` | Não | Webhook de alertas operacionais |
 | `OPERATIONS_ALERT_EMAILS` | Não (recomendado em produção) | E-mails, separados por vírgula, que recebem erros 5xx, falhas de processo/job e alertas operacionais |
+| `OPENAI_DAILY_TOKEN_BUDGET` / `OPENAI_MONTHLY_TOKEN_BUDGET` | Não | Teto de tokens da OpenAI no sistema, somando todos os usuários (padrão 1.500.000/dia e 20.000.000/mês; 0 desliga). Persistido no banco. Não substitui o limite no painel da OpenAI |
+| `OPENAI_USER_DAILY_CALLS` / `OPENAI_BUDGET_ALERT_PERCENT` / `OPENAI_USD_PER_MILLION_TOKENS` | Não | Adequações por usuário por dia (padrão 100, no banco); percentual do teto que dispara alerta (padrão 80); preço opcional para estimar custo |
+| `ABUSE_WINDOW_MINUTES`, `ABUSE_LOGIN_FAILURES_TOTAL`, `ABUSE_LOGIN_FAILURES_PER_IP`, `ABUSE_LOGIN_FAILURES_PER_ACCOUNT`, `ABUSE_RATE_LIMIT_HITS` | Não | Limites de alerta de abuso na janela (padrões 15 min, 100, 30, 15, 50). Ver `deploy/PRODUCTION.md`, "Abuso e custo" |
 | `OPERATIONS_ALERT_EMAIL_THROTTLE_MINUTES` | Não | Janela mínima entre e-mails do mesmo erro (padrão 30) |
 | `OPERATIONS_ALERT_REPEAT_HOURS` | Não | Reenvio do mesmo alerta operacional enquanto persistir (padrão 6) |
 | `APP_GIT_SHA` | Não | Versão (SHA do commit) gravada na imagem; aparece nos alertas |

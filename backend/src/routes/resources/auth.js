@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 
+import { recordLoginFailure } from '../../lib/abuse/monitor.js';
 import asyncHandler from '../../lib/async-handler.js';
 import env from '../../config/env.js';
 import {
@@ -132,6 +133,7 @@ const LOGIN_RATE_LIMIT_MESSAGE = 'Muitas tentativas de login. Tente novamente ma
 // usuário existe):
 // 1. IP + usuário: 8 tentativas/15 min — o mesmo atacante na mesma conta.
 const loginRateLimit = createMemoryRateLimit({
+  name: 'login-ip-usuario',
   windowMs: AUTH_RATE_LIMIT_WINDOW_MS,
   max: 8,
   message: LOGIN_RATE_LIMIT_MESSAGE,
@@ -141,6 +143,7 @@ const loginRateLimit = createMemoryRateLimit({
 // 2. Só IP: 50 falhas/15 min em qualquer usuário — barra password spraying a partir
 //    de um IP. Conta apenas falhas para não travar equipes inteiras atrás do mesmo NAT.
 const loginIpRateLimit = createMemoryRateLimit({
+  name: 'login-ip',
   windowMs: AUTH_RATE_LIMIT_WINDOW_MS,
   max: 50,
   message: LOGIN_RATE_LIMIT_MESSAGE,
@@ -153,6 +156,7 @@ const loginIpRateLimit = createMemoryRateLimit({
 //    contra uma conta (ex.: admin). Custo aceito: um atacante pode bloquear o login
 //    daquela conta por até 15 min; a senha continua protegida.
 const loginUsernameRateLimit = createMemoryRateLimit({
+  name: 'login-usuario',
   windowMs: AUTH_RATE_LIMIT_WINDOW_MS,
   max: 20,
   message: LOGIN_RATE_LIMIT_MESSAGE,
@@ -561,6 +565,9 @@ router.post('/login', loginRateLimit, loginIpRateLimit, loginUsernameRateLimit, 
     // Verificação "dummy" para equalizar o tempo de resposta quando o usuário não
     // existe (ou está inativo), evitando enumeração de usuários por canal lateral de tempo.
     await verifyPassword(data.password, await dummyPasswordHashPromise);
+    // Detecção de abuso: conta por IP e por conta existente (o texto digitado como
+    // usuário não é guardado quando não corresponde a uma conta).
+    recordLoginFailure({ ip: authRateLimitIp(req), userId: candidates[0]?.id ?? null });
     return res.status(401).json({ error: 'Usuário ou senha inválidos.' });
   }
 

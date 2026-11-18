@@ -639,6 +639,51 @@ Os scripts `deploy/backup-prod.sh`, `deploy/restore-prod.sh` e
 `/ops-status:ro`; a tarefa manual é criar esse diretório no host e preencher as
 variáveis no env-file de produção.
 
+## Abuso e custo (pilar 10)
+
+**Limites nas rotas caras** (por usuário e por IP, janela de 10 minutos, mesma
+resposta 429 dos outros limitadores; em `backend/src/lib/rate-limit.js`):
+
+| Categoria | Rotas | Por usuário | Por IP |
+|---|---|---|---|
+| `document` | PDF/DOCX de RDO, romaneio, checklist, EPI, assinatura, prévia/revisão do Data Book, anexo PDF | 120 | 400 |
+| `generation` | gerar Data Book, regenerar RDO, download em lote, PDF de alocação, datasheet técnico e manual de operação | 20 | 60 |
+| `export` | exportação de estatísticas, registros da Qualidade, exportação dos dados do titular | 30 | 100 |
+| `upload` | fotos/anexos do RDO, PDF manual, anexos PDF, documentos de equipamento | 400 | 1200 |
+
+Esses limites e os do login ficam em memória (zeram num deploy). O limite
+diário por usuário da adequação por IA e os tetos da OpenAI ficam no banco.
+
+**Teto da OpenAI no sistema**: `OPENAI_DAILY_TOKEN_BUDGET` (padrão 1.500.000) e
+`OPENAI_MONTHLY_TOKEN_BUDGET` (padrão 20.000.000) somam os tokens de entrada e
+saída de todos os usuários, com dia e mês no horário de Brasília. Ao chegar a
+`OPENAI_BUDGET_ALERT_PERCENT` (80%) sai um e-mail; no teto, a adequação devolve
+429 com mensagem amigável até o próximo período. `OPENAI_USER_DAILY_CALLS`
+(100) limita as adequações por usuário por dia. **Configure também o limite de
+gasto no painel da OpenAI** (Settings → Limits): o repositório não tem como
+conferir isso.
+
+**Detecção de abuso**: a API conta falhas de login (total, por IP e por conta
+existente; o texto digitado como usuário não é guardado) e respostas 429 por
+limitador, grava em lote a cada `ABUSE_MONITOR_FLUSH_MS` na tabela
+`UsageCounter` e compara a soma da janela (`ABUSE_WINDOW_MINUTES`) com os
+limites `ABUSE_*`. Acima deles: um e-mail por sinal (mesmo controle de repetição
+dos erros, `OPERATIONS_ALERT_EMAIL_THROTTLE_MINUTES`) e a seção "Abuso e custo"
+do painel de Operações fica em "Uso fora do normal". As linhas com IP ficam 30
+dias; as da OpenAI, 400 dias. O que fazer com o alerta: `docs/RUNBOOK_INCIDENTES.md`,
+"Alerta de abuso ou de custo".
+
+Rode no servidor depois do deploy (a migration `UsageCounter` é aplicada pelo
+serviço `migrate`):
+
+```bash
+# Opcional: ajustar tetos e limites no backend/.env.production (os padrões já valem).
+#   OPENAI_DAILY_TOKEN_BUDGET=1500000
+#   OPENAI_MONTHLY_TOKEN_BUDGET=20000000
+#   OPENAI_USD_PER_MILLION_TOKENS=<preço médio do modelo>
+docker compose --env-file backend/.env.production -f docker-compose.prod.yml up -d backend worker
+```
+
 ## Retenção LGPD
 
 O worker roda um job diário de retenção quando `DATA_RETENTION_JOB_ENABLED=true`. A rotina base só apaga sessões e
