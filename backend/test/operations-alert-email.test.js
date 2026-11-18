@@ -160,3 +160,16 @@ test('captureOperationalError with email:false never calls the e-mail channel', 
   assert.equal(result.reason, 'not-configured');
   assert.equal(result.email.reason, 'disabled');
 });
+
+test('captureOperationalError posts webhook with a timeout signal', async () => {
+  const calls = [];
+  await captureOperationalError(new Error('slow'), {
+    webhookUrl: 'https://example.test/errors',
+    email: false,
+    fetchFn: async (_url, options) => {
+      calls.push(options);
+      return { ok: true };
+    }
+  });
+  assert.ok(calls[0].signal instanceof AbortSignal);
+});

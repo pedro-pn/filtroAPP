@@ -8,6 +8,7 @@ import { alertEmailRecipients, sendOperationalStatusEmail } from './alert-email.
 import { getOperationalStatus } from './status.js';
 
 export const OPERATIONAL_ALERT_JOB_NAME = 'operational-alert-check';
+const WEBHOOK_TIMEOUT_MS = 5000;
 
 function problemLine(problem) {
   const parts = [problem.message];
@@ -102,6 +103,8 @@ async function postAlertWebhook(status, kind, { webhookUrl, fetchFn, logger }) {
   try {
     const response = await fetchFn(webhookUrl, {
       method: 'POST',
+      // Um webhook lento não pode segurar o job nem o tratamento do erro.
+      signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         text: operationalAlertMessage(status, { kind }),

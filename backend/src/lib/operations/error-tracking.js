@@ -4,6 +4,7 @@ import { sendOperationalErrorEmail } from './alert-email.js';
 
 const MAX_MESSAGE_LENGTH = 1000;
 const MAX_STACK_LENGTH = 8000;
+const WEBHOOK_TIMEOUT_MS = 5000;
 
 function text(value, maxLength = MAX_MESSAGE_LENGTH) {
   return String(value || '').slice(0, maxLength);
@@ -70,6 +71,8 @@ async function postErrorWebhook(payload, { webhookUrl, fetchFn, logger }) {
   try {
     const response = await fetchFn(webhookUrl, {
       method: 'POST',
+      // Um webhook lento não pode segurar o job nem o tratamento do erro.
+      signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(payload)
     });
