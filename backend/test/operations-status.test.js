@@ -314,3 +314,106 @@ test('getOperationalStatus flags Omie and commercial import failures', async () 
     'Recebimento do banco comercial falhou na última execução.'
   ]);
 });
+
+function emptyOperationsClient() {
+  return {
+    jobRun: { async findMany() { return []; } },
+    dataRetentionRun: { async findFirst() { return null; } },
+    reportApprovalPostProcessingJob: {
+      async groupBy() { return []; },
+      async findFirst() { return null; }
+    },
+    jobLock: { async findMany() { return []; } },
+    integrationSyncRun: { async findMany() { return []; } },
+    accessImport: { async findFirst() { return null; } }
+  };
+}
+
+function deployConfig(overrides = {}) {
+  return {
+    operationsBackupStatusFile: '',
+    operationsRestoreStatusFile: '',
+    operationsDeployStatusFile: '/status/deploy-latest.json',
+    operationsRequireBackupStatus: false,
+    operationsRequireRestoreStatus: false,
+    operationsRequireDeployStatus: false,
+    operationsBackupMaxAgeHours: 24,
+    operationsRestoreMaxAgeDays: 30,
+    operationsAlertJobEnabled: false,
+    operationsAlertWebhookUrl: '',
+    operationsAlertIntervalMs: 60 * 60 * 1000,
+    errorTrackingWebhookUrl: '',
+    errorTrackingProvider: 'webhook',
+    commercialImportToken: '',
+    omieAppKey: '',
+    omieAppSecret: '',
+    omieSyncEnabled: false,
+    ...overrides
+  };
+}
+
+const NEW_SHA = 'a'.repeat(40);
+const OLD_SHA = 'b'.repeat(40);
+
+for (const [deployState, message] of [
+  ['ROLLED_BACK', 'Último deploy falhou e voltou automaticamente para a versão anterior.'],
+  ['FAILURE', 'Último deploy falhou.']
+]) {
+  test(`getOperationalStatus flags a ${deployState} deploy until a later success`, async () => {
+    const files = new Map([['/status/deploy-latest.json', JSON.stringify({
+      kind: 'deploy',
+      mode: 'deploy',
+      status: deployState,
+      startedAt: '2026-11-18T20:00:00+00:00',
+      finishedAt: '2026-11-18T20:04:00+00:00',
+      sha: NEW_SHA,
+      previousSha: OLD_SHA,
+      message: 'conferência pós-deploy falhou'
+    })]]);
+    const status = await getOperationalStatus({
+      prismaClient: emptyOperationsClient(),
+      now: new Date('2026-11-25T12:00:00.000Z'),
+      config: deployConfig(),
+      readFile: async filePath => {
+        if (!files.has(filePath)) throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+        return files.get(filePath);
+      }
+    });
+
+    assert.equal(status.ok, false);
+    assert.equal(status.deploy.status, deployState);
+    assert.equal(status.deploy.shortSha, NEW_SHA.slice(0, 12));
+    assert.equal(status.deploy.shortPreviousSha, OLD_SHA.slice(0, 12));
+    assert.deepEqual(status.problems.map(item => item.message), [message]);
+    assert.equal(status.problems[0].source, NEW_SHA.slice(0, 12));
+    assert.equal(status.problems[0].deploy.message, 'conferência pós-deploy falhou');
+  });
+}
+
+test('getOperationalStatus accepts a successful deploy and an absent deploy file', async () => {
+  const success = await getOperationalStatus({
+    prismaClient: emptyOperationsClient(),
+    now: new Date('2026-11-25T12:00:00.000Z'),
+    config: deployConfig(),
+    readFile: async () => JSON.stringify({ status: 'SUCCESS', sha: NEW_SHA, previousSha: OLD_SHA, finishedAt: '2026-11-18T20:04:00+00:00' })
+  });
+  assert.equal(success.ok, true);
+  assert.equal(success.deploy.status, 'SUCCESS');
+
+  const absent = await getOperationalStatus({
+    prismaClient: emptyOperationsClient(),
+    now: new Date('2026-11-25T12:00:00.000Z'),
+    config: deployConfig(),
+    readFile: async () => { throw Object.assign(new Error('missing'), { code: 'ENOENT' }); }
+  });
+  assert.equal(absent.deploy.status, 'MISSING');
+  assert.equal(absent.ok, true, 'sem deploy-latest.json não é problema por padrão');
+
+  const required = await getOperationalStatus({
+    prismaClient: emptyOperationsClient(),
+    now: new Date('2026-11-25T12:00:00.000Z'),
+    config: deployConfig({ operationsRequireDeployStatus: true }),
+    readFile: async () => { throw Object.assign(new Error('missing'), { code: 'ENOENT' }); }
+  });
+  assert.deepEqual(required.problems.map(item => item.message), ['Status de deploy obrigatório está ausente.']);
+});

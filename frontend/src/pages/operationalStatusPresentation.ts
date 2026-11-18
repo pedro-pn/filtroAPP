@@ -34,6 +34,7 @@ const STATUS_PRESENTATION: Record<
   SKIPPED: { label: 'Ignorado', tone: 'neutral' },
   FAILED: { label: 'Falhou', tone: 'danger' },
   FAILURE: { label: 'Falhou', tone: 'danger' },
+  ROLLED_BACK: { label: 'Voltou à versão anterior', tone: 'danger' },
   ERROR: { label: 'Erro', tone: 'danger' },
   INVALID: { label: 'Status inválido', tone: 'danger' },
   STALE: { label: 'Atrasado', tone: 'warning' },

@@ -18,6 +18,12 @@ function problemLine(problem) {
   if (problem.source) parts.push(`source=${problem.source}`);
   if (problem.backup?.status) parts.push(`backup=${problem.backup.status}`);
   if (problem.restore?.status) parts.push(`restore=${problem.restore.status}`);
+  if (problem.deploy?.status) {
+    parts.push(`deploy=${problem.deploy.status}`);
+    if (problem.deploy.shortPreviousSha) parts.push(`no_ar=${problem.deploy.shortPreviousSha}`);
+    if (problem.deploy.finishedAt) parts.push(`em=${problem.deploy.finishedAt}`);
+    if (problem.deploy.message) parts.push(`motivo="${String(problem.deploy.message).slice(0, 200)}"`);
+  }
   return `- ${parts.join(' ')}`;
 }
 
@@ -49,7 +55,9 @@ export function operationalAlertSignature(status) {
       problem.scope,
       problem.source,
       problem.backup?.status,
-      problem.restore?.status
+      problem.restore?.status,
+      problem.deploy?.status,
+      problem.deploy?.sha
     ].map(value => value ?? '').join('|'))
     .sort();
   return createHash('sha256').update(keys.join('\n')).digest('hex').slice(0, 16);

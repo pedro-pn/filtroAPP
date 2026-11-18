@@ -272,6 +272,26 @@ commit), `--allow-dirty` (só em emergência; o commit gravado na imagem não
 descreve as alterações locais). Variáveis: `HEALTH_TIMEOUT_SECONDS` (240),
 `KEEP_IMAGES` (5), `PRE_DEPLOY_BACKUP_KEEP` (3).
 
+**Aviso do resultado.** Ninguém precisa abrir o JSON para saber que um deploy deu
+errado:
+
+- o painel de Operações mostra o card "Último deploy" (commit, versão anterior,
+  horário e motivo) e trata `ROLLED_BACK` e `FAILURE` como problema até um deploy
+  seguinte terminar com `SUCCESS`; com `OPERATIONS_ALERT_JOB_ENABLED=true`, o job
+  de status operacional manda e-mail para `OPERATIONS_ALERT_EMAILS` na próxima
+  verificação (`OPERATIONS_ALERT_INTERVAL_MS`, padrão 1 h). O backend lê
+  `OPERATIONS_DEPLOY_STATUS_FILE` (padrão `/ops-status/deploy-latest.json`, a mesma
+  pasta montada do backup); arquivo ausente não é problema, a não ser com
+  `OPERATIONS_REQUIRE_DEPLOY_STATUS=true`;
+- o próprio script avisa no Telegram, na hora, quando o deploy falha ou volta
+  sozinho. Ele lê só `TELEGRAM_TOKEN` e `TELEGRAM_CHAT_ID` de
+  `DEPLOY_NOTIFY_ENV_FILE` (padrão `/root/.config/filtroapp-backup/env`, o mesmo do
+  backup); `DEPLOY_NOTIFY_SUCCESS=true` também avisa os deploys que deram certo.
+  Falha no envio nunca muda o resultado do deploy.
+
+A volta automática, sozinha, não gera e-mail imediato: o e-mail sai pelo job de
+status (até 1 h depois) e o aviso imediato é o Telegram.
+
 O caminho manual da seção "Subida em produção" continua válido como plano B; sem
 `APP_GIT_SHA`, as imagens saem marcadas como `:latest` e o `/health` mostra
 `unknown`.
