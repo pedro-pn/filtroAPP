@@ -97,8 +97,10 @@ async function loadTrails() {
  * Trilhas diárias por colaborador num intervalo, para a conferência semanal de alocação
  * (feature 037). Reaproveita o cálculo memorizado; devolve Map collaboratorId → Map date → trail.
  */
-export async function getAllocationTrailsForRange({ from, to }) {
-  const { rates } = await loadTrails();
+export async function getAllocationTrailsForRange({ from, to }, { database = null } = {}) {
+  const { rates } = database
+    ? await computeCollaboratorRates(null, { database, includeWorkforceDetails: false })
+    : await loadTrails();
   const byCollaborator = new Map();
   for (const entry of rates) {
     if (!entry?.collaboratorId) continue;

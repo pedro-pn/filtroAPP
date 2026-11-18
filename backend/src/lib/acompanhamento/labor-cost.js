@@ -2023,12 +2023,14 @@ function costProjectsFromClassification(classified) {
 
 // Custo/hora e rateio por obra de cada colaborador para o ponto vigente (ou o import indicado),
 // somando a divisão mensal.
-export async function computeCollaboratorRates(importId = null, { includeIgnoredNames = false, includeWorkforceDetails = true } = {}) {
+export async function computeCollaboratorRates(importId = null, { includeIgnoredNames = false, includeWorkforceDetails = true, database = null } = {}) {
+  // Leituras de integração usam o mesmo snapshot transacional, sem cache global.
+  if (database) return computeCollaboratorRatesUncached(importId, { includeIgnoredNames, includeWorkforceDetails, database });
   return readMonthlyCostSnapshot(importId, { includeIgnoredNames, includeWorkforceDetails }, options => computeCollaboratorRatesUncached(importId, options));
 }
 
-async function computeCollaboratorRatesUncached(importId, { includeIgnoredNames, includeWorkforceDetails = true }) {
-  const pontoScope = await getPontoImportScope(importId);
+async function computeCollaboratorRatesUncached(importId, { includeIgnoredNames, includeWorkforceDetails = true, database = prisma }) {
+  const pontoScope = await getPontoImportScope(importId, database);
   if (!pontoScope) return { pontoImport: null, pontoImports: [], periodStart: null, periodEnd: null, fileName: null, rates: [], byCollaboratorId: new Map() };
 
   const importIds = pontoScope.pontoImports.map(item => item.id);
@@ -2039,30 +2041,30 @@ async function computeCollaboratorRatesUncached(importId, { includeIgnoredNames,
   // and project metadata. Start them first, then overlap the remaining reads
   // with absence/calendar checks instead of adding another sequential stage.
   const periodStatePromise = Promise.all([
-    loadMonthlyPontoSources(prisma, importIds, { startDate: pontoScope.periodStart, endDate: pontoScope.periodEnd, includeWorkforceDetails }),
-    loadLaborPeriodReferences(prisma, { startDate: pontoScope.periodStart, endDate: pontoScope.periodEnd, includeIgnoredNames, includeWorkforceDetails })
+    loadMonthlyPontoSources(database, importIds, { startDate: pontoScope.periodStart, endDate: pontoScope.periodEnd, includeWorkforceDetails }),
+    loadLaborPeriodReferences(database, { startDate: pontoScope.periodStart, endDate: pontoScope.periodEnd, includeIgnoredNames, includeWorkforceDetails })
   ]).then(async ([{ periods: periodRows, absences }, { ignoredEmployees, calendar }]) => {
     const periods = mergePontoPeriods(filterIgnoredPontoPeriods(withPontoImportDates(periodRows, pontoScope.pontoImports), ignoredEmployees.map(item => item.externalEmployeeId)));
-    const actualAvailability = includeWorkforceDetails && periods.length ? await checkWorkforceAvailability(prisma, {
+    const actualAvailability = includeWorkforceDetails && periods.length ? await checkWorkforceAvailability(database, {
       collaboratorIds: periods.map(period => period.collaboratorId).filter(Boolean),
       startDate: dateKeyUTC(pontoScope.periodStart), endDate: dateKeyUTC(pontoScope.periodEnd), context: 'ACTUAL_REPORT'
     }, { calendar, absences }) : { calendarRevision: 1, conflicts: [] };
     return { periods, actualAvailability, ...(includeIgnoredNames ? { ignoredExternalEmployees: ignoredEmployees } : {}) };
   });
-  const referenceSources = loadCostReferenceSources(prisma);
-  const projectAllocationContextPromise = getProjectAllocationContext();
+  const referenceSources = loadCostReferenceSources(database);
+  const projectAllocationContextPromise = getProjectAllocationContext(database);
   const [periodState, roleCatalog, annualCosts, projectAllocationContext] = await measureRequestStage('labor.sources.references', () => Promise.all([
     periodStatePromise,
-    loadRoleCostCatalog(prisma, referenceSources),
-    getAnnualCollaboratorCosts(prisma, referenceSources),
+    loadRoleCostCatalog(database, referenceSources),
+    getAnnualCollaboratorCosts(database, referenceSources),
     projectAllocationContextPromise
   ]));
   const [reportSources, { manualDayOverrides, confirmedReviewDays }] = await measureRequestStage('labor.sources.reports', () => Promise.all([
     loadLaborReportSources({
-      database: prisma, periodStart: pontoScope.periodStart, periodEnd: pontoScope.periodEnd,
+      database, periodStart: pontoScope.periodStart, periodEnd: pontoScope.periodEnd,
       projects: projectAllocationContext.projects
     }),
-    loadLaborDayDecisions(prisma, { from: pontoScope.periodStart, to: periodEndExclusive, projects: projectAllocationContext.projects })
+    loadLaborDayDecisions(database, { from: pontoScope.periodStart, to: periodEndExclusive, projects: projectAllocationContext.projects })
   ]));
   const rdoData = rdoDataByCollaboratorFromReports(reportSources.reports);
   const offshoreYearsByCollaborator = offshoreYearsByCollaboratorFromReports(reportSources.offshoreReports);

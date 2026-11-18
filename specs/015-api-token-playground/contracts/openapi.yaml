@@ -1097,21 +1097,25 @@ paths:
     get:
       tags: [IntegrationOperational]
       operationId: listIntegrationConfirmedAllocations
-      summary: Alocação diária conferida para importação pelo Conecta
+      summary: Alocação diária e status de conferência para importação pelo Conecta
       description: >-
-        Exige efetivo.conferencia.read e projectAccessMode=ALL. Retorna somente dias
-        persistidos de linhas com confirmedAt preenchido, inclusive de semanas abertas,
-        colaboradores inativos e projetos arquivados. Sugestões e rascunhos não saem.
+        Exige efetivo.conferencia.read e projectAccessMode=ALL. Retorna dias conferidos,
+        ajustes ainda não conferidos e sugestões automáticas da tela de conferência,
+        inclusive de semanas ainda não persistidas. confirmationStatus=CONFIRMED indica
+        conferência efetiva; PENDING exige confirmação no FiltroAPP e confirmedAt é null.
+        Preserva dias persistidos de colaboradores inativos e projetos arquivados.
+        Dias elegíveis sem informação usam kind=NONE; dias futuros também são pendentes.
         Datas inclusivas, até 93 dias, ordenação por data e ID do colaborador.
         Dias com algum projeto excluído ou indisponível no canal API são omitidos por inteiro.
         TRAVEL contém exatamente um projeto de destino; PROJECT pode conter vários;
-        SEDE e demais situações têm projects vazio, sem CNPJ fictício da sede.
+        SEDE, NONE e demais situações têm projects vazio, sem CNPJ fictício da sede.
         CNPJ contém 14 dígitos ou null quando ausente/inválido no cadastro.
-        Cursor vinculado à credencial e aos filtros. Se as conferências ou cadastros
+        Cursor vinculado à credencial e aos filtros. Se as alocações ou cadastros
         mudarem entre páginas, retorna 409 ALLOCATION_REVIEW_CHANGED: descartar a
         importação temporária e reiniciar sem cursor. Importar todas as páginas antes
         de substituir o período local, removendo dias anteriormente importados que
-        deixaram de ser conferidos. Não oferece feed incremental nem tombstones.
+        deixaram de ser publicados. Desconferir mantém o dia como PENDING.
+        Não oferece feed incremental nem tombstones. Contrato de resposta 2.0.
       security: [{ IntegrationToken: [] }]
       x-required-scopes: [efetivo.conferencia.read]
       parameters:
@@ -1131,7 +1135,7 @@ paths:
         - $ref: '#/components/parameters/IntegrationCursor'
       responses:
         '200':
-          description: Página de dias efetivamente conferidos; um item por colaborador/data.
+          description: Página de alocações com status de conferência; um item por colaborador/data.
           headers:
             Cache-Control: { $ref: '#/components/headers/NoStore' }
             X-Request-Id: { $ref: '#/components/headers/RequestId' }
@@ -6110,16 +6114,16 @@ components:
             nextCursor: { type: [string, 'null'] }
             snapshotAt: { type: string, format: date-time, description: Início da paginação; não aceita parâmetro snapshotAt. }
         generatedAt: { type: string, format: date-time }
-        schemaVersion: { type: string, const: '1.0' }
+        schemaVersion: { type: string, const: '2.0' }
         requestId: { type: string }
     ConfirmedAllocationDay:
       type: object
       additionalProperties: false
-      required: [id, date, kind, collaborator, projects, confirmedAt, weekStart, weekVersion, updatedAt]
+      required: [id, date, kind, collaborator, projects, confirmationStatus, confirmedAt, weekStart, weekVersion, updatedAt]
       properties:
-        id: { type: string }
+        id: { type: string, description: ID persistido ou sintético automatic; usar collaborator.id e date como chave lógica. }
         date: { type: string, format: date }
-        kind: { type: string, enum: [PROJECT, TRAVEL, SEDE, FOLGA, FERIAS, AFASTAMENTO, TREINAMENTO] }
+        kind: { type: string, enum: [PROJECT, TRAVEL, SEDE, FOLGA, FERIAS, AFASTAMENTO, TREINAMENTO, NONE] }
         collaborator:
           type: object
           additionalProperties: false
@@ -6142,10 +6146,11 @@ components:
               name: { type: string }
               clientName: { type: string }
               clientCnpj: { type: [string, 'null'], pattern: '^\d{14}$' }
-        confirmedAt: { type: string, format: date-time }
+        confirmationStatus: { type: string, enum: [CONFIRMED, PENDING], description: PENDING exige confirmação mesmo quando as fontes automáticas concordam. }
+        confirmedAt: { type: [string, 'null'], format: date-time }
         weekStart: { type: string, format: date }
-        weekVersion: { type: integer, minimum: 1 }
-        updatedAt: { type: string, format: date-time, description: Última edição do dia; não é cursor incremental. }
+        weekVersion: { type: integer, minimum: 0, description: Zero quando a semana ainda não foi persistida. }
+        updatedAt: { type: [string, 'null'], format: date-time, description: Última edição persistida do dia ou null em sugestões automáticas; não é cursor incremental. }
     CrmOpportunityInput:
       type: object
       properties:

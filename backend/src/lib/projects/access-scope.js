@@ -56,11 +56,19 @@ export function withProjectChannel(channel, callback) {
   return scope.run({ ...scope.getStore(), channel }, callback);
 }
 
+// A exportação da conferência precisa detectar também evidências de projetos
+// ocultos para omitir o dia inteiro. O resultado deve ser filtrado pelo canal
+// depois do cálculo, antes de sair pela API.
+export function withAllocationReviewSources(callback) {
+  return scope.run({ ...scope.getStore(), allocationReviewSources: true }, callback);
+}
+
 export function projectAccessCacheKey() {
   return `${scope.getStore()?.restricted ? 'non-admin' : 'admin'}:${scope.getStore()?.channel || 'app'}`;
 }
 
 export function projectAccessWhere(modelName) {
+  if (scope.getStore()?.allocationReviewSources) return null;
   if (modelName === 'Project') {
     const channel = scope.getStore()?.channel;
     return { ...(channel ? projectChannelWhere(channel) : {}),
