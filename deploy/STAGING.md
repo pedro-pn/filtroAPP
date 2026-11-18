@@ -1,7 +1,7 @@
 # Homologação
 
 Ambiente de validação entre desenvolvimento e produção. Roda a mesma stack de prod
-(Postgres + backend + worker + Nginx) com snapshot de produção sanitizado diariamente,
+(Postgres + backend + worker + Nginx) com snapshot de produção **anonimizado** antes de ficar visível,
 e-mails para clientes bloqueados e acesso restrito por IP.
 
 ## Arquivos do ambiente
@@ -95,7 +95,8 @@ STAGING_ADMIN_PASSWORD=outra-senha-forte
 ```
 
 Confirme que `SEND_CLIENT_EMAILS=false` está presente. Nunca altere para `true`
-em homologação — o banco contém dados reais de clientes.
+em homologação: mesmo anonimizado, o banco contém dados operacionais de clientes
+(projetos, serviços, textos de RDO).
 
 Para observabilidade operacional, crie o diretório de status no host:
 
@@ -265,29 +266,65 @@ FILTROAPP_DIR="$PWD" python3 ../infra-proxy/test-filtroapp-https.py
 
 ## Sincronização diária com produção
 
-O script `deploy/sync-staging.sh` aplica o último snapshot de backup de prod ao banco
-de homologação, aplica migrations, substitui o volume de relatórios por artefatos
-sintéticos e executa um scrub obrigatório antes de subir backend/worker/Nginx. Esse scrub:
+O script `deploy/sync-staging.sh` restaura o último snapshot de backup de prod num banco
+**temporário**, anonimiza esse banco com `deploy/db/anonymize-staging.sql` e só então o
+troca pelo banco de homologação. Depois aplica migrations, substitui o volume de relatórios
+por artefatos sintéticos e executa um scrub complementar antes de subir backend/worker/Nginx.
+
+### Anonimização (LGPD)
+
+`deploy/db/anonymize-staging.sql` roda numa transação, no banco temporário:
+
+- **apaga** sessões, tokens de reset/e-mail/preferência, rascunhos de RDO, a fila de e-mails
+  de relatórios e os logs de requisições da API;
+- **remove ou troca por fictício**: CPF, e-mails, telefones, contatos de clientes, assinaturas
+  (imagens), IP e navegador, comentários e observações sobre pessoas (ausências, Efetivo,
+  revisão de alocação), nomes de signatários, motorista e placa, pedidos de titulares;
+- **matrícula e nomes do Ponto** viram hash com sal aleatório por execução: as ligações
+  entre colaborador e Ponto continuam, mas o valor original não pode ser recuperado;
+- **Conecta RH** (`ConectaRhAggregate.data`, que traz CPF e salários) e o `rawPayload` do Omie
+  viram `{}`;
+- **pesquisa de satisfação**: e-mails e texto livre das respostas removidos; as notas ficam;
+- **links públicos por token** (anexos, certificados, estoque, qualidade, catálogo) e
+  verificadores de credenciais de API são trocados, para que nenhum link ou token de
+  produção funcione a partir da homologação.
+
+**Trava:** se o banco tiver coluna de texto/JSON com nome de dado pessoal (CPF, e-mail,
+telefone, token, IP, assinatura…), preenchida e sem regra no SQL, a anonimização falha, o
+sync aborta e a homologação continua com o banco anterior. Isso vale também para colunas
+que só existem no schema de produção. No CI, `backend/test/staging-anonymization-coverage.test.js`
+confere o `schema.prisma` contra o SQL, e o job "Database least-privilege role (PostgreSQL)"
+roda o SQL contra dados fictícios (`deploy/db/test-anonymize-staging.sh`).
+Ao criar uma coluna com dado pessoal, inclua-a em `_anon_plan` (ou em `_anon_allow`, com motivo).
+
+O log do sync mostra, por tabela e coluna, quantas linhas foram alteradas.
+
+**Fica como está (dado operacional):** projetos, serviços, textos e campos dos RDOs,
+equipamentos, estoque, custos e notas operacionais de projeto. Nomes de pessoas citados
+dentro do texto livre dos RDOs não são reescritos.
+
+### Scrub complementar (depois das migrations)
 
 - apaga sessões, tokens de reset/e-mail e tokens de preferência de notificação;
 - invalida senhas de usuários restaurados de produção;
 - remove tokens públicos de assinatura, pesquisa, certificado e validação;
 - expira solicitações pendentes com link público;
-- mascara e-mails, nomes, CNPJs/CPFs, assinaturas e dados de contato sensíveis;
+- mascara de novo nomes, CNPJs, e-mails e contatos de clientes nos projetos (defesa em profundidade);
 - troca referências de PDFs, DOCX, anexos e certificados para arquivos mockados em `_staging_mock`;
 - recria o usuário `STAGING_ADMIN_USERNAME` com a senha/hash de staging.
 
-Se `STAGING_ADMIN_PASSWORD` ou `STAGING_ADMIN_PASSWORD_HASH` não estiver configurado,
-o sync falha fechado e não publica o banco restaurado no app. Ele detecta se o
+Se `STAGING_ADMIN_PASSWORD` ou `STAGING_ADMIN_PASSWORD_HASH` não estiver configurado, ou se
+`deploy/db/anonymize-staging.sql` não existir, o sync falha fechado antes de restaurar qualquer coisa. Ele detecta se o
 ambiente está rodando ou parado e age de acordo:
 
-- **Ambiente parado**: sobe o banco, aplica o snapshot, builda backend/worker/Nginx, roda migrations, cria arquivos mockados, sanitiza o banco, desliga tudo.
-- **Ambiente rodando**: para backend, worker e Nginx, aplica o snapshot, builda backend/worker/Nginx, roda migrations, cria arquivos mockados, sanitiza o banco, recria os serviços.
+- **Ambiente parado**: sobe o banco, restaura o snapshot no banco temporário, anonimiza, troca, builda backend/worker/Nginx, roda migrations, cria arquivos mockados, faz o scrub complementar, desliga tudo.
+- **Ambiente rodando**: para backend, worker e Nginx, restaura o snapshot no banco temporário, anonimiza, troca, builda, roda migrations, cria arquivos mockados, faz o scrub complementar, recria os serviços.
 
-API e worker ficam parados durante a substituição do banco. Uma falha na parada,
-restauração, migration ou sanitização interrompe o fluxo sem reiniciar esses
-serviços. Não iniciar o worker manualmente antes de resolver a falha e concluir
-a sanitização.
+API e worker ficam parados durante a substituição do banco. Se a falha acontecer antes
+da troca (restore ou anonimização), o banco temporário é descartado e os serviços que
+estavam rodando são religados com o banco anterior. Se acontecer depois (migration ou
+scrub complementar), o fluxo para sem reiniciar os serviços: não inicie o worker
+manualmente antes de resolver a falha e concluir o sync.
 
 O diretório apontado por `latest` é resolvido uma vez no início da execução. Banco e
 backup metadata sempre vêm desse mesmo diretório, mesmo que o backup de produção
@@ -484,7 +521,8 @@ Em seguida, repita a etapa de subida inicial.
 
 - `backend/.env.staging` está no `.gitignore` (coberto pelo padrão `backend/.env.*`) e nunca deve
   ser commitado.
-- O banco de homologação contém uma cópia dos dados de prod. Trate o acesso ao servidor
-  com o mesmo cuidado.
+- O banco de homologação contém uma cópia **anonimizada** dos dados de prod (sem CPF, contatos,
+  assinaturas, salários ou tokens), mas ainda com dados operacionais de clientes. Trate o
+  acesso ao servidor com o mesmo cuidado.
 - `SEND_CLIENT_EMAILS=false` é a proteção entre testes e e-mails operacionais reais
   enviados pelo sistema. Não altere sem revisão explícita.

@@ -22,6 +22,16 @@ Este documento resume as principais operações de tratamento de dados pessoais 
 | Auditoria e segurança | Todos os usuários e titulares envolvidos em ações auditáveis | Usuário, ação, data/hora, IP, User-Agent, identificadores técnicos | Segurança, rastreabilidade, prevenção a fraudes e defesa de direitos | Legítimo interesse; exercício regular de direitos | IP/User-Agent de logs operacionais anonimizados após 2 anos | NewRDO, banco de dados | Logs de auditoria, minimização no job de retenção |
 | Direitos do titular | Titulares que acionam o canal LGPD | Nome, e-mail, identificador, tipo de solicitação, detalhes, protocolo, IP/User-Agent | Receber, registrar e responder solicitações do Art. 18 da LGPD | Cumprimento de obrigação legal/regulatória | Pelo período necessário para comprovação de atendimento | NewRDO, canal de privacidade | Protocolo único, status, controle de escopo e análise manual |
 
+## Ambiente de homologação
+
+A homologação recebe uma cópia do banco de produção (`deploy/sync-staging.sh`) para validar
+versões antes de publicá-las. Essa cópia é **anonimizada antes de ficar disponível**
+(`deploy/db/anonymize-staging.sql`): CPF, e-mails, telefones, contatos, assinaturas, IP/User-Agent,
+salários e payloads do Conecta RH, tokens e observações sobre pessoas são removidos ou trocados por
+valores fictícios; matrículas e nomes do Ponto viram hash irreversível. Arquivos de produção (fotos,
+anexos, PDFs) não são copiados. Se surgir coluna com dado pessoal sem regra de anonimização, a cópia
+é abortada. Permanecem dados operacionais de projetos e o texto livre dos RDOs.
+
 ## Revisão
 
 - Periodicidade recomendada: trimestral ou semestral.

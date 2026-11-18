@@ -576,6 +576,12 @@ Legenda: `[ ]` pendente, `[x]` concluído. Manter este checklist no repositório
 
 ---
 
+### Homologação com cópia anonimizada
+
+- [x] `deploy/sync-staging.sh` anonimiza a cópia de produção num banco temporário antes de liberá-la à homologação (`deploy/db/anonymize-staging.sql`), falhando fechado se houver coluna pessoal sem regra.
+- [x] Teste de cobertura do schema (`backend/test/staging-anonymization-coverage.test.js`) e teste com PostgreSQL no CI (`deploy/db/test-anonymize-staging.sh`).
+- [ ] Executar o primeiro sync anonimizado em homologação e conferir no log o resumo por tabela/coluna.
+
 ## 6. Testes Manuais Pendentes
 
 Esta seção concentra os testes manuais que dependem de ambiente, perfis de usuário, tokens públicos ou validação visual em navegador.
