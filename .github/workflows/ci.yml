@@ -686,7 +686,17 @@ jobs:
         run: psql "$OWNER_PSQL" -X -q -v ON_ERROR_STOP=1 -v app_role=filtrovali_app -f ../deploy/db/app-role.sql
 
       - name: Restricted role has every DML grant and no owner privilege
+        # Como no Compose: o ambiente da aplicação não recebe a credencial do dono.
+        env:
+          MIGRATION_DATABASE_URL: ""
         run: node scripts/check-database-role.js --require-restricted
+
+      - name: Role check rejects an owner credential visible to the app
+        run: |
+          if node scripts/check-database-role.js --require-restricted > /dev/null 2>&1; then
+            echo "check-database-role.js deveria reprovar com MIGRATION_DATABASE_URL no ambiente" >&2
+            exit 1
+          fi
 
       - name: Restricted role cannot change the schema or migration history
         run: |
