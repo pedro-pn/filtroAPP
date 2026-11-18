@@ -20,6 +20,7 @@ import { getEfetivoProjectStatus, validateEfetivoProjectStatusRequest } from './
 import { getJobRoleSalary, validateJobRoleSalaryRequest } from './job-role-salary.js';
 import { getJobRoleHourlyReference } from './job-role-hourly-reference.js';
 import { ALLOCATION_REVIEW_OPERATION, listConfirmedAllocations, validateAllocationReviewQuery } from './allocation-review.js';
+import { withWorkforceVisibility } from '../collaborators/workforce-visibility-context.js';
 import { createCrmDocument, createCrmProject, upsertCrmCommercialFact, validateCommercialFact, validateCrmDocument, validateProjectCreation, validateProjectWriteAccess } from './efetivo-project-writes.js';
 import { receiveCrmOpportunity, validateCrmOpportunity } from '../projects/crm-opportunities.js';
 import { getCrmPlanningState, listCrmPlanningStates, validatePlanningDetailParams, validatePlanningListQuery, validatePlanningReadAccess } from '../projects/crm-planning-read.js';
@@ -94,7 +95,7 @@ function curlForPath(path, download = false, method = 'GET', body, headers) {
   return `curl --fail-with-body -H "Authorization: Bearer $FILTRO_API_TOKEN" -H "Accept: application/json" "${url}"`;
 }
 
-export async function executePlaygroundOperation(prisma, credentialId, input, options = {}) {
+async function executePlaygroundOperationImpl(prisma, credentialId, input, options = {}) {
   return withProjectChannel('api', () => executeScopedPlaygroundOperation(prisma, credentialId, input, options));
 }
 
@@ -275,4 +276,8 @@ async function executeScopedPlaygroundOperation(prisma, credentialId, input, opt
       body
     }
   };
+}
+
+export function executePlaygroundOperation(...args) {
+  return withWorkforceVisibility('API', () => executePlaygroundOperationImpl(...args));
 }

@@ -1,3 +1,4 @@
+import { collaboratorVisibilityWhere } from '../collaborators/workforce-policy.js';
 import prisma from '../prisma.js';
 import { projectChannelWhere, projectAllowsChannel } from '../projects/distribution.js';
 import {
@@ -789,6 +790,14 @@ export function createPontoMaisSyncService({
     return ids.filter(id => !hidden.has(id)).length;
   }
 
+  async function nonOperationalExternalIds() {
+    const links = await db.pontoExternalEmployeeLink.findMany({
+      where: { collaborator: { NOT: collaboratorVisibilityWhere('ACOMPANHAMENTO') } },
+      select: { externalEmployeeId: true }
+    });
+    return links.map(item => String(item.externalEmployeeId));
+  }
+
   async function getPending() {
     const runs = await db.pontoSyncRun.findMany({
       where: { status: 'SUCCEEDED' },
@@ -803,6 +812,7 @@ export function createPontoMaisSyncService({
       };
     }
 
+    const excludedExternalIds = new Set(await nonOperationalExternalIds());
     const employeesById = new Map();
     const tagsByKey = new Map();
     const ambiguousByDay = new Map();
@@ -865,6 +875,7 @@ export function createPontoMaisSyncService({
         where: {
           externalEmployeeId: { not: null },
           collaboratorId: { not: null },
+          collaborator: collaboratorVisibilityWhere('ACOMPANHAMENTO'),
           import: { source: 'PONTOMAIS_API' }
         },
         select: {
@@ -972,7 +983,7 @@ export function createPontoMaisSyncService({
       currentAmbiguousByDay.set(`${item.externalEmployeeId}:${item.date}`, item);
     }
     let ambiguousDays = [...currentAmbiguousByDay.values()]
-      .filter(item => !ignoredExternalIds.has(item.externalEmployeeId));
+      .filter(item => !ignoredExternalIds.has(item.externalEmployeeId) && !excludedExternalIds.has(item.externalEmployeeId));
     if (ambiguousDays.length) {
       const periodLinks = storedPeriods.map(item => ({
         externalEmployeeId: item.externalEmployeeId,
@@ -1027,7 +1038,9 @@ export function createPontoMaisSyncService({
   }
 
   async function listExternalEmployees() {
+    const excludedExternalIds = await nonOperationalExternalIds();
     const employees = await db.pontoExternalEmployee.findMany({
+      where: { externalEmployeeId: { notIn: excludedExternalIds } },
       orderBy: [{ ignoredAt: 'asc' }, { externalName: 'asc' }],
       select: {
         externalEmployeeId: true,

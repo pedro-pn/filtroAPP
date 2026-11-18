@@ -18,7 +18,8 @@ export function AdminModuleAppShell({ children, sectionLabel }: { children: Reac
       parentId: 'admin',
       items: [
         { id: 'accounts', label: 'Contas', href: '/admin/accounts', active: location.pathname === '/admin/accounts' },
-        { id: 'tokens', label: 'Tokens de API', shortLabel: 'Tokens', href: '/admin/tokens', active: location.pathname === '/admin/tokens' }
+        { id: 'tokens', label: 'Tokens de API', shortLabel: 'Tokens', href: '/admin/tokens', active: location.pathname === '/admin/tokens' },
+        { id: 'workforce', label: 'Colaboradores e classificação', shortLabel: 'Colaboradores', href: '/admin/workforce', active: location.pathname === '/admin/workforce' }
       ]
     }
   }), [location.pathname, user]);

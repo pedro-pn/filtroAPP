@@ -147,6 +147,21 @@ function legacyExecutionDatabase(kind = 'OFFICIAL') {
   return { database, state };
 }
 
+for (const stage of ['FINAL_MEASUREMENT', 'FINISHED']) {
+  test(`missão antiga avança para ${stage} sem recompor a equipe prevista`, async () => {
+    const { database, state } = legacyExecutionDatabase();
+    state.mission.stage = 'EXECUTION';
+    state.mission.demands[0].requiredCount = 6;
+    const allocations = structuredClone(state.mission.allocations);
+    const demands = structuredClone(state.mission.demands);
+    await moveMissionStage('mission-1', { stage, order: 0 }, { version: 1 }, { database });
+    assert.equal(state.mission.stage, stage);
+    assert.deepEqual(state.mission.allocations, allocations);
+    assert.deepEqual(state.mission.demands, demands);
+    assert.equal(state.audits.at(-1).action, 'MISSION_STAGE_CHANGE');
+  });
+}
+
 test('encerrar missão oficial arquiva em Relatórios, reordenar preserva a data e reabrir restaura', async () => {
   const { database, state } = legacyExecutionDatabase();
   const now = new Date('2026-10-01T12:00:00Z');

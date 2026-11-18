@@ -1,3 +1,4 @@
+import { requireVisibleCollaborators } from '../collaborators/workforce-policy.js';
 import { ReportType } from '@prisma/client';
 import { z } from 'zod';
 import { isValidReportDate, REPORT_DATE_ERROR } from '../../../../shared/modules/report-date.js';
@@ -229,7 +230,10 @@ async function assertManualReportCollaboratorsExist(tx, collaboratorIds) {
     where: { id: { in: ids } },
     select: { id: true }
   });
-  if (existing.length === ids.length) return;
+  if (existing.length === ids.length) {
+    await requireVisibleCollaborators(tx, ids, { target: 'RDO' });
+    return;
+  }
 
   const existingIds = new Set(existing.map(item => item.id));
   const missing = ids.filter(id => !existingIds.has(id));

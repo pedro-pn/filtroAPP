@@ -568,11 +568,35 @@ enum ApiWriteMode {
   SIMULATE
 }
 
+enum WorkforceClassification {
+  OPERATIONAL
+  NON_OPERATIONAL
+  PENDING
+}
+
+// Local participation policy is independent of the RH employment status.
+model WorkforceClassificationEvent {
+  id          String   @id @default(cuid())
+  entityType  String
+  entityId    String
+  actorUserId String?
+  reason      String
+  before      Json
+  after       Json
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId, createdAt])
+}
+
 model Collaborator {
   id                             String                           @id @default(cuid())
   code                           String                           @unique
   name                           String
   jobRoleId                      String
+  workforceClassificationOverride WorkforceClassification?
+  workforceSector                String?
+  sourceIsOperational            Boolean?
+  classificationVersion          Int                              @default(1)
   efetivoNote                    String?
   email                          String?
   cpf                            String?
@@ -614,6 +638,7 @@ model Collaborator {
   conectaPerson                  ConectaRhPerson?
 
   @@index([jobRoleId])
+  @@index([workforceClassificationOverride, jobRoleId])
 }
 
 // Estado de origem separado das projeções locais: preserva vínculos, revisões e datas desconhecidas.
@@ -978,6 +1003,11 @@ model JobRole {
   order                       Int                          @default(0)
   isActive                    Boolean                      @default(true)
   isOperational               Boolean                      @default(true)
+  // Null supports legacy integrations; all application creation paths explicitly classify new roles.
+  workforceClassification     WorkforceClassification?
+  classificationManagedLocally Boolean                     @default(false)
+  sourceIsOperational         Boolean?
+  classificationVersion       Int                          @default(1)
   calendarColor               String                       @default("#64748B")
   continuousWorkLimitDays     Int?
   createdAt                   DateTime                     @default(now())
@@ -996,6 +1026,7 @@ model JobRole {
   reportCollaboratorSnapshots ReportCollaborator[]         @relation("ReportCollaboratorJobRoleSnapshot")
 
   @@index([isActive, order])
+  @@index([workforceClassification, isActive])
 }
 
 // Lista gerenciável de temas de DDS abordados nos RDOs (gestores e coordenadores).

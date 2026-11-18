@@ -9,6 +9,7 @@ import { moduleRouteAccess, moduleRoutePath } from './registry';
 const AcompanhamentoPage = lazy(() => import('../pages/acompanhamento/AcompanhamentoPage').then(module => ({ default: module.AcompanhamentoPage })));
 const AdminAccountsPage = lazy(() => import('../pages/admin/AdminAccountsPage').then(module => ({ default: module.AdminAccountsPage })));
 const AdminTokensPage = lazy(() => import('../pages/admin/AdminTokensPage').then(module => ({ default: module.AdminTokensPage })));
+const AdminWorkforcePage = lazy(() => import('../pages/admin/AdminWorkforcePage').then(module => ({ default: module.AdminWorkforcePage })));
 const EpiPage = lazy(() => import('../pages/epi/EpiPage').then(module => ({ default: module.EpiPage })));
 const EquipmentManualPage = lazy(() => import('../pages/equipamentos/EquipmentManualPage').then(module => ({ default: module.EquipmentManualPage })));
 const EquipamentosPage = lazy(() => import('../pages/equipamentos/EquipamentosPage').then(module => ({ default: module.EquipamentosPage })));
@@ -39,6 +40,7 @@ export const moduleRouteElements = (
     </Route>
     <Route element={<RoleRoute allowedAccountTypes={['ADMIN']} />}>
       <Route path="/admin/tokens" element={<AdminTokensPage />} />
+      <Route path="/admin/workforce" element={<AdminWorkforcePage />} />
     </Route>
 
     <Route element={<RoleRoute {...PRIVACY_ACCESS} />}>

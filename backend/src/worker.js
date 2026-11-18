@@ -3,6 +3,7 @@ import env from './config/env.js';
 import { startBackgroundJobs } from './jobs/background-jobs.js';
 import { captureOperationalError } from './lib/operations/error-tracking.js';
 import prisma from './lib/prisma.js';
+import { startWorkforceVisibilityRefresh } from './lib/collaborators/workforce-visibility.js';
 import { warnIfPrivilegedDatabaseRole } from './lib/operations/database-role.js';
 // The reports module owns the approval processor implementation and registers it
 // during module initialization. The API loads it through the router tree; the
@@ -37,8 +38,10 @@ process.on('uncaughtException', error => {
 });
 
 let stopHealthReporter;
+let stopWorkforceVisibilityRefresh;
 async function shutdown(signal) {
   stopHealthReporter?.();
+  stopWorkforceVisibilityRefresh?.();
   console.log(`[worker] encerrando por ${signal}`);
   await prisma.$disconnect().catch(error => console.error('[worker] falha ao desconectar do banco', error));
   process.exit(0);
@@ -47,6 +50,7 @@ async function shutdown(signal) {
 process.once('SIGTERM', () => void shutdown('SIGTERM'));
 process.once('SIGINT', () => void shutdown('SIGINT'));
 
+stopWorkforceVisibilityRefresh = await startWorkforceVisibilityRefresh(prisma);
 stopHealthReporter = startWorkerHealthReporter();
 startBackgroundJobs({ keepAlive: true });
 if (env.nodeEnv === 'production') {

@@ -1,4 +1,5 @@
 import { recordEfetivoAudit } from './audit.js';
+import { setRoleClassification } from '../../collaborators/workforce-classification.js';
 import { bumpWorkforceCalendarRevision } from '../../collaborators/availability-service.js';
 import { parseDateKey } from './date-only.js';
 import { notFound } from './errors.js';
@@ -14,7 +15,11 @@ export async function updatePlanningJobRole(jobRoleId, payload, context = {}, de
     const existing = await tx.jobRole.findUnique({ where: { id: jobRoleId } });
     if (!existing) throw notFound('Função não encontrada.');
     const plan = await requireEditablePlan(tx, undefined, { actorUserId: context.actorUserId });
-    const updated = await tx.jobRole.update({ where: { id: jobRoleId }, data: payload });
+    const { isOperational, ...configuration } = payload;
+    if (isOperational !== undefined) {
+      await setRoleClassification(tx, jobRoleId, isOperational ? 'OPERATIONAL' : 'NON_OPERATIONAL', { actorUserId: context.actorUserId });
+    }
+    const updated = await tx.jobRole.update({ where: { id: jobRoleId }, data: configuration });
     await bumpPlanRevision(tx, plan);
     await recordEfetivoAudit(tx, {
       planId: plan.id, actorUserId: context.actorUserId, action: 'JOB_ROLE_CONFIG_UPDATE', entityType: 'JOB_ROLE', entityId: jobRoleId,

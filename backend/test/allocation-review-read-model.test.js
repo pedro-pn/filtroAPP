@@ -1,5 +1,5 @@
+import { operationalCollaboratorWhere } from '../src/lib/collaborators/workforce-policy.js';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { createReviewMonthFixture } from './fixtures/allocation-review-month.fixture.js';
 
@@ -136,7 +136,7 @@ test('semana fechada: só admin pode reabrir', () => {
   assert.equal(assembleReviewWeek(context({ savedWeek }), { now: NOW_AFTER, user: { accountType: 'ADMIN' } }).week.canReopen, true);
 });
 
-test('loadReviewWeekContext inclui operacionais e quem tem ponto ou RDO na semana, e lê 7 dias de folga para os vizinhos', async () => {
+test('loadReviewWeekContext restringe a operacionais mesmo quando há ponto ou RDO na semana, e lê 7 dias de folga para os vizinhos', async () => {
   const calls = {};
   const database = {
     report: { findMany: async args => { calls.report = args; return [{ id: 'r1', sequenceNumber: 1, status: 'PENDING', projectId: 'pA', reportDate: new Date('2026-10-27T00:00:00.000Z'), collaborators: [{ collaboratorId: 'cR' }] }]; } },
@@ -158,9 +158,10 @@ test('loadReviewWeekContext inclui operacionais e quem tem ponto ou RDO na seman
   assert.equal(calls.report.where.reportType, 'RDO');
   assert.equal(calls.report.where.reportDate.gte.toISOString(), '2026-10-19T00:00:00.000Z');
   assert.equal(calls.report.where.reportDate.lt.toISOString(), '2026-11-09T00:00:00.000Z');
-  const extra = calls.collaborator.where.OR[1].id.in.sort();
+  const extra = calls.collaborator.where.AND[1].OR[1].id.in.sort();
   assert.deepEqual(extra, ['cP', 'cR']);
-  assert.deepEqual(calls.collaborator.where.OR[0].AND[0], { jobRole: { isActive: true, isOperational: true } });
+  assert.deepEqual(calls.collaborator.where.AND[1].OR[0].AND[0], { jobRole: { isActive: true } });
+  assert.deepEqual(calls.collaborator.where.AND[0], operationalCollaboratorWhere());
   assert.deepEqual(calls.project.where.OR[0].id.in, ['pA']);
 });
 
@@ -220,11 +221,10 @@ test('visão do mês junta as semanas, recorta os dias do mês e soma dias por p
   assert.deepEqual(weeksLoaded, ['2026-09-21']);
 });
 
-test('mês de seis semanas mantém o resultado anterior com uma leitura de cada fonte', async () => {
+test('mês de seis semanas exclui não operacionais com uma leitura de cada fonte', async () => {
   const fixture = createReviewMonthFixture();
   const month = await getReviewMonth({ yearMonth: '2026-11', now: new Date('2026-12-10T15:00:00.000Z'), user: { accountType: 'ADMIN' } }, fixture.deps);
-  // Hash obtido com a implementação anterior que lia cada semana de forma independente.
-  assert.equal(createHash('sha256').update(JSON.stringify(month)).digest('hex'), 'df9c7bd57eeb58141f469d28df9e1c3c29e8a355a3e24aacbb75efad0fd07e92');
+  assert.deepEqual(month.rows.map(row => row.collaborator.id).sort(), ['c1', 'c2', 'c3']);
   assert.equal(month.weeks.length, 6);
   assert.equal(month.rows.find(row => row.collaborator.id === 'c2').days.find(day => day.date === '2026-11-11').eligible, false);
   assert.equal(month.rows.find(row => row.collaborator.id === 'c3').days.find(day => day.date === '2026-11-05').eligible, false);

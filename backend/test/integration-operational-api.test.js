@@ -16,7 +16,7 @@ const definition = model => OPERATIONAL_RESOURCES.find(item => item.model === mo
 const approved = projectId => ({ projectId, status: 'APPROVED', deletedAt: null, project: { deletedAt: null } });
 const sample = (resource, extra = {}) => ({ ...Object.fromEntries(Object.entries(resource.fields).map(([field, type]) => [field,
   type.endsWith('?') ? null : type === 'datetime' ? stamp : type === 'boolean' ? true : type === 'integer' ? 1 : type === 'decimal' ? new Prisma.Decimal('12.345') : `example-${field}`
-])), ...extra });
+])), ...(resource.model === 'Collaborator' ? { workforceClassificationOverride: null, jobRole: { workforceClassification: 'OPERATIONAL', isOperational: true } } : {}), ...extra });
 
 function matches(row, where) {
   return Object.entries(where).every(([key, value]) => {
@@ -161,7 +161,7 @@ test('projectCode is available on every project-bound collection and covers ever
     MAINTENANCE: { maintenance: { status: 'APPROVED', reportId: `r-${projectId}`, report: parent(projectId, code) } },
     STOCK_BATCH: { movements: [{ projectId, project: { code, deletedAt: null } }] },
     REPORT_ATTACHMENT: { reportId: `r-${projectId}`, report: parent(projectId, code), reportServiceId: null, reportService: null },
-    COLLABORATOR_REPORT: { reportLinks: [{ report: parent(projectId, code) }] }
+    COLLABORATOR_REPORT: { workforceClassificationOverride: null, jobRole: { workforceClassification: 'OPERATIONAL' }, reportLinks: [{ report: parent(projectId, code) }] }
   });
   const representatives = {
     SELF: 'Project', DIRECT: 'Report', REPORT: 'MaintenanceRecord', MAINTENANCE: 'MaintenanceThirdPartyService',

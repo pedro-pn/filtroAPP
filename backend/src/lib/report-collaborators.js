@@ -1,3 +1,4 @@
+import { isCollaboratorVisible, workforceVisibilityError } from './collaborators/workforce-policy.js';
 function asRecord(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
@@ -41,6 +42,8 @@ export async function reportCollaboratorCreateManyData(database, collaboratorIds
     error.missingCollaboratorIds = missingIds;
     throw error;
   }
+  const blocked = collaborators.filter(item => !isCollaboratorVisible(item)).map(item => item.id);
+  if (blocked.length) throw workforceVisibilityError(blocked);
   return uniqueIds.map(id => reportCollaboratorCreateData(byId.get(id)));
 }
 

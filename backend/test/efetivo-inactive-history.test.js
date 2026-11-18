@@ -32,7 +32,7 @@ function fixture({ allocated = true, ownCycles = false } = {}) {
         collaboratorQueries.push(where);
         if (where.isActive === true) return [];
         if (where.isActive === false || where.id) return [person];
-        return where.OR ? [] : [person];
+        return where.OR && !where.jobRoleId ? [] : [person];
       }
     },
     jobRole: { findMany: async () => [role] },

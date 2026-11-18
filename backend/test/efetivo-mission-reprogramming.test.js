@@ -43,7 +43,7 @@ function fakeDatabase() {
       findFirst: async () => ({
         id: 'user-1',
         name: 'Coordenação',
-        collaborator: { id: 'collaborator-1', name: 'Ana Líder', isActive: true, jobRole: { name: 'Coordenadora' } }
+        collaborator: { id: 'collaborator-1', name: 'Ana Líder', isActive: true, jobRole: { name: 'Coordenadora', isOperational: true } }
       })
     },
     jobRole: { findMany: async () => [] },

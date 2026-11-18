@@ -73,7 +73,7 @@ export function OperationalCollaboratorModal({ open, collaborator, jobRoles, sav
           <Field id="operational-collaborator-role" label="Função" required errorText={errors.jobRoleId?.message}>
             <Select size="sm" disabled={saving} {...register('jobRoleId')}>
               <option value="">Selecione</option>
-              {jobRoles.filter(item => item.isOperational).map(item => <option value={item.id} key={item.id}>{item.name}</option>)}
+              {jobRoles.filter(item => item.isDefaultVisibleInWorkforce ?? item.isOperational).map(item => <option value={item.id} key={item.id}>{item.name}</option>)}
             </Select>
           </Field>
           <Field id="operational-collaborator-role-date" label="Cargo vigente desde" required errorText={errors.jobRoleEffectiveDate?.message}>

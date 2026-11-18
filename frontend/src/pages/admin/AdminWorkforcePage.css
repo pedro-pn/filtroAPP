@@ -1,0 +1,17 @@
+.admin-workforce-page { display: grid; gap: 1.25rem; padding: 1.5rem; }
+.workforce-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; align-items: end; }
+.workforce-actions, .workforce-pagination { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; }
+.workforce-pagination { justify-content: flex-end; }
+.workforce-check { display: flex; align-items: center; gap: .5rem; min-height: 2.5rem; }
+.admin-workforce-page :is(td, th) small { display: block; margin-top: .25rem; color: var(--fv-color-text-muted, #64748b); }
+.workforce-editor { display: grid; gap: 1rem; }
+.workforce-history { display: grid; gap: 1.5rem; padding-left: 1.25rem; }
+.workforce-history p { margin: .35rem 0; }
+@media (max-width: 640px) { .admin-workforce-page { padding: 1rem; } .workforce-filters { grid-template-columns: 1fr; } }
+
+.workforce-check input[type="checkbox"] { width: 1rem; height: 1rem; flex: 0 0 auto; }
+.workforce-visibility-tab { display: grid; gap: 1.25rem; }
+.workforce-visibility-checkbox { width: 1.15rem; height: 1.15rem; cursor: pointer; }
+.workforce-visibility-mobile-options { display: grid; gap: .5rem; }
+.workforce-visibility-changes { display: grid; gap: .75rem; padding-left: 1.25rem; }
+.workforce-visibility-changes p { margin: .25rem 0; }

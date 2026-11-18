@@ -1,3 +1,4 @@
+import { jobRoleVisibilityWhere, isCollaboratorVisible } from '../../collaborators/workforce-policy.js';
 import { recordEfetivoAudit } from './audit.js';
 import { hasEditableDefaultMissionCycle } from '../../../../../shared/modules/mission-default-cycle.js';
 import { collectAllocationConflicts, ensureNoPlanningConflicts, loadCollaboratorConflictData, lockCollaborator } from './conflicts.js';
@@ -174,7 +175,7 @@ export async function resolveMissionResponsible(tx, payload) {
     select: {
       id: true,
       name: true,
-      collaborator: { select: { id: true, name: true, isActive: true, jobRole: { select: { name: true } } } }
+      collaborator: { select: { id: true, name: true, isActive: true, workforceClassificationOverride: true, jobRole: { select: { name: true, isOperational: true, workforceClassification: true } } } }
     }
   });
   if (!coordinator) {
@@ -183,7 +184,7 @@ export async function resolveMissionResponsible(tx, payload) {
     });
   }
   const linkedCollaborator = coordinator.collaborator;
-  if (workflowLeader && !(linkedCollaborator?.isActive && linkedCollaborator.jobRole?.name)) {
+  if (workflowLeader && !(linkedCollaborator?.isActive && linkedCollaborator.jobRole?.name && isCollaboratorVisible(linkedCollaborator, 'EFETIVO'))) {
     return {
       name: coordinator.name,
       role: 'Líder de Projetos',
@@ -191,7 +192,7 @@ export async function resolveMissionResponsible(tx, payload) {
       userId: coordinator.id
     };
   }
-  if (!linkedCollaborator?.isActive || !linkedCollaborator.jobRole?.name) {
+  if (!linkedCollaborator?.isActive || !linkedCollaborator.jobRole?.name || !isCollaboratorVisible(linkedCollaborator, 'EFETIVO')) {
     throw planningError('A conta selecionada precisa estar vinculada a um colaborador ativo com cargo.', {
       code: 'INVALID_MISSION_LEADER'
     });
@@ -204,23 +205,25 @@ export async function resolveMissionResponsible(tx, payload) {
   };
 }
 
-export function missionMovePendencies(mission) {
+export function missionMovePendencies(mission, { requireTeam = true } = {}) {
   const pendencies = [];
-  const required = (mission.demands || []).reduce((sum, demand) => sum + Number(demand.requiredCount || 0), 0);
-  const covered = (mission.demands || []).reduce((sum, demand) => {
-    const rolePeriods = (mission.allocations || [])
-      .filter(allocation => !allocation.deletedAt && allocation.jobRoleId === demand.jobRoleId)
-      .flatMap(allocation => allocationPeriods(allocation, mission));
-    return sum + Math.min(Number(demand.requiredCount || 0), maximumConcurrentAllocationCount(rolePeriods));
-  }, 0);
   if (!mission.headquartersResponsibleUserId || !mission.headquartersResponsibleName || !mission.headquartersResponsibleRole) {
     pendencies.push('vincular o líder');
   }
   if (![mission.mobilizationDate, mission.executionStartDate, mission.executionEndDate].every(Boolean)) {
     pendencies.push('preencher as datas obrigatórias');
   }
-  if (!required) pendencies.push('selecionar a equipe');
-  else if (covered < required) pendencies.push('completar a equipe');
+  if (requireTeam) {
+    const required = (mission.demands || []).reduce((sum, demand) => sum + Number(demand.requiredCount || 0), 0);
+    const covered = (mission.demands || []).reduce((sum, demand) => {
+      const rolePeriods = (mission.allocations || [])
+        .filter(allocation => !allocation.deletedAt && allocation.jobRoleId === demand.jobRoleId)
+        .flatMap(allocation => allocationPeriods(allocation, mission));
+      return sum + Math.min(Number(demand.requiredCount || 0), maximumConcurrentAllocationCount(rolePeriods));
+    }, 0);
+    if (!required) pendencies.push('selecionar a equipe');
+    else if (covered < required) pendencies.push('completar a equipe');
+  }
   if (mission.scheduleStatus !== 'CONFIRMED') pendencies.push('confirmar a programação');
   return pendencies;
 }
@@ -234,7 +237,7 @@ export function missionMoveRequiresMobilizationAuthorization(planKind, currentSt
 async function validateDemandRoles(tx, demands) {
   const ids = demands.map(item => item.jobRoleId);
   if (!ids.length) return;
-  const roles = await tx.jobRole.findMany({ where: { id: { in: ids }, isActive: true, isOperational: true }, select: { id: true } });
+  const roles = await tx.jobRole.findMany({ where: { id: { in: ids }, isActive: true, ...jobRoleVisibilityWhere('EFETIVO') }, select: { id: true } });
   if (roles.length !== new Set(ids).size) throw planningError('A demanda contém função inexistente, inativa ou não operacional.', { code: 'INVALID_JOB_ROLE' });
 }
 
@@ -513,7 +516,9 @@ export async function moveMissionStage(missionId, payload, context = {}, depende
         });
       }
     }
-    const pendencies = missionMovePendencies(existing);
+    const pendencies = missionMovePendencies(existing, {
+      requireTeam: !['FINAL_MEASUREMENT', 'FINISHED'].includes(payload.stage)
+    });
     if (pendencies.length) {
       throw planningError(`Complete os dados obrigatórios antes de mover a missão: ${pendencies.join(', ')}.`, {
         code: 'MISSION_INCOMPLETE_FOR_KANBAN',

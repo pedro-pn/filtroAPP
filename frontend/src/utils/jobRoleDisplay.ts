@@ -14,7 +14,7 @@ export function jobRoleFamilyKey(value: string | null | undefined) {
     .replace(/\s+/g, ' ');
 }
 
-export function groupJobRoles<T extends { id: string; name: string; isOperational: boolean }>(roles: T[]) {
+export function groupJobRoles<T extends { id: string; name: string; isOperational: boolean; hasOperationalCollaborators?: boolean; isAvailableInWorkforce?: boolean }>(roles: T[]) {
   const groups = new Map<string, T & { name: string; familyKey: string; familyRoleIds: string[] }>();
   for (const role of roles) {
     const familyKey = jobRoleFamilyKey(role.name);
@@ -22,6 +22,8 @@ export function groupJobRoles<T extends { id: string; name: string; isOperationa
     if (current) {
       current.familyRoleIds.push(role.id);
       current.isOperational ||= role.isOperational;
+      current.hasOperationalCollaborators ||= role.hasOperationalCollaborators;
+      current.isAvailableInWorkforce ||= role.isAvailableInWorkforce;
     } else {
       groups.set(familyKey, { ...role, name: jobRoleFamilyName(role.name), familyKey, familyRoleIds: [role.id] });
     }

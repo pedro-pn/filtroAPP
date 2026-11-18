@@ -1,3 +1,4 @@
+import { updateWorkforceRole } from '../src/lib/collaborators/workforce-classification.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
@@ -132,6 +133,8 @@ test('Conecta: recepção real, referência provisória por vínculo, correçõe
     const options = { collaborator: person, jobRoleId: person.jobRoleId, period: { startDate: '2026-11-13', endDate: '2026-11-20' } };
     assert.deepEqual(collectAllocationConflicts(options).map(c => c.code), ['PRE_ADMISSION_CONFIRMATION_REQUIRED']);
     assert.deepEqual(collectAllocationConflicts({ ...options, allowPreAdmissionCollaborator: true }), []);
+    const initialCargo = await db.jobRole.findUniqueOrThrow({ where: { id: person.jobRoleId } });
+    await updateWorkforceRole(db, initialCargo.id, { classification: 'OPERATIONAL', version: initialCargo.classificationVersion, reason: 'Cargo revisado no teste de pré-admissão.' }, null);
     const teamInput = { collaboratorIds: [person.id], scheduleStatus: 'CONFIRMED', mobilizationDate: '2026-11-13', returnDate: '2026-11-20' };
     await assert.rejects(() => resolveSelectedMissionTeam(db, { ...teamInput, confirmedPreAdmissionCollaboratorIds: ['another-person'] }, 'isolated-plan'),
       e => e.conflicts?.[0]?.code === 'PRE_ADMISSION_CONFIRMATION_REQUIRED');
@@ -288,7 +291,7 @@ test('Conecta: recepção real, referência provisória por vínculo, correçõe
   });
 });
 
-test('Engenharia publicada pelo Conecta participa do Efetivo sem alterar a classificação da origem', { timeout: 120_000 }, async () => {
+test('Engenharia recebida do Conecta exige classificação local para participar do Efetivo', { timeout: 120_000 }, async () => {
   const database = await apiSimulationDatabase();
   const db = database.client;
   const companyId = randomUUID(), roleId = randomUUID(), secondRoleId = randomUUID();
@@ -306,18 +309,23 @@ test('Engenharia publicada pelo Conecta participa do Efetivo sem alterar a class
     await receive(event('employment', employment));
     const collaborator = await db.collaborator.findFirstOrThrow();
     assert.equal(collaborator.isActive, true);
-    assert.equal((await db.jobRole.findUniqueOrThrow({ where: { id: collaborator.jobRoleId } })).isOperational, true);
+    const pendingRole = await db.jobRole.findUniqueOrThrow({ where: { id: collaborator.jobRoleId } });
+    assert.equal(pendingRole.isOperational, false);
+    assert.equal(pendingRole.workforceClassification, 'PENDING');
+    await updateWorkforceRole(db, pendingRole.id, { classification: 'OPERATIONAL', version: pendingRole.classificationVersion, reason: 'Engenharia liberada para atuação em campo.' }, null);
     assert.deepEqual(collectAllocationConflicts({ collaborator, jobRoleId: collaborator.jobRoleId,
       period: { startDate: '2026-11-16', endDate: '2026-11-20' } }), []);
     await receive(event('job_role', { ...role, name: 'Engenheiro de homologação atualizado' }, 2));
     assert.equal((await db.jobRole.findUniqueOrThrow({ where: { id: collaborator.jobRoleId } })).isOperational, true,
-      'nova revisão do catálogo não retira do Efetivo um cargo já publicado para equipe');
+      'nova revisão do catálogo preserva a decisão local');
     await receive(event('job_role', { ...role, id: secondRoleId, name: 'Engenheiro de projeto de homologação' }));
     await receive(event('role_change', { id: randomUUID(), personId, employmentId, jobRoleId: secondRoleId,
       effectiveDate: '2026-11-10', status: 'ACTIVE', supersedesId: null }));
     const updated = await db.collaborator.findUniqueOrThrow({ where: { id: collaborator.id } });
     assert.notEqual(updated.jobRoleId, collaborator.jobRoleId);
-    assert.equal((await db.jobRole.findUniqueOrThrow({ where: { id: updated.jobRoleId } })).isOperational, true);
+    const secondPendingRole = await db.jobRole.findUniqueOrThrow({ where: { id: updated.jobRoleId } });
+    assert.equal(secondPendingRole.workforceClassification, 'PENDING');
+    await updateWorkforceRole(db, secondPendingRole.id, { classification: 'OPERATIONAL', version: secondPendingRole.classificationVersion, reason: 'Novo cargo liberado para campo.' }, null);
     const team = await resolveSelectedMissionTeam(db, { collaboratorIds: [updated.id], scheduleStatus: 'CONFIRMED',
       mobilizationDate: '2026-11-16', returnDate: '2026-11-20' }, 'engineering-test-plan');
     assert.equal(team.allocations[0].collaboratorId, updated.id);

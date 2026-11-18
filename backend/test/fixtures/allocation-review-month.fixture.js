@@ -64,14 +64,14 @@ export function createReviewMonthFixture({ delayMs = 0 } = {}) {
       findMany: args => read('savedWeeks', args.where.weekStart.in.map(keyOf).map(key => savedWeeks.get(key)).filter(Boolean))
     },
     collaborator: { findMany: args => {
-      const [operational, extra] = args.where.OR;
+      const [operational, extra] = args.where.AND[1].OR;
       const from = operational.AND[1].OR[1].terminationDate.gte;
       const to = operational.AND[2].OR[1].admissionDate.lte;
-      return read('collaborators', collaborators.filter(item => extra.id.in.includes(item.id) || (
+      return read('collaborators', collaborators.filter(item => item.jobRole.isOperational && (extra.id.in.includes(item.id) || (
         item.jobRole.isActive && item.jobRole.isOperational
         && (item.isActive || item.terminationDate >= from)
         && (!item.admissionDate || item.admissionDate <= to)
-      )));
+      ))));
     } },
     project: { findMany: args => read('projects', projects.filter(item => args.where.OR[0].id.in.includes(item.id) || (item.isActive && !item.deletedAt))) },
     user: {

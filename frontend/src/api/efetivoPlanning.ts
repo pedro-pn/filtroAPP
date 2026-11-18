@@ -37,6 +37,9 @@ export interface PlanningJobRole {
   id: string;
   name: string;
   isOperational: boolean;
+  hasOperationalCollaborators?: boolean;
+  isAvailableInWorkforce?: boolean;
+  isDefaultVisibleInWorkforce?: boolean;
   calendarColor: string;
   continuousWorkLimitDays: number | null;
   order?: number;

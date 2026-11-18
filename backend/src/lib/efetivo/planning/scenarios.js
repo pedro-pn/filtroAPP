@@ -1,3 +1,4 @@
+import { jobRoleVisibilityWhere } from '../../collaborators/workforce-policy.js';
 import { recordEfetivoAudit } from './audit.js';
 import { collaboratorIsEmployedForPeriod } from './conflicts.js';
 import { parseDateKey, periodsOverlap } from './date-only.js';
@@ -130,7 +131,7 @@ export async function createScenario(payload, context = {}, dependencies = {}) {
 }
 
 async function createScenarioHire(tx, scenario, payload, context) {
-  const role = await tx.jobRole.findFirst({ where: { id: payload.jobRoleId, isActive: true, isOperational: true } });
+  const role = await tx.jobRole.findFirst({ where: { id: payload.jobRoleId, isActive: true, ...jobRoleVisibilityWhere('EFETIVO') } });
   if (!role) throw notFound('Função operacional não encontrada.');
   const hire = await tx.efetivoPlannedHire.upsert({
     where: { planId_jobRoleId_availableFrom: { planId: scenario.id, jobRoleId: payload.jobRoleId, availableFrom: utcDate(payload.availableFrom) } },

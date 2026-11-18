@@ -1,4 +1,6 @@
+import { requireOperationalRequestParticipants } from '../lib/collaborators/request-workforce-policy.js';
 import env from '../config/env.js';
+import { withWorkforceVisibility } from '../lib/collaborators/workforce-visibility-context.js';
 import asyncHandler from '../lib/async-handler.js';
 import { getApiOperation, findApiOperationForRequest } from '../lib/api-credentials/catalog.js';
 import { recordApiRequest } from '../lib/api-credentials/audit.js';
@@ -115,7 +117,7 @@ export function createApiTokenAuthenticator({ prismaClient = prisma, envConfig =
       projectIds: new Set(credential.projects.map(item => item.projectId)),
       projectCodes: new Set(credential.projects.map(item => item.project?.code).filter(Boolean))
     };
-    next();
+    withWorkforceVisibility('API', next);
   });
 }
 
@@ -173,6 +175,7 @@ export async function runMeteredApiOperation(req, {
       limits,
       requestedRows
     });
+    await requireOperationalRequestParticipants(prismaClient, req);
     const result = await executeApiWrite(prismaClient, { operation, simulated, requestId: req.requestId, execute });
     if (req.apiOutcomeCode === 'REQUEST_TIMEOUT') {
       throw new IntegrationApiError(504, 'REQUEST_TIMEOUT', 'A consulta excedeu o tempo limite.');

@@ -3,6 +3,8 @@ import http from 'node:http';
 import app from './app.js';
 import env from './config/env.js';
 import { captureOperationalError } from './lib/operations/error-tracking.js';
+import prisma from './lib/prisma.js';
+import { startWorkforceVisibilityRefresh } from './lib/collaborators/workforce-visibility.js';
 
 const server = http.createServer(app);
 
@@ -45,6 +47,8 @@ server.on('error', (error) => {
   process.exit(1);
 });
 
+const stopWorkforceVisibilityRefresh = await startWorkforceVisibilityRefresh(prisma);
+server.once('close', stopWorkforceVisibilityRefresh);
 server.listen(env.port, () => {
   console.log(`API running on http://localhost:${env.port}`);
   if (!env.surveyTokenSecret) {

@@ -186,7 +186,8 @@ export const moduleRegistry = [
     ],
     "routes": {
       "accounts": "/admin/accounts",
-      "tokens": "/admin/tokens"
+      "tokens": "/admin/tokens",
+      "workforce": "/admin/workforce"
     },
     "routeGroups": {
       "accounts": {

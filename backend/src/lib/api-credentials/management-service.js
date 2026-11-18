@@ -1,3 +1,4 @@
+import { collaboratorVisibilityWhere } from '../collaborators/workforce-policy.js';
 import { createHash } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { buildWeeklyProgressComparison, corporateToday, dateOnlyKey, weekStartKey, effectiveWeeklyProgressTarget } from '../../../../shared/modules/mission-weekly-progress.js';
@@ -135,6 +136,7 @@ async function projectConditions(client, projects, context) {
 
 async function allocations(client, projects, snapshotAt) {
   const rows = await client.efetivoMissionAllocation.findMany({ where: {
+    collaborator: collaboratorVisibilityWhere('API'),
     updatedAt: { lte: snapshotAt }, mission: { projectId: { in: projects.map(row => row.id) }, deletedAt: null,
       scheduleStatus: 'CONFIRMED', plan: { kind: 'OFFICIAL', status: 'ACTIVE' } }
   }, select: { id: true, collaboratorId: true, jobRoleNameSnapshot: true, mobilizationDate: true, demobilizationDate: true,
