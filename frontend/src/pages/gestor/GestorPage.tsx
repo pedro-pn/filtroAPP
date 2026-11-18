@@ -35,6 +35,7 @@ type GestorTab =
   | 'arquivados'
   | 'projetos'
   | 'equipe'
+  | 'usuarios'
   | 'equipamentos'
   | 'manometros'
   | 'contadores';
@@ -88,7 +89,7 @@ interface CounterFormState {
   expiresAt: string;
 }
 
-const internalRoles: Array<Exclude<UserRole, 'CLIENT'>> = ['COLLABORATOR', 'MANAGER', 'COORDINATOR'];
+const internalRoles: Array<Exclude<UserRole, 'CLIENT'>> = ['COLLABORATOR', 'COORDINATOR', 'MANAGER'];
 const emptyProjectForm: ProjectFormState = {
   code: '',
   name: '',
@@ -173,6 +174,12 @@ function formatUserRole(role: UserRole) {
 function formatDate(value?: string | null) {
   if (!value) return 'Não informado';
   return new Date(value).toLocaleDateString('pt-BR');
+}
+
+function formatCnpj(value?: string | null) {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (digits.length !== 14) return value || '';
+  return digits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
 }
 
 function projectToForm(project: Project): ProjectFormState {
@@ -292,6 +299,7 @@ export function GestorPage() {
   const [userEditingId, setUserEditingId] = useState<string | null>(null);
   const [showUserForm, setShowUserForm] = useState(false);
   const [userMessage, setUserMessage] = useState<string | null>(null);
+  const [userAdminGroup, setUserAdminGroup] = useState<'internal' | 'client'>('internal');
 
   const [unitForm, setUnitForm] = useState<UnitFormState>(emptyUnitForm);
   const [unitEditingId, setUnitEditingId] = useState<string | null>(null);
@@ -315,7 +323,8 @@ export function GestorPage() {
   const activeProjectsQuery = useProjects(true);
   const archivedProjectsQuery = useProjects(false);
   const collaboratorsQuery = useCollaborators();
-  const usersQuery = useUsers('internal');
+  const internalUsersQuery = useUsers('internal');
+  const clientUsersQuery = useUsers('client');
   const unitsQuery = useUnits();
   const manometersQuery = useManometers();
   const countersQuery = useCounters();
@@ -524,6 +533,16 @@ export function GestorPage() {
       if (userEditingId === id) resetUserForm();
     } catch (error) {
       setUserMessage(error instanceof Error ? error.message : 'Não foi possível remover o usuário.');
+    }
+  }
+
+  async function handleResendClientAccess(id: string) {
+    setUserMessage(null);
+    try {
+      await userMutations.resendClientAccess.mutateAsync(id);
+      setUserMessage('E-mail de acesso reenviado.');
+    } catch (error) {
+      setUserMessage(error instanceof Error ? error.message : 'Não foi possível reenviar o acesso.');
     }
   }
 
@@ -1197,24 +1216,53 @@ export function GestorPage() {
             <p className="placeholder-copy">Nenhum colaborador cadastrado.</p>
           )}
         </section>
-        {renderUsuariosTab()}
       </>
     );
   }
 
   function renderUsuariosTab() {
-    const users = usersQuery.data || [];
+    const internalUsers = internalUsersQuery.data || [];
+    const clientUsers = clientUsersQuery.data || [];
 
-    if (usersQuery.isLoading) {
+    if (internalUsersQuery.isLoading || clientUsersQuery.isLoading) {
       return <div className="page-card placeholder-copy">{'Carregando usuários...'}</div>;
     }
+    const showInternal = userAdminGroup === 'internal';
 
     return (
       <>
+        <section className="page-card compact-link-card">
+          <div className="filter-tabs">
+            <button
+              className={`filter-tab ${showInternal ? 'active' : ''}`}
+              type="button"
+              onClick={() => {
+                setUserAdminGroup('internal');
+                setUserMessage(null);
+              }}
+            >
+              Internos
+            </button>
+            <button
+              className={`filter-tab ${!showInternal ? 'active' : ''}`}
+              type="button"
+              onClick={() => {
+                setUserAdminGroup('client');
+                resetUserForm();
+                setUserMessage(null);
+              }}
+            >
+              Clientes
+            </button>
+          </div>
+        </section>
+
+        {showInternal ? (
+        <>
         <section className="page-card">
-          <div className="section-title">{userEditingId ? 'Editar usuário' : 'Novo usuário interno'}</div>
+          <div className="admin-section-head">
+            <div className="section-title">Usuários internos</div>
           {!showUserForm && !userEditingId ? (
-            <div className="admin-form-actions">
               <button
                 className="primary-button"
                 type="button"
@@ -1223,13 +1271,16 @@ export function GestorPage() {
                   setUserMessage(null);
                 }}
               >
-                Adicionar usuario
+                + Novo usuário
               </button>
-            </div>
           ) : null}
+          </div>
           {userMessage ? <div className="inline-success">{userMessage}</div> : null}
           {showUserForm && !userEditingId ? (
-          <form className="admin-form-grid" onSubmit={handleUserSubmit}>
+          <form className="admin-inline-form admin-form-grid" onSubmit={handleUserSubmit}>
+            <div className="field-group full">
+              <div className="section-title">Novo usuário</div>
+            </div>
             <div className="field-group">
               <label htmlFor="user-username">Usuário</label>
               <input
@@ -1333,10 +1384,9 @@ export function GestorPage() {
         </section>
 
         <section className="page-card">
-          <div className="section-title">Usuários internos</div>
-          {users.length ? (
+          {internalUsers.length ? (
             <div className="admin-stack">
-              {users.map(item => (
+              {internalUsers.map(item => (
                 <article className="admin-card-react" key={item.id}>
                   <div className="admin-card-head">
                     <div>
@@ -1413,6 +1463,71 @@ export function GestorPage() {
             <p className="placeholder-copy">Nenhum usuário interno cadastrado.</p>
           )}
         </section>
+        </>
+        ) : (
+        <section className="page-card">
+          <div className="admin-section-head">
+            <div>
+              <div className="section-title">Clientes</div>
+              <div className="admin-card-subtitle">Contas criadas automaticamente a partir dos projetos.</div>
+            </div>
+          </div>
+          {userMessage ? <div className="inline-success">{userMessage}</div> : null}
+          {clientUsers.length ? (
+            <div className="admin-stack">
+              {clientUsers.map(item => {
+                const linked = item.linkedProjects || [];
+                const projectList = linked.length
+                  ? linked.map(project => `${project.contractCode || '---'} - Missão ${project.code || '---'} - ${project.name || 'Sem nome'}`)
+                  : ['Nenhum projeto vinculado.'];
+
+                return (
+                  <article className="admin-card-react" key={item.id}>
+                    <div className="admin-card-head">
+                      <div>
+                        <div className="admin-card-title">{item.name || 'Cliente'} - {formatCnpj(item.username) || item.username}</div>
+                        <div className="admin-card-subtitle">
+                          {item.email || 'Sem e-mail principal'} - {item.isActive ? 'Ativo' : 'Inativo'}
+                        </div>
+                      </div>
+                      <span className={`status-pill ${item.isActive ? 'status-approved' : 'status-returned'}`}>
+                        {item.isActive ? 'Ativo' : 'Inativo'}
+                      </span>
+                    </div>
+                    <div className="det-section" style={{ marginTop: 10 }}>
+                      <div className="det-row">
+                        <span className="det-label">Projetos</span>
+                        <span className="det-val">{linked.length}</span>
+                      </div>
+                      <div className="det-row">
+                        <span className="det-label">Vínculos</span>
+                        <span className="det-val">
+                          {projectList.map(project => <span key={project}>{project}<br /></span>)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="admin-card-actions" style={{ marginTop: 10 }}>
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        disabled={userMutations.resendClientAccess.isPending}
+                        onClick={() => void handleResendClientAccess(item.id)}
+                      >
+                        Reenviar acesso
+                      </button>
+                      <button className="danger-button" type="button" onClick={() => void handleUserDelete(item.id)}>
+                        Remover
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="placeholder-copy">Nenhum cliente provisionado.</p>
+          )}
+        </section>
+        )}
       </>
     );
   }
@@ -1830,6 +1945,7 @@ export function GestorPage() {
     if (tab === 'pendentes' || tab === 'aprovados' || tab === 'arquivados') return renderReportTabContent();
     if (tab === 'projetos') return renderProjectsTab();
     if (tab === 'equipe') return renderEquipeTab();
+    if (tab === 'usuarios') return renderUsuariosTab();
     if (tab === 'equipamentos') return renderEquipamentosTab();
     if (tab === 'manometros') return renderManometrosTab();
     return renderContadoresTab();
@@ -1894,6 +2010,9 @@ export function GestorPage() {
             </button>
             <button className={`filter-tab ${tab === 'equipe' ? 'active' : ''}`} type="button" onClick={() => setTab('equipe')}>
               Equipe
+            </button>
+            <button className={`filter-tab ${tab === 'usuarios' ? 'active' : ''}`} type="button" onClick={() => setTab('usuarios')}>
+              Usuários
             </button>
             <button className={`filter-tab ${tab === 'equipamentos' ? 'active' : ''}`} type="button" onClick={() => setTab('equipamentos')}>
               Unidades
