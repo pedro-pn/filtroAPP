@@ -56,7 +56,9 @@ try {
     FROM pg_class c
     JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE n.nspname = 'public' AND c.relkind = 'S'
-      AND NOT has_sequence_privilege(c.oid, 'USAGE')
+      -- CASE garante que has_sequence_privilege só recebe sequences (o planner
+      -- pode avaliar os filtros em qualquer ordem).
+      AND CASE WHEN c.relkind = 'S' THEN NOT has_sequence_privilege(c.oid, 'USAGE') ELSE false END
     ORDER BY c.relname
   `);
   const { rows: [{ tables }] } = await client.query(
