@@ -550,3 +550,123 @@ test('POST /auth/change-password revokes other sessions and preserves current se
     id: { not: session.id }
   });
 });
+
+function nextTick() {
+  return new Promise(resolve => setImmediate(resolve));
+}
+
+test('POST /auth/login limits failed attempts per IP across different usernames', async t => {
+  const originalFindMany = prisma.user.findMany;
+  prisma.user.findMany = async () => [];
+  t.after(() => {
+    prisma.user.findMany = originalFindMany;
+  });
+
+  const ip = '198.51.100.60';
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const response = await dispatchApp('POST', '/api/auth/login', {
+      username: `spray-${attempt}@example.com`,
+      password: 'senha-incorreta'
+    }, ip);
+    assert.equal(response.statusCode, 401);
+    await nextTick();
+  }
+
+  const blocked = await dispatchApp('POST', '/api/auth/login', {
+    username: 'spray-final@example.com',
+    password: 'senha-incorreta'
+  }, ip);
+  assert.equal(blocked.statusCode, 429);
+  assert.equal(blocked.json.error, 'Muitas tentativas de login. Tente novamente mais tarde.');
+
+  const otherIp = await dispatchApp('POST', '/api/auth/login', {
+    username: 'spray-final@example.com',
+    password: 'senha-incorreta'
+  }, '198.51.100.61');
+  assert.equal(otherIp.statusCode, 401);
+});
+
+test('POST /auth/login limits failed attempts per username across different IPs', async t => {
+  const originalFindMany = prisma.user.findMany;
+  prisma.user.findMany = async () => [];
+  t.after(() => {
+    prisma.user.findMany = originalFindMany;
+  });
+
+  const body = { username: 'Distributed-Target@example.com', password: 'senha-incorreta' };
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const response = await dispatchApp('POST', '/api/auth/login', body, `203.0.113.${attempt + 1}`);
+    assert.equal(response.statusCode, 401);
+    await nextTick();
+  }
+
+  const blocked = await dispatchApp('POST', '/api/auth/login', {
+    ...body,
+    username: 'distributed-target@example.com'
+  }, '203.0.113.200');
+  assert.equal(blocked.statusCode, 429);
+  assert.equal(blocked.json.error, 'Muitas tentativas de login. Tente novamente mais tarde.');
+
+  const otherUser = await dispatchApp('POST', '/api/auth/login', {
+    username: 'outra-conta@example.com',
+    password: 'senha-incorreta'
+  }, '203.0.113.201');
+  assert.equal(otherUser.statusCode, 401);
+});
+
+test('POST /auth/login does not count successful logins toward the per-IP limit', async t => {
+  const originals = {
+    findMany: prisma.user.findMany,
+    sessionCreate: prisma.userSession.create
+  };
+  const passwordHash = await hashPassword('senha-correta-longa');
+  prisma.user.findMany = async args => {
+    const username = args.where.OR[0].username.equals;
+    return [{
+      id: `user-${username}`,
+      username,
+      name: 'Colaborador',
+      email: null,
+      role: 'COLLABORATOR',
+      accountType: 'INTERNAL',
+      isActive: true,
+      passwordHash,
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+      moduleRoles: []
+    }];
+  };
+  prisma.userSession.create = async ({ data }) => ({ id: `session-${data.userId}`, ...data });
+  t.after(() => {
+    prisma.user.findMany = originals.findMany;
+    prisma.userSession.create = originals.sessionCreate;
+  });
+
+  const ip = '198.51.100.70';
+  for (let attempt = 0; attempt < 55; attempt += 1) {
+    const response = await dispatchApp('POST', '/api/auth/login', {
+      username: `nat-user-${attempt}`,
+      password: 'senha-correta-longa'
+    }, ip);
+    assert.equal(response.statusCode, 200);
+    await nextTick();
+  }
+});
+
+test('POST /auth/reset-password rejects new passwords shorter than 10 characters', async t => {
+  const originalFindUnique = prisma.passwordResetToken.findUnique;
+  let lookups = 0;
+  prisma.passwordResetToken.findUnique = async () => {
+    lookups += 1;
+    return null;
+  };
+  t.after(() => {
+    prisma.passwordResetToken.findUnique = originalFindUnique;
+  });
+
+  const response = await dispatchApp('POST', '/api/auth/reset-password', {
+    token: 'short-password-token',
+    password: 'curta1234'
+  }, '198.51.100.80');
+  assert.equal(response.statusCode, 400);
+  assert.equal(lookups, 0);
+});

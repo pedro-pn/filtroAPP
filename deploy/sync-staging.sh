@@ -29,6 +29,8 @@ STAGING_ENV_FILE="${STAGING_ENV_FILE:-$PROJECT_DIR/backend/.env.staging}"
 BACKUP_ROOT="${BACKUP_ROOT:-/root/backups/filtrovali}"
 POSTGRES_DB="${POSTGRES_DB:-filtrovali}"
 POSTGRES_USER="${POSTGRES_USER:-postgres}"
+APP_DB_ROLE="${APP_DB_ROLE:-filtrovali_app}"
+APP_ROLE_SQL="${APP_ROLE_SQL:-$SCRIPT_DIR/db/app-role.sql}"
 REPORTS_VOLUME="${REPORTS_VOLUME:-filtrovali_staging_relatorios}"
 RESTORE_REPORTS="${RESTORE_REPORTS:-false}"
 BUILD_SERVICES="${BUILD_SERVICES:-true}"
@@ -651,6 +653,16 @@ docker compose -f "$STAGING_COMPOSE_FILE" exec -T postgres \
   -c "CREATE DATABASE \"${RESTORE_DB_SQL}\";" \
   >/dev/null
 
+# O dump de produção traz GRANTs para o papel restrito da aplicação. Papéis são
+# globais do cluster: sem o papel aqui, o restore com ON_ERROR_STOP abortaria.
+log "garantindo que o papel $APP_DB_ROLE exista no Postgres de homologação"
+docker compose -f "$STAGING_COMPOSE_FILE" exec -T postgres \
+  psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres -v "app_role=$APP_DB_ROLE" <<'SQL'
+SELECT format('CREATE ROLE %I NOLOGIN', :'app_role')
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'app_role')
+\gexec
+SQL
+
 log "restaurando banco temporário a partir de $BACKUP_DIR/postgres.sql.gz"
 gunzip -c "$BACKUP_DIR/postgres.sql.gz" \
   | docker compose -f "$STAGING_COMPOSE_FILE" exec -T postgres \
@@ -686,15 +698,21 @@ fi
 # ---------------------------------------------------------------------------
 
 if [ "$BUILD_SERVICES" = "true" ]; then
-  log "buildando backend, worker e nginx de homologação"
-  docker compose -f "$STAGING_COMPOSE_FILE" build backend worker nginx
+  log "buildando migrate, backend, worker e nginx de homologação"
+  docker compose -f "$STAGING_COMPOSE_FILE" build migrate backend worker nginx
 else
   log "build de backend/worker/nginx desativado (BUILD_SERVICES=false)"
 fi
 
 log "aplicando migrations pendentes"
-docker compose -f "$STAGING_COMPOSE_FILE" run --rm --no-deps \
-  backend sh -c "npx prisma migrate deploy"
+docker compose -f "$STAGING_COMPOSE_FILE" run --rm --no-deps migrate
+
+if [ -f "$APP_ROLE_SQL" ]; then
+  log "reaplicando GRANTs do papel $APP_DB_ROLE"
+  docker compose -f "$STAGING_COMPOSE_FILE" exec -T postgres \
+    psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v "app_role=$APP_DB_ROLE" \
+    < "$APP_ROLE_SQL"
+fi
 
 create_staging_mock_report_files
 ensure_staging_admin_password_hash

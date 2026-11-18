@@ -44,6 +44,29 @@ services:
     networks:
       - filtrovali-net
 
+  # Aplica as migrations com o dono das tabelas (MIGRATION_DATABASE_URL; sem ela,
+  # cai para DATABASE_URL) e termina. backend e worker só sobem depois que ele
+  # conclui com sucesso e não recebem a credencial do dono.
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: filtrovali-migrate
+    restart: "no"
+    command: ["npx", "prisma", "migrate", "deploy"]
+    env_file:
+      - backend/.env.production
+    environment:
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - filtrovali-net
+    mem_limit: 1g
+    cpus: 1.0
+    pids_limit: 100
+
   backend:
     build:
       context: .
@@ -54,10 +77,14 @@ services:
     image: filtrovali-backend:${APP_GIT_SHA:-latest}
     container_name: filtrovali-backend
     restart: unless-stopped
+    # Migrations rodam no serviço migrate; a API só inicia.
+    command: ["node", "src/server.js"]
     env_file:
       - backend/.env.production
     environment:
       BACKGROUND_JOBS_IN_API: "false"
+      # A credencial do dono fica só no serviço migrate.
+      MIGRATION_DATABASE_URL: ""
       # Prevalece sobre o limite antigo de 20 MB presente em env-files existentes.
       ASSINATURAS_MAX_PDF_MB: "200"
       ASSINATURAS_MAX_PAGES: "500"
@@ -67,6 +94,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     volumes:
       - filtrovali_relatorios:/data/relatorios
       - ${OPERATIONS_STATUS_DIR:-/root/backups/filtrovali/status}:/ops-status:ro
@@ -96,6 +125,7 @@ services:
       - backend/.env.production
     environment:
       BACKGROUND_JOBS_IN_API: "false"
+      MIGRATION_DATABASE_URL: ""
       ASSINATURAS_MAX_PDF_MB: "200"
       ASSINATURAS_MAX_PAGES: "500"
       DATABASE_CONNECTION_LIMIT: ${WORKER_DATABASE_CONNECTION_LIMIT:-2}

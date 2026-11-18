@@ -109,8 +109,10 @@ docker compose --env-file backend/.env.production -f docker-compose.prod.yml exe
    - Em homologação/teste com banco de produção, definir `SEND_CLIENT_EMAILS=false` para bloquear todos os envios operacionais do sistema.
    - Para observabilidade operacional, configurar `OPERATIONS_BACKUP_STATUS_FILE`,
      `OPERATIONS_RESTORE_STATUS_FILE`, `OPERATIONS_REQUIRE_BACKUP_STATUS=true`,
-     `OPERATIONS_ALERT_WEBHOOK_URL` e `ERROR_TRACKING_WEBHOOK_URL` quando esses
-     recursos estiverem ativos. Use `OPERATIONS_REQUIRE_RESTORE_STATUS=false` no
+     `OPERATIONS_ALERT_JOB_ENABLED=true` e `OPERATIONS_ALERT_EMAILS` (e-mail da
+     equipe que recebe os alertas; veja "Alertas por e-mail" abaixo). Os webhooks
+     `OPERATIONS_ALERT_WEBHOOK_URL` e `ERROR_TRACKING_WEBHOOK_URL` são opcionais e
+     podem funcionar junto com o e-mail. Use `OPERATIONS_REQUIRE_RESTORE_STATUS=false` no
      deploy inicial e altere para `true` depois que o restore periódico estiver
      agendado e publicando `restore-latest.json`.
    - Para rastreamento de erro do frontend em Docker, configurar
@@ -127,11 +129,12 @@ O `docker-compose.prod.yml` monta esse diretório em `/ops-status:ro` no backend
 por padrão. Para usar outro caminho no host, defina `OPERATIONS_STATUS_DIR` no
 env-file usado pelo Compose.
 
-4. Buildar as imagens sem iniciar o backend. O comando de start do backend aplica
-   migrations automaticamente, então ele não deve subir antes do preflight dos índices:
+4. Buildar as imagens sem iniciar o backend. O serviço `migrate` aplica as
+   migrations antes de o backend subir, então nada além do Postgres deve subir antes
+   do preflight dos índices:
 
 ```bash
-docker compose --env-file backend/.env.production -f docker-compose.prod.yml build backend nginx worker
+docker compose --env-file backend/.env.production -f docker-compose.prod.yml build migrate backend nginx worker
 ```
 
 5. Subir somente o Postgres:
@@ -199,12 +202,17 @@ deploy, confirme com `SELECT * FROM pg_extension WHERE extname = 'pg_stat_statem
 e use a view apenas para diagnóstico, resetando seus
 contadores somente em uma janela de medição planejada.
 
-7. Subir backend, worker e Nginx. Neste momento o `CMD` do backend roda
-   `npx prisma migrate deploy` automaticamente e inicia a API:
+7. Subir backend, worker e Nginx. O Compose roda antes o serviço `migrate`
+   (`npx prisma migrate deploy` com `MIGRATION_DATABASE_URL`, o dono das tabelas)
+   e só inicia backend e worker se ele terminar com sucesso:
 
 ```bash
 docker compose --env-file backend/.env.production -f docker-compose.prod.yml up -d backend nginx worker
 ```
+
+Se o `migrate` falhar, veja o motivo com
+`docker compose --env-file backend/.env.production -f docker-compose.prod.yml logs migrate`.
+Backend e worker continuam na versão anterior até a migration passar.
 
 Para deploys futuros que não adicionem índices grandes, o fluxo normal pode voltar a
 ser:
@@ -301,6 +309,88 @@ OPERATIONS_RESTORE_MAX_AGE_DAYS=35
 
 (recrie backend e worker depois de editar o env-file).
 
+## Papel restrito do banco
+
+API e worker conectam com o papel `filtrovali_app` (`DATABASE_URL`), que só lê e
+grava linhas: não é superusuário, não cria nem altera tabelas, não trunca e não
+mexe em `_prisma_migrations`. As migrations rodam no serviço `migrate` com o dono
+das tabelas (`MIGRATION_DATABASE_URL`, hoje `postgres`). O Compose zera
+`MIGRATION_DATABASE_URL` em backend e worker, então a credencial do dono só
+existe no container `migrate`, que termina logo após aplicar as migrations.
+
+Os GRANTs ficam em `deploy/db/app-role.sql` (idempotente). Ele também define
+`ALTER DEFAULT PRIVILEGES`, então tabelas, sequences e funções criadas por
+migrations futuras já nascem acessíveis ao papel. O job de CI
+`Database least-privilege role` aplica as migrations como dono e roda suítes de
+integração (triggers, outbox, advisory locks) como o papel restrito.
+
+Sem `MIGRATION_DATABASE_URL`, o `migrate` usa `DATABASE_URL`. Por isso este
+código pode ir ao ar antes da troca de credencial: tudo segue como hoje.
+
+### Ativação (rode no servidor, uma vez)
+
+```bash
+cd ~/apps/filtroAPP
+# 1. Senha do papel: só [A-Za-z0-9._~-], porque vai na URL de conexão.
+install -d -m 700 /root/secrets
+openssl rand -hex 32 > /root/secrets/filtrovali_app_db_password
+chmod 600 /root/secrets/filtrovali_app_db_password
+
+# 2. Cria o papel e aplica os GRANTs. A saída deve mostrar superuser=f,
+#    can_create_in_public=f e tables_missing_grants=0.
+deploy/db/apply-app-role.sh --password-file /root/secrets/filtrovali_app_db_password
+
+# 3. Backup do env-file antes de editar.
+cp -p backend/.env.production backend/.env.production.bak-$(date +%Y%m%d%H%M)
+```
+
+4. Edite `backend/.env.production`:
+   - copie a linha atual de `DATABASE_URL` para uma linha nova
+     `MIGRATION_DATABASE_URL=...` (mesmo valor, com `postgres`);
+   - em `DATABASE_URL`, troque o usuário `postgres` por `filtrovali_app` e a senha
+     pelo conteúdo de `/root/secrets/filtrovali_app_db_password`;
+   - acrescente `OPERATIONS_REQUIRE_RESTRICTED_DB_ROLE=true`, para o painel de
+     operações (e o alerta) acusar se a API voltar a usar o dono.
+
+```bash
+# 5. Confere o papel com o env-file novo, sem subir nada.
+docker compose --env-file backend/.env.production -f docker-compose.prod.yml run --rm --no-deps \
+  backend node scripts/check-database-role.js --require-restricted
+
+# 6. Recria os serviços (env-file novo exige recriar; restart não basta).
+#    --force republica o commit atual pelo deploy versionado, com volta automática.
+deploy/deploy-prod.sh --force
+docker compose --env-file backend/.env.production -f docker-compose.prod.yml logs --tail=80 backend worker \
+  | grep -i "privilégios de dono" || echo "ok: sem aviso de papel privilegiado"
+```
+
+Depois de restaurar um backup, rode de novo `deploy/db/apply-app-role.sh` (sem
+`--password-file` ele só reaplica os GRANTs). `deploy/restore-prod.sh` já faz
+isso e, num servidor novo, cria o papel sem senha; nesse caso defina a senha com
+`--password-file` antes de subir a API.
+
+Scripts de manutenção rodados com `docker compose ... exec backend node scripts/...`
+passam a usar o papel restrito, o que basta para backfills e importações (só
+DML). O que precisar de DDL vai numa migration.
+
+### Voltar atrás (rode no servidor)
+
+```bash
+cd ~/apps/filtroAPP
+# Volta o env-file anterior (DATABASE_URL com postgres) e recria os serviços.
+cp -p backend/.env.production.bak-AAAAMMDDHHMM backend/.env.production
+docker compose --env-file backend/.env.production -f docker-compose.prod.yml up -d backend worker
+```
+
+O papel `filtrovali_app` pode ficar no banco: sem uso, não dá acesso a nada. Para
+removê-lo:
+
+```bash
+docker compose --env-file backend/.env.production -f docker-compose.prod.yml exec -T postgres \
+  psql -U postgres -d filtrovali -v ON_ERROR_STOP=1 \
+  -c 'DROP OWNED BY filtrovali_app' -c 'DROP ROLE filtrovali_app'
+```
+
 ## Falhas de rede no build (`npm ci`)
 
 O build do frontend usa Node 24, exigido por `@zxing/library@0.23.0`.
@@ -389,12 +479,54 @@ OPERATIONS_BACKUP_MAX_AGE_HOURS=26
 OPERATIONS_RESTORE_MAX_AGE_DAYS=30
 OPERATIONS_ALERT_JOB_ENABLED=true
 OPERATIONS_ALERT_INTERVAL_MS=3600000
-OPERATIONS_ALERT_WEBHOOK_URL=https://seu-monitoramento.example/webhook
+OPERATIONS_ALERT_EMAILS=ti@empresa.example,responsavel@empresa.example
+OPERATIONS_ALERT_EMAIL_THROTTLE_MINUTES=30
+OPERATIONS_ALERT_REPEAT_HOURS=6
+# Opcionais (podem ficar vazios quando só o e-mail for usado):
+OPERATIONS_ALERT_WEBHOOK_URL=
 ERROR_TRACKING_PROVIDER=webhook
-ERROR_TRACKING_WEBHOOK_URL=https://seu-monitoramento.example/errors
+ERROR_TRACKING_WEBHOOK_URL=
 VITE_ERROR_TRACKING_ENABLED=true
 VITE_ERROR_TRACKING_ENDPOINT=
 ```
+
+### Alertas por e-mail
+
+Com `OPERATIONS_ALERT_EMAILS` preenchido, o backend e o worker enviam e-mail
+pelo mesmo SMTP/OAuth2 dos demais e-mails do sistema para:
+
+- erros HTTP 5xx, `unhandledRejection` e exceções não tratadas da API e do worker;
+- falhas de jobs recorrentes (com o banco fora do ar, as falhas de todos os jobs
+  viram um único alerta);
+- o job `operational-alert-check` (backup com falha ou velho, restore, jobs
+  parados, Omie, banco comercial), quando `OPERATIONS_ALERT_JOB_ENABLED=true`.
+
+Controle de repetição:
+
+- erros: no máximo um e-mail por tipo de erro e rota/job a cada
+  `OPERATIONS_ALERT_EMAIL_THROTTLE_MINUTES` (padrão 30). O próximo e-mail informa
+  quantas ocorrências iguais foram suprimidas. O controle é em memória, por
+  processo: um reinício zera a janela, e API e worker contam separadamente;
+- status operacional: um e-mail quando o problema aparece ou muda, outro a cada
+  `OPERATIONS_ALERT_REPEAT_HOURS` (padrão 6) enquanto persistir, e um aviso de
+  normalização quando some. Esse estado fica no resultado do próprio job no banco.
+
+Os e-mails levam só a primeira linha da mensagem de erro, as linhas `at ...` da
+pilha, rota, método, status, request id (o mesmo devolvido no cabeçalho `X-Request-Id` da resposta
+5xx e gravado no log como `[http-5xx] requestId=...`), id numérico do usuário,
+ambiente e versão (`APP_GIT_SHA`). E-mails e CPFs são mascarados. Erros enviados
+pelo navegador para a rota pública `/api/operations/client-errors` nunca geram
+e-mail, só vão para o webhook, se houver.
+
+`SEND_CLIENT_EMAILS=false` bloqueia todo e-mail de saída, inclusive os alertas.
+
+Para provar que o alerta chega (pilar 12.1), rode no servidor depois do deploy:
+
+```bash
+docker compose --env-file backend/.env.production -f docker-compose.prod.yml exec backend npm run ops:test-alert
+```
+
+O comando informa o resultado por canal e sai com código 1 se nenhum entregou.
 
 Depois que o restore periódico estiver agendado e validado, altere
 `OPERATIONS_REQUIRE_RESTORE_STATUS=true` (o ensaio é `deploy/restore-drill.sh`,

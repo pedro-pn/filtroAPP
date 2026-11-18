@@ -15,6 +15,7 @@ import { createNavigationModel } from '../../layout/navigationModel';
 import { PageHeader } from '../../layout/PageHeader';
 import { hubModulesForUser } from '../hubModules';
 import { downloadBlob } from '../../utils/download';
+import { PASSWORD_MIN_LENGTH } from '../../../../shared/modules/password-policy.js';
 import './AccountPage.css';
 
 export function AccountPage() {
@@ -236,11 +237,12 @@ export function AccountPage() {
                   onChange={event => setCurrentPassword(event.target.value)}
                 />
               </Field>
-              <Field id="new-password" label="Nova senha" optionalText="">
+              <Field id="new-password" label="Nova senha" optionalText="" helperText={`Use pelo menos ${PASSWORD_MIN_LENGTH} caracteres.`}>
                 <Input
                   id="new-password-control"
                   type="password"
                   autoComplete="new-password"
+                  minLength={PASSWORD_MIN_LENGTH}
                   value={newPassword}
                   onChange={event => setNewPassword(event.target.value)}
                 />
@@ -250,6 +252,7 @@ export function AccountPage() {
                   id="confirm-password-control"
                   type="password"
                   autoComplete="new-password"
+                  minLength={PASSWORD_MIN_LENGTH}
                   value={confirmPassword}
                   onChange={event => setConfirmPassword(event.target.value)}
                 />

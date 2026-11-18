@@ -564,8 +564,9 @@ A homologação usa `https://filtrostaging.filtrovali.com.br` no mesmo Caddy, co
 POSTGRES_PASSWORD=<senha> docker compose -f docker-compose.prod.yml config -q
 POSTGRES_PASSWORD=<senha> docker compose -f docker-compose.prod.yml up -d --build
 
-# O backend também aplica migrations ao iniciar; este comando permite conferência explícita
-docker compose -f docker-compose.prod.yml exec backend npx prisma migrate deploy
+# O serviço one-shot `migrate` aplica as migrations (com MIGRATION_DATABASE_URL, o dono
+# das tabelas) antes de o backend iniciar; para conferir/reaplicar explicitamente:
+docker compose -f docker-compose.prod.yml run --rm --no-deps migrate
 
 # Seed (somente em banco vazio)
 docker compose -f docker-compose.prod.yml exec backend npx prisma db seed
@@ -597,9 +598,13 @@ Caminho manual (plano B):
 # 2. Rebuild e restart
 POSTGRES_PASSWORD=<senha> docker compose -f docker-compose.prod.yml up -d --build
 
-# 3. Aplicar novas migrations
-docker compose -f docker-compose.prod.yml exec backend npx prisma migrate deploy
+# 3. Conferir as migrations (o `up` já roda o serviço `migrate` antes do backend)
+docker compose -f docker-compose.prod.yml logs migrate
 ```
+
+API e worker conectam com o papel restrito `filtrovali_app`; só o `migrate` usa o
+dono das tabelas. Ativação e volta atrás: `deploy/PRODUCTION.md`, seção
+"Papel restrito do banco".
 
 ### Arquitetura de produção
 
@@ -632,7 +637,9 @@ Nginx HTTP interno
 
 | Variável | Obrigatória | Descrição |
 |---|---|---|
-| `DATABASE_URL` | Sim | Connection string PostgreSQL |
+| `DATABASE_URL` | Sim | Connection string PostgreSQL usada pela API, worker e scripts. Em produção/homologação, com o papel restrito `filtrovali_app` (`deploy/db/app-role.sql`) |
+| `MIGRATION_DATABASE_URL` | Não | Connection string do dono das tabelas, usada só pela CLI do Prisma (`migrate deploy`) no serviço `migrate`. Sem ela, a CLI usa `DATABASE_URL`. O Compose a zera em backend e worker |
+| `OPERATIONS_REQUIRE_RESTRICTED_DB_ROLE` | Não | `true` faz o status operacional (e o alerta) acusar quando a aplicação conecta com papel de dono/superusuário. Padrão `false` |
 | `DATABASE_CONNECTION_LIMIT` | Não | Limite de conexões do pool Prisma anexado à `DATABASE_URL` quando `connection_limit` ainda não estiver definido |
 | `PRISMA_SLOW_QUERY_MS` | Não | Ativa log de queries Prisma acima do limite informado em ms |
 | `SLOW_OPERATION_LOG_MS` | Não | Ativa log de operações internas lentas acima do limite informado em ms |
@@ -683,6 +690,10 @@ Nginx HTTP interno
 | `OPERATIONS_ALERT_JOB_ENABLED` | Não | Ativa o job de alertas operacionais |
 | `OPERATIONS_ALERT_INTERVAL_MS` | Não | Intervalo do job de alertas operacionais |
 | `OPERATIONS_ALERT_WEBHOOK_URL` | Não | Webhook de alertas operacionais |
+| `OPERATIONS_ALERT_EMAILS` | Não (recomendado em produção) | E-mails, separados por vírgula, que recebem erros 5xx, falhas de processo/job e alertas operacionais |
+| `OPERATIONS_ALERT_EMAIL_THROTTLE_MINUTES` | Não | Janela mínima entre e-mails do mesmo erro (padrão 30) |
+| `OPERATIONS_ALERT_REPEAT_HOURS` | Não | Reenvio do mesmo alerta operacional enquanto persistir (padrão 6) |
+| `APP_GIT_SHA` | Não | Versão (SHA do commit) gravada na imagem; aparece nos alertas |
 | `OPERATIONS_REQUIRE_BACKUP_STATUS` / `OPERATIONS_BACKUP_STATUS_FILE` / `OPERATIONS_BACKUP_MAX_AGE_HOURS` | Não | Monitoramento de backup |
 | `OPERATIONS_REQUIRE_RESTORE_STATUS` / `OPERATIONS_RESTORE_STATUS_FILE` / `OPERATIONS_RESTORE_MAX_AGE_DAYS` | Não | Monitoramento de restore |
 | `ERROR_TRACKING_PROVIDER` / `ERROR_TRACKING_WEBHOOK_URL` | Não | Captura e encaminhamento de erros |
@@ -849,6 +860,19 @@ marcado como `SENT`. Se um mês continuar pendente, o comando encerra com erro
 antes de iniciar o próximo. Para um registro preso em `CLAIMED`, confira os logs
 do worker e o rastreamento do Microsoft 365 antes de decidir se o envio precisa
 ser retomado. O comando preserva os registros anteriores de envio concluído.
+
+---
+
+## Senhas e sessões
+
+Senhas novas (criação, troca, redefinição e definição pelo
+admin) precisam de pelo menos 10 caracteres (`shared/modules/password-policy.js`);
+o login não aplica o mínimo, então contas antigas continuam entrando. Redefinir a
+senha por link derruba todas as sessões; trocar a própria senha derruba as outras;
+o admin definir a senha de alguém ou desativar a conta derruba todas as sessões
+daquela conta. O login tem três limites em memória por janela de 15 minutos: 8
+tentativas por IP + usuário, 50 falhas por IP (qualquer usuário) e 20 falhas por
+usuário (qualquer IP), sempre com a mesma resposta 429 genérica.
 
 ---
 

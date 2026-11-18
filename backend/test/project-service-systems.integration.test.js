@@ -102,7 +102,7 @@ test('project systems HTTP + PostgreSQL: scope, all UGs, permissions, aliases, h
   const unitSystem = unitSaved.data.services[0].systems.at(-1);
   assert.equal(unitSystem.unit, 'UN');
   const suggestion = (await request(suggestionsPath, 'GET', undefined, tokens[1])).data.find(item => item.id === unitSystem.projectSystemId);
-  assert.deepEqual(suggestion.measurements, [{ serviceType: 'LIMPEZA_QUIMICA', systemType: 'SISTEMA' }]);
+  assert.deepEqual(suggestion.measurements, [{ serviceType: 'LIMPEZA_QUIMICA', systemType: 'SISTEMA', unit: 'UN' }]);
   assert.equal(suggestion.measurements[0].quantity, undefined); // suggestion cannot imply execution of the planned total
   const unitsCsv = 'Relatorio;Numero;Data;Servico;Equipamento do cliente;Sistema;Diametro;Quantidade;Unidade\nRLQ;20;08/01/2026;Limpeza;Unidade Geradora 02;Mancal de escora;;1;UN';
   const unitsPreview = await request(`${historyBase}/preview`, 'POST', { csv: unitsCsv });
@@ -113,7 +113,7 @@ test('project systems HTTP + PostgreSQL: scope, all UGs, permissions, aliases, h
   const nativeBody = { projectId: projectIds[0], createdByUserId: userIds[0], reportType: 'RDO', reportDate: '2026-01-15',
     arrivalTime: '08:00', departureTime: '17:00', lunchBreak: '01:00', daytimeCount: 0, status: 'PENDING',
     services: [{ serviceType: 'limpeza', system: 'Mancal de escora', finalized: false, startTime: '08:00', endTime: '17:00',
-      extraData: { equipmentId: 'Unidade Geradora 02', __projectSystemId: unitSystem.projectSystemId, limpezaTubulacao: 'Não', quantidadeSistemas: 2, tubes: [] } }]
+      extraData: { equipmentId: 'Unidade Geradora 02', __projectSystemId: unitSystem.projectSystemId, limpezaTubulacao: 'Não', tipoSistema: 'Mancal de escora', quantidadeSistemas: 2, tubes: [] } }]
   };
   for (const invalidQuantity of [null, 0, 1.5]) {
     const invalid = structuredClone(nativeBody); invalid.services[0].extraData.quantidadeSistemas = invalidQuantity;

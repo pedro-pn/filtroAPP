@@ -7,6 +7,9 @@ PROJECT_DIR="${PROJECT_DIR:-$(dirname "$SCRIPT_DIR")}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
 POSTGRES_SERVICE="${POSTGRES_SERVICE:-postgres}"
 BACKEND_SERVICE="${BACKEND_SERVICE:-backend}"
+MIGRATE_SERVICE="${MIGRATE_SERVICE:-migrate}"
+APP_DB_ROLE="${APP_DB_ROLE:-filtrovali_app}"
+APP_ROLE_SQL="${APP_ROLE_SQL:-$SCRIPT_DIR/db/app-role.sql}"
 NGINX_SERVICE="${NGINX_SERVICE:-nginx}"
 POSTGRES_DB="${POSTGRES_DB:-filtrovali}"
 POSTGRES_USER="${POSTGRES_USER:-postgres}"
@@ -183,12 +186,30 @@ docker compose -f "$COMPOSE_FILE" exec -T "$POSTGRES_SERVICE" psql -U "$POSTGRES
   -c "DROP DATABASE IF EXISTS $POSTGRES_DB;" \
   -c "CREATE DATABASE $POSTGRES_DB;"
 
+# O dump traz GRANTs para o papel restrito da aplicação; o papel é global do
+# cluster e não vem no dump. Num servidor novo ele ainda não existe: criamos sem
+# senha para os GRANTs entrarem (defina a senha depois com
+# deploy/db/apply-app-role.sh --password-file ...).
+echo "[restore] ensuring application role $APP_DB_ROLE exists"
+docker compose -f "$COMPOSE_FILE" exec -T "$POSTGRES_SERVICE" psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres \
+  -v "app_role=$APP_DB_ROLE" <<'SQL'
+SELECT format('CREATE ROLE %I NOLOGIN', :'app_role')
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'app_role')
+\gexec
+SQL
+
 echo "[restore] restoring postgres database from $BACKUP_SOURCE/postgres.sql.gz"
 gunzip -c "$BACKUP_SOURCE/postgres.sql.gz" | docker compose -f "$COMPOSE_FILE" exec -T "$POSTGRES_SERVICE" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
 
 if [ "$RUN_MIGRATIONS" = "true" ]; then
   echo "[restore] applying prisma migrations"
-  docker compose -f "$COMPOSE_FILE" run --rm --no-deps "$BACKEND_SERVICE" npx prisma migrate deploy
+  docker compose -f "$COMPOSE_FILE" run --rm --no-deps "$MIGRATE_SERVICE"
+fi
+
+if [ -f "$APP_ROLE_SQL" ]; then
+  echo "[restore] reapplying grants for $APP_DB_ROLE"
+  docker compose -f "$COMPOSE_FILE" exec -T "$POSTGRES_SERVICE" psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+    -v "app_role=$APP_DB_ROLE" < "$APP_ROLE_SQL"
 fi
 
 echo "[restore] starting application services"
