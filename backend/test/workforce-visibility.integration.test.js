@@ -172,15 +172,32 @@ test('visibilidade configurável: persistência, seleção, API, cache, autoriza
         create: { collaboratorId: person.id, workDate: new Date('2026-11-03T00:00:00Z'), kind: 'SEDE' }
       } }))
     } } });
-    const confirmedResponse = await fetch(url.replace('/colaboradores', '/efetivo/conferencia/alocacoes') + '?from=2026-11-01&to=2026-11-09', {
-      headers: { Authorization: `Bearer ${token.token}` }
-    });
-    const confirmed = await confirmedResponse.json();
-    assert.equal(confirmedResponse.status, 200, JSON.stringify(confirmed));
-    assert.deepEqual(confirmed.items.map(item => item.collaborator.code).sort(), ['NON_OPERATIONAL', 'OPERATIONAL']);
+    const allocationUrl = url.replace('/colaboradores', '/efetivo/conferencia/alocacoes');
+    const allocationRequest = async query => {
+      const response = await fetch(`${allocationUrl}?${new URLSearchParams({ from: '2026-11-01', to: '2026-11-09', ...query })}`, {
+        headers: { Authorization: `Bearer ${token.token}` }
+      });
+      return { status: response.status, body: await response.json() };
+    };
+    const allocations = await allocationRequest();
+    assert.equal(allocations.status, 200, JSON.stringify(allocations.body));
+    assert.equal(allocations.body.items.length, 18);
+    assert.deepEqual([...new Set(allocations.body.items.map(item => item.collaborator.code))].sort(), ['NON_OPERATIONAL', 'OPERATIONAL']);
+    assert.deepEqual(allocations.body.items.filter(item => item.confirmationStatus === 'CONFIRMED')
+      .map(item => item.collaborator.code).sort(), ['NON_OPERATIONAL', 'OPERATIONAL']);
+    assert.ok(allocations.body.items.filter(item => item.confirmationStatus === 'PENDING')
+      .every(item => item.confirmedAt === null));
+    const allocationFirst = await allocationRequest({ limit: '1' });
+    assert.equal(allocationFirst.body.page.hasMore, true);
     const first = await request({ limit: '1' });
     assert.equal(first.body.page.hasMore, true);
     await save({ ...configuration.rules, API: ['OPERATIONAL'] });
+    const staleAllocation = await allocationRequest({ cursor: allocationFirst.body.page.nextCursor });
+    assert.equal(staleAllocation.status, 400);
+    assert.equal(staleAllocation.body.code, 'INVALID_CURSOR');
+    const restrictedAllocations = await allocationRequest();
+    assert.equal(restrictedAllocations.body.items.length, 9);
+    assert.ok(restrictedAllocations.body.items.every(item => item.collaborator.code === 'OPERATIONAL'));
     const stale = await request({ limit: '1', cursor: first.body.page.nextCursor });
     assert.equal(stale.status, 400);
     assert.equal(stale.body.code, 'INVALID_CURSOR');
