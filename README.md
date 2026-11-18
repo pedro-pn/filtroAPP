@@ -280,6 +280,7 @@ O acesso é organizado por **módulo** e **papel dentro do módulo** (`ModuleRol
 
 ### E-mails Automáticos
 
+- Autenticação do Exchange Online por OAuth2 app-only, sem senha da caixa ou interação de MFA ([configuração](docs/OUTLOOK_OAUTH2.md))
 - Boas-vindas ao criar conta de cliente ou conta interna
 - Novo projeto vinculado
 - Relatório aprovado, reprovado ou revisado
@@ -476,12 +477,16 @@ Nginx :443 (SSL Let's Encrypt)
 | `OMIE_SYNC_ENABLED` | Não | Ativa a sincronização automática com o Omie |
 | `OMIE_SYNC_INTERVAL_MINUTES` | Não | Intervalo entre sincronizações Omie |
 | `OMIE_SYNC_SINCE_DAYS` | Não | Janela de dias considerada na sincronização Omie |
-| `SMTP_HOST` | Sim | Servidor SMTP (ex: `smtp.office365.com`) |
+| `SMTP_HOST` | Sim | Servidor SMTP (`smtp.office365.com`) |
 | `SMTP_PORT` | Sim | Porta SMTP (padrão: `587`) |
-| `SMTP_SECURE` | Não | `true` para SSL direto (porta 465) |
-| `SMTP_USER` | Sim | Usuário SMTP |
-| `SMTP_PASS` | Sim | Senha ou App Password |
+| `SMTP_SECURE` | Não | Para Exchange Online na porta 587, use `false` (STARTTLS) |
+| `SMTP_AUTH_MODE` | Não | `oauth2` para aplicação Microsoft Entra; `password` mantém o modo legado. Se omitido, OAuth2 é selecionado quando alguma credencial Microsoft existe |
+| `SMTP_USER` | Sim | Caixa do Exchange usada como remetente e identidade XOAUTH2 |
+| `SMTP_PASS` | Só no modo `password` | Senha SMTP legada; não é usada no modo OAuth2 |
 | `SMTP_FROM` | Sim | Remetente (ex: `Filtrovali <no-reply@…>`) |
+| `MICROSOFT_TENANT_ID` | No modo `oauth2` | ID do diretório (tenant) do Microsoft Entra |
+| `MICROSOFT_CLIENT_ID` | No modo `oauth2` | ID da aplicação (client) registrada no Microsoft Entra |
+| `MICROSOFT_CLIENT_SECRET` | No modo `oauth2` | **Valor** do segredo da aplicação, nunca o “Secret ID” |
 | `SEND_CLIENT_EMAILS` | Não | Use `false` em homologação/testes para bloquear todos os envios operacionais |
 | `SMTP_TEST_DEST` | Não | E-mail destino do script `test-email.js` |
 | `ASSETS_DIR` | Não | Diretório de assets estáticos |

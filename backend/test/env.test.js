@@ -14,6 +14,10 @@ test('loadEnv parses defaults from a minimal valid environment', () => {
   assert.equal(env.databaseConnectionLimit, 0);
   assert.equal(env.smtpPort, 587);
   assert.equal(env.smtpSecure, false);
+  assert.equal(env.smtpAuthMode, 'password');
+  assert.equal(env.microsoftTenantId, '');
+  assert.equal(env.microsoftClientId, '');
+  assert.equal(env.microsoftClientSecret, '');
   assert.equal(env.sendClientEmails, true);
   assert.equal(env.trustProxy, false);
   assert.deepEqual(env.allowedOrigins, []);
@@ -30,6 +34,30 @@ test('loadEnv parses defaults from a minimal valid environment', () => {
   assert.equal(env.assinaturasTokenMaxDays, 90);
   assert.equal(env.assinaturasDeletedRetentionDays, 90);
   assert.equal(env.assinaturasPreviewScale, 1.5);
+});
+
+test('loadEnv selects and parses Microsoft OAuth2 application authentication', () => {
+  const env = loadEnv({
+    DATABASE_URL: databaseUrl,
+    MICROSOFT_TENANT_ID: ' tenant-id ',
+    MICROSOFT_CLIENT_ID: ' client-id ',
+    MICROSOFT_CLIENT_SECRET: ' client-secret '
+  });
+
+  assert.equal(env.smtpAuthMode, 'oauth2');
+  assert.equal(env.microsoftTenantId, 'tenant-id');
+  assert.equal(env.microsoftClientId, 'client-id');
+  assert.equal(env.microsoftClientSecret, 'client-secret');
+
+  const partial = loadEnv({ DATABASE_URL: databaseUrl, MICROSOFT_CLIENT_ID: 'client-id' });
+  assert.equal(partial.smtpAuthMode, 'oauth2');
+});
+
+test('loadEnv accepts only the supported SMTP authentication modes', () => {
+  assert.throws(
+    () => loadEnv({ DATABASE_URL: databaseUrl, SMTP_AUTH_MODE: 'basic' }),
+    /SMTP_AUTH_MODE/
+  );
 });
 
 test('loadEnv mantém o token do Ponto Mais opcional e normalizado', () => {

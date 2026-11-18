@@ -123,10 +123,14 @@ const rawEnvSchema = z.object({
   SMTP_HOST: stringWithDefault(''),
   SMTP_PORT: integerWithDefault('SMTP_PORT', 587, { min: 1, max: 65535 }),
   SMTP_SECURE: booleanWithDefault('SMTP_SECURE', false),
+  SMTP_AUTH_MODE: z.preprocess(emptyToUndefined, z.enum(['password', 'oauth2']).optional()),
   SMTP_USER: stringWithDefault(''),
   SMTP_PASS: stringWithDefault(''),
   SMTP_FROM: stringWithDefault(''),
   SMTP_TEST_DEST: stringWithDefault(''),
+  MICROSOFT_TENANT_ID: stringWithDefault(''),
+  MICROSOFT_CLIENT_ID: stringWithDefault(''),
+  MICROSOFT_CLIENT_SECRET: stringWithDefault(''),
   SEND_CLIENT_EMAILS: booleanWithDefault('SEND_CLIENT_EMAILS', true),
   PRIVACY_NOTIFICATION_EMAIL: stringWithDefault(''),
   LGPD_NOTIFICATION_EMAIL: stringWithDefault(''),
@@ -238,10 +242,18 @@ export function loadEnv(source = process.env) {
     smtpHost: raw.SMTP_HOST,
     smtpPort: raw.SMTP_PORT,
     smtpSecure: raw.SMTP_SECURE,
+    smtpAuthMode: raw.SMTP_AUTH_MODE || (
+      raw.MICROSOFT_TENANT_ID || raw.MICROSOFT_CLIENT_ID || raw.MICROSOFT_CLIENT_SECRET
+        ? 'oauth2'
+        : 'password'
+    ),
     smtpUser: raw.SMTP_USER,
     smtpPass: raw.SMTP_PASS,
     smtpFrom: raw.SMTP_FROM,
     smtpTestDest: raw.SMTP_TEST_DEST,
+    microsoftTenantId: raw.MICROSOFT_TENANT_ID,
+    microsoftClientId: raw.MICROSOFT_CLIENT_ID,
+    microsoftClientSecret: raw.MICROSOFT_CLIENT_SECRET,
     sendClientEmails: raw.SEND_CLIENT_EMAILS,
     privacyNotificationEmail: raw.PRIVACY_NOTIFICATION_EMAIL || raw.LGPD_NOTIFICATION_EMAIL,
     zapsignApiToken: raw.ZAPSIGN_API_TOKEN,
