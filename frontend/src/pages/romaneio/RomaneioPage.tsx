@@ -93,6 +93,7 @@ export function RomaneioPage() {
   const [expandedCatalogCategories, setExpandedCatalogCategories] = useState<Set<string>>(() => new Set());
   const [recipientEmail, setRecipientEmail] = useState('');
   const [recipientName, setRecipientName] = useState('');
+  const [showSpreadsheet, setShowSpreadsheet] = useState(false);
 
   const projectsQuery = useQuery({ queryKey: ['romaneio-projects'], queryFn: () => listRomaneioProjects(true) });
   const romaneiosQuery = useQuery({
@@ -470,6 +471,11 @@ export function RomaneioPage() {
               </section>
             ) : null}
             <section className="page-card romaneio-panel">
+              <div className="catalog-sheet-toolbar">
+                <button className="secondary-button" type="button" onClick={() => setShowSpreadsheet(true)}>
+                  Abrir planilha
+                </button>
+              </div>
               <div className="romaneio-accordion-list">
                 {groupedCatalog.map(([category, items]) => {
                   const expanded = expandedCatalogCategories.has(category);
@@ -634,6 +640,39 @@ export function RomaneioPage() {
           </section>
         )}
       </main>
+
+      {showSpreadsheet && (
+        <div className="catalog-sheet-overlay" role="dialog" aria-modal="true" aria-label="Planilha de equipamentos">
+          <div className="catalog-sheet-panel">
+            <div className="catalog-sheet-header">
+              <span className="catalog-sheet-title">Planilha de Equipamentos</span>
+              <button className="secondary-button" type="button" onClick={() => setShowSpreadsheet(false)}>Fechar</button>
+            </div>
+            <div className="catalog-sheet-body">
+              {catalogQuery.isLoading ? (
+                <div className="rel-meta">Carregando...</div>
+              ) : (
+                <div className="catalog-sheet-grid">
+                  {groupedCatalog.map(([category, items]) => (
+                    <div className="catalog-sheet-col" key={category}>
+                      <div className="catalog-sheet-col-header">
+                        <span className="catalog-sheet-col-code">{items[0]?.code?.replace(/\d+$/, '').trim() || ''}</span>
+                        <span className="catalog-sheet-col-name">{category}</span>
+                      </div>
+                      {items.map(item => (
+                        <div className="catalog-sheet-row" key={item.id}>
+                          {item.code && <span className="catalog-sheet-item-code">{item.code}</span>}
+                          <span className="catalog-sheet-item-name">{item.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </Shell>
   );
 }

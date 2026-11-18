@@ -7192,3 +7192,141 @@ select {
     grid-column: 2;
   }
 }
+
+/* ── Catalog spreadsheet modal ────────────────────────────── */
+
+.catalog-sheet-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+
+.catalog-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.catalog-sheet-panel {
+  background: var(--wh);
+  border-radius: var(--rs);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+  width: 100%;
+  max-width: 1200px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.catalog-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--br);
+  background: var(--wh);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.catalog-sheet-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--tx);
+}
+
+.catalog-sheet-body {
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.catalog-sheet-grid {
+  columns: 3 260px;
+  column-gap: 10px;
+}
+
+.catalog-sheet-col {
+  break-inside: avoid;
+  border: 1px solid #c8c8c8;
+  border-radius: 4px;
+  overflow: hidden;
+  font-size: 12px;
+  margin-bottom: 0;
+  display: inline-block;
+  width: 100%;
+}
+
+.catalog-sheet-col-header {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  background: #e8f0ea;
+  padding: 6px 8px;
+  border-bottom: 1px solid #c8c8c8;
+}
+
+.catalog-sheet-col-code {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--g);
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.catalog-sheet-col-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--tx);
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+.catalog-sheet-row {
+  display: flex;
+  gap: 6px;
+  padding: 4px 8px;
+  border-bottom: 1px solid #ebebeb;
+  align-items: baseline;
+  line-height: 1.35;
+}
+
+.catalog-sheet-row:last-child {
+  border-bottom: none;
+}
+
+.catalog-sheet-row:nth-child(even) {
+  background: #fafafa;
+}
+
+.catalog-sheet-item-code {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--mu);
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 48px;
+}
+
+.catalog-sheet-item-name {
+  font-size: 12px;
+  color: var(--tx);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 600px) {
+  .catalog-sheet-grid {
+    columns: 1;
+  }
+
+  .catalog-sheet-overlay {
+    padding: 8px;
+  }
+}
