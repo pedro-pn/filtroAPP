@@ -5,6 +5,7 @@
  */
 
 import env from '../../config/env.js';
+import { fetchWithTimeout } from '../http/outbound.js';
 
 const BASE_URL = 'https://app.omie.com.br/api/v1';
 
@@ -33,11 +34,14 @@ export async function omieCall(path, call, param = {}, creds = {}) {
     param: Array.isArray(param) ? param : [param]
   };
 
-  const response = await fetch(url, {
+  // As chamadas usadas pelo filtroAPP são consultas (Listar*), então podem ser
+  // repetidas em falha de rede, tempo esgotado ou 502/503/504. Erros de negócio
+  // do Omie (faultstring, normalmente HTTP 500) não são repetidos.
+  const response = await fetchWithTimeout(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
-  });
+  }, { timeoutMs: env.omieTimeoutMs, retries: 2 });
 
   const text = await response.text();
   let json;

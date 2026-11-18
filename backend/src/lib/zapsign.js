@@ -1,4 +1,5 @@
 import env from '../config/env.js';
+import { fetchWithTimeout } from './http/outbound.js';
 
 let cachedApiToken = String(env.zapsignApiToken || '').trim();
 let cachedRefreshToken = String(env.zapsignRefreshToken || '').trim();
@@ -54,13 +55,13 @@ async function loginWithCredentials() {
   }
 
   loginInFlight = (async () => {
-    const response = await fetch(apiUrl(`/auth/token/${encodeURIComponent(organizationId)}/`), {
+    const response = await fetchWithTimeout(apiUrl(`/auth/token/${encodeURIComponent(organizationId)}/`), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ username, password })
-    });
+    }, { timeoutMs: env.zapsignTimeoutMs });
     const data = await parseJsonResponse(response);
     const nextToken = String(data?.access || data?.token || data?.access_token || '').trim();
     const nextRefreshToken = String(data?.refresh || data?.refresh_token || '').trim();
@@ -92,13 +93,13 @@ async function refreshApiToken() {
 
   refreshInFlight = (async () => {
     try {
-      const response = await fetch(apiUrl('/auth/token-refresh/'), {
+      const response = await fetchWithTimeout(apiUrl('/auth/token-refresh/'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ refresh: refreshToken })
-      });
+      }, { timeoutMs: env.zapsignTimeoutMs });
       const data = await parseJsonResponse(response);
       const nextToken = String(data?.access || data?.token || data?.access_token || '').trim();
       const nextRefreshToken = String(data?.refresh || data?.refresh_token || '').trim();
@@ -147,10 +148,12 @@ async function zapsignFetch(pathOrUrl, options = {}, { absolute = false, retryOn
     ...(await getAuthHeaders())
   };
   const target = absolute ? String(pathOrUrl || '') : apiUrl(pathOrUrl);
-  const response = await fetch(target, {
+  // Só consultas e downloads (GET) são repetidos; POSTs de autenticação não.
+  const method = String(options.method || 'GET').toUpperCase();
+  const response = await fetchWithTimeout(target, {
     ...options,
     headers
-  });
+  }, { timeoutMs: env.zapsignTimeoutMs, retries: method === 'GET' ? 2 : 0 });
 
   if (response.status === 401 && retryOnAuth && (currentRefreshToken() || hasCredentialAuth())) {
     await refreshApiToken();
@@ -233,7 +236,7 @@ export async function downloadSignedZapSignDocument(fileUrl) {
     try {
       response = attempt.useAuth
         ? await zapsignFetch(url, {}, { absolute: true })
-        : await fetch(url);
+        : await fetchWithTimeout(url, {}, { timeoutMs: env.zapsignTimeoutMs, retries: 2 });
     } catch (error) {
       if (attempt.useAuth && error?.statusCode === 503) {
         continue;
