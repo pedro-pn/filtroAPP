@@ -721,7 +721,7 @@ jobs:
             -c "INSERT INTO \"ZzCiFutureTable\" (label) VALUES ('ok')" \
             -c 'UPDATE "ZzCiFutureTable" SET label = label' \
             -c 'DELETE FROM "ZzCiFutureTable"'
-          node scripts/check-database-role.js --require-restricted
+          MIGRATION_DATABASE_URL= node scripts/check-database-role.js --require-restricted
           psql "$OWNER_PSQL" -X -q -v ON_ERROR_STOP=1 -c 'DROP TABLE "ZzCiFutureTable"'
 
       - name: Integration suites (advisory locks, statistics, costs) run as the restricted role
