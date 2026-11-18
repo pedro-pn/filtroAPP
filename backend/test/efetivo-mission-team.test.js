@@ -38,7 +38,7 @@ test('missão confirmada exige pessoa e função operacional canônica', () => {
   assert.throws(() => deriveSelectedMissionTeam([], 'CONFIRMED'), /colaborador/i);
   assert.throws(() => deriveSelectedMissionTeam([{
     id: 'c1', name: 'Sem função', jobRoleId: null, jobRole: null, isActive: true
-  }], 'DRAFT'), /função operacional/i);
+  }], 'DRAFT'), error => error.code === 'COLLABORATOR_NOT_VISIBLE');
 });
 
 test('resolução recusa colaborador inativo e IDs duplicados', async () => {

@@ -1,3 +1,4 @@
+import { collaboratorVisibilityWhere, isCollaboratorVisible } from '../../collaborators/workforce-policy.js';
 import prisma from '../../prisma.js';
 import { formatCnpj } from '../../cnpj.js';
 import { getAllocationTrailsForRange } from '../../acompanhamento/allocation-audit.js';
@@ -28,7 +29,8 @@ const SAO_PAULO_DATE = new Intl.DateTimeFormat('en-CA', {
 const REVIEW_WEEK_INCLUDE = { rows: { include: { days: { include: { projects: { select: { projectId: true } } } } } } };
 const COLLABORATOR_SELECT = {
   id: true, name: true, isActive: true, admissionDate: true, terminationDate: true,
-  jobRole: { select: { id: true, name: true, isActive: true, isOperational: true } }
+  workforceClassificationOverride: true,
+  jobRole: { select: { id: true, name: true, isActive: true, isOperational: true, workforceClassification: true } }
 };
 const PROJECT_SELECT = { id: true, code: true, name: true, clientName: true, clientCnpj: true, isActive: true, deletedAt: true };
 
@@ -203,7 +205,7 @@ export async function loadReviewWeekContext({ weekStart, collaboratorIds = null 
   const collaborators = deps.reviewSources
     ? deps.reviewSources.collaborators.filter(item => collaboratorMatchesWeek(item, { from, to, collaboratorIds, extraIds }))
     : await database.collaborator.findMany({
-      where: reviewCollaboratorWhere({ from, to, collaboratorIds, extraIds }),
+      where: { AND: [collaboratorVisibilityWhere('ALLOCATION_REVIEW'), reviewCollaboratorWhere({ from, to, collaboratorIds, extraIds })] },
       select: COLLABORATOR_SELECT,
       orderBy: { name: 'asc' }
     });
@@ -263,7 +265,7 @@ function reviewCollaboratorWhere({ from, to, extraIds, collaboratorIds = null })
       OR: [
         {
           AND: [
-            { jobRole: { isActive: true, isOperational: true } },
+            { jobRole: { isActive: true } },
             { OR: [{ isActive: true }, { terminationDate: { gte: utcDate(from) } }] },
             { OR: [{ admissionDate: null }, { admissionDate: { lte: utcDate(to) } }] }
           ]
@@ -274,9 +276,10 @@ function reviewCollaboratorWhere({ from, to, extraIds, collaboratorIds = null })
 }
 
 function collaboratorMatchesWeek(item, { from, to, collaboratorIds, extraIds }) {
+  if (!isCollaboratorVisible(item, 'ALLOCATION_REVIEW')) return false;
   if (collaboratorIds) return collaboratorIds.includes(item.id);
   if (extraIds.has(item.id)) return true;
-  return item.jobRole?.isActive && item.jobRole?.isOperational
+  return item.jobRole?.isActive && isCollaboratorVisible(item, 'ALLOCATION_REVIEW')
     && (item.isActive || (item.terminationDate && dateKeyOf(item.terminationDate) >= from))
     && (!item.admissionDate || dateKeyOf(item.admissionDate) <= to);
 }
@@ -308,7 +311,7 @@ async function loadReviewMonthSources(weekStarts, deps) {
   const userIds = [...new Set(savedWeeks.map(week => week.closedByUserId).filter(Boolean))];
   const [collaborators, projects, users] = await Promise.all([
     database.collaborator.findMany({
-      where: reviewCollaboratorWhere({ from, to, extraIds }),
+      where: { AND: [collaboratorVisibilityWhere('ALLOCATION_REVIEW'), reviewCollaboratorWhere({ from, to, extraIds })] },
       select: COLLABORATOR_SELECT,
       orderBy: { name: 'asc' }
     }),

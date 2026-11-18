@@ -3,12 +3,13 @@ import env from '../config/env.js';
 import { isApiWriteSimulation } from './api-credentials/write-context.js';
 import { registerCollaboratorCacheInvalidator } from './cache/invalidation.js';
 import { projectAccessCacheKey } from './projects/access-scope.js';
+import { workforceVisibilityCacheKey } from './collaborators/workforce-visibility-context.js';
 import { currentDerivedReadVersion, clearDerivedReadCaches } from './operations/derived-read-cache.js';
 
 function scopedProjectCache(ttl, maxEntries) {
   const cache = createKeyedTtlCache(ttl, maxEntries);
   return {
-    get: (key, loader) => cache.get(JSON.stringify([projectAccessCacheKey(), currentDerivedReadVersion(), key]), loader),
+    get: (key, loader) => cache.get(JSON.stringify([projectAccessCacheKey(), workforceVisibilityCacheKey(), currentDerivedReadVersion(), key]), loader),
     clear: () => cache.clear()
   };
 }
@@ -16,7 +17,11 @@ function scopedProjectCache(ttl, maxEntries) {
 const MASTER_DATA_TTL_MS = env.resourceListCacheTtlMs;
 const DASHBOARD_TTL_MS = env.dashboardCacheTtlMs;
 
-export const collaboratorsCache = createTtlCache(MASTER_DATA_TTL_MS);
+const collaboratorLists = createKeyedTtlCache(MASTER_DATA_TTL_MS, 32);
+export const collaboratorsCache = {
+  get: loader => collaboratorLists.get(workforceVisibilityCacheKey(), loader),
+  clear: () => collaboratorLists.clear()
+};
 export const equipmentCache = createTtlCache(MASTER_DATA_TTL_MS);
 export const inhibitionOptionsCache = createTtlCache(MASTER_DATA_TTL_MS);
 export const manometersCache = createTtlCache(MASTER_DATA_TTL_MS);

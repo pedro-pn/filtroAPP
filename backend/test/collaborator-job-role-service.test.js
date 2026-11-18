@@ -1,3 +1,4 @@
+import { operationalCollaboratorWhere } from '../src/lib/collaborators/workforce-policy.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
@@ -32,6 +33,7 @@ test('lista compartilhada entrega cargo canônico e alias visual ao bootstrap do
   }));
 
   assert.deepEqual(query, {
+    where: operationalCollaboratorWhere(),
     include: {
       jobRole: true,
       jobRoleHistory: {

@@ -1,3 +1,5 @@
+import { collaboratorVisibilityWhere } from '../collaborators/workforce-policy.js';
+import { workforceVisibilityClasses } from '../collaborators/workforce-visibility-context.js';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 
@@ -66,11 +68,12 @@ function serializeDay(day) {
 export async function listConfirmedAllocations(client, input, context) {
   const query = validateAllocationReviewQuery(input, context);
   const filters = { from: query.from, to: query.to, collaboratorId: query.collaboratorId || null,
+    workforceClassifications: workforceVisibilityClasses('API'),
     credentialId: context.credentialId };
   const cursor = query.cursor ? readSignedCursor({ cursor: query.cursor, key: context.cursorKey,
     operationId: ALLOCATION_REVIEW_OPERATION, filters, positionKeys: ['date', 'collaboratorId', 'revision'] }) : null;
   const range = { gte: dateOf(query.from), lte: dateOf(query.to) };
-  const confirmed = { workDate: range, row: { confirmedAt: { not: null } },
+  const confirmed = { workDate: range, row: { confirmedAt: { not: null } }, collaborator: collaboratorVisibilityWhere('API'),
     ...(query.collaboratorId ? { collaboratorId: query.collaboratorId } : {}) };
 
   // Cada página lê revisões e dados no mesmo snapshot do banco. Se houver edição,

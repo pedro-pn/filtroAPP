@@ -88,7 +88,7 @@ test('input de atualização mantém as validações estruturais dos períodos i
 
 test('líder usa nome e cargo canônicos do colaborador vinculado à conta', async () => {
   const responsible = await resolveMissionResponsible({
-    user: { findFirst: async () => ({ id: 'u1', name: 'Conta Coordenação', collaborator: { id: 'c1', name: 'Ana Líder', isActive: true, jobRole: { name: 'Líder de Operações' } } }) }
+    user: { findFirst: async () => ({ id: 'u1', name: 'Conta Coordenação', collaborator: { id: 'c1', name: 'Ana Líder', isActive: true, jobRole: { name: 'Líder de Operações', isOperational: true } } }) }
   }, {
     headquartersResponsibleUserId: 'u1'
   });
@@ -129,7 +129,7 @@ test('o Líder de Projetos do fluxo responde pela missão da obra mesmo sem ser 
   assert.equal(Object.hasOwn(userQuery.where, 'OR'), false, 'não exige conta coordenadora para o líder do fluxo');
 
   // com colaborador vinculado, usa o cargo dele
-  tx.user.findFirst = async () => ({ id: 'leader-1', name: 'Conta', collaborator: { id: 'c1', name: 'Ana', isActive: true, jobRole: { name: 'Coordenadora' } } });
+  tx.user.findFirst = async () => ({ id: 'leader-1', name: 'Conta', collaborator: { id: 'c1', name: 'Ana', isActive: true, jobRole: { name: 'Coordenadora', isOperational: true } } });
   assert.deepEqual(await resolveMissionResponsible(tx, { projectId: 'project-1', headquartersResponsibleUserId: 'leader-1' }),
     { name: 'Ana', role: 'Coordenadora', collaboratorId: 'c1', userId: 'leader-1' });
 

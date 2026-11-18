@@ -162,7 +162,7 @@ export function JobRoleManager({
       id: editing.id,
       data: {
         name: editing.name.trim(),
-        ...(canManageOperational ? { isOperational: editing.isOperational } : {})
+        ...(canManageOperational && editing.isOperational !== roles.find(role => role.id === editing.id)?.isOperational ? { isOperational: editing.isOperational } : {})
       }
     });
   }
@@ -275,7 +275,7 @@ export function JobRoleManager({
                 id: role.id,
                 data: {
                   name: editing.name.trim(),
-                  ...(canManageOperational
+                  ...(canManageOperational && editing.isOperational !== role.isOperational
                     ? { isOperational: editing.isOperational }
                     : {})
                 }

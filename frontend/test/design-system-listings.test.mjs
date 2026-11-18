@@ -275,6 +275,8 @@ test('Phase 5 listing primitives stay within migrated surfaces', () => {
     'src/pages/assinaturas/components/DocumentLibrary.tsx',
     'src/pages/admin/AdminAccountsPage.tsx',
     'src/pages/admin/AdminTokensPage.tsx',
+    'src/pages/admin/AdminWorkforcePage.tsx',
+    'src/pages/admin/WorkforceVisibilityTab.tsx',
     'src/pages/privacy/PrivacyRequestsPage.tsx',
     'src/pages/qualidade/QualityRecordsTab.tsx',
     'src/pages/estoque/StockItemsTab.tsx',

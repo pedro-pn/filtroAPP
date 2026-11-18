@@ -83,7 +83,7 @@ test('datas iguais às da missão ficam herdadas e somente diferenças são pers
   const saved = [];
   const tx = {
     $queryRawUnsafe: async () => undefined,
-    collaborator: { findUnique: async () => ({ id: 'c1', name: 'Ana', jobRoleId: 'r1', admissionDate: '2020-01-01', isActive: true }) },
+    collaborator: { findMany: async () => [{ id: 'c1' }, { id: 'c2' }, { id: 'c3' }], findUnique: async () => ({ id: 'c1', name: 'Ana', jobRoleId: 'r1', admissionDate: '2020-01-01', isActive: true }) },
     collaboratorAbsence: { findMany: async () => [] },
     efetivoMissionAllocation: {
       findMany: async () => [],
@@ -119,7 +119,7 @@ test('substituto entra na data informada sem apagar a mobilização anterior', a
   const createdCycles = [];
   const tx = {
     $queryRawUnsafe: async () => undefined,
-    collaborator: { findUnique: async () => ({ id: 'c2', name: 'Bruno', jobRoleId: 'r1', admissionDate: '2026-09-01', isActive: true }) },
+    collaborator: { findMany: async () => [{ id: 'c1' }, { id: 'c2' }, { id: 'c3' }], findUnique: async () => ({ id: 'c2', name: 'Bruno', jobRoleId: 'r1', admissionDate: '2026-09-01', isActive: true }) },
     collaboratorAbsence: { findMany: async () => [] },
     efetivoMissionAllocation: {
       findMany: async () => [],
@@ -167,7 +167,7 @@ test('inclusão manual aceita cargo fora do planejamento e registra sua função
   const tx = {
     $queryRawUnsafe: async () => undefined,
     jobRole: { findUnique: async () => ({ name: 'Técnico de segurança', isActive: true, isOperational: true }) },
-    collaborator: { findUnique: async () => ({ id: 'c3', name: 'Carla', jobRoleId: 'r2', admissionDate: '2026-09-01', isActive: true }) },
+    collaborator: { findMany: async () => [{ id: 'c1' }, { id: 'c2' }, { id: 'c3' }], findUnique: async () => ({ id: 'c3', name: 'Carla', jobRoleId: 'r2', admissionDate: '2026-09-01', isActive: true }) },
     collaboratorAbsence: { findMany: async () => [] },
     efetivoMissionAllocation: {
       findMany: async () => [],
@@ -189,8 +189,9 @@ test('inclusão manual aceita cargo fora do planejamento e registra sua função
   assert.equal(missionInput.demands.length, 1, 'o cargo excepcional não altera a previsão original');
   await assert.rejects(allocateCollaboratorInTransaction({
     ...tx,
-    jobRole: { findUnique: async () => ({ name: 'Cargo administrativo', isActive: true, isOperational: false }) }
+    jobRole: { findUnique: async () => ({ name: 'Cargo administrativo', isActive: true, isOperational: false }) },
+    collaborator: { ...tx.collaborator, findMany: async () => [] }
   }, { ...missionInput, allocations: [] }, {
     collaboratorId: 'c3', jobRoleId: 'r2', mobilizationDate: '2026-09-15'
-  }), error => error.code === 'INVALID_COLLABORATOR_JOB_ROLE');
+  }), error => error.code === 'COLLABORATOR_NOT_VISIBLE');
 });

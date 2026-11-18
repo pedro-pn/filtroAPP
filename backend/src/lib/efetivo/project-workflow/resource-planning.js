@@ -1,3 +1,4 @@
+import { collaboratorVisibilityWhere, jobRoleVisibilityWhere } from '../../collaborators/workforce-policy.js';
 import {
   buildMaintenanceScheduleItem,
   resolveEffectiveMaintenanceProfile
@@ -355,14 +356,14 @@ async function loadTeamCatalog(database, targetDate, currentProjectId) {
   const date = utcDate(targetDate);
   const [roles, collaborators, absences, plan] = await Promise.all([
     database.jobRole.findMany({
-      where: { isActive: true, isOperational: true },
+      where: { isActive: true, ...jobRoleVisibilityWhere('EFETIVO') },
       select: { id: true, name: true, calendarColor: true, order: true, isActive: true, isOperational: true },
       orderBy: [{ order: 'asc' }, { name: 'asc' }]
     }),
     database.collaborator.findMany({
       where: {
         OR: [{ isActive: true }, { terminationDate: { gte: date } }],
-        AND: [{ OR: [{ admissionDate: null }, { admissionDate: { lte: date } }] }]
+        AND: [collaboratorVisibilityWhere('EFETIVO'), { OR: [{ admissionDate: null }, { admissionDate: { lte: date } }] }]
       },
       select: { id: true, name: true, jobRoleId: true, admissionDate: true, terminationDate: true, isActive: true }
     }),
@@ -394,7 +395,7 @@ async function loadTeamCatalog(database, targetDate, currentProjectId) {
     : [];
   const capacity = calculateDailyCapacity({
     date: targetDate,
-    jobRoles: roles,
+    jobRoles: roles.map(role => ({ ...role, isOperational: true })),
     collaborators,
     missions: missions.filter(mission => mission.projectId !== currentProjectId),
     absences

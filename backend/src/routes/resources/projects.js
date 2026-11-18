@@ -9,6 +9,7 @@ import { normalizeCnpj } from '../../lib/cnpj.js';
 import { invalidateUnsignedInternalSignatureRound, signatureEvidenceFromRequest } from '../../lib/internal-report-signatures.js';
 import { ModuleRoleCodes } from '../../lib/module-roles.js';
 import prisma from '../../lib/prisma.js';
+import { requireVisibleCollaborators } from '../../lib/collaborators/workforce-policy.js';
 import { clearPendingProjectLegacyExternalSignatureState, shouldProvisionProjectClientAccounts } from '../../lib/project-visibility.js';
 import { clearProjectDerivedCaches } from '../../lib/resource-list-cache.js';
 import { commercialProposalReference, commercialProposalSyncData } from '../../lib/projects/commercial-proposal-sync-state.js';
@@ -318,6 +319,7 @@ router.post('/', requireAuth, requireRdoAccess, requireManager, asyncHandler(asy
   const authorizedUserIds = await assertAuthorizedProjectUsers(data.authorizedUserIds);
   const { reportSequences, authorizedUserIds: _authorizedUserIds, ...projectData } = data;
   const item = await prisma.$transaction(async tx => {
+    await requireVisibleCollaborators(tx, [projectData.operatorId], { target: 'RDO' });
     const created = await tx.project.create({
       data: {
         ...projectData,
@@ -419,6 +421,7 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
       select: {
         ...projectIntegrationSelect,
         serviceCategory: true, startDate: true, endDate: true,
+        operatorId: true,
         name: true,
         clientCnpj: true,
         clientName: true,
@@ -488,6 +491,7 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
           }
         : {})
     };
+    await requireVisibleCollaborators(tx, [projectUpdateData.operatorId], { target: 'RDO', preservedIds: [previousProject.operatorId] });
     const updated = await tx.project.update({
       where: { id: req.params.id },
       data: projectUpdateData,

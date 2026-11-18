@@ -1,3 +1,4 @@
+import { jobRoleVisibilityWhere } from '../../collaborators/workforce-policy.js';
 import {
   PROJECT_WORKFLOW_CHECKLISTS,
   PROJECT_WORKFLOW_CLIENT_CONTACT_CHECKLIST,
@@ -2030,7 +2031,7 @@ async function applyTeamPlan(tx, workflow, payload) {
   if (payload.defined) {
     const roleIds = payload.demands.map(item => item.jobRoleId);
     const roles = await tx.jobRole.findMany({
-      where: { id: { in: roleIds }, isActive: true, isOperational: true },
+      where: { id: { in: roleIds }, isActive: true, ...jobRoleVisibilityWhere('EFETIVO') },
       select: { id: true }
     });
     if (roles.length !== roleIds.length) {

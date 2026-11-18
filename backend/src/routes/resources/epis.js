@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { collaboratorVisibilityWhere, isCollaboratorVisible, workforceVisibilityError } from '../../lib/collaborators/workforce-policy.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Router } from 'express';
@@ -1114,7 +1115,8 @@ router.get('/job-roles', requireEpiTechnician, asyncHandler(async (_req, res) =>
 
 router.get('/collaborators', asyncHandler(async (_req, res) => {
   const items = await prisma.collaborator.findMany({
-    where: { isActive: true, ...epiCollaboratorAccessWhere(_req.auth) },
+    // All sectors are enabled by default; the administrator controls visibility.
+    where: { isActive: true, ...epiCollaboratorAccessWhere(_req.auth), ...collaboratorVisibilityWhere('EPI') },
     ...selectedCollaboratorFields(),
     orderBy: { name: 'asc' }
   });
@@ -1169,13 +1171,14 @@ router.get('/collaborators/:id/pdf', asyncHandler(async (req, res) => {
 router.post('/collaborators/:id/records', requireEpiTechnician, asyncHandler(async (req, res) => {
   const data = createRecordSchema.parse(req.body || {});
   const item = await prisma.$transaction(async tx => {
-    const collaborator = await tx.collaborator.findFirst({ where: { id: req.params.id, isActive: true } });
+    const collaborator = await tx.collaborator.findFirst({ where: { id: req.params.id, isActive: true }, include: { jobRole: true } });
     if (!collaborator) {
       const error = new Error('Colaborador inválido.');
       error.status = 400;
       error.statusCode = 400;
       throw error;
     }
+    if (!isCollaboratorVisible(collaborator, 'EPI')) throw workforceVisibilityError([collaborator.id], 'EPI');
     const catalogItem = await ensureCatalogForRecord(data, tx);
     const lendDate = parseDateOnly(data.lendDate, 'lendDate');
     const devolutionDate = data.devolutionDate ? parseDateOnly(data.devolutionDate, 'devolutionDate') : null;

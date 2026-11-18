@@ -5,6 +5,7 @@ import env from '../config/env.js';
 import asyncHandler from '../lib/async-handler.js';
 import { requireEfetivoViewer } from '../lib/efetivo/access.js';
 import { getConectaComplianceBatch, resolveConectaEvidence } from '../lib/conecta-rh/compliance.js';
+import { requireVisibleCollaborators } from '../lib/collaborators/workforce-policy.js';
 
 const id = z.string().trim().min(1).max(80);
 const query = z.object({
@@ -17,12 +18,14 @@ export function createEfetivoRhRouter({ database = prisma, config = env, fetchIm
   router.use(requireEfetivoViewer);
   router.get('/rh', asyncHandler(async (req, res) => {
     const { ids, date, endDate } = query.parse(req.query);
+    await requireVisibleCollaborators(database, ids, { target: 'EFETIVO' });
     const result = await getConectaComplianceBatch(database, { collaboratorIds: ids, date, endDate }, { companyId: config.conectaRhCompanyId });
     res.setHeader('Cache-Control', 'no-store');
     res.json(result);
   }));
   router.get('/:collaboratorId/rh/:itemId/evidence', asyncHandler(async (req, res) => {
     const { collaboratorId, itemId } = z.object({ collaboratorId: id, itemId: z.uuid() }).parse(req.params);
+    await requireVisibleCollaborators(database, [collaboratorId]);
     const { revision } = z.object({ revision: z.coerce.number().int().positive() }).strict().parse(req.query);
     const result = await resolveConectaEvidence(database, { collaboratorId, itemId, revision }, { config, fetchImpl });
     res.setHeader('Cache-Control', 'no-store');

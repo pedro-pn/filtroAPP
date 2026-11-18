@@ -1,3 +1,4 @@
+import { collaboratorVisibilityWhere, requireVisibleCollaborators } from './workforce-policy.js';
 import { resolveAllocationReviewAbsenceAlerts } from '../efetivo/allocation-review/absence-alerts.js';
 import { corporateDateKey, loadCorporateCalendar } from '../calendar/corporate-calendar.js';
 import { allocationPeriod } from '../efetivo/planning/allocation-period.js';
@@ -109,6 +110,7 @@ export async function createWorkforceAbsence(database, payload, context = {}) {
   const period = { startDate: corporateDateKey(payload.startDate), endDate: corporateDateKey(payload.endDate) };
   if (period.endDate < period.startDate) throw workforceError('A data final não pode ser anterior à inicial.', 'INVALID_PERIOD');
   return database.$transaction(async tx => {
+    await requireVisibleCollaborators(tx, [payload.collaboratorId], { target: 'EFETIVO' });
     const collaborator = await tx.collaborator.findUnique({ where: { id: payload.collaboratorId } });
     if (!collaborator) throw workforceError('Colaborador não encontrado.', 'COLLABORATOR_NOT_FOUND', 404);
     await assertNoAbsenceOverlap(tx, payload.collaboratorId, period);
@@ -188,6 +190,7 @@ export async function listWorkforceAbsences(database, filters = {}) {
     where: {
       deletedAt: null,
       type: { in: ['FERIAS', 'FOLGA', 'AFASTAMENTO', 'FADIGA_OFFSHORE'] },
+      collaborator: collaboratorVisibilityWhere('EFETIVO'),
       ...(filters.collaboratorId ? { collaboratorId: filters.collaboratorId } : {}),
       ...(filters.startDate ? {
         startDate: { lte: utcDate(filters.endDate || filters.startDate) },

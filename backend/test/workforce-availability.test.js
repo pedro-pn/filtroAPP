@@ -30,7 +30,7 @@ test('ausência superveniente, inclusive fadiga offshore, é salva e marca miss�
   for (const type of ['FERIAS', 'FADIGA_OFFSHORE']) {
     const calls = [];
     const tx = {
-      collaborator: { findUnique: async () => ({ id: 'c1' }) },
+      collaborator: { findMany: async () => [{ id: 'c1' }], findUnique: async () => ({ id: 'c1' }) },
       collaboratorAbsence: {
         findFirst: async () => null,
         create: async input => ({ id: 'a1', version: 1, ...input.data })

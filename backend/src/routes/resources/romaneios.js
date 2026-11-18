@@ -1,4 +1,5 @@
 import { qrPageUrl } from '../../lib/equipamentos/qr-link.js';
+import { isCollaboratorVisible } from '../../lib/collaborators/workforce-policy.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Router } from 'express';
@@ -987,7 +988,8 @@ router.get('/projects', requireAuth, requireRomaneioAccess, asyncHandler(async (
     select: {
       ...romaneioProjectSelect,
       operator: {
-        select: { id: true, name: true, jobRoleId: true, jobRole: { select: { id: true, name: true } } }
+        select: { id: true, name: true, jobRoleId: true, workforceClassificationOverride: true,
+          jobRole: { select: { id: true, name: true, isOperational: true, workforceClassification: true } } }
       }
     },
     orderBy: [{ code: 'asc' }, { name: 'asc' }]
@@ -996,7 +998,11 @@ router.get('/projects', requireAuth, requireRomaneioAccess, asyncHandler(async (
     .filter(item => romaneioProjectAvailableForType(item, query.type))
     .map(item => ({
       ...item,
-      operator: item.operator ? { ...item.operator, role: item.operator.jobRole?.name || '' } : null
+      operator: item.operator && isCollaboratorVisible(item.operator, 'ROMANEIO') ? {
+        id: item.operator.id, name: item.operator.name, jobRoleId: item.operator.jobRoleId,
+        jobRole: item.operator.jobRole ? { id: item.operator.jobRole.id, name: item.operator.jobRole.name } : null,
+        role: item.operator.jobRole?.name || ''
+      } : null
     })));
 }));
 

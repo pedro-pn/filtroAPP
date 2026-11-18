@@ -1,25 +1,11 @@
 import { normalizeJobRoleKey, markFutureAllocationsForReplanning } from '../collaborators/job-role-service.js';
 import { employmentDates, receiptDate } from './schema.js';
+import { roleClassification } from '../collaborators/workforce-policy.js';
 
 const day = value => new Date(`${value}T00:00:00Z`);
 export const aggregateWhere = (companyId, aggregateType, externalId) => ({ companyId_aggregateType_externalId: { companyId, aggregateType, externalId } });
 const aggregate = (tx, companyId, type, id) => id ? tx.conectaRhAggregate.findUnique({ where: aggregateWhere(companyId, type, id) }) : null;
 const person = (tx, companyId, personId) => tx.conectaRhPerson.findUnique({ where: { companyId_personId: { companyId, personId } } });
-
-async function roleUsedByPublishedWorkforce(tx, row) {
-  return Boolean(await tx.conectaRhAggregate.findFirst({ where: {
-    companyId: row.companyId,
-    OR: [
-      { aggregateType: 'employment', data: { path: ['currentJobRoleId'], equals: row.externalId } },
-      { aggregateType: 'role_change', data: { path: ['jobRoleId'], equals: row.externalId } }
-    ]
-  }, select: { id: true } }));
-}
-
-async function allowRoleInWorkforce(tx, jobRoleId) {
-  // A origem publica Operacional e Engenharia; o setor original fica no agregado.
-  await tx.jobRole.updateMany({ where: { id: jobRoleId, isOperational: false }, data: { isOperational: true } });
-}
 
 async function projectJobRole(tx, row) {
   const data = row.data;
@@ -32,9 +18,12 @@ async function projectJobRole(tx, row) {
   }
   const collision = await tx.jobRole.findFirst({ where: { OR: [{ normalizedKey }, { name: data.name }], ...(existing ? { id: { not: existing.id } } : {}) } });
   if (collision) return { reasonCode: 'JOB_ROLE_MAPPING_CONFLICT' };
-  const update = { name: data.name, normalizedKey, isActive: data.isActive,
-    isOperational: data.isOperational || await roleUsedByPublishedWorkforce(tx, row) };
-  const role = existing ? await tx.jobRole.update({ where: { id: existing.id }, data: update }) : await tx.jobRole.create({ data: update });
+  // RH owns the source flag, while local participation policy survives every
+  // replay/revision. Publishing an employment never grants operational access.
+  const update = { name: data.name, normalizedKey, isActive: data.isActive, sourceIsOperational: data.isOperational };
+  const role = existing ? await tx.jobRole.update({ where: { id: existing.id }, data: update }) : await tx.jobRole.create({
+    data: { ...update, isOperational: false, workforceClassification: 'PENDING' }
+  });
   return { localId: role.id };
 }
 
@@ -50,12 +39,20 @@ async function resolvePerson(tx, row, jobRoleId) {
   if (collaborator?.cpf && input.cpf && collaborator.cpf.replace(/\D/g, '') !== input.cpf) return null;
   if (collaborator && await tx.conectaRhPerson.findUnique({ where: { collaboratorId: collaborator.id } })) return null;
   if (!collaborator) {
+    const canonicalRole = await tx.jobRole.findUnique({ where: { id: jobRoleId } });
+    const conflictingSource = input.isOperational === false && roleClassification(canonicalRole) === 'OPERATIONAL';
     const codes = await tx.collaborator.findMany({ where: { code: { startsWith: 'COL-' } }, select: { code: true } });
     // O UUID externo pertence ao vínculo ConectaRhPerson. O código público segue
     // a sequência local; a transação serializável da recepção repete colisões.
     const last = codes.reduce((max, { code }) => /^COL-\d+$/.test(code) ? Math.max(max, Number(code.slice(4))) : max, 0);
     collaborator = await tx.collaborator.create({ data: {
-      code: `COL-${String(last + 1).padStart(3, '0')}`, name: input.name, jobRoleId, isActive: false
+      code: `COL-${String(last + 1).padStart(3, '0')}`, name: input.name, jobRoleId, isActive: false,
+      workforceClassificationOverride: conflictingSource ? 'PENDING' : null
+    } });
+    if (conflictingSource) await tx.workforceClassificationEvent.create({ data: {
+      entityType: 'COLLABORATOR', entityId: collaborator.id,
+      reason: 'Vínculo novo recebido como não operacional em cargo liberado para operação. Revisão individual necessária.',
+      before: { classification: null }, after: { classification: 'PENDING' }
     } });
   }
   return tx.conectaRhPerson.create({ data: { companyId: row.companyId, personId: input.personId, collaboratorId: collaborator.id } });
@@ -78,7 +75,6 @@ async function projectEmployment(tx, row) {
   if (!jobRoleId) return { reasonCode: 'JOB_ROLE_PENDING' };
   const mapping = knownPerson || await resolvePerson(tx, row, jobRoleId);
   if (!mapping) return { reasonCode: 'PERSON_MAPPING_AMBIGUOUS' };
-  await allowRoleInWorkforce(tx, jobRoleId);
   const employments = await tx.conectaRhAggregate.findMany({ where: { companyId: row.companyId, aggregateType: 'employment', data: { path: ['personId'], equals: row.data.personId } } });
   const current = currentEmployment(employments);
   if (current.id !== row.id) return { localId: mapping.collaboratorId };
@@ -89,6 +85,8 @@ async function projectEmployment(tx, row) {
     jobRoleId, admissionDate: day(dates.admissionDate), terminationDate: row.data.terminationDate ? day(row.data.terminationDate) : null,
     admissionDateProvisional: dates.admissionDateProvisional, rhFirstReceivedAt: row.firstReceivedAt,
     rhStatus: row.data.status, rhEmploymentId: row.externalId,
+    sourceIsOperational: row.data.isOperational,
+    ...(previous.jobRoleId !== jobRoleId ? { classificationVersion: { increment: 1 } } : {}),
     isActive: ['ACTIVE', 'PRE_ADMISSION'].includes(row.data.status)
   };
   await tx.collaborator.update({ where: { id: mapping.collaboratorId }, data: update });
@@ -132,7 +130,7 @@ async function syncCurrentRole(tx, collaboratorId) {
     jobRoleId = fallback?.localId;
   }
   if (jobRoleId && jobRoleId !== collaborator.jobRoleId) {
-    await tx.collaborator.update({ where: { id: collaboratorId }, data: { jobRoleId } });
+    await tx.collaborator.update({ where: { id: collaboratorId }, data: { jobRoleId, classificationVersion: { increment: 1 } } });
     await markFutureAllocationsForReplanning(tx, collaboratorId, jobRoleId);
   }
 }
@@ -159,7 +157,6 @@ async function projectRoleChange(tx, row) {
   // Uma ocorrência criada sem data acompanha a data oficial do vínculo quando ela chegar.
   const effectiveDate = input.effectiveDate || reference;
   if (effectiveDate > receiptDate(new Date()) && employment.data.status !== 'PRE_ADMISSION') return { reasonCode: 'FUTURE_ROLE_CHANGE' };
-  await allowRoleInWorkforce(tx, role.localId);
   const baselineId = `conecta:${employment.id}`;
   const id = row.localId || `conecta:${row.id}`;
   const collision = await tx.collaboratorJobRoleHistory.findUnique({ where: { collaboratorId_effectiveDate: { collaboratorId: employment.localId, effectiveDate: day(effectiveDate) } } });

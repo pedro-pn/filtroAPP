@@ -40,6 +40,7 @@ import assinaturasRouter from './resources/assinaturas.js';
 import apiCredentialsRouter from './resources/api-credentials.js';
 import integrationsV1Router from './integrations/v1/index.js';
 import notificationsRouter from './resources/notifications.js';
+import workforceClassificationRouter from './resources/workforce-classification.js';
 // module:scaffold import
 
 const router = Router();
@@ -90,6 +91,7 @@ router.use('/efetivo', efetivoRouter);
 router.use('/workforce', workforceRouter);
 router.use('/assinaturas', assinaturasRouter);
 router.use('/admin', apiCredentialsRouter);
+router.use('/admin/workforce-classification', workforceClassificationRouter);
 router.use('/integracoes/v1', integrationsV1Router);
 // module:scaffold mount
 router.use('/admin/accounts', usersRouter);

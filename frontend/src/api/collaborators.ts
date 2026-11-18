@@ -25,6 +25,10 @@ export async function listCollaborators() {
   return response.data;
 }
 
+export async function listAdminCollaboratorOptions() {
+  return (await apiClient.get<Collaborator[]>('/admin/workforce-classification/collaborator-options')).data;
+}
+
 export async function createCollaborator(payload: CollaboratorPayload) {
   const response = await apiClient.post<Collaborator>(rdoApiPath('/collaborators'), payload);
   return response.data;

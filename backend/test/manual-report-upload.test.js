@@ -38,8 +38,8 @@ function txWithCollaborators(ids) {
     workforceCalendarState: { findUnique: async () => ({ id: 'global', revision: 1 }) },
     collaborator: {
       findMany: async ({ where }) => ids
-        .filter(id => where.id.in.includes(id))
-        .map(id => ({ id, name: `Colaborador ${id}`, jobRole: { id: 'role-tech', name: 'Técnico' } }))
+        .filter(id => (where.id?.in || where.AND?.[0]?.id?.in || []).includes(id))
+        .map(id => ({ id, name: `Colaborador ${id}`, jobRole: { id: 'role-tech', name: 'Técnico', isOperational: true } }))
     }
   };
 }

@@ -1,3 +1,4 @@
+import { collaboratorVisibilityWhere } from '../../lib/collaborators/workforce-policy.js';
 import { Router } from 'express';
 import { z } from 'zod';
 
@@ -541,6 +542,7 @@ router.get(
             where: {
               isActive: true,
               signatureImage: { not: null },
+              ...collaboratorVisibilityWhere('EQUIPMENT'),
               user: { is: { isActive: true, accountType: 'INTERNAL' } }
             },
             select: {
@@ -573,6 +575,7 @@ router.put(
           id: data.supervisorCollaboratorId,
           isActive: true,
           signatureImage: { not: null },
+              ...collaboratorVisibilityWhere('EQUIPMENT'),
           user: { is: { isActive: true, accountType: 'INTERNAL' } }
         },
         select: { id: true }

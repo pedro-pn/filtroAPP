@@ -1,3 +1,4 @@
+import { collaboratorVisibilityWhere } from './workforce-policy.js';
 import { allocationPeriod } from '../efetivo/planning/allocation-period.js';
 import { missionEndsOnOrAfter } from '../efetivo/planning/mission-period.js';
 import { collaboratorJobRoleHistoryInclude } from './job-role-history.js';
@@ -78,6 +79,7 @@ export function withCurrentJobRole(collaborator) {
 
 export async function listCollaboratorsWithCurrentJobRole(database, prepareCollaborator = async item => item) {
   const items = await database.collaborator.findMany({
+    where: collaboratorVisibilityWhere('RDO'),
     include: {
       jobRole: true,
       jobRoleHistory: {
@@ -176,7 +178,7 @@ export async function setCollaboratorCanonicalJobRole(database, collaboratorId, 
     ? await database.collaborator.findUnique({ where: { id: collaboratorId }, include: { jobRole: true } })
     : await database.collaborator.update({
       where: { id: collaboratorId },
-      data: { jobRoleId: role.id },
+      data: { jobRoleId: role.id, classificationVersion: { increment: 1 } },
       include: { jobRole: true }
     });
   const affectedMissionIds = existing.jobRoleId === role.id

@@ -1,3 +1,4 @@
+import { collaboratorVisibilityWhere, defaultJobRoleVisibilityWhere, requireVisibleCollaborators } from '../../collaborators/workforce-policy.js';
 import crypto from 'node:crypto';
 
 import { markFutureAllocationsForReplanning, withCurrentJobRole } from '../../collaborators/job-role-service.js';
@@ -19,7 +20,7 @@ function utcDate(value) {
 }
 
 async function requireOperationalRole(tx, jobRoleId) {
-  const role = await tx.jobRole.findFirst({ where: { id: jobRoleId, isActive: true, isOperational: true } });
+  const role = await tx.jobRole.findFirst({ where: { id: jobRoleId, isActive: true, ...defaultJobRoleVisibilityWhere('EFETIVO') } });
   if (!role) throw planningError('Função operacional não encontrada.', { code: 'INVALID_JOB_ROLE' });
   return role;
 }
@@ -112,6 +113,7 @@ export async function updatePlanningCollaborator(collaboratorId, payload, contex
 }
 
 async function validateAbsenceConflicts(tx, plan, collaboratorId, period, ignoredAbsenceId = null) {
+  await requireVisibleCollaborators(tx, [collaboratorId], { target: 'EFETIVO' });
   const data = await loadCollaboratorConflictData(tx, collaboratorId, period, plan.id);
   if (!data.collaborator) throw notFound('Colaborador não encontrado.');
   const absenceConflict = data.absences.find(absence => absence.id !== ignoredAbsenceId && periodsOverlap(period, absence));
@@ -223,6 +225,7 @@ export async function listPlanningAbsences(filters = {}, dependencies = {}) {
   return database.collaboratorAbsence.findMany({
     where: {
       deletedAt: null,
+      collaborator: collaboratorVisibilityWhere('EFETIVO'),
       type: { in: ['FERIAS', 'FOLGA', 'AFASTAMENTO', 'FADIGA_OFFSHORE'] },
       ...(filters.collaboratorId ? { collaboratorId: filters.collaboratorId } : {}),
       ...(filters.startDate ? { startDate: { lte: utcDate(filters.endDate || filters.startDate) }, endDate: { gte: utcDate(filters.startDate) } } : {})

@@ -1,3 +1,6 @@
+import { collaboratorVisibilityWhere, jobRoleVisibilityWhere } from '../../collaborators/workforce-policy.js';
+import { roleClassification } from '../../collaborators/workforce-policy.js';
+import { workforceVisibilityClasses } from '../../collaborators/workforce-visibility-context.js';
 import { calculateDailyCapacity, calculateUtilization90Days } from './capacity.js';
 import { buildContinuousStayAlerts } from './continuous-stay.js';
 import { addCalendarDays, parseDateKey } from './date-only.js';
@@ -58,7 +61,7 @@ export async function listPlanningJobRoles(dependencies = {}) {
   const database = await resolvePlanningDatabase(dependencies.database);
   const roles = await database.jobRole.findMany({
     where: { isActive: true },
-    select: { id: true, name: true, isOperational: true, calendarColor: true, continuousWorkLimitDays: true, order: true },
+    select: { id: true, name: true, isOperational: true, workforceClassification: true, calendarColor: true, continuousWorkLimitDays: true, order: true, _count: { select: { collaborators: { where: { workforceClassificationOverride: { in: workforceVisibilityClasses('EFETIVO') } } } } } },
     orderBy: [{ order: 'asc' }, { name: 'asc' }]
   });
   const roleIdsByFamily = new Map();
@@ -67,6 +70,9 @@ export async function listPlanningJobRoles(dependencies = {}) {
     roleIdsByFamily.set(key, [...(roleIdsByFamily.get(key) || []), role.id]);
   }
   return roles.map(role => ({
+    isDefaultVisibleInWorkforce: workforceVisibilityClasses('EFETIVO').includes(roleClassification(role)),
+    isAvailableInWorkforce: workforceVisibilityClasses('EFETIVO').includes(roleClassification(role)) || Boolean(role._count?.collaborators),
+    hasOperationalCollaborators: Boolean(role._count?.collaborators),
     ...role,
     familyKey: jobRoleFamilyKey(role.name),
     familyName: jobRoleFamilyName(role.name),
@@ -79,6 +85,7 @@ export async function listPlanningCoordinators(dependencies = {}) {
   const users = await database.user.findMany({
     where: {
       isActive: true,
+      AND: [{ OR: [{ collaborator: null }, { collaborator: collaboratorVisibilityWhere('EFETIVO') }] }],
       OR: [
         { role: 'COORDINATOR' },
         { moduleRoles: { some: { role: 'RDO_COORDINATOR' } } }
@@ -110,11 +117,11 @@ export async function loadPlanningProjection({ date, returnDate = null, planId =
     database.collaborator.findMany({
       where: {
         OR: [{ isActive: true }, { terminationDate: { gte: utcDate(startDate) } }],
-        AND: [{ OR: [{ rhStatus: 'PRE_ADMISSION' }, { admissionDate: null }, { admissionDate: { lte: utcDate(endDate) } }] }]
+        AND: [collaboratorVisibilityWhere('EFETIVO'), { OR: [{ rhStatus: 'PRE_ADMISSION' }, { admissionDate: null }, { admissionDate: { lte: utcDate(endDate) } }] }]
       },
       select: { id: true, name: true, jobRoleId: true, jobRole: { select: { id: true, name: true } }, admissionDate: true, terminationDate: true, isActive: true, rhStatus: true, admissionDateProvisional: true }
     }),
-    database.jobRole.findMany({ where: { isActive: true, isOperational: true }, orderBy: [{ order: 'asc' }, { name: 'asc' }] }),
+    database.jobRole.findMany({ where: { isActive: true, ...jobRoleVisibilityWhere('EFETIVO') }, orderBy: [{ order: 'asc' }, { name: 'asc' }] }),
     database.efetivoMissionPlan.findMany({
       where: {
         planId: plan.id,
@@ -138,7 +145,7 @@ export async function loadPlanningProjection({ date, returnDate = null, planId =
     name: item.name,
     source: item.source
   }));
-  return { plan, collaborators, jobRoles, missions, absences, holidays, calendarRevision: calendar.revision, targetSetting, plannedHires, returnDate: endDate };
+  return { plan, collaborators, jobRoles: jobRoles.map(role => ({ ...role, isOperational: true })), missions, absences, holidays, calendarRevision: calendar.revision, targetSetting, plannedHires, returnDate: endDate };
 }
 
 export async function getPlanningOverview(filters, dependencies = {}) {
@@ -281,7 +288,7 @@ export async function listPlanningCollaborators(filters, dependencies = {}) {
   if (filters.includeInactive) {
     const database = await resolvePlanningDatabase(dependencies.database);
     const inactive = await database.collaborator.findMany({
-      where: { isActive: false },
+      where: { isActive: false, ...collaboratorVisibilityWhere('EFETIVO') },
       select: { id: true, name: true, jobRoleId: true, jobRole: { select: { id: true, name: true } }, admissionDate: true, terminationDate: true, isActive: true, rhStatus: true, admissionDateProvisional: true }
     });
     const includedIds = new Set(collaborators.map(person => person.id));
