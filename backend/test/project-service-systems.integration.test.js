@@ -113,7 +113,7 @@ test('project systems HTTP + PostgreSQL: scope, all UGs, permissions, aliases, h
   const nativeBody = { projectId: projectIds[0], createdByUserId: userIds[0], reportType: 'RDO', reportDate: '2026-01-15',
     arrivalTime: '08:00', departureTime: '17:00', lunchBreak: '01:00', daytimeCount: 0, status: 'PENDING',
     services: [{ serviceType: 'limpeza', system: 'Mancal de escora', finalized: false, startTime: '08:00', endTime: '17:00',
-      extraData: { equipmentId: 'Unidade Geradora 02', __projectSystemId: unitSystem.projectSystemId, limpezaTubulacao: 'Não', quantidadeSistemas: 2, tubes: [] } }]
+      extraData: { equipmentId: 'Unidade Geradora 02', __projectSystemId: unitSystem.projectSystemId, limpezaTubulacao: 'Não', tipoSistema: 'Mancal de escora', quantidadeSistemas: 2, tubes: [] } }]
   };
   for (const invalidQuantity of [null, 0, 1.5]) {
     const invalid = structuredClone(nativeBody); invalid.services[0].extraData.quantidadeSistemas = invalidQuantity;
