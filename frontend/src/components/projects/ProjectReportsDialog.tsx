@@ -10,7 +10,7 @@ import { reportDownloadFileName } from '../../utils/reportFileName';
 import { GroupedReportList } from '../reports/GroupedReportList';
 import { ReportSummaryCard } from '../reports/ReportSummaryCard';
 import { Modal } from '../ui/Modal';
-import { ReportListSkeleton } from '../ui/Skeleton';
+import { Button, EmptyState, Skeleton } from '../ui/ds';
 import { useToast } from '../ui/ToastContext';
 
 const REPORT_PAGE_SIZE = 30;
@@ -91,49 +91,43 @@ export function ProjectReportsDialog({
 
   return (
     <>
-      <button
+      <Button
         type="button"
-        className="mini-btn alt acp-mission-reports-trigger"
+        size="sm"
+        variant="secondary"
+        className="acp-mission-reports-trigger"
         onClick={() => setOpen(true)}
       >
         Relatórios da missão
-      </button>
+      </Button>
       <Modal
         open={open && !pdfPreview}
         onClose={closeReports}
         closeOnBackdrop
+        appearance="design-system"
+        title="Relatórios da missão"
+        size="lg"
+        fullscreenOnMobile={false}
         ariaLabelledBy={titleId}
-        panelClassName="modal-card acp-mission-reports-modal"
+        panelClassName="acp-mission-reports-modal"
       >
         <div className="acp-mission-reports-dialog">
-          <header className="acp-mission-reports-head">
-            <div>
-              <h2 id={titleId}>Relatórios da missão</h2>
-              <p>{missionLabel}</p>
-            </div>
-            <button
-              type="button"
-              className="mini-btn alt"
-              aria-label="Fechar relatórios da missão"
-              onClick={closeReports}
-            >
-              Fechar
-            </button>
-          </header>
+          <p className="acp-mission-reports-context">{missionLabel}</p>
           <div className="acp-mission-reports-body">
             {reportsQuery.isLoading ? (
-              <ReportListSkeleton groups={1} rowsPerGroup={3} />
+              <Skeleton variant="text" lines={7} label="Carregando relatórios da missão" />
             ) : reportsQuery.isError ? (
               <div className="acp-mission-reports-feedback">
-                <span className="placeholder-copy">Não foi possível carregar os relatórios desta missão.</span>
-                <button type="button" className="mini-btn alt" onClick={() => void reportsQuery.refetch()}>
+                <EmptyState title="Não foi possível carregar os relatórios desta missão." />
+                <Button size="sm" variant="secondary" type="button" onClick={() => void reportsQuery.refetch()}>
                   Tentar novamente
-                </button>
+                </Button>
               </div>
             ) : reportsQuery.items.length === 0 ? (
-              <div className="placeholder-copy">Nenhum relatório aprovado ou assinado para esta missão.</div>
+              <EmptyState title="Nenhum relatório disponível" description="Esta missão ainda não possui relatório aprovado ou assinado." />
             ) : (
               <GroupedReportList
+                appearance="design-system"
                 reports={reportsQuery.items}
                 archived={false}
                 storageKey={`acp-mission-reports:${user?.id || user?.username || 'anonymous'}:${projectId}`}
@@ -153,22 +147,24 @@ export function ProjectReportsDialog({
                     allowOpenDetail={false}
                     actions={(
                       <span className="report-download-actions">
-                        <button
+                        <Button
                           type="button"
-                          className="mini-btn"
+                          size="sm"
+                          variant="primary"
                           disabled={openingReportId !== null || downloadingReportId !== null}
                           onClick={() => void handleOpenPdf(report)}
                         >
                           {openingReportId === report.id ? 'Abrindo...' : 'Abrir PDF'}
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
-                          className="mini-btn alt"
+                          size="sm"
+                          variant="secondary"
                           disabled={downloadingReportId !== null || openingReportId !== null}
                           onClick={() => void handleDownload(report)}
                         >
                           {downloadingReportId === report.id ? 'Baixando...' : 'Baixar PDF'}
-                        </button>
+                        </Button>
                       </span>
                     )}
                   />
@@ -181,19 +177,19 @@ export function ProjectReportsDialog({
       <Modal
         open={Boolean(pdfPreview)}
         onClose={closePdfPreview}
+        appearance="design-system"
+        title="Visualizar PDF"
+        size="full"
         ariaLabelledBy={pdfTitleId}
-        panelClassName="modal-card acp-pdf-viewer-modal"
+        panelClassName="acp-pdf-viewer-modal"
       >
         {pdfPreview ? (
           <div className="acp-pdf-viewer">
             <header className="acp-pdf-viewer-head">
-              <div>
-                <h2 id={pdfTitleId}>Visualizar PDF</h2>
-                <p>{pdfPreview.report.reportType} {pdfPreview.report.sequenceNumber || ''} · {missionLabel}</p>
-              </div>
+              <p>{pdfPreview.report.reportType} {pdfPreview.report.sequenceNumber || ''} · {missionLabel}</p>
               <div className="acp-pdf-viewer-actions">
-                <button type="button" className="mini-btn" onClick={handlePreviewDownload}>Baixar PDF</button>
-                <button type="button" className="mini-btn alt" onClick={closePdfPreview}>Fechar</button>
+                <Button size="sm" variant="primary" type="button" onClick={handlePreviewDownload}>Baixar PDF</Button>
+                <Button size="sm" variant="secondary" type="button" onClick={closePdfPreview}>Fechar</Button>
               </div>
             </header>
             <Suspense fallback={<div className="acp-pdf-viewer-loading">Preparando visualizador...</div>}>

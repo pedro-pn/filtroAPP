@@ -15,9 +15,8 @@ import {
   type PendingMissionProject,
   type PlanningMission
 } from '../../../api/efetivoPlanning';
-import { Button } from '../../../components/ui/Button';
+import { Alert, Badge, Button, Card, EmptyState, Field, MetricCard, SearchInput, Select, Skeleton } from '../../../components/ui/ds';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
-import { SearchBar } from '../../../components/ui/SearchBar';
 import { useToast } from '../../../components/ui/ToastContext';
 import { displayDateOnly } from '../../../utils/calendarGrid';
 import { refreshMissionPlanningQueries } from '../../../utils/efetivoPlanningQueries';
@@ -26,6 +25,7 @@ import { missionCoveredDemand, missionFinalAllocations, missionRolePeakCount } f
 import { MissionAllocationModal } from './MissionAllocationModal';
 import { MissionFormModal } from './MissionFormModal';
 import { MissionExecutionPanel } from './MissionExecutionPanel';
+import '../EfetivoMissions.ds.css';
 
 const statusLabel = { CONFIRMED: 'Confirmada', CANCELLED: 'Cancelada' } as const;
 
@@ -93,70 +93,74 @@ export function MissionsBoard({ canManage, planId, status, search, selectedMissi
   const confirmedCount = rows.filter(mission => mission.scheduleStatus === 'CONFIRMED').length;
   const plannedPositions = rows.reduce((sum, mission) => sum + mission.demands.reduce((total, demand) => total + demand.requiredCount, 0), 0);
   const openPositions = rows.reduce((sum, mission) => sum + Math.max(0, mission.demands.reduce((total, demand) => total + demand.requiredCount, 0) - missionCoveredDemand(mission)), 0);
+  const loading = missions.isLoading || pending.isLoading;
+  const failed = missions.isError || pending.isError;
 
   return (
     <div className="efetivo-board" data-efetivo-missions>
-      <section className="page-card efetivo-list-toolbar">
-        <SearchBar value={search} onChange={onSearchChange} placeholder="Buscar missão, projeto ou cliente" count={{ shown: totalShown, total: totalAvailable }} />
-        <div className="field-group">
-          <label htmlFor="mission-status-filter">Situação</label>
-          <select id="mission-status-filter" value={status || ''} onChange={event => onStatusChange((event.target.value || undefined) as MissionScheduleStatus | undefined)}>
+      <Card padding="sm" className="efetivo-missions-toolbar" aria-label="Filtros de missões">
+        <SearchInput size="sm" value={search} onChange={onSearchChange} label="Buscar missão, projeto ou cliente" placeholder="Buscar missão, projeto ou cliente" loading={loading} resultCount={!loading && !failed ? { shown: totalShown, total: totalAvailable } : undefined} />
+        <Field id="mission-status-filter" label="Situação" optionalText="">
+          <Select size="sm" value={status || ''} onChange={event => onStatusChange((event.target.value || undefined) as MissionScheduleStatus | undefined)}>
             <option value="">Todas</option>
             <option value="CONFIRMED">Confirmada</option>
             <option value="CANCELLED">Cancelada</option>
-          </select>
-        </div>
-      </section>
-      <section className="page-card efetivo-summary-strip" data-efetivo-mission-summary>
-        <span><strong>{confirmedCount}</strong> confirmadas</span>
-        <span><strong>{plannedPositions}</strong> posições planejadas</span>
-        <span className={openPositions ? 'danger' : ''}><strong>{openPositions}</strong> posições pendentes</span>
-        <span><strong>{pendingProjects.length}</strong> projetos sem programação</span>
-      </section>
-      {totalPendencies ? (
-        <section className="page-card efetivo-pending-banner" role="status" data-efetivo-pending-banner>
-          <strong>{totalPendencies} {totalPendencies === 1 ? 'missão pendente' : 'missões pendentes'}</strong>
-          <p>As missões vêm dos projetos cadastrados. Abra cada card destacado em amarelo e complete líder, datas, equipe e confirmação.</p>
-        </section>
+          </Select>
+        </Field>
+      </Card>
+      {!loading && !failed ? <section className="efetivo-missions-metrics" data-efetivo-mission-summary aria-label="Resumo das missões no recorte">
+        <MetricCard label="Confirmadas" value={confirmedCount} tone="success" />
+        <MetricCard label="Posições planejadas" value={plannedPositions} />
+        <MetricCard label="Posições pendentes" value={openPositions} tone={openPositions ? 'warning' : 'neutral'} />
+        <MetricCard label="Projetos sem programação" value={pendingProjects.length} tone={pendingProjects.length ? 'warning' : 'neutral'} />
+      </section> : null}
+      {!loading && !failed && totalPendencies ? (
+        <Alert tone="warning" role="status" title={`${totalPendencies} ${totalPendencies === 1 ? 'missão pendente' : 'missões pendentes'}`} data-efetivo-pending-banner>
+          As missões vêm dos projetos cadastrados. Abra cada card destacado em amarelo e complete líder, datas, equipe e confirmação.
+        </Alert>
       ) : null}
-      {missions.isLoading || pending.isLoading ? <section className="page-card placeholder-copy">Carregando missões…</section>
-        : missions.isError || pending.isError ? <section className="page-card placeholder-copy">Não foi possível carregar as missões.</section>
+      {loading ? <Card padding="sm" aria-label="Carregando missões" aria-busy="true"><div className="efetivo-missions-loading">{Array.from({ length: 3 }, (_, index) => <Skeleton variant="card" height={160} key={index} />)}</div></Card>
+        : failed ? <Alert tone="danger" title="Não foi possível carregar as missões" action={{ label: 'Tentar novamente', onClick: () => { void Promise.all([missions.refetch(), pending.refetch()]); } }}>Verifique a conexão e tente atualizar a listagem.</Alert>
           : totalShown ? (
-            <div className="efetivo-mission-grid">
+            <div className="efetivo-missions-grid">
               {pendingProjects.map(project => (
-                <article
-                  className="page-card efetivo-mission-card efetivo-mission-pending"
+                <Card
+                  className="efetivo-mission-card-v2 efetivo-mission-card-v2--pending"
+                  padding="sm"
                   data-project-id={project.id}
                   data-efetivo-pending-card
                   key={project.id}
-                  onClick={() => { if (canManage) setFormTarget({ mission: null, project }); }}
+                  onClickCapture={() => { if (canManage) setFormTarget({ mission: null, project }); }}
                 >
                   <header>
                     <div><span className="efetivo-eyebrow">{project.code}</span><h2>{project.name}</h2><p>{project.clientName || 'Sem cliente'} · {project.location || 'Sem local'}</p></div>
-                    <span className="efetivo-status status-pending">Aguardando programação</span>
+                    <Badge tone="warning">Aguardando programação</Badge>
                   </header>
                   <p className="efetivo-pending-note">Projeto cadastrado ainda sem programação operacional — não entra no calendário nem na capacidade enquanto estiver assim.</p>
                   <ul className="efetivo-pending-list">{PENDING_PROJECT_PENDENCIES.map(item => <li key={item}>{item}</li>)}</ul>
                   <footer>
                     <span>Mobilização do projeto: <strong>{project.mobilizationDate ? displayDateOnly(project.mobilizationDate) : 'não informada'}</strong></span>
-                    <div className="efetivo-action-row">{canManage ? <Button onClick={() => setFormTarget({ mission: null, project })}>Completar programação</Button> : <span className="field-hint">Somente o gestor do Efetivo completa a programação.</span>}</div>
+                    <div className="efetivo-action-row">{canManage ? <Button variant="primary" size="sm" onClick={() => setFormTarget({ mission: null, project })}>Completar programação</Button> : <span className="field-hint">Somente o gestor do Efetivo completa a programação.</span>}</div>
                   </footer>
-                </article>
+                </Card>
               ))}
               {rows.map(mission => {
                 const required = mission.demands.reduce((sum, demand) => sum + demand.requiredCount, 0);
                 const finalAllocations = missionFinalAllocations(mission);
                 const pendencies = missionPendencies(mission);
                 return (
-                  <article
-                    className={`page-card efetivo-mission-card ${pendencies.length ? 'efetivo-mission-pending' : ''} ${selectedMissionId === mission.id ? 'selected' : ''}`}
+                  <Card
+                    className={`efetivo-mission-card-v2 ${pendencies.length ? 'efetivo-mission-card-v2--pending' : ''}`}
+                    padding="sm"
+                    selected={selectedMissionId === mission.id}
+                    aria-current={selectedMissionId === mission.id ? 'true' : undefined}
                     data-mission-id={mission.id}
                     key={mission.id}
-                    onClick={() => onMissionSelect?.(mission.id)}
+                    onClickCapture={() => onMissionSelect?.(mission.id)}
                   >
                     <header>
-                      <div><span className="efetivo-eyebrow">{mission.project.code}</span><h2>{mission.project.name}</h2><p>{mission.project.clientName} · {mission.project.location}</p></div>
-                      {mission.scheduleStatus === 'DRAFT' ? null : <span className={`efetivo-status status-${mission.scheduleStatus.toLocaleLowerCase('pt-BR')}`}>{statusLabel[mission.scheduleStatus]}</span>}
+                      <div><span className="efetivo-eyebrow">{mission.project.code}</span><h2>{onMissionSelect ? <Button variant="link" size="sm" className="efetivo-mission-title-action" aria-label={`Ver detalhes de ${mission.project.code}`} aria-expanded={selectedMissionId === mission.id} onClick={() => onMissionSelect(mission.id)}>{mission.project.name}</Button> : mission.project.name}</h2><p>{mission.project.clientName} · {mission.project.location}</p></div>
+                      {mission.scheduleStatus === 'DRAFT' ? null : <Badge tone={mission.scheduleStatus === 'CONFIRMED' ? 'success' : 'warning'}>{statusLabel[mission.scheduleStatus]}</Badge>}
                     </header>
                     <dl>
                       <div><dt>Mobilização</dt><dd>{displayDateOnly(mission.mobilizationDate)}</dd></div>
@@ -174,19 +178,19 @@ export function MissionsBoard({ canManage, planId, status, search, selectedMissi
                     <footer>
                       <span>Líder: <strong>{mission.headquartersResponsibleName}</strong></span>
                       <div className="efetivo-action-row efetivo-mission-card-actions">
-                        <Button variant="secondary" onClick={() => setAllocating(mission)}>Equipe</Button>
-                        {canManage && required > missionCoveredDemand(mission) ? <Button variant="secondary" disabled={autoAllocate.isPending} onClick={() => autoAllocate.mutate(mission.id)}>{autoAllocate.isPending ? 'Alocando…' : 'Alocar disponíveis'}</Button> : null}
-                        {canManage ? <><Button variant="mini" onClick={() => setFormTarget({ mission, project: null })}>Editar</Button><Button variant="danger" onClick={() => setDeleting(mission)}>Remover</Button></> : null}
+                        <Button variant="secondary" size="sm" onClick={() => setAllocating(mission)}>Equipe</Button>
+                        {canManage && required > missionCoveredDemand(mission) ? <Button variant="secondary" size="sm" loading={autoAllocate.isPending && autoAllocate.variables === mission.id} loadingLabel="Alocando disponíveis" disabled={autoAllocate.isPending} onClick={() => autoAllocate.mutate(mission.id)}>Alocar disponíveis</Button> : null}
+                        {canManage ? <><Button variant="secondary" size="sm" onClick={() => setFormTarget({ mission, project: null })}>Editar</Button><Button variant="danger" size="sm" onClick={() => setDeleting(mission)}>Remover</Button></> : null}
                       </div>
                     </footer>
-                  </article>
+                  </Card>
                 );
               })}
             </div>
-          ) : <section className="page-card placeholder-copy">Nenhuma missão neste recorte.</section>}
+          ) : <Card padding="sm"><EmptyState variant={search || status ? 'search' : 'default'} title="Nenhuma missão neste recorte" description={search || status ? 'Ajuste a busca ou a situação para ampliar a consulta.' : 'As missões aparecem a partir dos projetos cadastrados.'} /></Card>}
       {canManage ? <MissionFormModal open={Boolean(formTarget)} mission={formTarget?.mission || null} project={formTarget?.project || null} planId={planId} roles={roles.data || []} rolesLoading={roles.isLoading} coordinators={coordinators.data || []} coordinatorsLoading={coordinators.isLoading} saving={save.isPending} onClose={() => setFormTarget(null)} onSubmit={payload => save.mutate(payload)} /> : null}
-      <MissionAllocationModal mission={allocating} open={Boolean(allocating)} onClose={() => setAllocating(null)} onPlanningMutated={onPlanningMutated} />
-      <ConfirmDialog open={Boolean(deleting)} title="Remover programação?" description="A exclusão é lógica e a trilha permanece na auditoria; o projeto volta a aparecer como missão pendente." highlight={deleting ? `${deleting.project.code} · ${deleting.project.name}` : undefined} confirmLabel={remove.isPending ? 'Removendo…' : 'Remover'} onConfirm={() => { if (deleting) remove.mutate(deleting.id); }} onCancel={() => setDeleting(null)} />
+      <MissionAllocationModal mission={allocating} open={Boolean(allocating)} canManage={canManage} onClose={() => setAllocating(null)} onPlanningMutated={onPlanningMutated} />
+      <ConfirmDialog appearance="design-system" open={Boolean(deleting)} title="Remover programação?" description="A exclusão é lógica e a trilha permanece na auditoria; o projeto volta a aparecer como missão pendente." highlight={deleting ? `${deleting.project.code} · ${deleting.project.name}` : undefined} confirmLabel={remove.isPending ? 'Removendo…' : 'Remover'} confirmDisabled={remove.isPending} onConfirm={() => { if (deleting) remove.mutate(deleting.id); }} onCancel={() => setDeleting(null)} />
     </div>
   );
 }

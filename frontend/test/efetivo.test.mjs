@@ -98,16 +98,43 @@ test('produtividade mostra a situação da competência e a visão geral navega 
   assert.match(board, /<th>Situação<\/th>/);
   assert.match(board, /CONSOLIDADO: 'Consolidado', PODE_MUDAR: 'Pode mudar', SEM_BASE: 'Sem base'/);
   const overview = fs.readFileSync(new URL('../src/pages/efetivo/components/OverviewBoard.tsx', import.meta.url), 'utf8');
-  for (const label of ['Ver calendário →', 'Ver missões →', 'Ver colaboradores →', 'Abrir produtividade →']) {
+  for (const label of ['Ver calendário', 'Ver missões', 'Ver colaboradores', 'Abrir produtividade']) {
     assert.ok(overview.includes(label), `atalho ausente na visão geral: ${label}`);
   }
   assert.doesNotMatch(overview, /href=\{`\?section=/);
 });
 
+test('visão geral encerra com capacidade por função após mobilizações e folgas', () => {
+  const overview = fs.readFileSync(new URL('../src/pages/efetivo/components/OverviewBoard.tsx', import.meta.url), 'utf8');
+  const headings = [...overview.matchAll(/efetivo-overview-card__heading"><strong>([^<]+)<\/strong>/g)].map((match) => match[1]);
+  assert.deepEqual(headings, ['Próximas mobilizações', 'Folgas a programar', 'Capacidade por função']);
+  assert.match(overview, /data\.byRole\.map/);
+  assert.match(overview, /onNavigate\('calendario', \{ date \}\)/);
+});
+
+test('primeira fatia do redesign do Efetivo usa shell, navegação e estados do Design System', () => {
+  const page = fs.readFileSync(new URL('../src/pages/efetivo/EfetivoPage.tsx', import.meta.url), 'utf8');
+  const shell = fs.readFileSync(new URL('../src/pages/efetivo/EfetivoAppShell.tsx', import.meta.url), 'utf8');
+  const navigation = fs.readFileSync(new URL('../src/pages/efetivo/EfetivoSectionNavigation.tsx', import.meta.url), 'utf8');
+  const availability = fs.readFileSync(new URL('../src/pages/efetivo/components/AvailabilityBoard.tsx', import.meta.url), 'utf8');
+
+  assert.match(page, /<EfetivoAppShell/);
+  assert.doesNotMatch(page, /<Shell>|<TopBar/);
+  assert.match(shell, /createNavigationModel/);
+  assert.match(shell, /parentId: 'efetivo'/);
+  assert.match(navigation, /<Select/);
+  assert.match(navigation, /ArrowLeft/);
+  assert.match(page, /<PageHeader/);
+  assert.match(page, /<Field id="efetivo-position-date"/);
+  assert.match(availability, /<MetricCard/);
+  assert.match(availability, /<Alert/);
+});
+
 test('edição de colaborador usa o seletor padrão do APP para função', () => {
   const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/OperationalCollaboratorModal.tsx', import.meta.url), 'utf8');
 
-  assert.match(modal, /<select id="operational-collaborator-role"/);
+  assert.match(modal, /<Field id="operational-collaborator-role" label="Função"/);
+  assert.match(modal, /<Select\b[^>]*\{\.\.\.register\('jobRoleId'\)\}/);
   assert.match(modal, /\{\.\.\.register\('jobRoleId'\)\}/);
   assert.doesNotMatch(modal, /SearchCombobox/);
 });

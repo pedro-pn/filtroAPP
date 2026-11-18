@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { withRdoCompanions } from './rdo-source.mjs';
 
 const source = (path) =>
-  readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+  withRdoCompanions(path, candidate => readFileSync(new URL(`../${candidate}`, import.meta.url), 'utf8'));
 
 test('detalhe somente leitura e relatório assinado usam o shell do novo padrão', () => {
   const page = source('src/pages/ReportDetailPage.tsx');

@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { withRdoCompanions } from './rdo-source.mjs';
 
 const source = (path) =>
-  readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+  withRdoCompanions(path, candidate => readFileSync(new URL(`../${candidate}`, import.meta.url), 'utf8'));
 
 function sectionBetween(contents, start, end) {
   const startIndex = contents.indexOf(start);
@@ -14,6 +15,25 @@ function sectionBetween(contents, start, end) {
 
   return contents.slice(startIndex, endIndex);
 }
+
+test('Projetos em desktop compartilha a grade sem misturar a composição interna de Arquivados', () => {
+  const css = source('src/pages/gestor/GestorPage.ds.css');
+  const grid = sectionBetween(css, '/* Desktop: the existing project card', '/* Archived tiles retain');
+  assert.match(grid, /@media \(min-width: 1024px\)/);
+  assert.match(grid, /\.rdo-manager-projects__list,/);
+  assert.match(grid, /\.rdo-manager-projects__loading/);
+  assert.match(grid, /repeat\(auto-fill, minmax\(min\(100%, 26rem\), 1fr\)\)/);
+  assert.match(grid, /align-items: start/);
+  assert.match(grid, /container: rdo-project-tile \/ inline-size/);
+  assert.match(grid, /@container rdo-project-tile \(max-width: 40rem\)/);
+  assert.match(grid, /\[data-project-editing='true'\][\s\S]*?grid-column: 1 \/ -1/);
+  assert.match(grid, /\.rdo-active-project-card__summary[\s\S]*?repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(grid, /\.rdo-active-project-card__details-grid[\s\S]*?grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(grid, /\.rdo-project-action-label--compact/);
+  assert.match(grid, /\.rdo-archived-projects__list,/);
+  assert.doesNotMatch(grid, /\.rdo-project-card--archived|grid-auto-flow:\s*(?:dense|column)|overflow:\s*(?:hidden|scroll|auto)/);
+  assert.match(source('src/pages/gestor/GestorPage.shared.tsx'), /data-project-editing=\{Boolean\(options\.editing\)\}/);
+});
 
 test('Projetos migra a superfície principal com opt-in explícito no DS', () => {
   const page = source('src/pages/gestor/GestorPage.tsx');
@@ -156,7 +176,7 @@ test('Projetos preserva bootstrap, busca, ordenação e contratos CRUD', () => {
     /Promise\.all\(batches\.map\(batch => fetchReportCounts\(batch\)\)\)/
   );
   assert.match(projectsTab, /onToggleArchive: handleProjectToggleArchive/);
-  assert.match(projectsTab, /onRemove: handleProjectRemove/);
+  assert.match(projectsTab, /onRemove: setRemoveProjectTarget/);
   assert.match(projectsTab, /onToggleDetails: toggleProjectDetails/);
   assert.match(projectsTab, /segments: projectSegmentsQuery\.data/);
 
@@ -244,6 +264,8 @@ test('Projetos reaproveita o card DS e mantém formulários e revisões isolados
   assert.ok(expandedContentStart > detailsDisclosureStart);
   assert.ok(detailsGridStart > expandedContentStart);
   assert.match(projectCard, /rdo-project-action-label--compact/);
+  assert.match(projectCard, /aria-label="Gerenciar equipe"/);
+  assert.match(projectCard, /aria-label="Ver relatórios"/);
   assert.doesNotMatch(projectCard, /rdo-active-project-card__section-nav/);
   assert.doesNotMatch(projectCard, />Visão geral<\/a>/);
   assert.match(projectCard, /project\.authorizedUsers\?\.length/);
@@ -290,11 +312,11 @@ test('Projetos reaproveita o card DS e mantém formulários e revisões isolados
 
   assert.match(
     projectsTab,
-    /<Button variant="primary" size="md" type="submit" disabled=\{projectMutations\.updateProject\.isPending\}>Salvar projeto<\/Button>/
+    /<Button variant="primary" size="md" type="submit" disabled=\{projectMutations\.updateProject\.isPending\}>\s*Salvar projeto\s*<\/Button>/
   );
   assert.match(
     projectsTab,
-    /<Button variant="secondary" size="md" type="button" onClick=\{resetProjectForm\}>Cancelar edição<\/Button>/
+    /<Button variant="secondary" size="md" type="button" onClick=\{resetProjectForm\}>\s*Cancelar edição\s*<\/Button>/
   );
   assert.match(page, /async function handleProjectTeamSubmit/);
   assert.match(
@@ -308,19 +330,19 @@ test('Projetos reaproveita o card DS e mantém formulários e revisões isolados
   );
   assert.equal(
     page.match(
-      /<Button variant="primary" size="sm" type="button"[^>]*>[\s\S]*?\+ Adicionar[\s\S]*?<\/Button>/g
+      /<Button[\s\S]{0,240}?variant="primary"[\s\S]{0,240}?size="sm"[\s\S]{0,240}?type="button"[^>]*>[\s\S]{0,300}?\+ Adicionar[\s\S]{0,80}?<\/Button>/g
     )?.length,
     2
   );
   assert.equal(
     projectsTab.match(
-      /<Button variant="secondary" size="sm" type="button" onClick=\{openSegmentForm\}>\+ Adicionar segmento<\/Button>/g
+      /<Button variant="secondary" size="sm" type="button" onClick=\{openSegmentForm\}>\s*\+ Adicionar segmento\s*<\/Button>/g
     )?.length,
     2
   );
   assert.match(
     projectsTab,
-    /<Button variant="primary" type="submit" disabled=\{projectMutations\.createProject\.isPending\}>Criar projeto<\/Button>/
+    /<Button variant="primary" type="submit" disabled=\{projectMutations\.createProject\.isPending\}>\s*Criar projeto\s*<\/Button>/
   );
 
   assert.doesNotMatch(revisionPicker, /mini-btn/);

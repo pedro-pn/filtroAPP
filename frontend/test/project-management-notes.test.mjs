@@ -9,8 +9,8 @@ test('dashboard de projeto exibe campo e histórico de notas com autoria e data'
 
   assert.match(source, /Notas da gestão/);
   assert.match(source, /canManageProjectNotes \? \(/);
-  assert.match(source, /className="field-group acp-project-note-field"/);
-  assert.match(source, /<textarea[\s\S]{0,500}?maxLength=\{2000\}/);
+  assert.match(source, /<Field id="acp-project-note-content" label="Nova nota"/);
+  assert.match(source, /<Textarea[\s\S]{0,500}?maxLength=\{2000\}/);
   assert.match(source, /note\.author\.name/);
   assert.match(source, /<time dateTime=\{note\.createdAt\}>\{fmtDateTime\(note\.createdAt\)\}<\/time>/);
   assert.ok(

@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { withRdoCompanions } from './rdo-source.mjs';
 
 const source = (path) =>
-  readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+  withRdoCompanions(path, candidate => readFileSync(new URL(`../${candidate}`, import.meta.url), 'utf8'));
 
 function sectionBetween(contents, start, end) {
   const startIndex = contents.indexOf(start);
@@ -35,7 +36,7 @@ test('B.11 preserva abertura, limpeza e fechamento do formulário de segmento', 
 
   const launchers = [
     ...manager.matchAll(
-      /<Button variant="secondary" size="sm" type="button" onClick=\{openSegmentForm\}>\+ Adicionar segmento<\/Button>/g
+      /<Button[\s\S]{0,180}?variant="secondary"[\s\S]{0,180}?size="sm"[\s\S]{0,180}?onClick=\{openSegmentForm\}[\s\S]{0,80}?>\s*\+ Adicionar segmento\s*<\/Button>/g
     )
   ];
   assert.equal(launchers.length, 2);
@@ -71,7 +72,7 @@ test('B.11 preserva slug, payload, ordem, seleção automática e toasts', () =>
   );
   assert.match(
     submitHandler,
-    /setProjectForm\(current => \(\{ \.\.\.current, clientSegment: created\.slug \}\)\)/
+    /setProjectForm\(\(current\) => \(\{ \.\.\.current, clientSegment: created\.slug \}\)\)/
   );
   assert.match(
     submitHandler,

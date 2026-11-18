@@ -85,6 +85,25 @@
   border-block-start: var(--border-width) solid var(--line);
 }
 
+/* ConfirmDialog is shared by modules and rendered outside their theme boundaries. */
+:where(.fv-ds, [data-fv-ds]) .fv-modal.confirm-dialog .placeholder-copy {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+:where(.fv-ds, [data-fv-ds]) .fv-modal.confirm-dialog .confirm-dialog-item {
+  margin-block-start: var(--space-3);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 767.98px) {
   :where(.fv-ds, [data-fv-ds]).fv-modal-backdrop,
   :where(.fv-ds, [data-fv-ds]) .fv-modal-backdrop {
@@ -98,6 +117,11 @@
     max-height: 100dvh;
     border: 0;
     border-radius: 0;
+  }
+
+  :where(.fv-ds, [data-fv-ds]).fv-modal-backdrop.confirm-dialog-backdrop {
+    align-items: center;
+    padding: var(--space-4);
   }
 
   :where(.fv-ds, [data-fv-ds])

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   addRdoMissionSuggestions,
@@ -60,12 +60,15 @@ export function useRdoPlanningPrefill({
   }, [projectId, reportDate, selectionKey, currentCollaboratorIds, lastReportKey, lastReportStatus, setCollaborators]);
 
   const teamSelectionSettled = touched.current || currentCollaboratorIds.length > 0 || !lastReportKey;
-  const missionSuggestionCollaboratorIds = dismissedMissionKey === missionSuggestionKey
-    ? []
-    : resolveRdoMissionSuggestion({
-      currentCollaboratorIds,
-      missionCollaboratorIds: missionKey ? missionKey.split(',') : []
-    });
+  const missionSuggestionCollaboratorIds = useMemo(
+    () => dismissedMissionKey === missionSuggestionKey
+      ? []
+      : resolveRdoMissionSuggestion({
+        currentCollaboratorIds,
+        missionCollaboratorIds: missionKey ? missionKey.split(',') : []
+      }),
+    [currentCollaboratorIds, dismissedMissionKey, missionKey, missionSuggestionKey]
+  );
   const canApplyMissionSuggestion = lastReportStatus !== 'PENDING' && teamSelectionSettled;
 
   const markTouched = useCallback(() => {

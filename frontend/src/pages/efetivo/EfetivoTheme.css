@@ -1,0 +1,119 @@
+/* Shared by the page, portalled dialogs and the drag preview. Keep legacy
+   aliases local: other modules still have their own migration boundaries. */
+.efetivo-page-v2,
+.efetivo-dialog,
+.modal-card.efetivo-modal,
+.efetivo-kanban-ghost {
+  --link: var(--brand-text);
+  --link-hover: var(--ink);
+  --g: var(--brand-text);
+  --gl: var(--brand);
+  --gd: var(--brand-hover);
+  --bg: var(--canvas);
+  --sf: var(--surface-2);
+  --wh: var(--surface);
+  --tx: var(--ink);
+  --tx-soft: var(--muted);
+  --mu: var(--muted);
+  --mut: var(--muted);
+  --br: var(--line);
+  --bd: var(--line);
+  --rd: var(--danger);
+  --error: var(--danger);
+  --error-bg: var(--danger-bg);
+  --bl: var(--info);
+  --warning-text: var(--warning);
+  --warning-border: var(--warning-line);
+  --legacy-warning-bg: var(--warning-bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+.fv-app-shell:has(.efetivo-page-v2) .fv-topbar__breadcrumb a {
+  color: var(--brand-text);
+}
+
+.fv-app-shell:has(.efetivo-page-v2) .fv-topbar__breadcrumb a:hover {
+  color: var(--ink);
+}
+
+/* Legacy controls share the DS palette without changing their form layout
+   or overriding DS control shells. */
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal, .efetivo-kanban-ghost) :where(.field-group label, legend) {
+  color: var(--ink);
+}
+
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal, .efetivo-kanban-ghost) :where(input:not([type='checkbox']):not([type='radio']):not(.fv-input), select:not(.fv-select), textarea:not(.fv-textarea)) {
+  max-width: 100%;
+  border-color: var(--control-border);
+  border-radius: var(--radius-md);
+  background-color: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal, .efetivo-kanban-ghost) :where(input, textarea)::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal, .efetivo-kanban-ghost) :where(input[type='checkbox'], input[type='radio']) {
+  accent-color: var(--brand);
+}
+
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal) :where(input:not(.fv-input), select:not(.fv-select), textarea:not(.fv-textarea), button:not(.fv-button), a, summary):focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal) :where(input:not(.fv-input), select:not(.fv-select), textarea:not(.fv-textarea)):disabled {
+  border-color: var(--disabled-line);
+  background: var(--disabled-bg);
+  color: var(--disabled-ink);
+}
+
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal) :where(.primary-button, .secondary-button, .danger-button, .mini-btn, .icon-button) {
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+}
+
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal) :where(.secondary-button, .mini-btn, .icon-button) {
+  border-color: var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal) :where(.secondary-button, .mini-btn, .icon-button):hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal) .primary-button {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--on-brand);
+}
+
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal) .primary-button:hover:not(:disabled) {
+  background: var(--brand-hover);
+}
+
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal) .danger-button {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: var(--on-danger);
+}
+
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal) .danger-button:hover:not(:disabled) {
+  background: var(--danger-hover);
+}
+
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal) :where(.primary-button, .secondary-button, .danger-button, .mini-btn, .icon-button):disabled {
+  border-color: var(--disabled-line);
+  background: var(--disabled-bg);
+  color: var(--disabled-ink);
+  opacity: 1;
+}
+
+:is(.efetivo-page-v2, .efetivo-dialog, .modal-card.efetivo-modal) :where(.field-error, .field-invalid label) {
+  color: var(--danger);
+}

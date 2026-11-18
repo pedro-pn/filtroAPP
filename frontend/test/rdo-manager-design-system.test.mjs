@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { withRdoCompanions } from './rdo-source.mjs';
 
 const source = (path) =>
-  readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+  withRdoCompanions(path, candidate => readFileSync(new URL(`../${candidate}`, import.meta.url), 'utf8'));
 
 test('manager report tabs opt into the DS shell and listing without changing the domain hooks', () => {
   const page = source('src/pages/gestor/GestorPage.tsx');
@@ -203,7 +204,7 @@ test('manager mobile composition keeps metrics in one row, fits approved metrics
 
   assert.match(
     pageCss,
-    /@media \(max-width: 768px\)[\s\S]*?\.rdo-manager-metrics\s*\{[\s\S]*?display:\s*flex[\s\S]*?overflow-x:\s*auto/
+    /@media \(max-width: 768px\)[\s\S]*?\.rdo-manager-metrics\s*\{[\s\S]*?display:\s*grid[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/
   );
   assert.match(
     page,
@@ -271,11 +272,15 @@ test('manager mobile composition keeps metrics in one row, fits approved metrics
   );
   assert.match(
     pageCss,
-    /\.rdo-manager-listing[\s\S]*?\.fv-mobile-list__actions[\s\S]*?> \.rdo-manager-listing__actions\s*\{[\s\S]*?display:\s*flex[\s\S]*?flex-wrap:\s*nowrap[\s\S]*?overflow-x:\s*auto/
+    /\.rdo-manager-listing[\s\S]*?\.fv-mobile-list__actions[\s\S]*?> \.rdo-manager-listing__actions\s*\{[\s\S]*?display:\s*flex[\s\S]*?flex-wrap:\s*nowrap[\s\S]*?justify-content:\s*flex-start/
+  );
+  assert.doesNotMatch(
+    pageCss,
+    /\.rdo-manager-listing[\s\S]*?\.fv-mobile-list__actions[\s\S]*?> \.rdo-manager-listing__actions\s*\{[^}]*overflow-x:\s*auto/
   );
   assert.match(
     pageCss,
-    /\.rdo-manager-listing[\s\S]*?\.fv-mobile-list__actions[\s\S]*?\.fv-button\s*\{[\s\S]*?flex:\s*1 0 auto[\s\S]*?--fv-button-padding:\s*var\(--space-1\)/
+    /\.rdo-manager-listing[\s\S]*?\.fv-mobile-list__actions[\s\S]*?\.fv-button\s*\{[\s\S]*?flex:\s*1 1 0[\s\S]*?--fv-button-padding:\s*var\(--space-1\)/
   );
   assert.match(
     statsCss,
@@ -320,7 +325,7 @@ test('RDO manager CSS is scoped, tokenized and uses only official breakpoints', 
 
   const selectors = css
     .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/@media[^\{]+\{/g, '}')
+    .replace(/@(?:media|container)[^\{]+\{/g, '}')
     .matchAll(/(?:^|})\s*([^@{}][^{}]*)\{/g);
   for (const match of selectors) {
     assert.match(match[1], /:where\(\.fv-ds, \[data-fv-ds\]\)/);

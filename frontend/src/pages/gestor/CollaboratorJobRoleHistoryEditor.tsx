@@ -2,6 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 
 import type { CollaboratorJobRoleHistoryPayload } from '../../api/collaborators';
 import type { JobRole } from '../../api/jobRoles';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { useToast } from '../../components/ui/ToastContext';
 import type { Collaborator, CollaboratorJobRoleHistory } from '../../types/domain';
 
@@ -26,6 +27,7 @@ export function CollaboratorJobRoleHistoryEditor({ collaborator, jobRoles, isPen
   const [jobRoleId, setJobRoleId] = useState(collaborator.jobRoleId);
   const [effectiveDate, setEffectiveDate] = useState(today());
   const [note, setNote] = useState('');
+  const [removeTarget, setRemoveTarget] = useState<CollaboratorJobRoleHistory | null>(null);
   const history = useMemo(
     () => [...(collaborator.jobRoleHistory || [])].sort((left, right) => right.effectiveDate.localeCompare(left.effectiveDate)),
     [collaborator.jobRoleHistory]
@@ -74,6 +76,7 @@ export function CollaboratorJobRoleHistoryEditor({ collaborator, jobRoles, isPen
   }
 
   async function remove(historyId: string) {
+    setRemoveTarget(null);
     try {
       await onRemove(historyId);
       toast('Mudança de cargo excluída.', 'success');
@@ -124,12 +127,23 @@ export function CollaboratorJobRoleHistoryEditor({ collaborator, jobRoles, isPen
                 <td data-label="Vigência">{dateLabel(entry.effectiveDate)}</td>
                 <td data-label="Cargo"><strong>{entry.jobRole.name}</strong></td>
                 <td data-label="Observação">{entry.note || '—'}</td>
-                <td data-label="Ações"><div className="admin-actions"><button className="mini-btn alt" type="button" disabled={isPending} onClick={() => startEdit(entry)}>Editar</button><button className="mini-btn danger" type="button" disabled={isPending || history.length <= 1} title={history.length <= 1 ? 'O único registro de cargo não pode ser excluído.' : undefined} onClick={() => { if (window.confirm('Excluir esta mudança de cargo? Os custos históricos serão recalculados.')) void remove(entry.id); }}>Excluir</button></div></td>
+                <td data-label="Ações"><div className="admin-actions"><button className="mini-btn alt" type="button" disabled={isPending} onClick={() => startEdit(entry)}>Editar</button><button className="mini-btn danger" type="button" disabled={isPending || history.length <= 1} title={history.length <= 1 ? 'O único registro de cargo não pode ser excluído.' : undefined} onClick={() => setRemoveTarget(entry)}>Excluir</button></div></td>
               </tr>
             ))}</tbody>
           </table>
         </div>
       ) : <p className="placeholder-copy">Nenhum histórico de cargo cadastrado.</p>}
+      <ConfirmDialog
+        open={Boolean(removeTarget)}
+        appearance="design-system"
+        title="Excluir mudança de cargo?"
+        description="Os custos históricos do colaborador serão recalculados com base nas vigências restantes."
+        highlight={removeTarget ? `${removeTarget.jobRole.name} · ${dateLabel(removeTarget.effectiveDate)}` : undefined}
+        confirmLabel="Excluir mudança"
+        confirmDisabled={isPending}
+        onCancel={() => setRemoveTarget(null)}
+        onConfirm={() => removeTarget && void remove(removeTarget.id)}
+      />
     </section>
   );
 }

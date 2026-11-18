@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { withRdoCompanions } from './rdo-source.mjs';
 
 const source = (path) =>
-  readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+  withRdoCompanions(path, candidate => readFileSync(new URL(`../${candidate}`, import.meta.url), 'utf8'));
 
 function sectionBetween(contents, start, end) {
   const startIndex = contents.indexOf(start);
@@ -50,10 +51,33 @@ test('Arquivados faz opt-in explícito no DS sem alterar o default legacy compar
   assert.match(archivedTab, /appearance: 'design-system'/);
   assert.match(
     archivedTab,
-    /renderReportTypeSections\(projectReports, project\.id, 'design-system'\)/
+    /renderReportTypeSections\(dialogProject\.projectReports, dialogProject\.project\.id, 'design-system'\)/
   );
   assert.doesNotMatch(archivedTab, /page-card|admin-stack|placeholder-copy/);
   assert.doesNotMatch(archivedTab, /mini-btn|primary-button|secondary-button/);
+});
+
+test('Arquivados reutiliza a grade de projetos e a listagem em cards sem mudar seus handlers', () => {
+  const css = source('src/pages/gestor/GestorPage.ds.css');
+  const grid = sectionBetween(css, '/* Desktop: the existing project card', '/* Archived tiles retain');
+  const archived = sectionBetween(css, '/* Archived tiles retain', '/* A edição acontece dentro de um card');
+  const dialogCss = source('src/pages/gestor/GestorArchivedReportsDialog.css');
+  assert.match(grid, /\.rdo-archived-projects__list,/);
+  assert.match(grid, /\.rdo-archived-projects__loading/);
+  assert.match(grid, /repeat\(auto-fill, minmax\(min\(100%, 26rem\), 1fr\)\)/);
+  assert.match(archived, /@media \(min-width: 1024px\)/);
+  assert.match(archived, /container: rdo-archived-tile \/ inline-size/);
+  assert.match(archived, /grid-template-areas: 'identity identity' 'reports quick-actions'/);
+  assert.match(dialogCss, /\.rdo-manager-listing__actions \{\s*flex-wrap: nowrap;/);
+  assert.match(dialogCss, /\.report-batch-select-all \.report-batch-action-label--full \{ display: inline; \}/);
+  assert.match(archived, /\.rdo-archived-project-card__actions > \.fv-badge \{ grid-column: 1 \/ -1/);
+  assert.doesNotMatch(archived, /grid-auto-flow:\s*(?:dense|column)|\.rdo-active-project-card/);
+  const page = source('src/pages/gestor/GestorPage.tsx');
+  const sections = sectionBetween(page, 'function renderReportTypeSections', 'function renderManualReportModal');
+  assert.match(sections, /<ManagerReportListing[\s\S]*?layout="cards"/);
+  const listing = source('src/components/reports/manager/ManagerReportListing.tsx');
+  assert.match(listing, /layout = 'responsive'/);
+  assert.match(listing, /layout=\{layout\}/);
 });
 
 test('Arquivados preserva queries, busca, agrupamento, paginação e handlers de projeto', () => {
@@ -71,16 +95,16 @@ test('Arquivados preserva queries, busca, agrupamento, paginação e handlers de
 
   assert.match(
     page,
-    /const archivedReportListQuery = useAccumulatedReportsPage\(\{[\s\S]*?statuses: \['APPROVED', 'SIGNED'\],[\s\S]*?projectActive: false,[\s\S]*?search: debouncedGestorSearch,[\s\S]*?projectSort: projectSortDir,[\s\S]*?pageSize: REPORT_PAGE_SIZE[\s\S]*?\}, tab === 'arquivados'\)/
+    /const archivedReportListQuery = useAccumulatedReportsPage\(\s*\{[\s\S]*?statuses: \['APPROVED', 'SIGNED'\],[\s\S]*?projectActive: false,[\s\S]*?search: debouncedGestorSearch,[\s\S]*?projectSort: projectSortDir,[\s\S]*?pageSize: REPORT_PAGE_SIZE[\s\S]*?\},\s*tab === 'arquivados'\s*\)/
   );
   assert.match(
     archivedTab,
-    /\(archivedProjectsQuery\.data \|\| \[\]\)\.filter\(project => project\.isActive === false\)/
+    /\(archivedProjectsQuery\.data \|\| \[\]\)\.filter\(\(project\) => project\.isActive === false\)/
   );
   assert.match(archivedTab, /sortProjects\(archivedProjects, projectSortDir\)/);
   assert.match(
     archivedTab,
-    /archivedReports\.filter\(report => report\.projectId === project\.id\)/
+    /archivedReports\.filter\(\(report\) => report\.projectId === project\.id\)/
   );
   assert.match(
     archivedTab,
@@ -90,16 +114,13 @@ test('Arquivados preserva queries, busca, agrupamento, paginação e handlers de
     archivedTab,
     /matchesSearch\(reportSearchParts\(report\), gestorSearch\)/
   );
-  assert.match(
-    archivedTab,
-    /closedArchivedProjectIds\.includes\(project\.id\)/
-  );
+  assert.match(archivedTab, /project\.id === archivedReportsProjectId/);
   assert.match(archivedTab, /onToggleArchive: handleProjectToggleArchive/);
-  assert.match(archivedTab, /onRemove: handleProjectRemove/);
+  assert.match(archivedTab, /onRemove: setRemoveProjectTarget/);
   assert.match(archivedTab, /onToggleDetails: toggleProjectDetails/);
   assert.match(
     archivedTab,
-    /onToggleReports: item => toggleArchivedProject\(item\.id\)/
+    /onOpenReports: openArchivedReports/
   );
   assert.match(archivedTab, /onSendSurvey: handleSendSurvey/);
   assert.match(archivedTab, /onResendSurvey: handleResendSurvey/);
@@ -127,6 +148,34 @@ test('Arquivados preserva queries, busca, agrupamento, paginação e handlers de
     archivedTypeSections,
     /renderManagerReportActions\(report, true\)/
   );
+});
+
+test('Arquivados abre um único diálogo DS sob demanda sem expandir os cards', () => {
+  const page = source('src/pages/gestor/GestorPage.tsx');
+  const tab = sectionBetween(page, 'function renderArchivedProjectsTab', 'function renderEquipeTab');
+  const cardOptions = sectionBetween(tab, 'return renderProjectCard', 'segments: projectSegmentsQuery.data');
+  assert.doesNotMatch(cardOptions, /children:|reportSectionExpanded:|onToggleReports:/);
+  assert.match(cardOptions, /onOpenReports: openArchivedReports/);
+  assert.equal((tab.match(/<Modal\b/g) || []).length, 1);
+  assert.match(tab, /open=\{Boolean\(dialogProject\)\}/);
+  assert.match(tab, /onClose=\{closeArchivedReports\}/);
+  assert.match(tab, /appearance="design-system"/);
+  assert.match(tab, /fullscreenOnMobile=\{false\}/);
+  assert.match(tab, /title="Relatórios do projeto"/);
+  assert.match(tab, /ariaDescribedBy="archived-reports-project-context"/);
+  assert.match(tab, /renderReportTypeSections\(dialogProject\.projectReports, dialogProject\.project\.id, 'design-system'\)/);
+  assert.match(page, /if \(tab !== 'arquivados' \|\| !archivedReportsProjectId\) return/);
+  assert.match(page, /ensureGroupPage\(\{\s*projectId: archivedReportsProjectId/);
+  assert.match(page, /function openArchivedReports\(project: Project\) \{\s*setSelectedReportIds\(\[\]\);\s*setArchivedReportsProjectId\(project.id\)/);
+  assert.match(page, /function closeArchivedReports\(\) \{\s*setArchivedReportsProjectId\(null\);\s*setSelectedReportIds\(\[\]\)/);
+  assert.doesNotMatch(page, /initiallyExpandedProject|function toggleArchivedProject/);
+  assert.match(page, /footer=\{activeProject \|\| reportsInDialog \|\| options.reportSectionExpanded/);
+  assert.match(page, /function renderReportSequenceDialog\(\)/);
+  assert.match(page, /\{renderReportSequenceDialog\(\)\}/);
+  const css = source('src/pages/gestor/GestorArchivedReportsDialog.css');
+  assert.match(css, /\.rdo-archived-reports-dialog-backdrop \{\s*align-items: center;\s*padding: var\(--space-4\)/);
+  assert.match(css, /\.rdo-manager-listing__mobile-title \{\s*color: var\(--ink\)/);
+  assert.doesNotMatch(css, /#[a-f\d]{3,8}\b|rgba?\(|!important/i);
 });
 
 test('Arquivados compõe primitives responsivos e mantém o opt-in restrito', () => {
@@ -163,17 +212,17 @@ test('Arquivados compõe primitives responsivos e mantém o opt-in restrito', ()
   assert.doesNotMatch(projectCard, /Apto para restaurar/);
   assert.match(projectCard, /<Alert\b/);
   assert.match(projectCard, /<Button\b/);
-  assert.match(projectCard, /aria-expanded=\{options\.reportSectionExpanded\}/);
+  assert.match(projectCard, /aria-expanded=\{reportsInDialog \? undefined : options\.reportSectionExpanded\}/);
   assert.match(projectCard, /aria-expanded=\{options\.detailsExpanded\}/);
   assert.doesNotMatch(projectCard, /reportSelection/);
   assert.doesNotMatch(projectCard, /<Badge tone="brand">RDO<\/Badge>/);
   assert.match(
     projectCard,
-    /className="rdo-archived-project-card__reports-toggle"[\s\S]{0,620}?>\s*Relatórios\s*<\/Button>/
+    /className="rdo-archived-project-card__reports-toggle"[\s\S]*?>\s*Relatórios\s*<\/Button>/
   );
   assert.match(
     projectCard,
-    /className="rdo-project-card__title-toggle"[\s\S]{0,360}?aria-expanded=\{options\.reportSectionExpanded\}[\s\S]{0,240}?onClick=\{\(\) => options\.onToggleReports\?\.\(project\)\}/
+    /className="rdo-project-card__title-toggle"[\s\S]*?aria-haspopup=\{reportsInDialog \? 'dialog' : undefined\}[\s\S]*?onClick=\{handleReports\}/
   );
   assert.match(projectCard, /<dl>[\s\S]*?<dt>[\s\S]*?<dd>/);
   assert.match(projectCard, /className=\{`card admin-card project-admin-card/);

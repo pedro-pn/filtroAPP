@@ -3,9 +3,10 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
+import { withRdoCompanions } from './rdo-source.mjs';
 
 const frontendRoot = fileURLToPath(new URL('../', import.meta.url));
-const source = (path) => readFileSync(join(frontendRoot, path), 'utf8');
+const source = (path) => withRdoCompanions(path, candidate => readFileSync(join(frontendRoot, candidate), 'utf8'));
 
 const expectedAppearance = (() => {
   const value = process.env.RDO_B9_EXPECT_APPEARANCE ?? 'design-system';
@@ -64,7 +65,7 @@ test('B.9 preserva a derivação de dados da aba NPS', () => {
   assert.match(tab, /Pesquisa #\$\{group\.surveys\.length - index\}/);
   assert.match(
     tab,
-    /setOpenSurveyId\(current => current === survey\.id \? null : survey\.id\)/
+    /setOpenSurveyId\(\(current\) => \(current === survey\.id \? null : survey\.id\)\)/
   );
   assert.match(tab, /const open = openSurveyId === survey\.id/);
 
@@ -267,6 +268,23 @@ test('B.9 mantém o CSS escopado e tokenizado', () => {
   }
 });
 
+test('respostas longas do NPS preservam espaço para a pergunta no tablet e desktop', () => {
+  const css = source('src/pages/gestor/GestorPage.ds.css');
+  const responseRules = [...css.matchAll(/\.rdo-nps \.rdo-nps__response \{([^}]+)\}/g)]
+    .map((match) => match[1]);
+  const columns = responseRules.filter((rule) => /grid-template-columns:/.test(rule));
+
+  assert.equal(columns.length, 2, 'validar as duas regras responsivas das respostas');
+  for (const rule of columns) {
+    assert.match(rule, /grid-template-columns: minmax\(0, 1fr\) fit-content\(60%\);/);
+    assert.doesNotMatch(rule, /minmax\(0, auto\)/);
+  }
+  // Textos sem espaços continuam quebrando dentro da coluna, sem truncamento.
+  for (const element of ['dt', 'dd']) {
+    assert.match(css, new RegExp(`\\.rdo-nps__response ${element} \\{[^}]*overflow-wrap: anywhere;`));
+  }
+});
+
 test('a ordenação do NPS usa Button DS sem alterar o ProjectSortButton compartilhado', () => {
   const css = source('src/pages/gestor/GestorPage.ds.css');
   const tab = npsTabSource();
@@ -413,8 +431,8 @@ test('dashboard NPS detalhado organiza filtros, leitura executiva e ação de re
   ]) {
     assert.match(dashboard, new RegExp(title));
   }
-  assert.match(dashboard, /<Field label="Status"/);
-  assert.match(dashboard, /<Field label="Resultado do contato"/);
+  assert.match(dashboard, /<Field[^>]*label="Status"/);
+  assert.match(dashboard, /<Field[^>]*label="Resultado do contato"/);
   assert.match(
     dashboard,
     /<details className="rdo-nps-dashboard__project-disclosure">/

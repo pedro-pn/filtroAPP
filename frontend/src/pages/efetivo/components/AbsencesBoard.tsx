@@ -11,7 +11,7 @@ import {
   type EfetivoAbsence,
   type EfetivoAbsencePayload
 } from '../../../api/efetivo';
-import { Button } from '../../../components/ui/Button';
+import { Button, Field, Select } from '../../../components/ui/ds';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { useToast } from '../../../components/ui/ToastContext';
 import { defaultProductivityPeriod, productivityYearOptions } from '../utils/productivityPeriods';
@@ -112,17 +112,16 @@ export function AbsencesBoard({ canManage, selectedAbsenceId }: { canManage: boo
   return (
     <div className="efetivo-board" data-efetivo-absences>
       <section className="page-card efetivo-absence-toolbar">
-        <div className="field-group">
-          <label htmlFor="efetivo-absence-year">Ano</label>
-          <select id="efetivo-absence-year" value={year} onChange={event => changeYear(Number(event.target.value))}>
+        <Field id="efetivo-absence-year" label="Ano" optionalText="">
+          <Select size="sm" value={year} onChange={event => changeYear(Number(event.target.value))}>
             {years.map(option => <option key={option} value={option}>{option}</option>)}
-          </select>
-        </div>
+          </Select>
+        </Field>
         <div>
           <strong>Férias e ausências</strong>
           <p>Os meses são sinalizados na Produtividade, sem alterar a taxa oficial.</p>
         </div>
-        {canManage ? <Button onClick={openCreate}>Programar indisponibilidade</Button> : null}
+        {canManage ? <Button variant="primary" size="sm" onClick={openCreate}>Programar indisponibilidade</Button> : null}
       </section>
 
       <section className="page-card">
@@ -144,8 +143,8 @@ export function AbsencesBoard({ canManage, selectedAbsenceId }: { canManage: boo
                   </div>
                   {canManage ? (
                     <div className="efetivo-absence-actions">
-                      <Button variant="mini" onClick={() => openEdit(absence)}>Editar</Button>
-                      <Button variant="danger" onClick={() => setDeleting(absence)}>Remover</Button>
+                      <Button variant="secondary" size="sm" onClick={() => openEdit(absence)}>Editar</Button>
+                      <Button variant="danger" size="sm" onClick={() => setDeleting(absence)}>Remover</Button>
                     </div>
                   ) : null}
                 </article>
@@ -165,6 +164,7 @@ export function AbsencesBoard({ canManage, selectedAbsenceId }: { canManage: boo
         />
       ) : null}
       <ConfirmDialog
+        appearance="design-system"
         open={Boolean(deleting)}
         title="Remover indisponibilidade?"
         description="O período deixa de aparecer na tela, mas a trilha é preservada."

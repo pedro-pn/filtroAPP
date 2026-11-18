@@ -771,3 +771,76 @@ BottomSheet acionado por botão "Filtros (N)". Chips ativos roláveis horizontal
 
 **Acessibilidade.** Cada controle rotulado. Região de resultados `aria-live`. Chips removíveis
 com `aria-label="Remover filtro X"`.
+
+---
+
+## Upload de PDF — opt-in implementado em 10/09/2026
+
+O `components/ui/PdfDropzone` aceita `appearance="design-system"`. O padrão
+continua `legacy` para preservar módulos ainda não migrados. A variante DS usa
+tokens de superfície, foco e erro nos dois temas, `AppIcon` para upload e
+`IconButton` secundário para remover o arquivo selecionado. O botão de remoção
+funciona também por teclado sem abrir novamente o seletor de arquivos.
+
+Mantidos `onFile`, `onFiles`, arraste/clique, arquivo atual e regras do formulário
+consumidor. Nomes extensos podem quebrar dentro da área de upload; o alvo de
+remoção possui 44px no mobile. Primeiro consumidor: Novo documento em Assinaturas.
+
+## BarList — implementado em 10/09/2026
+
+Lista comparativa compartilhada em `components/ui/ds/BarList.tsx`, usada primeiro
+pelos dois painéis do Dashboard de Acompanhamento. Recebe `items` com `id`, `label`,
+`description?`, `valueLabel` e `percentage`, além de `aria-label` obrigatório.
+
+O consumidor calcula o recorte, a ordenação e a proporção; o componente não calcula
+valores de negócio. Cada item mantém o valor exato em texto e uma barra decorativa
+(`aria-hidden`), sem anunciar percentuais normalizados como progresso real. Larguras
+são limitadas a 0–100, com fallback zero para números não finitos. Rótulos extensos
+e valores podem ocupar linhas separadas sem truncamento ou scroll. Superfície e
+preenchimento usam `--surface-2` e `--brand-text` nos dois temas.
+
+## ProgressBar — implementado em 10/09/2026
+
+Barra compartilhada em `components/ui/ds/ProgressBar.tsx`, usada primeiro nos cards
+de Projetos do Acompanhamento. Recebe `label`, `value`, `valueLabel`, `tone?` e
+`segments?` (cada segmento com `value` e `tone?`). Não calcula percentuais de negócio.
+
+O texto fornecido pelo consumidor mantém o valor exato, inclusive acima de 100%.
+A geometria é decorativa (`aria-hidden`) e limitada a 0–100; segmentos ocupam somente
+o espaço restante. Valores ausentes, negativos ou não finitos ocupam largura zero.
+Horas normais e HE usam a mesma barra segmentada, com quantidades também em texto.
+Tokens semânticos garantem aparência nos dois temas; rótulos e valores podem
+ocupar linhas distintas, sem truncamento obrigatório.
+
+## Confirmações — erro de gravação opcional
+
+`components/ui/ConfirmDialog` aceita `errorMessage?: string | null` para exibir
+falhas **dentro do diálogo**, junto ao contexto da operação. Na aparência DS usa
+`Alert tone="danger"`; na legada mantém `form-error` com `role="alert"`.
+Sem a propriedade, o comportamento dos demais consumidores permanece igual.
+O controller continua responsável por bloquear envios duplicados, manter a caixa
+aberta durante a operação e limpar a mensagem quando apropriado.
+
+## Button — rótulos extensos
+
+`multiline` é uma opção explícita para títulos clicáveis extensos: altura automática,
+quebra de texto e alinhamento inicial, mantendo o tamanho mínimo do controle e o
+alvo mobile. Disponível para títulos clicáveis; os cards de Projetos passaram a
+usar `Card.surfaceAction` no refinamento posterior. O padrão permanece
+em uma linha; ações de rodapé e toolbars não devem habilitar essa opção.
+
+## Refinamentos de cards, contadores e avisos — 10/09/2026
+
+- `Card.surfaceAction={{ label, onClick, pressed? }}` torna a superfície clicável
+  por botão nativo independente, sem envolver controles internos em outro botão.
+  Enter/espaço e foco visível cobrem o card; campos, links, botões, labels, forms e
+  alvos com `tabIndex` preservam sua interação. `data-card-interactive` reserva uma
+  área adicional quando necessário. Não combinar com `href`/`onClick` da raiz.
+  Durante renomeação inline, o consumidor remove a ação de superfície.
+- `Button.counter` apresenta uma contagem separada do rótulo, com fundo sutil que
+  acompanha a cor do botão, formato arredondado e números tabulares. Aceita zero e
+  placeholder sem criar um badge específico por módulo. Primeiro uso: situações
+  dos projetos no Acompanhamento.
+- `Badge.multiline` permite avisos longos sem truncamento, mantendo tamanho pelo
+  conteúdo e densidade de tag. Primeiro uso: avisos operacionais/finalização recente
+  dos cards de projetos. Erros de consulta/gravação continuam usando `Alert`.

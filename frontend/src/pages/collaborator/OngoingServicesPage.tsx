@@ -6,6 +6,7 @@ import { AppIcon } from '../../components/icons/AppIcon';
 import { serviceTypeLabels } from '../../components/reports/serviceTypes';
 import { useReportMutations, useReports } from '../../hooks/useReports';
 import { Button, Card, SearchInput, StatusPill } from '../../components/ui/ds';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { DS_ICONS } from '../../components/ui/ds/icons';
 import { useToast } from '../../components/ui/ToastContext';
 import { PageHeader } from '../../layout/PageHeader';
@@ -19,6 +20,7 @@ export function OngoingServicesPage() {
   const reportsQuery = useReports({ mine: true, summary: true });
   const reportMutations = useReportMutations();
   const [search, setSearch] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<{ reportId: string; serviceId: string; label: string } | null>(null);
   const services = useMemo(
     () => collectOngoingServices(reportsQuery.data || []).filter(item => matchesSearch([
       item.projectTitle,
@@ -46,7 +48,7 @@ export function OngoingServicesPage() {
   ], []);
 
   async function handleDeleteService(reportId: string, serviceId: string) {
-    if (!window.confirm('Excluir este serviço em andamento?')) return;
+    setDeleteTarget(null);
     try {
       await reportMutations.deleteService.mutateAsync({ reportId, serviceId });
       showToast('Serviço excluído.', 'success');
@@ -103,7 +105,11 @@ export function OngoingServicesPage() {
                         variant="danger"
                         size="sm"
                         disabled={reportMutations.deleteService.isPending}
-                        onClick={() => void handleDeleteService(item.report.id, item.service.id)}
+                        onClick={() => setDeleteTarget({
+                          reportId: item.report.id,
+                          serviceId: item.service.id,
+                          label: serviceTypeLabels[item.serviceType] || item.serviceType
+                        })}
                       >
                         Excluir
                       </Button>
@@ -114,6 +120,17 @@ export function OngoingServicesPage() {
             </div>
           </Card>
         ))}
+        <ConfirmDialog
+          open={Boolean(deleteTarget)}
+          appearance="design-system"
+          title="Excluir serviço em andamento?"
+          description="O serviço será removido deste relatório e não poderá ser recuperado por esta tela."
+          highlight={deleteTarget?.label}
+          confirmLabel="Excluir serviço"
+          confirmDisabled={reportMutations.deleteService.isPending}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => deleteTarget && void handleDeleteService(deleteTarget.reportId, deleteTarget.serviceId)}
+        />
       </main>
     </RdoAppShell>
   );

@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { withRdoCompanions } from './rdo-source.mjs';
 
 const source = (path) =>
-  readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+  withRdoCompanions(path, candidate => readFileSync(new URL(`../${candidate}`, import.meta.url), 'utf8'));
 
 function sectionBetween(contents, start, end) {
   const startIndex = contents.indexOf(start);
@@ -49,7 +50,7 @@ test('Equipe usa a hierarquia administrativa DS e preserva suas três subáreas'
     /className="rdo-team-collaborators__table"[\s\S]*?mobileBreakpoint="xl"/
   );
   assert.match(team, /loading=\{collaboratorsQuery\.isLoading\}/);
-  assert.match(team, /renderRowDetails=\{collaborator =>/);
+  assert.match(team, /renderRowDetails=\{\(collaborator\) =>/);
   assert.match(team, /mobile=\{\{/);
   assert.match(team, /data-collaborator-form=\{mode\}/);
   assert.match(team, /aria-expanded=\{editing\}/);
@@ -86,7 +87,7 @@ test('Usuários usa toolbar, listagem responsiva e formulários DS sem alterar c
   );
   assert.match(toolbar, /<FilterBar[\s\S]*?mobileBreakpoint="xl"/);
   assert.match(users, /rows=\{internalUsers\}/);
-  assert.match(users, /renderRowDetails=\{item =>/);
+  assert.match(users, /renderRowDetails=\{\(item\) =>/);
   assert.doesNotMatch(page, /<Pagination\b/);
   assert.doesNotMatch(
     users,

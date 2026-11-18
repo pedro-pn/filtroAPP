@@ -1,0 +1,244 @@
+.assinaturas-page-v2 {
+  width: 100%;
+  min-width: 0;
+  padding-block-end: var(--space-6);
+}
+
+.fv-topbar .assinaturas-tutorial-mobile {
+  display: none;
+}
+
+@media (max-width: 767.98px) {
+  .fv-topbar .assinaturas-tutorial-mobile {
+    display: inline-flex;
+  }
+
+  .fv-topbar .assinaturas-tutorial-desktop {
+    display: none;
+  }
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-5);
+  color: var(--ink);
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__filters .fv-filter-bar__main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(10rem, 16rem);
+  align-items: end;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__filters .fv-filter-bar__actions,
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__filters .fv-field {
+  width: 100%;
+  min-width: 0;
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__metrics {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .signature-document-list {
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-document > .fv-card__body {
+  display: grid;
+  min-width: 0;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-document__identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-document__identity > div {
+  min-width: 0;
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-document__icon {
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: var(--space-10);
+  height: var(--space-10);
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: var(--brand-softer);
+  color: var(--brand-text);
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-document h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-base);
+  overflow-wrap: anywhere;
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-document__file {
+  margin: var(--space-1) 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library :is(.assinaturas-document__info, .assinaturas-document__file) {
+  min-width: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-document__info {
+  display: grid;
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-document__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-document__date {
+  overflow-wrap: anywhere;
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-document__progress {
+  display: block;
+  width: 100%;
+  height: var(--space-1);
+  overflow: hidden;
+  appearance: none;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--line);
+  color: var(--brand);
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-document__progress::-webkit-progress-bar {
+  background: var(--line);
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-document__progress::-webkit-progress-value {
+  border-radius: var(--radius-pill);
+  background: var(--brand);
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-document__progress::-moz-progress-bar {
+  border-radius: var(--radius-pill);
+  background: var(--brand);
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-document__actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-document__warning {
+  grid-column: 1 / -1;
+}
+
+:where(.fv-ds, [data-fv-ds]).assinaturas-dialog-backdrop {
+  align-items: center;
+  padding: var(--space-4);
+}
+
+:where(.fv-ds, [data-fv-ds]) .assinaturas-upload-dialog .signature-new-document-form {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+:where(.fv-ds, [data-fv-ds]) .assinaturas-upload-dialog__hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+@media (min-width: 768px) {
+  :where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-document > .fv-card__body {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-document__actions {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 1280px) {
+  :where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-document > .fv-card__body {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
+  }
+
+  :where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-document__actions {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 767.98px) {
+  :where(.fv-ds, [data-fv-ds]).assinaturas-library {
+    gap: var(--space-4);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).assinaturas-library .fv-page-header__main {
+    gap: var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__filters .fv-filter-bar__main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__tabs > .fv-button {
+    flex: 1 1 0;
+  }
+
+  :where(.fv-ds, [data-fv-ds]).assinaturas-library .assinaturas-library__metrics {
+    gap: var(--space-2);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).assinaturas-library .fv-metric-card {
+    padding: var(--space-3);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).assinaturas-library .fv-metric-card__label {
+    font-size: var(--text-xs);
+    line-height: var(--leading-xs);
+  }
+
+  :where(.fv-ds, [data-fv-ds]).assinaturas-library .fv-metric-card__description {
+    display: none;
+  }
+
+  :where(.fv-ds, [data-fv-ds]).assinaturas-library .fv-button,
+  :where(.fv-ds, [data-fv-ds]) .assinaturas-upload-dialog .fv-button {
+    --fv-button-height: calc(var(--space-10) + var(--space-1));
+    --fv-button-padding: var(--space-3);
+    --fv-button-font-size: var(--text-xs);
+  }
+}

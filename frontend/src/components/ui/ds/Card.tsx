@@ -21,6 +21,8 @@ export interface CardProps extends Omit<
   actions?: ReactNode;
   footer?: ReactNode;
   selected?: boolean;
+  /** Clickable surface with independent embedded controls (no nested buttons). */
+  surfaceAction?: { label: string; onClick: () => void; pressed?: boolean };
   href?: string;
   onClick?: MouseEventHandler<HTMLElement>;
   children: ReactNode;
@@ -36,13 +38,14 @@ export function Card({
   actions,
   footer,
   selected = false,
+  surfaceAction,
   href,
   onClick,
   className,
   children,
   ...props
 }: CardProps) {
-  const resolvedVariant = href || onClick ? 'interactive' : variant;
+  const resolvedVariant = surfaceAction || href || onClick ? 'interactive' : variant;
   const classes = joinClassNames(
     'fv-card',
     `fv-card--${resolvedVariant}`,
@@ -50,6 +53,7 @@ export function Card({
     elevation && `fv-card--elevation-${elevation}`,
     resolvedVariant === 'accent' && `fv-tone--${accentTone}`,
     selected && 'fv-card--selected',
+    surfaceAction && 'fv-card--surface-action',
     className
   );
   const content = (
@@ -64,6 +68,14 @@ export function Card({
       {footer ? <div className="fv-card__footer">{footer}</div> : null}
     </>
   );
+
+  if (surfaceAction) {
+    return <section {...props} className={classes}>
+      <button type="button" className="fv-card__surface-action" aria-label={surfaceAction.label}
+        aria-pressed={surfaceAction.pressed} onClick={surfaceAction.onClick} />
+      {content}
+    </section>;
+  }
 
   if (href) {
     return (

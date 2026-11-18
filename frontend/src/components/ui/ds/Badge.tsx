@@ -10,6 +10,7 @@ import './styles.css';
 export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
   tone?: SemanticTone;
   dot?: boolean;
+  multiline?: boolean;
   onRemove?: () => void;
   removeLabel?: string;
   children: ReactNode;
@@ -18,6 +19,7 @@ export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
 export function Badge({
   tone = 'neutral',
   dot = false,
+  multiline = false,
   onRemove,
   removeLabel = 'Remover',
   className,
@@ -31,6 +33,7 @@ export function Badge({
         'fv-badge',
         `fv-tone--${tone}`,
         onRemove && 'fv-badge--removable',
+        multiline && 'fv-badge--multiline',
         className
       )}
     >

@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import type { SignatureSigner } from '../../../api/assinaturas';
-import { Button } from '../../../components/ui/Button';
+import { Alert, Button, Field, Input, Select } from '../../../components/ui/ds';
 import { Modal } from '../../../components/ui/Modal';
 
 const schema = z.object({
@@ -26,31 +26,30 @@ export function PublishDialog({ open, signers, pending, issues, onClose, onPubli
 }) {
   const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: { validity: '15', expiresAt: '' } });
   const validity = form.watch('validity');
+  const busy = pending || form.formState.isSubmitting;
   return (
-    <Modal open={open} onClose={onClose} ariaLabelledBy="signature-publish-title" panelClassName="modal-card signature-publish-dialog">
-      <form className="signature-publish-form" onSubmit={form.handleSubmit(values => onPublish(values.validity === 'custom'
+    <Modal open={open} onClose={onClose} appearance="design-system" title="Publicar para assinatura" size="md"
+      fullscreenOnMobile={false} backdropClassName="assinaturas-dialog-backdrop" panelClassName="assinaturas-publish-dialog"
+      closeOnEscape={!busy} showCloseButton={!busy}
+      footer={<>
+        <Button variant="secondary" size="sm" onClick={onClose} disabled={busy}>Cancelar</Button>
+        <Button variant="primary" size="sm" type="submit" form="signature-publish-form" disabled={busy} loading={busy}>{busy ? 'Publicando...' : 'Publicar'}</Button>
+      </>}
+    >
+      <form id="signature-publish-form" className="signature-publish-form" aria-busy={busy || undefined} onSubmit={form.handleSubmit(values => onPublish(values.validity === 'custom'
         ? { expiresAt: new Date(values.expiresAt || '').toISOString() }
         : { expiresInDays: Number(values.validity) }))}>
-        <h2 id="signature-publish-title">Publicar para assinatura</h2>
         <p>{signers.length} assinante(s) receberão um convite individual.</p>
-        <ul className="signature-publish-signers">{signers.map(signer => <li key={signer.id}>{signer.name} — {signer.email || 'link manual'}</li>)}</ul>
-        <div className={`field-group ${form.formState.errors.validity ? 'field-invalid' : ''}`}>
-          <label htmlFor="signature-expiry">Validade dos links</label>
-          <select id="signature-expiry" aria-invalid={Boolean(form.formState.errors.validity)} {...form.register('validity')}>
+        <ul className="assinaturas-publish-dialog__signers">{signers.map(signer => <li key={signer.id}><strong>{signer.name}</strong><span>{signer.email || 'Link manual'}</span></li>)}</ul>
+        <Field id="signature-expiry" label="Validade dos links" optionalText={null} errorText={form.formState.errors.validity?.message} disabled={busy}>
+          <Select size="sm" {...form.register('validity')}>
             <option value="7">7 dias</option><option value="15">15 dias</option><option value="30">30 dias</option><option value="60">60 dias</option><option value="custom">Data específica</option>
-          </select>
-          {form.formState.errors.validity ? <div className="field-error">{form.formState.errors.validity.message}</div> : null}
-        </div>
-        {validity === 'custom' ? <div className={`field-group ${form.formState.errors.expiresAt ? 'field-invalid' : ''}`}>
-          <label htmlFor="signature-expiry-date">Data e hora de validade</label>
-          <input id="signature-expiry-date" type="datetime-local" aria-invalid={Boolean(form.formState.errors.expiresAt)} {...form.register('expiresAt')} />
-          {form.formState.errors.expiresAt ? <div className="field-error">{form.formState.errors.expiresAt.message}</div> : null}
-        </div> : null}
-        {issues.length ? <div className="signature-publish-issues"><strong>Corrija antes de publicar:</strong><ul>{issues.map(issue => <li key={issue}>{issue}</li>)}</ul></div> : null}
-        <div className="modal-actions">
-          <Button variant="secondary" onClick={onClose} disabled={pending}>Cancelar</Button>
-          <Button type="submit" disabled={pending}>{pending ? 'Publicando...' : 'Publicar'}</Button>
-        </div>
+          </Select>
+        </Field>
+        {validity === 'custom' ? <Field id="signature-expiry-date" label="Data e hora de validade" required errorText={form.formState.errors.expiresAt?.message} disabled={busy}>
+          <Input size="sm" type="datetime-local" {...form.register('expiresAt')} />
+        </Field> : null}
+        {issues.length ? <Alert tone="danger" title="Corrija antes de publicar:"><ul>{issues.map(issue => <li key={issue}>{issue}</li>)}</ul></Alert> : null}
       </form>
     </Modal>
   );

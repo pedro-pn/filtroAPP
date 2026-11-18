@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { withRdoCompanions } from './rdo-source.mjs';
 
 const source = (path) =>
-  readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+  withRdoCompanions(path, candidate => readFileSync(new URL(`../${candidate}`, import.meta.url), 'utf8'));
 
 function sectionBetween(contents, start, end) {
   const startIndex = contents.indexOf(start);
@@ -167,7 +168,7 @@ test('diálogo de numeração mantém opt-in DS e o formulário de RDO usa o Mod
   const archiveProjectDialog = sectionBetween(
     manager,
     '<Modal\n        open={Boolean(archiveSurveyProject)}',
-    '<Modal\n        open={showSurveyQuestionEditor}'
+    '<Modal open={showSurveyQuestionEditor}'
   );
   const manualReportDialog = sectionBetween(
     manager,
@@ -176,7 +177,7 @@ test('diálogo de numeração mantém opt-in DS e o formulário de RDO usa o Mod
   );
   const surveyEditorDialog = sectionBetween(
     manager,
-    '<Modal\n        open={showSurveyQuestionEditor}',
+    '<Modal open={showSurveyQuestionEditor}',
     '</AppShell>'
   );
   const segmentDialog = sectionBetween(
@@ -186,7 +187,7 @@ test('diálogo de numeração mantém opt-in DS e o formulário de RDO usa o Mod
   );
   const detailSequenceDialog = sectionBetween(
     reportDetail,
-    '<Modal\n        open={sequenceEditOpen}',
+    '<Modal open={sequenceEditOpen}',
     '</Modal>'
   );
   const collaboratorServiceDialog = sectionBetween(
@@ -200,6 +201,7 @@ test('diálogo de numeração mantém opt-in DS e o formulário de RDO usa o Mod
     '</Modal>'
   );
   const managerWithoutAuthorizedDialogs = manager
+    .replace(sectionBetween(manager, '<Modal\n          open={Boolean(dialogProject)}', '</Modal>'), '')
     .replace(sequenceDialog, '')
     .replace(segmentDialog, '')
     .replace(archiveProjectDialog, '')
@@ -224,6 +226,7 @@ test('diálogo de numeração mantém opt-in DS e o formulário de RDO usa o Mod
   assert.match(segmentDialog, /<Modal\b[\s\S]*?appearance="design-system"/);
   assert.match(manualReportDialog, /<Modal\b[\s\S]*?appearance="design-system"/);
   assert.match(surveyEditorDialog, /<Modal\b[\s\S]*?appearance="design-system"/);
+  assert.match(manager, /panelClassName="rdo-archived-reports-dialog rdo-ds-actions"/);
   for (const otherModal of otherManagerModals) {
     assert.doesNotMatch(
       otherModal,

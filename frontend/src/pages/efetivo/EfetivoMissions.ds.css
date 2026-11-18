@@ -1,0 +1,152 @@
+/* Mission listing and programming share the existing DS primitives. */
+.efetivo-missions-toolbar > .fv-card__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 220px);
+  align-items: end;
+  gap: var(--space-4);
+}
+
+.efetivo-missions-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.efetivo-missions-grid,
+.efetivo-missions-loading {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 390px), 1fr));
+  align-items: start;
+  gap: var(--space-4);
+}
+
+.efetivo-mission-card-v2 > .fv-card__body {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.efetivo-mission-card-v2--pending {
+  border-inline-start: var(--space-1) solid var(--warning);
+}
+
+.efetivo-mission-card-v2 header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.efetivo-mission-card-v2 header > div { min-width: 0; }
+.efetivo-mission-card-v2 header > .fv-badge { flex: 0 0 auto; }
+
+.efetivo-mission-card-v2 h2,
+.efetivo-mission-card-v2 p { margin: 0; }
+.efetivo-mission-card-v2 h2 {
+  color: var(--ink);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  overflow-wrap: anywhere;
+}
+
+:where(.fv-ds, [data-fv-ds]) .efetivo-mission-title-action {
+  display: inline;
+  min-height: 0;
+  padding: 0;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  white-space: normal;
+}
+.efetivo-mission-title-action > .fv-button__label { overflow-wrap: anywhere; }
+
+.efetivo-mission-card-v2 header p,
+.efetivo-mission-card-v2 footer > span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  overflow-wrap: anywhere;
+}
+.efetivo-mission-card-v2 footer > span > strong { color: var(--ink); }
+
+.efetivo-mission-card-v2 dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+.efetivo-mission-card-v2 dt { color: var(--muted); font-size: var(--text-xs); }
+.efetivo-mission-card-v2 dd {
+  margin: var(--space-1) 0 0;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  overflow-wrap: anywhere;
+}
+
+.efetivo-mission-card-v2 footer {
+  display: grid;
+  gap: var(--space-3);
+  padding-block-start: var(--space-3);
+  border-top: var(--border-width) solid var(--line);
+}
+
+.efetivo-mission-card-v2 .efetivo-mission-card-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--space-2);
+  overflow: visible;
+  padding: 0;
+}
+
+/* Four actions stay on one row, without an inner scrollbar. */
+.efetivo-mission-card-v2 .efetivo-mission-card-actions > .fv-button {
+  flex: 0 1 auto;
+  min-width: 0;
+  padding-inline: var(--space-2);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.efetivo-mission-programming-dialog .efetivo-mission-form-identity {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--canvas);
+  overflow-wrap: anywhere;
+}
+.efetivo-mission-form-identity > span:last-child { color: var(--muted); font-size: var(--text-xs); }
+
+.efetivo-mission-programming-dialog :is(.efetivo-mission-form-section, .efetivo-team-fieldset) {
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-3) 0 0;
+  border: 0;
+  border-radius: 0;
+  border-top: var(--border-width) solid var(--line);
+}
+.efetivo-mission-programming-dialog :where(.efetivo-mission-form-section, .efetivo-team-fieldset) > legend {
+  padding: 0 var(--space-2) 0 0;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+}
+.efetivo-mission-programming-dialog .app-combobox-control input {
+  min-height: var(--space-10);
+  font-size: var(--text-sm);
+}
+.efetivo-mission-programming-dialog .app-combobox-list { font-size: var(--text-sm); }
+.efetivo-mission-programming-dialog .efetivo-team-picker-trigger { align-items: start; }
+.efetivo-mission-programming-dialog .efetivo-team-picker-trigger > div { min-width: 0; }
+.efetivo-mission-programming-dialog .efetivo-team-picker-trigger > button { flex-shrink: 0; }
+
+@media (max-width: 767.98px) {
+  .efetivo-missions-toolbar > .fv-card__body { grid-template-columns: minmax(0, 1fr); }
+  .efetivo-missions-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .efetivo-mission-card-v2 header { flex-wrap: wrap; }
+  .efetivo-mission-card-v2 header > div { flex: 1 1 200px; }
+  .efetivo-mission-card-v2 header > .fv-badge { max-width: 100%; }
+  .efetivo-mission-card-v2 .efetivo-mission-card-actions { gap: var(--space-1); }
+  .efetivo-mission-card-v2 .efetivo-mission-card-actions > .fv-button { padding-inline: var(--space-1); }
+  .efetivo-mission-programming-dialog .efetivo-team-picker-trigger { flex-wrap: wrap; gap: var(--space-2); }
+}

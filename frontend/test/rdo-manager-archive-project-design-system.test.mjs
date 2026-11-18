@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { withRdoCompanions } from './rdo-source.mjs';
 
 const source = (path) =>
-  readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+  withRdoCompanions(path, candidate => readFileSync(new URL(`../${candidate}`, import.meta.url), 'utf8'));
 
 const expectedAppearance = (() => {
   const value = process.env.RDO_B10_EXPECT_APPEARANCE ?? 'design-system';
@@ -25,7 +26,7 @@ function archiveDialogSource(manager) {
   return sectionBetween(
     manager,
     '<Modal\n        open={Boolean(archiveSurveyProject)}',
-    '<Modal\n        open={showSurveyQuestionEditor}'
+    '<Modal open={showSurveyQuestionEditor}'
   );
 }
 

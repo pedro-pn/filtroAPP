@@ -9,6 +9,7 @@ import {
   DataTable,
   StatusPill,
   type DataTableColumn,
+  type DataTableProps,
   type StatusToneMap
 } from '../../ui/ds';
 import { DS_ICONS } from '../../ui/ds/icons';
@@ -45,6 +46,7 @@ export interface ManagerReportListingProps {
   sortDirection: ProjectSortDirection;
   onSortChange: () => void;
   selectable?: boolean;
+  layout?: DataTableProps<ReportSummary>['layout'];
 }
 
 function reportLabel(report: ReportSummary) {
@@ -470,7 +472,8 @@ export function ManagerReportListing({
   projectLabel,
   sortDirection,
   onSortChange,
-  selectable = true
+  selectable = true,
+  layout = 'responsive'
 }: ManagerReportListingProps) {
   const ariaLabel = `Relatórios ${reportType} do projeto ${projectLabel}`;
   const visibleReportIds = new Set(reports.map((report) => report.id));
@@ -544,6 +547,7 @@ export function ManagerReportListing({
         ariaLabel={ariaLabel}
         density="comfortable"
         mobileBreakpoint="xl"
+        layout={layout}
         sort={{ key: 'report', direction: sortDirection }}
         onSortChange={onSortChange}
         selection={selectable ? {

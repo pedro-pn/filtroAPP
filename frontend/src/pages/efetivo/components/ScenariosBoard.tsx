@@ -284,7 +284,7 @@ export function ScenariosBoard({
         onClose={() => setCreateOpen(false)}
         onSubmit={(payload) => create.mutate(payload)}
       />
-      <ConfirmDialog
+      <ConfirmDialog appearance="design-system"
         open={Boolean(confirmAction)}
         title={
           confirmAction === 'apply'

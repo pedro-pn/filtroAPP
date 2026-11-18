@@ -7,11 +7,14 @@ import './SignatureDialog.ds.css';
 interface SignatureDialogProps {
   open: boolean;
   appearance?: 'legacy' | 'design-system';
+  fullscreenOnMobile?: boolean;
+  backdropClassName?: string;
   title: string;
   initialSignerName?: string | null;
   cacheIdentity?: string | null;
   allowCachedSignerName?: boolean;
   isSubmitting?: boolean;
+  loadingLabel?: string;
   confirmDisabled?: boolean;
   confirmDisabledMessage?: string;
   notice?: ReactNode;
@@ -99,11 +102,14 @@ function canvasPoint(canvas: HTMLCanvasElement, event: PointerEvent) {
 export function SignatureDialog({
   open,
   appearance = 'legacy',
+  fullscreenOnMobile = true,
+  backdropClassName,
   title,
   initialSignerName = '',
   cacheIdentity = '',
   allowCachedSignerName = true,
   isSubmitting = false,
+  loadingLabel = 'Assinando relatório',
   confirmDisabled = false,
   confirmDisabledMessage = 'Confirme os termos para continuar.',
   notice = null,
@@ -278,6 +284,8 @@ export function SignatureDialog({
       open={open}
       onClose={onCancel}
       appearance={appearance}
+      fullscreenOnMobile={fullscreenOnMobile}
+      backdropClassName={backdropClassName}
       title={isDesignSystem ? title : undefined}
       ariaLabelledBy={isDesignSystem ? undefined : 'signature-dialog-title'}
       panelClassName={isDesignSystem
@@ -293,7 +301,7 @@ export function SignatureDialog({
             size="sm"
             onClick={confirm}
             loading={isSubmitting}
-            loadingLabel="Assinando relatório"
+            loadingLabel={loadingLabel}
           >
             {isSubmitting ? 'Assinando...' : 'Confirmar assinatura'}
           </Button>

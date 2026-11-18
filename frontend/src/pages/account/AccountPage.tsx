@@ -7,6 +7,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { accountBackPath } from '../../auth/moduleNavigation';
 import { roleHomePath } from '../../auth/rolePath';
 import { AppIcon } from '../../components/icons/AppIcon';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { Alert, Button, Card, Field, Input, Switch } from '../../components/ui/ds';
 import { DS_ICONS } from '../../components/ui/ds/icons';
 import { AppShell } from '../../layout/AppShell';
@@ -44,6 +45,7 @@ export function AccountPage() {
   const [isExportingData, setIsExportingData] = useState(false);
   const [isRequestingDeletion, setIsRequestingDeletion] = useState(false);
   const [isSavingNotifications, setIsSavingNotifications] = useState(false);
+  const [deletionConfirmOpen, setDeletionConfirmOpen] = useState(false);
 
   const backPath = useMemo(() => accountBackPath(user, location.state, roleHomePath(user?.role)), [location.state, user]);
   const modules = useMemo(() => hubModulesForUser(user), [user]);
@@ -154,7 +156,7 @@ export function AccountPage() {
   async function handleDeletionRequest() {
     setPrivacyMessage('');
     setPrivacyError('');
-    if (!window.confirm('Registrar solicitação de eliminação/análise manual dos seus dados?')) return;
+    setDeletionConfirmOpen(false);
     setIsRequestingDeletion(true);
     try {
       const request = await requestMyDataDeletion();
@@ -204,6 +206,7 @@ export function AccountPage() {
           <form className="account-form" onSubmit={handleEmailSubmit}>
             <Field id="account-email" label="E-mail cadastrado" optionalText="">
               <Input
+                id="account-email-control"
                 type="email"
                 autoComplete="email"
                 value={email}
@@ -226,6 +229,7 @@ export function AccountPage() {
             <div className="account-password-fields">
               <Field id="current-password" label="Senha atual" optionalText="" className="account-password-current">
                 <Input
+                  id="current-password-control"
                   type="password"
                   autoComplete="current-password"
                   value={currentPassword}
@@ -234,6 +238,7 @@ export function AccountPage() {
               </Field>
               <Field id="new-password" label="Nova senha" optionalText="">
                 <Input
+                  id="new-password-control"
                   type="password"
                   autoComplete="new-password"
                   value={newPassword}
@@ -242,6 +247,7 @@ export function AccountPage() {
               </Field>
               <Field id="confirm-password" label="Confirmar nova senha" optionalText="">
                 <Input
+                  id="confirm-password-control"
                   type="password"
                   autoComplete="new-password"
                   value={confirmPassword}
@@ -313,11 +319,23 @@ export function AccountPage() {
             <Button variant="secondary" size="sm" type="button" onClick={() => void handleDataExport()} disabled={isExportingData}>
               {isExportingData ? 'Gerando...' : 'Exportar meus dados'}
             </Button>
-            <Button variant="danger" size="sm" type="button" onClick={() => void handleDeletionRequest()} disabled={isRequestingDeletion}>
+            <Button variant="danger" size="sm" type="button" onClick={() => setDeletionConfirmOpen(true)} disabled={isRequestingDeletion}>
               {isRequestingDeletion ? 'Registrando...' : 'Solicitar eliminação'}
             </Button>
           </div>
         </Card>
+        <ConfirmDialog
+          open={deletionConfirmOpen}
+          appearance="design-system"
+          title="Solicitar eliminação de dados?"
+          description="A solicitação será registrada para análise manual. Você poderá acompanhar o atendimento pelo protocolo gerado."
+          confirmLabel="Registrar solicitação"
+          cancelLabel="Voltar"
+          danger
+          confirmDisabled={isRequestingDeletion}
+          onCancel={() => setDeletionConfirmOpen(false)}
+          onConfirm={() => void handleDeletionRequest()}
+        />
       </main>
     </AppShell>
   );

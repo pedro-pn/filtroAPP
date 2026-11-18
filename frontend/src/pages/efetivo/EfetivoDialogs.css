@@ -1,0 +1,151 @@
+@import './EfetivoTheme.css';
+
+/* Portals live outside the module page: their theme boundary must travel with them. */
+.efetivo-dialog,
+.modal-card.efetivo-modal {
+  min-width: 0;
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+.fv-modal-backdrop:has(> .efetivo-dialog) {
+  align-items: center;
+  padding: var(--space-4);
+}
+
+.efetivo-dialog-form,
+.efetivo-dialog-fields {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+}
+
+.efetivo-dialog-fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+.efetivo-dialog-wide,
+.efetivo-dialog-description {
+  grid-column: 1 / -1;
+}
+
+.efetivo-dialog-description {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.efetivo-dialog .fv-modal__footer {
+  flex-wrap: nowrap;
+}
+
+.efetivo-dialog .fv-modal__footer > .fv-button {
+  min-width: 0;
+}
+
+.efetivo-dialog .fv-control-shell--sm :where(.fv-input, .fv-select) {
+  font-size: var(--text-sm);
+}
+
+/* Theme compatibility for the mission/scenario/productivity dialogs that
+   still use the existing form layout. No dependence on the page ancestor. */
+.modal-card.efetivo-modal :where(.efetivo-modal-header, .efetivo-modal-body, .efetivo-modal-footer) {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.modal-card.efetivo-modal :where(h2, h3, h4, label, legend) {
+  color: var(--ink);
+}
+
+/* The same daily detail component is rendered inside a compact DS dialog. */
+.efetivo-dialog .efetivo-day-detail {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.efetivo-dialog .efetivo-day-list,
+.efetivo-dialog .efetivo-day-conflicts {
+  margin: 0;
+}
+
+.efetivo-dialog .efetivo-day-conflicts {
+  background: var(--danger-bg);
+}
+
+.efetivo-dialog .efetivo-day-conflict-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.efetivo-dialog .efetivo-day-conflict-list > :where(a, div),
+.efetivo-dialog .efetivo-day-list > a {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.efetivo-dialog .efetivo-day-conflict-list span,
+.efetivo-dialog .efetivo-day-list > a > span,
+.efetivo-dialog .efetivo-day-people {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+.efetivo-dialog .efetivo-day-list > a > strong {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.efetivo-dialog .efetivo-event-dot {
+  flex: 0 0 auto;
+}
+
+.efetivo-dialog .efetivo-day-detail a:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+}
+
+.efetivo-dialog .efetivo-day-detail a:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.efetivo-dialog .efetivo-day-open {
+  color: var(--warning);
+}
+
+@media (max-width: 767.98px) {
+  .efetivo-dialog .fv-modal__footer {
+    gap: var(--space-2);
+  }
+
+  .efetivo-dialog .fv-modal__footer > .fv-button {
+    padding-inline: var(--space-2);
+    font-size: var(--text-xs);
+  }
+
+  .efetivo-dialog .fv-control-shell {
+    min-height: var(--space-10);
+  }
+}
+
+@media (max-width: 420px) {
+  .efetivo-dialog-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

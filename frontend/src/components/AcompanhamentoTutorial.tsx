@@ -65,15 +65,16 @@ export function AcompanhamentoTutorial({
 
     // Constrói os passos após a troca para o Dashboard renderizar (detecção correta dos alvos).
     window.setTimeout(() => {
-    const hasDashboard = Boolean(document.querySelector('[data-acp-dashboard-filters]'));
-    const navSelector = window.matchMedia('(max-width: 900px)').matches ? '[data-acp-mobile-nav]' : '[data-acp-nav]';
+    const hasDashboard = Boolean(document.querySelector('[data-acp-dashboard-table]'));
+    const mobile = window.matchMedia('(max-width: 1023.98px)').matches;
+    const navSelector = mobile ? '.fv-topbar button[aria-label="Abrir menu"]' : '.fv-app-shell__sidebar .fv-sidebar__navigation';
 
     const steps: DriveStep[] = [];
     steps.push({
       element: navSelector,
       popover: {
-        title: 'Abas do módulo',
-        description: 'Alterne entre Dashboard, Projetos e Sede. Gestores também têm a aba Custo (motor de custo operacional).',
+        title: 'Navegação do módulo',
+        description: `${mobile ? 'Abra o menu para alternar' : 'Use a barra lateral para alternar'} entre Dashboard, Projetos e Sede. Gestores também têm acesso a Custo (motor de custo operacional).`,
         side: 'right',
         align: 'start',
         // Sem dashboard (ainda carregando/sem dados): já pula direto para a aba Projetos.
@@ -109,7 +110,7 @@ export function AcompanhamentoTutorial({
         element: '[data-acp-dashboard-table]',
         popover: {
           title: 'Tabela de projetos',
-          description: 'Previsto × realizado por projeto (venda, custo, margem, dias, RDOs e avanço). Clique numa linha para abrir o cronograma.',
+          description: 'Previsto × realizado por projeto (venda, custo, margem, dias, RDOs e avanço). Selecione o nome de um projeto para abrir o cronograma. Grupos exibem valores consolidados.',
           side: 'top',
           align: 'start',
           onNextClick: (_element, _step, { driver: driverObj }) => {

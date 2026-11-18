@@ -128,6 +128,11 @@ export function Modal({
   if (!open || typeof document === 'undefined') return null;
 
   function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
+    // React portal events bubble through their owning dialog, even though the
+    // nested dialog is outside its DOM tree. Only the nearest dialog handles keys.
+    if (event.target instanceof Element
+      && event.target.closest('[role="dialog"], [role="alertdialog"]') !== event.currentTarget) return;
+
     if (event.key === 'Escape') {
       event.preventDefault();
       if (closeOnEscape) onClose();

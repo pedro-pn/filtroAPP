@@ -54,15 +54,14 @@ async function openArchivedPage(page: Page) {
   return surface;
 }
 
-async function projectWithReports(surface: Locator) {
+async function projectWithReports(page: Page, surface: Locator) {
   const candidate = surface
-    .locator(
-      '.rdo-archived-project-card:has(.rdo-archived-report-type__toggle)'
-    )
+    .locator('.rdo-archived-project-card')
+    .filter({ has: page.locator('.rdo-archived-project-card__meta').filter({ hasText: /\b[1-9]\d* relatórios?\b/ }) })
     .first();
   await expect(
     candidate,
-    'O backend real precisa fornecer um projeto arquivado com relatório carregado'
+    'O backend real precisa fornecer um projeto arquivado com relatórios'
   ).toBeVisible();
   const projectId = await candidate.getAttribute('data-archived-project-id');
   expect(projectId).toBeTruthy();
@@ -90,36 +89,25 @@ test('Arquivados preserva busca, agrupamentos, seleção e ações sem mutar dad
   );
   await expect(
     surface.locator(
-      '.rdo-archived-project-card__reports-toggle[aria-expanded="false"]'
+      '.rdo-archived-project-card__reports-toggle[aria-haspopup="dialog"]'
     )
   ).not.toHaveCount(0);
-  const project = await projectWithReports(surface);
+  const project = await projectWithReports(page, surface);
   const projectToggle = project.locator(
     '.rdo-archived-project-card__reports-toggle'
   );
   const projectTitleToggle = project.locator('.rdo-project-card__title-toggle');
-  const reportRegionId = await projectToggle.getAttribute('aria-controls');
-  expect(reportRegionId).toBeTruthy();
-  await expect(projectToggle).toHaveAttribute('aria-expanded', 'true');
-
-  await projectTitleToggle.click();
-  await expect(projectTitleToggle).toHaveAttribute('aria-expanded', 'false');
-  await expect(projectToggle).toHaveAttribute('aria-expanded', 'false');
-  await expect(
-    project.locator('.rdo-archived-report-type__toggle')
-  ).toHaveCount(0);
+  const reportsDialog = page.getByRole('dialog', { name: 'Relatórios do projeto', exact: true });
+  await expect(projectToggle).toHaveAttribute('aria-haspopup', 'dialog');
+  await expect(projectToggle).not.toHaveAttribute('aria-expanded');
+  await expect(surface.locator('.rdo-archived-report-type')).toHaveCount(0);
+  const cardBefore = await project.boundingBox();
   await projectToggle.click();
-  await expect(projectTitleToggle).toHaveAttribute('aria-expanded', 'true');
-  await expect(projectToggle).toHaveAttribute('aria-expanded', 'true');
-
-  const typeToggle = project
-    .locator('.rdo-archived-report-type__toggle')
-    .first();
-  await expect(typeToggle).toHaveAttribute('aria-expanded', 'true');
-  await typeToggle.click();
-  await expect(typeToggle).toHaveAttribute('aria-expanded', 'false');
-  await typeToggle.click();
-  await expect(typeToggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(reportsDialog).toBeVisible();
+  expect((await project.boundingBox())?.height).toBe(cardBefore?.height);
+  await page.keyboard.press('Escape');
+  await expect(reportsDialog).toBeHidden();
+  await expect(projectToggle).toBeFocused();
 
   const detailsToggle = project.getByRole('button', {
     name: /^(Mostrar|Ocultar) detalhes$/
@@ -148,7 +136,15 @@ test('Arquivados preserva busca, agrupamentos, seleção e ações sem mutar dad
     project.locator('.rdo-archived-project-card__selection')
   ).toHaveCount(0);
 
-  const reportTypeSection = project
+  await projectTitleToggle.click();
+  await expect(reportsDialog).toBeVisible();
+  const typeToggle = reportsDialog.locator('.rdo-archived-report-type__toggle').first();
+  if ((await typeToggle.getAttribute('aria-expanded')) !== 'true') await typeToggle.click();
+  await typeToggle.click();
+  await expect(typeToggle).toHaveAttribute('aria-expanded', 'false');
+  await typeToggle.click();
+  await expect(typeToggle).toHaveAttribute('aria-expanded', 'true');
+  const reportTypeSection = reportsDialog
     .locator('.rdo-archived-report-type')
     .first();
   const batchToolbar = reportTypeSection.locator(
@@ -170,6 +166,9 @@ test('Arquivados preserva busca, agrupamentos, seleção e ações sem mutar dad
   await expect(
     batchToolbar.getByRole('button', { name: 'Baixar DOCX', exact: true })
   ).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(reportsDialog).toBeHidden();
+  await expect(projectTitleToggle).toBeFocused();
 
   const filters = page.locator('.rdo-archived-projects__filters');
   const sortButton = filters.getByRole('button', {
@@ -217,7 +216,7 @@ test('Arquivados valida desktop/mobile em light/dark sem overflow', async ({
   await page.setViewportSize({ width: 1280, height: 900 });
   await loginAs(page, demoCredentials.manager);
   const surface = await openArchivedPage(page);
-  const project = await projectWithReports(surface);
+  const project = await projectWithReports(page, surface);
 
   for (const scenario of scenarios) {
     await page.setViewportSize({
@@ -247,21 +246,7 @@ test('Arquivados valida desktop/mobile em light/dark sem overflow', async ({
       )
     ).toHaveCount(0);
 
-    if (scenario.width >= 768) {
-      await expect(
-        project.locator('.fv-data-table__desktop').first()
-      ).toBeVisible();
-      await expect(
-        project.locator('.fv-data-table__mobile').first()
-      ).toBeHidden();
-    } else {
-      await expect(
-        project.locator('.fv-data-table__desktop').first()
-      ).toBeHidden();
-      await expect(
-        project.locator('.fv-data-table__mobile').first()
-      ).toBeVisible();
-
+    if (scenario.width < 768) {
       const quickActions = project.locator(
         ':scope > .fv-card__header > .fv-card__actions'
       );
@@ -285,5 +270,16 @@ test('Arquivados valida desktop/mobile em light/dark sem overflow', async ({
       expect(Math.abs(quickActionsCenterY - reportsButtonCenterY)).toBeLessThan(2);
       expect((reportsButtonBox?.x || 0) < (quickActionsBox?.x || 0)).toBe(true);
     }
+    await project.locator('.rdo-archived-project-card__reports-toggle').click();
+    const dialog = page.getByRole('dialog', { name: 'Relatórios do projeto', exact: true });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator('.fv-data-table__mobile').first()).toBeVisible();
+    await expect(dialog.locator('.fv-data-table__desktop')).toHaveCount(0);
+    await expectNoHorizontalOverflow(page, dialog);
+    const box = await dialog.boundingBox();
+    expect(box?.height).toBeLessThan(scenario.height);
+    expect(box?.width).toBeLessThan(scenario.width);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
   }
 });

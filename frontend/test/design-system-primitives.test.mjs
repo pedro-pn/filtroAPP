@@ -59,26 +59,19 @@ test('compound fields expose one rounded focus ring owned by the control shell',
   );
 });
 
-test('card action rows stay on one line and scroll only as a narrow-screen fallback', () => {
+test('card action rows stay on one line without localized horizontal scroll', () => {
   const primitiveCss = source('src/components/ui/ds/styles.css');
   const listingCss = source('src/components/ui/ds/listings/listings.css');
+  const cardActions = primitiveCss.match(/\.fv-card__actions\s*\{[\s\S]*?\}/)?.[0] || '';
+  const cardFooter = primitiveCss.match(/\.fv-card__footer\s*\{[\s\S]*?\}/)?.[0] || '';
+  const mobileActions = listingCss.match(/\.fv-mobile-list__actions\s*\{[\s\S]*?\}/)?.[0] || '';
 
-  assert.match(
-    primitiveCss,
-    /\.fv-card__actions\s*\{[\s\S]*?flex-wrap:\s*nowrap/
-  );
-  assert.match(
-    primitiveCss,
-    /\.fv-card__footer\s*\{[\s\S]*?flex-wrap:\s*nowrap/
-  );
-  assert.match(
-    primitiveCss,
-    /@media \(max-width: 767\.98px\)[\s\S]*?:where\(\.fv-card__actions, \.fv-card__footer\)[\s\S]*?overflow-x:\s*auto/
-  );
-  assert.match(
-    listingCss,
-    /\.fv-mobile-list__actions\s*\{[\s\S]*?flex-wrap:\s*nowrap[\s\S]*?overflow-x:\s*auto/
-  );
+  assert.match(cardActions, /flex-wrap:\s*nowrap/);
+  assert.match(cardFooter, /flex-wrap:\s*nowrap/);
+  assert.match(mobileActions, /flex-wrap:\s*nowrap/);
+  assert.doesNotMatch(cardActions, /overflow-x:\s*auto/);
+  assert.doesNotMatch(cardFooter, /overflow-x:\s*auto/);
+  assert.doesNotMatch(mobileActions, /overflow-x:\s*auto/);
 });
 
 test('status map covers canonical Portuguese workflow states', () => {
@@ -108,6 +101,8 @@ test('Modal keeps legacy appearance by default while providing DS behavior', () 
   assert.match(modal, /aria-modal="true"/);
   assert.match(modal, /lockBodyScroll\(\)/);
   assert.match(modal, /previousFocus\.focus\(\)/);
+  assert.ok(modal.includes(`event.target.closest('[role="dialog"], [role="alertdialog"]') !== event.currentTarget`),
+    'A parent dialog must ignore keyboard events from nested portals');
 });
 
 test('visual catalog is a separate Vite entry and does not add an app route', () => {

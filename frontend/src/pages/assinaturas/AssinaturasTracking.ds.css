@@ -1,0 +1,236 @@
+.assinaturas-tracking,
+.assinaturas-audit,
+.assinaturas-tracking-summary {
+  min-width: 0;
+  color: var(--ink);
+}
+
+.assinaturas-tracking {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.assinaturas-tracking :is(h2, h3),
+.assinaturas-audit :is(h2, h3),
+.assinaturas-tracking-summary h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-sm);
+  overflow-wrap: anywhere;
+}
+
+.assinaturas-tracking__heading,
+.assinaturas-tracking-summary__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.assinaturas-tracking .signature-status-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-3);
+}
+
+.assinaturas-signer-card > .fv-card__body,
+.assinaturas-tracking-summary > .fv-card__body {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+.assinaturas-signer-card__heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3);
+}
+
+.assinaturas-signer-card h3:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.assinaturas-tracking :is(.assinaturas-signer-card__email, .signature-status-detail),
+.assinaturas-audit :is(.assinaturas-audit__intro, time, .assinaturas-audit__event p),
+.assinaturas-tracking-summary p {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-sm);
+  overflow-wrap: anywhere;
+}
+
+.assinaturas-tracking .assinaturas-signer-card__email {
+  margin-top: calc(-1 * var(--space-2));
+}
+
+.assinaturas-tracking .signature-status-overview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.assinaturas-tracking .signature-row-actions,
+.assinaturas-audit .assinaturas-audit__pagination,
+.assinaturas-tracking-summary .signature-detail-actions {
+  display: flex;
+  min-width: 0;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin: 0;
+  overflow: visible;
+}
+
+.assinaturas-tracking .signature-row-actions:empty {
+  display: none;
+}
+
+.assinaturas-tracking .signature-row-actions .fv-button,
+.assinaturas-audit .assinaturas-audit__pagination .fv-button,
+.assinaturas-tracking-summary .signature-detail-actions .fv-button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.assinaturas-tracking .assinaturas-tracking__wide-label {
+  display: none;
+}
+
+.assinaturas-tracking-summary__heading strong {
+  flex: 0 0 auto;
+  color: var(--brand-text);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+.assinaturas-tracking-summary__progress {
+  display: block;
+  width: 100%;
+  height: var(--space-2);
+  appearance: none;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--line);
+  color: var(--brand);
+}
+
+.assinaturas-tracking-summary__progress::-webkit-progress-bar {
+  background: var(--line);
+}
+
+.assinaturas-tracking-summary__progress::-webkit-progress-value {
+  border-radius: var(--radius-pill);
+  background: var(--brand);
+}
+
+.assinaturas-tracking-summary__progress::-moz-progress-bar {
+  border-radius: var(--radius-pill);
+  background: var(--brand);
+}
+
+.assinaturas-audit > .fv-card__body {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-5);
+}
+
+.assinaturas-audit__loading {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.assinaturas-audit__timeline {
+  margin: 0;
+  padding: 0 0 0 var(--space-2);
+  list-style: none;
+}
+
+.assinaturas-audit__event {
+  position: relative;
+  min-width: 0;
+  padding: 0 0 var(--space-5) var(--space-5);
+  border-left: 1px solid var(--line-strong);
+  --audit-event-color: var(--info);
+}
+
+.assinaturas-audit__event--danger { --audit-event-color: var(--danger); }
+.assinaturas-audit__event--warning { --audit-event-color: var(--warning); }
+.assinaturas-audit__event--success { --audit-event-color: var(--success); }
+
+.assinaturas-audit__event:last-child {
+  padding-bottom: 0;
+  border-left-color: transparent;
+}
+
+.assinaturas-audit__event::before {
+  position: absolute;
+  top: var(--space-1);
+  left: calc(-1 * var(--space-1) - 1px);
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--audit-event-color);
+  content: '';
+}
+
+.assinaturas-audit__event-heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-4);
+}
+
+.assinaturas-audit__event time {
+  flex: 0 0 auto;
+}
+
+.assinaturas-audit .assinaturas-audit__event p {
+  margin-top: var(--space-2);
+  white-space: pre-wrap;
+}
+
+@media (min-width: 1280px) {
+  .assinaturas-tracking .signature-status-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1536px) {
+  .assinaturas-tracking .assinaturas-tracking__wide-label {
+    display: inline;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .assinaturas-signer-card,
+  .assinaturas-audit,
+  .assinaturas-tracking-summary {
+    padding: var(--space-3);
+  }
+
+  .assinaturas-tracking .signature-row-actions,
+  .assinaturas-audit .assinaturas-audit__pagination,
+  .assinaturas-tracking-summary .signature-detail-actions {
+    gap: var(--space-1);
+  }
+
+  .assinaturas-tracking .signature-row-actions .fv-button,
+  .assinaturas-audit .assinaturas-audit__pagination .fv-button,
+  .assinaturas-tracking-summary .signature-detail-actions .fv-button {
+    min-height: 44px;
+    padding-inline: var(--space-2);
+    gap: var(--space-1);
+    font-size: var(--text-xs);
+  }
+}

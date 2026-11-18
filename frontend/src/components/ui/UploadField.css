@@ -1,0 +1,32 @@
+/* Keep the shared photo action independent of the legacy 18px text-only X. */
+:where(.fv-ds, [data-fv-ds]) .upload-field--ds .upload-remove-button.fv-icon-button {
+  flex: 0 0 var(--fv-button-height);
+  width: var(--fv-button-height);
+  min-width: var(--fv-button-height);
+  height: var(--fv-button-height);
+  padding: 0;
+  border: var(--border-width) solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--danger);
+  box-shadow: var(--shadow-e0);
+}
+
+:where(.fv-ds, [data-fv-ds]) .upload-field--ds .upload-remove-button.fv-icon-button:hover:not(:disabled),
+:where(.fv-ds, [data-fv-ds]) .upload-field--ds .upload-remove-button.fv-icon-button:active:not(:disabled) {
+  border-color: var(--danger-line);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+:where(.fv-ds, [data-fv-ds]) .upload-field--ds .upload-remove-button.fv-icon-button > svg {
+  flex: none;
+  width: var(--space-5);
+  height: var(--space-5);
+}
+
+@media (max-width: 767.98px) {
+  :where(.fv-ds, [data-fv-ds]) .upload-field--ds .upload-remove-button.fv-icon-button {
+    --fv-button-height: calc(var(--space-10) + var(--space-1));
+  }
+}

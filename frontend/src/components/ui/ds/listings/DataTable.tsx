@@ -114,6 +114,8 @@ export interface DataTableProps<T> extends Omit<
   actionsLabel?: string;
   mobile: DataTableMobileConfig<T>;
   mobileBreakpoint?: ListingMobileBreakpoint;
+  /** Use the existing card presentation inside narrow containers on desktop. */
+  layout?: 'responsive' | 'cards';
   loading?: boolean;
   loadingRows?: number;
   updating?: boolean;
@@ -142,6 +144,7 @@ export function DataTable<T>({
   actionsLabel = 'Ações',
   mobile,
   mobileBreakpoint = 'md',
+  layout = 'responsive',
   loading = false,
   loadingRows = 5,
   updating = false,
@@ -155,7 +158,8 @@ export function DataTable<T>({
   className,
   ...props
 }: DataTableProps<T>) {
-  const isMobile = useListingMobileViewport(mobileBreakpoint);
+  const mobileViewport = useListingMobileViewport(mobileBreakpoint);
+  const isMobile = layout === 'cards' || mobileViewport;
   const selectedIds = selection?.selectedRowIds ?? EMPTY_ROW_IDS;
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const selectableRows = selection
