@@ -140,7 +140,7 @@ function absolutePasswordSetupUrl(url: string) {
 
 export function AdminAccountsPage() {
   const usersQuery = useUsers();
-  const collaboratorsQuery = useCollaborators();
+  const collaboratorsQuery = useCollaborators('ADMIN');
   const userMutations = useUserMutations();
   const [accountFilter, setAccountFilter] = useState<AccountFilter>('all');
   const [moduleFilter, setModuleFilter] = useState<ModuleFilter>('all');

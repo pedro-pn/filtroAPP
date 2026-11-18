@@ -21,7 +21,7 @@ export const API_DATA_DOMAINS = Object.freeze([
     models: [
       ...modelEntries(['Collaborator', 'JobRole'], 'PLANNED'),
       ...modelEntries(['CollaboratorJobRoleHistory', 'User'], 'SENSITIVE'),
-      ...modelEntries(['CollaboratorSignatureNoticeLog', 'ModuleRole', 'ProjectAuthorizedUser', 'ConectaRhAggregate', 'ConectaRhReceipt', 'ConectaRhPerson', 'ConectaRhSyncState'], 'RESERVED')
+      ...modelEntries(['CollaboratorSignatureNoticeLog', 'ModuleRole', 'ProjectAuthorizedUser', 'ConectaRhAggregate', 'ConectaRhReceipt', 'ConectaRhPerson', 'ConectaRhSyncState', 'WorkforceClassificationEvent'], 'RESERVED')
     ],
     candidateScopes: ['colaboradores.operacional.read', 'colaboradores.contato_corporativo.read', 'colaboradores.pii.read', 'cargos.read', 'usuarios.diretorio.read'],
     candidateAvailability: 'SENSITIVE', endpointFamilies: ['/colaboradores', '/cargos', '/usuarios'],

@@ -1,3 +1,4 @@
+import { requireVisibleCollaborators } from '../../collaborators/workforce-policy.js';
 import prisma from '../../prisma.js';
 import { clearProjectDerivedCaches } from '../../resource-list-cache.js';
 import { invalidateAllocationAudit } from '../../acompanhamento/allocation-audit.js';
@@ -168,6 +169,7 @@ export async function saveReviewDays({ weekStart, items, expectedVersion, user, 
   const today = saoPauloToday(now);
   validateItemsInWeek(weekStart, items, today);
   const collaboratorIds = [...new Set(items.map(item => item.collaboratorId))];
+  await requireVisibleCollaborators(database, collaboratorIds, { target: 'ALLOCATION_REVIEW' });
   const week = await currentWeek(database, weekStart);
   assertOpen(week);
   assertVersion(week, expectedVersion);
@@ -201,6 +203,7 @@ export async function discardReviewDays({ weekStart, items, expectedVersion, use
   const database = deps.database || prisma;
   validateItemsInWeek(weekStart, items, '9999-12-31');
   const collaboratorIds = [...new Set(items.map(item => item.collaboratorId))];
+  await requireVisibleCollaborators(database, collaboratorIds, { target: 'ALLOCATION_REVIEW' });
   const week = await currentWeek(database, weekStart);
   assertOpen(week);
   assertVersion(week, expectedVersion);

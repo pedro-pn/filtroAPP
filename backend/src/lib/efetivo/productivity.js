@@ -1,3 +1,4 @@
+import { isCollaboratorVisible } from '../collaborators/workforce-policy.js';
 import { absenceMonths } from './absences.js';
 
 const MINUTES_PER_HOUR = 60;
@@ -165,7 +166,7 @@ export function buildProductivityReport({
 
   for (const collaborator of collaborators) {
     const role = roles.get(collaborator.jobRoleId) || collaborator.jobRole;
-    if (!role || role.isOperational === false) continue;
+    if (!role || !isCollaboratorVisible({ ...collaborator, jobRole: role }, 'PRODUCTIVITY')) continue;
     const analyzed = selectAnalyzedMonths({
       year,
       cutoffMonth,

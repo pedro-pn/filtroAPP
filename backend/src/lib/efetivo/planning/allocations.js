@@ -1,3 +1,4 @@
+import { collaboratorVisibilityWhere, requireVisibleCollaborators } from '../../collaborators/workforce-policy.js';
 import { recordEfetivoAudit } from './audit.js';
 import {
   collectAllocationConflicts,
@@ -87,6 +88,7 @@ function storedAllocationPeriod(mission, period) {
 export async function allocateCollaboratorInTransaction(tx, mission, payload, context = {}, source = 'MANUAL') {
   const existingSame = mission.allocations.find(item => item.collaboratorId === payload.collaboratorId);
   if (existingSame && !existingSame.deletedAt) return existingSame;
+  await requireVisibleCollaborators(tx, [payload.collaboratorId], { target: 'EFETIVO' });
   const periods = requestedAllocationPeriods(mission, payload);
   const period = requestedAllocationPeriod(mission, payload);
   // A demanda continua como previsão; inclusões manuais podem registrar cargos e quantidades excepcionais.
@@ -97,7 +99,7 @@ export async function allocateCollaboratorInTransaction(tx, mission, payload, co
     where: { id: payload.jobRoleId },
     select: { name: true, isActive: true, isOperational: true }
   });
-  if (!role || role.isActive === false || role.isOperational === false) {
+  if (!role || role.isActive === false) {
     throw planningError('O colaborador precisa ter uma função operacional ativa.', { code: 'INVALID_COLLABORATOR_JOB_ROLE' });
   }
 
@@ -171,7 +173,7 @@ export async function listEligibleCollaborators(missionId, jobRoleId, filters = 
     endDate: periods.reduce((latest, item) => item.endDate > latest ? item.endDate : latest, periods[0].endDate)
   };
   const [collaborators, absences, overlapping] = await Promise.all([
-    database.collaborator.findMany({ where: { jobRoleId, ...(filters.includeInactive ? {} : { isActive: true }) }, orderBy: [{ admissionDate: 'asc' }, { name: 'asc' }] }),
+    database.collaborator.findMany({ where: { jobRoleId, ...collaboratorVisibilityWhere('EFETIVO'), ...(filters.includeInactive ? {} : { isActive: true }) }, orderBy: [{ admissionDate: 'asc' }, { name: 'asc' }] }),
     database.collaboratorAbsence.findMany({
       where: { deletedAt: null, startDate: { lte: new Date(`${period.endDate}T00:00:00.000Z`) }, endDate: { gte: new Date(`${period.startDate}T00:00:00.000Z`) } }
     }),

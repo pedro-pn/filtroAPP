@@ -1,3 +1,5 @@
+import { collaboratorVisibilityWhere } from '../collaborators/workforce-policy.js';
+import { workforceVisibilityClasses } from '../collaborators/workforce-visibility-context.js';
 import { z } from 'zod';
 import { projectChannelWhere } from '../projects/distribution.js';
 import { createHash } from 'node:crypto';
@@ -84,7 +86,7 @@ function projectWhere(resource, query, context) {
 }
 
 export function operationalVisibilityWhere(resource, query, context) {
-  return { AND: [resource.where, projectWhere(resource, query, context),
+  return { AND: [resource.where, ...(resource.model === 'Collaborator' ? [collaboratorVisibilityWhere('API')] : []), projectWhere(resource, query, context),
     ...(resource.projectChannel ? [projectChannelWhere(resource.projectChannel)] : []),
     ...resource.filterFields.filter(field => query[field]).map(field => {
       if (field === 'stage') return { workflow: { is: { stage: query.stage } } };
@@ -122,6 +124,7 @@ export async function listOperationalResources(client, operationId, input, conte
     ...(Object.keys(resource.scopedFields || {}).some(scope => context.scopes.has(scope))
       ? { scopedFields: Object.keys(resource.scopedFields).filter(scope => context.scopes.has(scope)).sort() } : {}),
     policyFingerprint: createHash('sha256').update(stableJson({
+      workforceClassifications: workforceVisibilityClasses('API'),
       projectAccessMode: context.projectAccessMode,
       projectIds: context.projectAccessMode === 'SELECTED' ? [...context.projectIds].sort() : []
     })).digest('hex')

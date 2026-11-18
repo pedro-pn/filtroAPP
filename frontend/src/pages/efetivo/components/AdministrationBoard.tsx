@@ -54,7 +54,7 @@ function JobRoleRow({ role, canManage, onSaved }: { role: PlanningJobRole; canMa
     mutationFn: () => updatePlanningJobRole(role.id, {
       calendarColor: color,
       continuousWorkLimitDays: limit ? Number(limit) : null,
-      isOperational: operational
+      ...(operational !== role.isOperational ? { isOperational: operational } : {})
     }),
     onSuccess: () => { onSaved(); toast('Função atualizada.', 'success'); },
     onError: (error: Error) => toast(error.message, 'error')

@@ -9,6 +9,8 @@ import {
 } from '../lib/privacy-consent.js';
 import prisma from '../lib/prisma.js';
 import { withProjectAccess } from '../lib/projects/access-scope.js';
+import { withWorkforceVisibility, workforceVisibilityRequestTarget } from '../lib/collaborators/workforce-visibility-context.js';
+import { requireOperationalRequestParticipants } from '../lib/collaborators/request-workforce-policy.js';
 
 export const RDO_INTERNAL_ROLES = publicModuleRolesForModule('rdo', { includeClient: false });
 export const RDO_ACCESS_ROLES = publicModuleRolesForModule('rdo');
@@ -99,7 +101,10 @@ export const requireAuth = asyncHandler(async (req, res, next) => {
     });
   }
 
-  withProjectAccess(user, next);
+  await withWorkforceVisibility(workforceVisibilityRequestTarget(req), async () => {
+    await requireOperationalRequestParticipants(prisma, req);
+    withProjectAccess(user, next);
+  });
 });
 
 export function requireManager(req, res, next) {

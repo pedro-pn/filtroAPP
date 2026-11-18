@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createCollaborator,
   listCollaborators,
+  listAdminCollaboratorOptions,
   removeCollaborator,
   removeCollaboratorJobRoleHistory,
   type CollaboratorPayload,
@@ -12,10 +13,10 @@ import {
 } from '../api/collaborators';
 import { queryKeys } from './queryKeys';
 
-export function useCollaborators() {
+export function useCollaborators(context: 'RDO' | 'ADMIN' = 'RDO') {
   return useQuery({
-    queryKey: queryKeys.collaborators,
-    queryFn: listCollaborators
+    queryKey: [...queryKeys.collaborators, context],
+    queryFn: context === 'ADMIN' ? listAdminCollaboratorOptions : listCollaborators
   });
 }
 

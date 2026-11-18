@@ -86,7 +86,7 @@ export async function synchronizeCurrentCollaboratorJobRole(database, collaborat
   }
   const updated = await database.collaborator.update({
     where: { id: collaboratorId },
-    data: { jobRoleId: effective.jobRoleId }
+    data: { jobRoleId: effective.jobRoleId, classificationVersion: { increment: 1 } }
   });
   return { collaborator: updated, changed: true, previousJobRoleId: collaborator.jobRoleId };
 }

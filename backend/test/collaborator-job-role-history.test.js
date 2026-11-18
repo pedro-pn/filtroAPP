@@ -62,5 +62,5 @@ test('sincronização mantém no cadastro o último cargo já vigente', async ()
 
   const result = await synchronizeCurrentCollaboratorJobRole(database, 'collaborator-1', new Date('2026-09-01T12:00:00.000Z'));
   assert.equal(result.changed, true);
-  assert.deepEqual(updatedData, { jobRoleId: 'role-2' });
+  assert.deepEqual(updatedData, { jobRoleId: 'role-2', classificationVersion: { increment: 1 } });
 });

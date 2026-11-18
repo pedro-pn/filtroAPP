@@ -133,7 +133,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
     ? buildMissionAvailabilityColumns(filterCollaboratorsByActivity(options, 'ACTIVE'), missions.data || [], absences.data || [], startDate, endDate, mission?.id, periodsByCollaboratorId)
     : buildMissionAvailabilityColumns([], [], [], '2000-01-01', '2000-01-01'),
   [absences.data, endDate, mission?.id, missions.data, options, periodsByCollaboratorId, startDate, validPeriod]);
-  const operationalRoleIds = useMemo(() => new Set(roles.filter(role => role.isOperational).map(role => role.id)), [roles]);
+  const operationalRoleIds = useMemo(() => new Set(roles.filter(role => (role.isAvailableInWorkforce ?? (role.isOperational || role.hasOperationalCollaborators))).map(role => role.id)), [roles]);
   const plannedIds = useMemo(() => plannedRoleIdSet(plannedRoles), [plannedRoles]);
   const filterByPlan = Boolean(plannedRoles?.length) && !showAll;
   const inPlan = (jobRoleId: string | null | undefined) => !filterByPlan || plannedIds.has(jobRoleId || '');
@@ -240,7 +240,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
             <SearchInput size="sm" label="Buscar por nome ou cargo" placeholder="Buscar por nome ou cargo" value={search} onChange={setSearch} />
             {plannedRoles?.length ? <Button variant="secondary" size="sm" onClick={() => setShowAll(value => !value)}>{showAll ? 'Somente cargos planejados' : 'Mostrar todos os colaboradores'}</Button> : null}
             <Field id="mission-team-role-filter" label="Filtrar por cargo" optionalText="">
-              <Select size="sm" value={roleFilter} onChange={event => setRoleFilter(event.target.value)}><option value="">Todos os cargos</option>{roles.filter(role => role.isOperational && inPlan(role.id)).map(role => <option value={role.id} key={role.id}>{role.name}</option>)}</Select>
+              <Select size="sm" value={roleFilter} onChange={event => setRoleFilter(event.target.value)}><option value="">Todos os cargos</option>{roles.filter(role => ((role.isAvailableInWorkforce ?? (role.isOperational || role.hasOperationalCollaborators))) && inPlan(role.id)).map(role => <option value={role.id} key={role.id}>{role.name}</option>)}</Select>
             </Field>
           </div>
           <p className="efetivo-team-selection-count" role="status">{draftIds.length} selecionado(s)</p>

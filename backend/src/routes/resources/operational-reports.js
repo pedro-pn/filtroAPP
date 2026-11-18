@@ -1,3 +1,4 @@
+import { collaboratorVisibilityWhere } from '../../lib/collaborators/workforce-policy.js';
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
 
@@ -387,7 +388,7 @@ router.get(
         },
       }),
       prisma.collaborator.findMany({
-        where: { isActive: true },
+        where: { isActive: true, ...collaboratorVisibilityWhere('RDO') },
         select: {
           id: true,
           code: true,

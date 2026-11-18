@@ -212,7 +212,7 @@ export function EfetivoPage() {
                     onChange={event => updateParam('funcao', event.target.value || undefined)}
                   >
                     <option value="">Todas as funções</option>
-                    {groupJobRoles((roles.data || []).filter(item => item.isOperational))
+                    {groupJobRoles((roles.data || []).filter(item => (item.isAvailableInWorkforce ?? (item.isOperational || item.hasOperationalCollaborators))))
                       .map(role => (
                         <option value={role.id} key={role.id}>{role.name}</option>
                       ))}

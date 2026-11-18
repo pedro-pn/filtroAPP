@@ -1,3 +1,4 @@
+import { isCollaboratorVisible, workforceVisibilityError } from '../../collaborators/workforce-policy.js';
 import { collectAllocationConflicts, lockCollaborator } from './conflicts.js';
 import { parseDateKey } from './date-only.js';
 import { conflictError, notFound, planningError } from './errors.js';
@@ -22,7 +23,8 @@ export function deriveSelectedMissionTeam(collaborators = [], scheduleStatus = '
 
   const counts = new Map();
   const allocations = collaborators.map(collaborator => {
-    if (!collaborator.jobRoleId || !collaborator.jobRole?.isActive || !collaborator.jobRole?.isOperational) {
+    if (!isCollaboratorVisible(collaborator, 'EFETIVO')) throw workforceVisibilityError([collaborator.id], 'EFETIVO');
+    if (!collaborator.jobRoleId || !collaborator.jobRole?.isActive) {
       throw planningError(`${collaborator.name || 'Colaborador'} não possui uma função operacional canônica ativa.`, {
         code: 'INVALID_COLLABORATOR_JOB_ROLE'
       });
@@ -59,7 +61,7 @@ export async function resolveSelectedMissionTeam(tx, payload, planId, ignoredMis
   const [collaborators, absences, allocations, currentAllocations] = await Promise.all([
     tx.collaborator.findMany({
       where: { id: { in: uniqueIds } },
-      include: { jobRole: { select: { id: true, name: true, isActive: true, isOperational: true } } }
+      include: { jobRole: { select: { id: true, name: true, isActive: true, isOperational: true, workforceClassification: true } } }
     }),
     tx.collaboratorAbsence.findMany({
       where: {

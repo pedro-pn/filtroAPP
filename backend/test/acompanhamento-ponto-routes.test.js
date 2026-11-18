@@ -1,3 +1,4 @@
+import { operationalCollaboratorWhere } from '../src/lib/collaborators/workforce-policy.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
@@ -232,7 +233,7 @@ test('rotas HTTP exigem sessão e restringem sincronização, auditoria e víncu
   assert.deepEqual(calls, [['status']]);
 });
 
-test('gestor lista todos os colaboradores e pode excluir e reincluir na simulação sem alterar ponto ou cadastro', async () => {
+test('gestor lista colaboradores operacionais e pode excluir e reincluir na simulação sem alterar ponto ou cadastro', async () => {
   const collaborators = [
     { id: 'c1', code: '001', name: 'Pessoa sem ponto', isActive: true, jobRole: { name: 'Coordenador' }, rdoCostSimulationExcluded: false },
     { id: 'c2', code: '002', name: 'Pessoa inativa', isActive: false, jobRole: { name: 'Operador' }, rdoCostSimulationExcluded: false }
@@ -242,7 +243,7 @@ test('gestor lista todos os colaboradores e pode excluir e reincluir na simulaç
     authenticate: testAuthentication,
     db: { collaborator: {
       async findMany(args) {
-        assert.equal(args.where, undefined, 'não filtra colaboradores por ponto ou situação');
+        assert.deepEqual(args.where, operationalCollaboratorWhere(), 'filtra somente a participação operacional, preservando inativos e quem não tem ponto');
         assert.equal(args.select.rdoCostSimulationExcluded, true);
         assert.equal(args.select.cpf, undefined);
         return collaborators.map(item => ({ ...item }));

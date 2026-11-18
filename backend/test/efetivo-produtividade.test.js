@@ -224,14 +224,14 @@ test('serviço explicita ponto sem vínculo, ausência de dados e cargo não cad
   assert.equal(report.pendentes.some(item => item.descricao.includes('Ignorada')), false);
 });
 
-test('cargo não operacional sai da taxa e o default operacional preserva o cálculo', () => {
+test('cargo não operacional sai da taxa e classificação operacional explícita preserva o cálculo', () => {
   const report = buildProductivityReport({
     collaborators: [
       { id: 'operational-default', name: 'Operacional', jobRoleId: 'role-field', admissionDate: null, terminationDate: null },
       { id: 'administrative', name: 'Administrativa', jobRoleId: 'role-admin', admissionDate: null, terminationDate: null }
     ],
     jobRoles: [
-      { id: 'role-field', name: 'Campo' },
+      { id: 'role-field', name: 'Campo', isOperational: true },
       { id: 'role-admin', name: 'Administrativo', isOperational: false }
     ],
     periods: [

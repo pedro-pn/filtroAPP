@@ -1,3 +1,4 @@
+import { collaboratorVisibilityWhere, isCollaboratorVisible, requireVisibleCollaborators } from '../collaborators/workforce-policy.js';
 import { resolveAllocationReviewAbsenceAlerts } from './allocation-review/absence-alerts.js';
 import { getEfetivoReferenceSetting } from './settings.js';
 import { buildProductivityReport } from './productivity.js';
@@ -51,7 +52,7 @@ function collaboratorPendingItems(collaborators, jobRoles, reportedIds) {
       });
       continue;
     }
-    if (role.isOperational !== false && !reportedIds.has(collaborator.id)) {
+    if (isCollaboratorVisible({ ...collaborator, jobRole: role }, 'PRODUCTIVITY') && !reportedIds.has(collaborator.id)) {
       pending.push({
         tipo: 'SEM_DADOS_PERIODO',
         descricao: `${collaborator.name} não possui dados de ponto no período analisado.`,
@@ -116,6 +117,7 @@ async function buildEfetivoProductivity(filters, dependencies = {}) {
           { terminationDate: { not: null } }
         ],
         AND: [
+          collaboratorVisibilityWhere('PRODUCTIVITY'),
           { OR: [{ admissionDate: null }, { admissionDate: { lte: end } }] },
           { OR: [{ terminationDate: null }, { terminationDate: { gte: start } }] }
         ]
@@ -124,7 +126,8 @@ async function buildEfetivoProductivity(filters, dependencies = {}) {
         id: true,
         name: true,
         jobRoleId: true,
-        jobRole: { select: { id: true, name: true } },
+        workforceClassificationOverride: true,
+        jobRole: { select: { id: true, name: true, isOperational: true, workforceClassification: true } },
         admissionDate: true,
         terminationDate: true,
         isActive: true
@@ -132,7 +135,7 @@ async function buildEfetivoProductivity(filters, dependencies = {}) {
       orderBy: { name: 'asc' }
     }),
     database.jobRole.findMany({
-      select: { id: true, name: true, isOperational: true, isActive: true }
+      select: { id: true, name: true, isOperational: true, workforceClassification: true, isActive: true }
     }),
     database.collaboratorAbsence.findMany({
       where: {
@@ -212,6 +215,7 @@ export async function getEfetivoCollaboratorProductivity(collaboratorId, filters
 export async function listEfetivoCollaborators(dependencies = {}) {
   const { database } = await resolveDependencies({ ...dependencies, laborCost: dependencies.laborCost || {} });
   const items = await database.collaborator.findMany({
+    where: collaboratorVisibilityWhere('PRODUCTIVITY'),
     select: { id: true, name: true, jobRoleId: true, jobRole: { select: { id: true, name: true } }, isActive: true },
     orderBy: { name: 'asc' }
   });
@@ -238,6 +242,7 @@ export async function listEfetivoAbsences(filters, dependencies = {}) {
       type: { in: ['FERIAS', 'FOLGA', 'AFASTAMENTO', 'FADIGA_OFFSHORE'] },
       startDate: { lte: end },
       endDate: { gte: start },
+      collaborator: collaboratorVisibilityWhere('PRODUCTIVITY'),
       ...(filters.collaboratorId ? { collaboratorId: filters.collaboratorId } : {})
     },
     include: { collaborator: { select: { id: true, name: true, jobRoleId: true, jobRole: { select: { id: true, name: true } } } } },
@@ -254,6 +259,7 @@ async function absenceConflicts(database, collaboratorId) {
 
 export async function createEfetivoAbsence(payload, createdByUserId, dependencies = {}) {
   const { database } = await resolveDependencies({ ...dependencies, laborCost: dependencies.laborCost || {} });
+  await requireVisibleCollaborators(database, [payload.collaboratorId], { target: 'PRODUCTIVITY' });
   const period = validateAbsencePeriod(payload);
   const existing = await absenceConflicts(database, payload.collaboratorId);
   ensureNoAbsenceOverlap(existing, period);

@@ -1,3 +1,4 @@
+import { collaboratorVisibilityWhere } from '../../lib/collaborators/workforce-policy.js';
 /*
  * Módulo Acompanhamento — sincronização do VR Ponto Mais e custo de mão de obra (HH).
  *
@@ -186,6 +187,7 @@ export function createPontoMaisIntegrationRouter({
     asyncHandler(async (_req, res) => {
       // Inclui quem nunca teve ponto e inativos com participação em RDOs antigos.
       res.json(await db.collaborator.findMany({
+        where: collaboratorVisibilityWhere('ACOMPANHAMENTO'),
         orderBy: [{ name: 'asc' }, { id: 'asc' }],
         select: {
           id: true, code: true, name: true, isActive: true,
@@ -607,7 +609,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const includeInactive = req.query.includeInactive === 'true';
     const collaborators = await prisma.collaborator.findMany({
-      where: includeInactive ? {} : { isActive: true },
+      where: { ...collaboratorVisibilityWhere('ACOMPANHAMENTO'), ...(includeInactive ? {} : { isActive: true }) },
       orderBy: { name: 'asc' },
       select: { id: true, name: true, jobRoleId: true, jobRole: { select: { id: true, name: true } }, isActive: true }
     });
