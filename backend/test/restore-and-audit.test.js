@@ -91,7 +91,7 @@ if [[ "$*" == *"psql -v ON_ERROR_STOP=1"* && "$*" == *" -d filtrovali_restore_"*
   cat > "${restoreSqlLog}"
   ${options.failRestore ? 'exit 42' : 'exit 0'}
 fi
-if [[ "$*" == *"run --rm --no-deps backend sh -c npx prisma migrate deploy"* ]]; then
+if [[ "$*" == *"run --rm --no-deps migrate"* ]]; then
   ${options.failMigration ? 'exit 44' : 'exit 0'}
 fi
 if [[ "$*" == *"psql -v ON_ERROR_STOP=1"* && "$*" == *" -d filtrovali" ]]; then
@@ -349,10 +349,10 @@ test('restore script starts application services only after restore steps', () =
   const startIndex = script.indexOf('docker compose -f "$COMPOSE_FILE" up -d --no-recreate "$BACKEND_SERVICE" "$NGINX_SERVICE"');
 
   assert.ok(startIndex !== -1, 'backend/nginx must be started at the end');
-  assert.ok(
-    script.indexOf('npx prisma migrate deploy') < startIndex,
-    'application services must start after migrations'
-  );
+  const migrationIndex = script.indexOf('run --rm --no-deps "$MIGRATE_SERVICE"');
+  const grantsIndex = script.indexOf('< "$APP_ROLE_SQL"');
+  assert.ok(migrationIndex !== -1 && migrationIndex < startIndex, 'application services must start after migrations');
+  assert.ok(grantsIndex !== -1 && grantsIndex < startIndex, 'application role grants must be reapplied before services start');
   assert.ok(
     script.indexOf('tar -xzf /backup/relatorios.tar.gz -C /to/.restore-staging') < startIndex,
     'application services must start after report volume restore'
@@ -362,14 +362,17 @@ test('restore script starts application services only after restore steps', () =
 test('restore script applies versioned migrations without data-loss db push', () => {
   const script = fs.readFileSync(new URL('../../deploy/restore-prod.sh', import.meta.url), 'utf8');
 
-  assert.match(script, /npx prisma migrate deploy/);
+  const compose = fs.readFileSync(new URL('../../docker-compose.prod.yml', import.meta.url), 'utf8');
+  assert.match(script, /MIGRATE_SERVICE="\$\{MIGRATE_SERVICE:-migrate\}"/);
+  assert.match(script, /run --rm --no-deps "\$MIGRATE_SERVICE"/);
+  assert.match(compose, /migrate:[\s\S]*?command: \["npx", "prisma", "migrate", "deploy"\]/);
   assert.doesNotMatch(script, /--accept-data-loss/);
   assert.doesNotMatch(script, /npx prisma db push/);
 });
 
 test('staging sync sanitizes production credentials and tokens before starting services', () => {
   const script = fs.readFileSync(new URL('../../deploy/sync-staging.sh', import.meta.url), 'utf8');
-  const migrationIndex = script.indexOf('npx prisma migrate deploy');
+  const migrationIndex = script.indexOf('run --rm --no-deps migrate');
   const sanitizeIndex = script.lastIndexOf('sanitize_staging_database');
   const startIndex = script.indexOf('docker compose -f "$STAGING_COMPOSE_FILE" up -d --force-recreate backend worker nginx');
 
@@ -411,7 +414,7 @@ test('staging sync aborts before migrations or service start when dump restore f
   assert.notEqual(result.status, 0);
   assert.match(dockerCalls, /psql -v ON_ERROR_STOP=1/);
   assert.match(dockerCalls, /-d filtrovali_restore_/);
-  assert.doesNotMatch(dockerCalls, /npx prisma migrate deploy/);
+  assert.doesNotMatch(dockerCalls, /run --rm --no-deps migrate/);
   assert.doesNotMatch(dockerCalls, /up -d --force-recreate/);
   assert.doesNotMatch(dockerCalls, /relatorios\.tar\.gz -C \/to/);
 });
@@ -425,8 +428,8 @@ test('running staging stops all writers before restore and rebuilds/restarts the
   const calls = dockerCalls.split('\n');
   const stop = calls.findIndex(call => call.endsWith('stop backend worker nginx'));
   const restore = calls.findIndex(call => call.includes('CREATE DATABASE'));
-  const build = calls.findIndex(call => call.endsWith('build backend worker nginx'));
-  const migration = calls.findIndex(call => call.includes('npx prisma migrate deploy'));
+  const build = calls.findIndex(call => call.endsWith('build migrate backend worker nginx'));
+  const migration = calls.findIndex(call => call.endsWith('run --rm --no-deps migrate'));
   const scrub = calls.indexOf('TEST: staging scrub');
   const start = calls.findIndex(call => call.endsWith('up -d --force-recreate backend worker nginx'));
   assert.ok(stop >= 0 && stop < restore, 'API and worker must stop before the first database mutation');

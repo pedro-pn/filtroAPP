@@ -129,11 +129,12 @@ O `docker-compose.prod.yml` monta esse diretório em `/ops-status:ro` no backend
 por padrão. Para usar outro caminho no host, defina `OPERATIONS_STATUS_DIR` no
 env-file usado pelo Compose.
 
-4. Buildar as imagens sem iniciar o backend. O comando de start do backend aplica
-   migrations automaticamente, então ele não deve subir antes do preflight dos índices:
+4. Buildar as imagens sem iniciar o backend. O serviço `migrate` aplica as
+   migrations antes de o backend subir, então nada além do Postgres deve subir antes
+   do preflight dos índices:
 
 ```bash
-docker compose --env-file backend/.env.production -f docker-compose.prod.yml build backend nginx worker
+docker compose --env-file backend/.env.production -f docker-compose.prod.yml build migrate backend nginx worker
 ```
 
 5. Subir somente o Postgres:
@@ -201,18 +202,104 @@ deploy, confirme com `SELECT * FROM pg_extension WHERE extname = 'pg_stat_statem
 e use a view apenas para diagnóstico, resetando seus
 contadores somente em uma janela de medição planejada.
 
-7. Subir backend, worker e Nginx. Neste momento o `CMD` do backend roda
-   `npx prisma migrate deploy` automaticamente e inicia a API:
+7. Subir backend, worker e Nginx. O Compose roda antes o serviço `migrate`
+   (`npx prisma migrate deploy` com `MIGRATION_DATABASE_URL`, o dono das tabelas)
+   e só inicia backend e worker se ele terminar com sucesso:
 
 ```bash
 docker compose --env-file backend/.env.production -f docker-compose.prod.yml up -d backend nginx worker
 ```
+
+Se o `migrate` falhar, veja o motivo com
+`docker compose --env-file backend/.env.production -f docker-compose.prod.yml logs migrate`.
+Backend e worker continuam na versão anterior até a migration passar.
 
 Para deploys futuros que não adicionem índices grandes, o fluxo normal pode voltar a
 ser:
 
 ```bash
 docker compose --env-file backend/.env.production -f docker-compose.prod.yml up -d --build
+```
+
+## Papel restrito do banco
+
+API e worker conectam com o papel `filtrovali_app` (`DATABASE_URL`), que só lê e
+grava linhas: não é superusuário, não cria nem altera tabelas, não trunca e não
+mexe em `_prisma_migrations`. As migrations rodam no serviço `migrate` com o dono
+das tabelas (`MIGRATION_DATABASE_URL`, hoje `postgres`). O Compose zera
+`MIGRATION_DATABASE_URL` em backend e worker, então a credencial do dono só
+existe no container `migrate`, que termina logo após aplicar as migrations.
+
+Os GRANTs ficam em `deploy/db/app-role.sql` (idempotente). Ele também define
+`ALTER DEFAULT PRIVILEGES`, então tabelas, sequences e funções criadas por
+migrations futuras já nascem acessíveis ao papel. O job de CI
+`Database least-privilege role` aplica as migrations como dono e roda suítes de
+integração (triggers, outbox, advisory locks) como o papel restrito.
+
+Sem `MIGRATION_DATABASE_URL`, o `migrate` usa `DATABASE_URL`. Por isso este
+código pode ir ao ar antes da troca de credencial: tudo segue como hoje.
+
+### Ativação (rode no servidor, uma vez)
+
+```bash
+cd ~/apps/filtroAPP
+# 1. Senha do papel: só [A-Za-z0-9._~-], porque vai na URL de conexão.
+install -d -m 700 /root/secrets
+openssl rand -hex 32 > /root/secrets/filtrovali_app_db_password
+chmod 600 /root/secrets/filtrovali_app_db_password
+
+# 2. Cria o papel e aplica os GRANTs. A saída deve mostrar superuser=f,
+#    can_create_in_public=f e tables_missing_grants=0.
+deploy/db/apply-app-role.sh --password-file /root/secrets/filtrovali_app_db_password
+
+# 3. Backup do env-file antes de editar.
+cp -p backend/.env.production backend/.env.production.bak-$(date +%Y%m%d%H%M)
+```
+
+4. Edite `backend/.env.production`:
+   - copie a linha atual de `DATABASE_URL` para uma linha nova
+     `MIGRATION_DATABASE_URL=...` (mesmo valor, com `postgres`);
+   - em `DATABASE_URL`, troque o usuário `postgres` por `filtrovali_app` e a senha
+     pelo conteúdo de `/root/secrets/filtrovali_app_db_password`;
+   - acrescente `OPERATIONS_REQUIRE_RESTRICTED_DB_ROLE=true`, para o painel de
+     operações (e o alerta) acusar se a API voltar a usar o dono.
+
+```bash
+# 5. Confere o papel com o env-file novo, sem subir nada.
+docker compose --env-file backend/.env.production -f docker-compose.prod.yml run --rm --no-deps \
+  backend node scripts/check-database-role.js --require-restricted
+
+# 6. Recria os serviços (env-file novo exige recriar; restart não basta).
+docker compose --env-file backend/.env.production -f docker-compose.prod.yml up -d --build backend worker nginx
+docker compose --env-file backend/.env.production -f docker-compose.prod.yml logs --tail=80 backend worker \
+  | grep -i "privilégios de dono" || echo "ok: sem aviso de papel privilegiado"
+```
+
+Depois de restaurar um backup, rode de novo `deploy/db/apply-app-role.sh` (sem
+`--password-file` ele só reaplica os GRANTs). `deploy/restore-prod.sh` já faz
+isso e, num servidor novo, cria o papel sem senha; nesse caso defina a senha com
+`--password-file` antes de subir a API.
+
+Scripts de manutenção rodados com `docker compose ... exec backend node scripts/...`
+passam a usar o papel restrito, o que basta para backfills e importações (só
+DML). O que precisar de DDL vai numa migration.
+
+### Voltar atrás (rode no servidor)
+
+```bash
+cd ~/apps/filtroAPP
+# Volta o env-file anterior (DATABASE_URL com postgres) e recria os serviços.
+cp -p backend/.env.production.bak-AAAAMMDDHHMM backend/.env.production
+docker compose --env-file backend/.env.production -f docker-compose.prod.yml up -d backend worker
+```
+
+O papel `filtrovali_app` pode ficar no banco: sem uso, não dá acesso a nada. Para
+removê-lo:
+
+```bash
+docker compose --env-file backend/.env.production -f docker-compose.prod.yml exec -T postgres \
+  psql -U postgres -d filtrovali -v ON_ERROR_STOP=1 \
+  -c 'DROP OWNED BY filtrovali_app' -c 'DROP ROLE filtrovali_app'
 ```
 
 ## Falhas de rede no build (`npm ci`)

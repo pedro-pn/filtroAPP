@@ -75,6 +75,9 @@ Substitua todos os valores `CHANGE_ME`. A senha do banco —
 `STAGING_POSTGRES_PASSWORD` — deve aparecer duas vezes no arquivo: uma como
 variável explícita (usada pelo compose ao inicializar o Postgres) e outra dentro do
 `DATABASE_URL` (usada pelo backend para conectar). Mantenha os dois valores iguais.
+Depois de ativar o papel restrito (seção "Papel restrito do banco"), a senha do
+`postgres` passa a ficar em `MIGRATION_DATABASE_URL` e `DATABASE_URL` usa
+`filtrovali_app`.
 Defina também um login exclusivo de homologação, que será recriado pelo sync após
 invalidar as credenciais vindas do dump de produção:
 
@@ -358,11 +361,11 @@ checkout e conferir os segredos e flags existentes, **rode no servidor**:
 
 ```bash
 docker compose --env-file backend/.env.staging -f docker-compose.staging.yml config -q
-docker compose --env-file backend/.env.staging -f docker-compose.staging.yml build backend worker nginx
+docker compose --env-file backend/.env.staging -f docker-compose.staging.yml build migrate backend worker nginx
 # Interrompe staging durante a troca da API e do banco; preserva os volumes.
 docker compose --env-file backend/.env.staging -f docker-compose.staging.yml stop backend worker nginx
 docker compose --env-file backend/.env.staging -f docker-compose.staging.yml up -d --wait postgres
-docker compose --env-file backend/.env.staging -f docker-compose.staging.yml run --rm --no-deps backend sh -c "npx prisma migrate deploy"
+docker compose --env-file backend/.env.staging -f docker-compose.staging.yml run --rm --no-deps migrate
 docker compose --env-file backend/.env.staging -f docker-compose.staging.yml up -d --wait --wait-timeout 180 backend worker nginx
 docker compose --env-file backend/.env.staging -f docker-compose.staging.yml ps
 ```
@@ -395,14 +398,41 @@ docker compose --env-file backend/.env.staging -f docker-compose.staging.yml up 
 
 ## Migrations
 
-As migrations rodam automaticamente na inicialização do backend (mesmo comportamento
-de prod). O script de sync também as aplica explicitamente após restaurar o banco,
+As migrations rodam no serviço one-shot `migrate` (`npx prisma migrate deploy`),
+que o Compose executa antes de iniciar o backend (mesmo comportamento de prod).
+O script de sync também o executa explicitamente após restaurar o banco,
 garantindo que migrations do branch atual sejam aplicadas sobre o dump de prod.
 
 Para aplicar manualmente sem reiniciar o backend:
 
 ```bash
-docker compose --env-file backend/.env.staging -f docker-compose.staging.yml run --rm --no-deps backend sh -c "npx prisma migrate deploy"
+docker compose --env-file backend/.env.staging -f docker-compose.staging.yml run --rm --no-deps migrate
+```
+
+Se a versão do Docker Compose do servidor recusar `up --wait` por causa do
+`migrate` já encerrado, rode `up -d` e confira com `ps`; o `migrate` aparece como
+`exited (0)`.
+
+## Papel restrito do banco
+
+Homologação segue o mesmo modelo de produção (veja `deploy/PRODUCTION.md`,
+"Papel restrito do banco"): `DATABASE_URL` com `filtrovali_app` e
+`MIGRATION_DATABASE_URL` com `postgres`. O sync cria o papel sem senha antes de
+restaurar o dump de produção (o dump traz GRANTs para ele) e reaplica
+`deploy/db/app-role.sql` depois das migrations. Para ativar, **rode no servidor**:
+
+```bash
+cd ~/apps/filtroAPP
+install -d -m 700 /root/secrets
+openssl rand -hex 32 > /root/secrets/filtrovali_staging_app_db_password
+chmod 600 /root/secrets/filtrovali_staging_app_db_password
+deploy/db/apply-app-role.sh --staging --password-file /root/secrets/filtrovali_staging_app_db_password
+cp -p backend/.env.staging backend/.env.staging.bak-$(date +%Y%m%d%H%M)
+# Edite backend/.env.staging: MIGRATION_DATABASE_URL = DATABASE_URL atual (postgres);
+# DATABASE_URL com filtrovali_app e a senha do arquivo acima.
+docker compose --env-file backend/.env.staging -f docker-compose.staging.yml run --rm --no-deps \
+  backend node scripts/check-database-role.js --require-restricted
+docker compose --env-file backend/.env.staging -f docker-compose.staging.yml up -d --build backend worker nginx
 ```
 
 ## Comandos úteis

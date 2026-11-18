@@ -616,7 +616,12 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Prepare build env files
-        run: touch backend/.env.staging
+        run: touch backend/.env.staging backend/.env.production
+
+      - name: Validate production and staging compose files
+        run: |
+          POSTGRES_PASSWORD=ci docker compose -f docker-compose.prod.yml config --quiet
+          docker compose -f docker-compose.staging.yml config --quiet
 
       - name: Verify staging HTTPS proxy and IP restrictions
         run: python3 deploy/test-staging-https.py
@@ -626,3 +631,128 @@ jobs:
 
       - name: Build staging images
         run: docker compose -f docker-compose.staging.yml build backend nginx
+
+  database-role:
+    name: Database least-privilege role (PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: filtroapp_role_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d filtroapp_role_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      NODE_ENV: test
+      # Migrations: dono das tabelas. Runtime e testes: papel restrito, como em produção.
+      MIGRATION_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtroapp_role_test?schema=public
+      DATABASE_URL: postgresql://filtrovali_app:ci_app_role_password_0000000000@localhost:5432/filtroapp_role_test?schema=public
+      APP_URL: postgresql://filtrovali_app:ci_app_role_password_0000000000@localhost:5432/filtroapp_role_test?schema=public
+      OWNER_PSQL: postgresql://postgres:postgres@localhost:5432/filtroapp_role_test
+      APP_PSQL: postgresql://filtrovali_app:ci_app_role_password_0000000000@localhost:5432/filtroapp_role_test
+      TRUST_PROXY: "false"
+      SIGNATURE_TOKEN_SECRET: ci-signature-token-secret
+      SURVEY_TOKEN_SECRET: ci-survey-token-secret
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run prisma:generate
+
+      - name: Apply migrations as the table owner
+        run: npm run prisma:deploy
+
+      - name: Create the restricted application role
+        run: >-
+          psql "$OWNER_PSQL" -X -v ON_ERROR_STOP=1
+          -v app_role=filtrovali_app -v app_password=ci_app_role_password_0000000000
+          -f ../deploy/db/app-role.sql
+
+      - name: Re-apply the role script (idempotency)
+        run: psql "$OWNER_PSQL" -X -q -v ON_ERROR_STOP=1 -v app_role=filtrovali_app -f ../deploy/db/app-role.sql
+
+      - name: Restricted role has every DML grant and no owner privilege
+        run: node scripts/check-database-role.js --require-restricted
+
+      - name: Restricted role cannot change the schema or migration history
+        run: |
+          expect_denied() {
+            if psql "$APP_PSQL" -X -q -v ON_ERROR_STOP=1 -c "$1" > /dev/null 2>&1; then
+              echo "::error::o papel restrito executou: $1"; exit 1
+            fi
+            echo "negado como esperado: $1"
+          }
+          expect_denied 'CREATE TABLE "ZzCiForbidden" (id int)'
+          expect_denied 'CREATE SCHEMA zz_ci_forbidden'
+          expect_denied 'TRUNCATE "User"'
+          expect_denied 'ALTER TABLE "User" ADD COLUMN "zzCi" int'
+          expect_denied 'DROP TABLE "User"'
+          expect_denied 'DELETE FROM "_prisma_migrations"'
+          expect_denied 'CREATE EXTENSION IF NOT EXISTS pgcrypto'
+
+      - name: Future migrations stay covered by default privileges
+        run: |
+          psql "$OWNER_PSQL" -X -q -v ON_ERROR_STOP=1 -c 'CREATE TABLE "ZzCiFutureTable" (id serial PRIMARY KEY, label text)'
+          psql "$APP_PSQL" -X -q -v ON_ERROR_STOP=1 \
+            -c "INSERT INTO \"ZzCiFutureTable\" (label) VALUES ('ok')" \
+            -c 'UPDATE "ZzCiFutureTable" SET label = label' \
+            -c 'DELETE FROM "ZzCiFutureTable"'
+          node scripts/check-database-role.js --require-restricted
+          psql "$OWNER_PSQL" -X -q -v ON_ERROR_STOP=1 -c 'DROP TABLE "ZzCiFutureTable"'
+
+      - name: Integration suites (advisory locks, statistics, costs) run as the restricted role
+        env:
+          DRAFTS_TEST_DATABASE_URL: ${{ env.APP_URL }}
+          STATISTICS_TEST_DATABASE_URL: ${{ env.APP_URL }}
+          ADDITIONAL_METRICS_TEST_DATABASE_URL: ${{ env.APP_URL }}
+          CHEMICAL_COST_TEST_DATABASE_URL: ${{ env.APP_URL }}
+          PROPOSAL_PERCENTAGE_TEST_DATABASE_URL: ${{ env.APP_URL }}
+        run: >-
+          node --test --test-concurrency=1
+          test/drafts-concurrency.test.js
+          test/statistics-corrections.test.js
+          test/acompanhamento-additional-metrics.integration.test.js
+          test/acompanhamento-chemical-cost.integration.test.js
+          test/acompanhamento-proposal-percentage.integration.test.js
+
+      # Estas suítes exigem bancos com nome próprio (proteção contra rodar no banco errado).
+      - name: Prepare dedicated databases (owner migrates, restricted role runs)
+        run: |
+          for db in filtroapp_notifications_test filtroapp_equipment_test conecta_allocation_test; do
+            psql "$OWNER_PSQL" -X -q -v ON_ERROR_STOP=1 -c "CREATE DATABASE $db"
+            MIGRATION_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/$db?schema=public" npm run prisma:deploy
+            psql "postgresql://postgres:postgres@localhost:5432/$db" -X -q -v ON_ERROR_STOP=1 \
+              -v app_role=filtrovali_app -f ../deploy/db/app-role.sql
+          done
+
+      - name: Notification triggers and outbox run as the restricted role
+        env:
+          DATABASE_URL: postgresql://filtrovali_app:ci_app_role_password_0000000000@localhost:5432/filtroapp_notifications_test
+          TEST_NOTIFICATION_DATABASE_URL: postgresql://filtrovali_app:ci_app_role_password_0000000000@localhost:5432/filtroapp_notifications_test
+        run: node --test test/notification-center.integration.test.js
+
+      - name: RDO equipment suites run as the restricted role
+        env:
+          DATABASE_URL: postgresql://filtrovali_app:ci_app_role_password_0000000000@localhost:5432/filtroapp_equipment_test
+          TEST_RDO_EQUIPMENT_DATABASE_URL: postgresql://filtrovali_app:ci_app_role_password_0000000000@localhost:5432/filtroapp_equipment_test
+        run: node --test --test-concurrency=1 test/rdo-equipment-slots.integration.test.js test/equipment-operation-manual.integration.test.js
+
+      - name: Conecta allocation suite runs as the restricted role
+        env:
+          DATABASE_URL: postgresql://filtrovali_app:ci_app_role_password_0000000000@localhost:5432/conecta_allocation_test
+          TEST_CONECTA_DATABASE_URL: postgresql://filtrovali_app:ci_app_role_password_0000000000@localhost:5432/conecta_allocation_test
+        run: node --test test/integration-allocation-review.test.js
