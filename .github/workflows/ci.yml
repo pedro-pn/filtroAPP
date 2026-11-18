@@ -542,11 +542,33 @@ jobs:
           else
             echo 'Extra Ubuntu mirror unavailable; keeping the runner default mirrors.'
           fi
-          printf 'Acquire::Retries "1";\nAcquire::http::Timeout "20";\nAcquire::https::Timeout "20";\n' | sudo tee /etc/apt/apt.conf.d/zz-ci-retries > /dev/null
+          printf 'Acquire::Retries "3";\nAcquire::http::Timeout "20";\nAcquire::https::Timeout "20";\n' | sudo tee /etc/apt/apt.conf.d/zz-ci-retries > /dev/null
+
+      - name: Resolve Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      # O espelho do apt da Ubuntu às vezes leva minutos por pacote. O navegador
+      # e os .deb das dependências ficam em cache por versão do Playwright; numa
+      # execução com cache o apt só baixa o índice e pacotes que mudaram.
+      - name: Restore Playwright Chromium and its Ubuntu packages
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cache/ms-playwright
+            ~/apt-archives
+          key: playwright-chromium-ubuntu-24.04-${{ steps.playwright.outputs.version }}
 
       - name: Install Chromium for notification and equipment regressions
-        timeout-minutes: 5
-        run: npx playwright install --with-deps chromium
+        timeout-minutes: 15
+        run: |
+          mkdir -p ~/apt-archives/partial
+          printf 'Dir::Cache::Archives "%s/apt-archives/";\nAPT::Keep-Downloaded-Packages "true";\n' "$HOME" \
+            | sudo tee /etc/apt/apt.conf.d/zz-ci-archive-cache > /dev/null
+          npx playwright install --with-deps chromium
+          # O apt grava como root; o cache só salva o que o runner consegue ler.
+          sudo rm -rf ~/apt-archives/partial ~/apt-archives/lock
+          sudo chown -R "$(id -u):$(id -g)" ~/apt-archives
 
       - name: Verify EPI catalog sizes and required delivery selection in the browser
         run: npx playwright test --config=playwright.quality-epi.config.ts --project=chromium epi-sizes.spec.ts
