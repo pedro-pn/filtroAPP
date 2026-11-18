@@ -252,6 +252,37 @@ test('painel preserva diagnósticos de backup, sincronizações, escopos e rotin
   );
 });
 
+test('card de último deploy mostra a volta automática com commit, versão anterior e motivo', () => {
+  const status = {
+    ...statusFixture(),
+    deploy: {
+      configured: true,
+      status: 'ROLLED_BACK',
+      mode: 'deploy',
+      finishedAt: '2026-11-18T20:04:00Z',
+      sha: 'a'.repeat(40),
+      shortSha: 'aaaaaaaaaaaa',
+      previousSha: 'b'.repeat(40),
+      shortPreviousSha: 'bbbbbbbbbbbb',
+      message: 'conferência pós-deploy falhou'
+    }
+  };
+  const html = renderPage(OperationsPage, { status });
+  for (const text of [
+    'Último deploy',
+    'Voltou à versão anterior',
+    'aaaaaaaaaaaa',
+    'bbbbbbbbbbbb',
+    'conferência pós-deploy falhou'
+  ]) {
+    assert.ok(html.includes(text), `faltou "${text}" no painel`);
+  }
+  assert.equal(presentation.operationalStatusTone('ROLLED_BACK'), 'danger');
+
+  const withoutDeploy = renderPage(OperationsPage, { status: statusFixture() });
+  assert.ok(withoutDeploy.includes('Último deploy'), 'card aparece mesmo sem status de deploy');
+});
+
 test('painel sem execuções mostra configurações ausentes e mantém a prévia isolada', () => {
   const status = statusFixture();
   status.backup = status.restore = {

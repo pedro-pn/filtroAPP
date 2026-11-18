@@ -700,6 +700,7 @@ Nginx HTTP interno
 | `APP_GIT_SHA` | Não | Versão (SHA do commit) gravada na imagem; aparece nos alertas |
 | `OPERATIONS_REQUIRE_BACKUP_STATUS` / `OPERATIONS_BACKUP_STATUS_FILE` / `OPERATIONS_BACKUP_MAX_AGE_HOURS` | Não | Monitoramento de backup |
 | `OPERATIONS_REQUIRE_RESTORE_STATUS` / `OPERATIONS_RESTORE_STATUS_FILE` / `OPERATIONS_RESTORE_MAX_AGE_DAYS` | Não | Monitoramento de restore |
+| `OPERATIONS_DEPLOY_STATUS_FILE` / `OPERATIONS_REQUIRE_DEPLOY_STATUS` | Não | Resultado do último `deploy-prod.sh` no painel e nos alertas (padrão `/ops-status/deploy-latest.json`) |
 | `ERROR_TRACKING_PROVIDER` / `ERROR_TRACKING_WEBHOOK_URL` | Não | Captura e encaminhamento de erros |
 | `ZAPSIGN_API_TOKEN` / `ZAPSIGN_ORGANIZATION_ID` | Não | Apenas para download de PDFs legados já assinados pela ZapSign |
 

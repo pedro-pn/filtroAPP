@@ -10,6 +10,7 @@ export type OperationalProblem = {
   error?: string | null;
   backup?: OperationalFileStatus;
   restore?: OperationalFileStatus;
+  deploy?: OperationalDeployStatus;
 };
 
 export type OperationalJobRun = {
@@ -35,6 +36,19 @@ export type OperationalFileStatus = {
   message?: string;
   runDir?: string;
   backupSource?: string;
+};
+
+export type OperationalDeployStatus = {
+  configured: boolean;
+  status: string;
+  mode?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  sha?: string;
+  shortSha?: string;
+  previousSha?: string;
+  shortPreviousSha?: string;
+  message?: string;
 };
 
 export type OperationalIntegrationRun = {
@@ -82,6 +96,7 @@ export type OperationalStatus = {
   };
   backup: OperationalFileStatus;
   restore: OperationalFileStatus;
+  deploy?: OperationalDeployStatus;
   omie: {
     configured: boolean;
     enabled: boolean;

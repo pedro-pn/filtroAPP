@@ -4,6 +4,7 @@ import {
   Bell,
   DatabaseBackup,
   FileSpreadsheet,
+  GitCommitHorizontal,
   RefreshCw,
   ShieldCheck
 } from 'lucide-react';
@@ -13,6 +14,7 @@ import { Link, useLocation, useNavigate } from 'react-router';
 
 import {
   getOperationalStatus,
+  type OperationalDeployStatus,
   type OperationalFileStatus,
   type OperationalStatus
 } from '../api/operations';
@@ -231,6 +233,36 @@ function FileStatusCard({
       {item.runDir || item.backupSource ? (
         <p className="ops-page__note">{item.runDir || item.backupSource}</p>
       ) : null}
+    </Card>
+  );
+}
+
+function DeployStatusCard({ item }: { item?: OperationalDeployStatus }) {
+  const deploy = item || { configured: false, status: 'NOT_CONFIGURED' };
+  const isRollback = deploy.mode === 'rollback';
+  return (
+    <Card
+      className="ops-page__panel"
+      title={<PanelTitle title="Último deploy" icon={GitCommitHorizontal} />}
+      actions={<OperationalStatusPill status={deploy.status} />}
+    >
+      <DetailRows
+        rows={[
+          {
+            label: 'Concluído em',
+            value: dateTime(deploy.finishedAt || deploy.startedAt)
+          },
+          {
+            label: isRollback ? 'Versão alvo da volta' : 'Commit publicado',
+            value: deploy.shortSha || '—'
+          },
+          {
+            label: 'Versão anterior',
+            value: deploy.shortPreviousSha || '—'
+          }
+        ]}
+      />
+      {deploy.message ? <p className="ops-page__note">{deploy.message}</p> : null}
     </Card>
   );
 }
@@ -539,8 +571,9 @@ export function OperationsPage({ preview = false }: { preview?: boolean }) {
             className="ops-page__section"
             aria-labelledby="ops-backups-title"
           >
-            <h2 id="ops-backups-title">Backups e restauração</h2>
+            <h2 id="ops-backups-title">Deploy, backups e restauração</h2>
             <div className="ops-page__grid">
+              <DeployStatusCard item={status.deploy} />
               <FileStatusCard
                 title="Backup"
                 item={status.backup}

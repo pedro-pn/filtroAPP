@@ -100,6 +100,12 @@ du -sh /root/backups/filtrovali/* 2>/dev/null | sort -h | tail
 
 ## 3. Deploy ruim: voltar de versão
 
+Como você fica sabendo: aviso no Telegram na hora (o `deploy-prod.sh` avisa
+`FAILURE` e `ROLLED_BACK`), card "Último deploy" no painel de Operações e e-mail do
+job de status operacional na próxima verificação. O estado fica em
+`/root/backups/filtrovali/status/deploy-latest.json` até o próximo deploy com
+sucesso.
+
 O deploy padrão é `deploy/deploy-prod.sh` (veja `deploy/PRODUCTION.md`,
 "Deploy versionado e volta de versão"). Ele já volta sozinho quando a conferência
 pós-deploy falha. Para voltar manualmente:

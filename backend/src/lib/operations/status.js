@@ -297,12 +297,24 @@ async function restoreStatus({ config, now, readFile }) {
   });
 }
 
+// Resultado do último deploy-prod.sh (deploy-latest.json). Não envelhece: um
+// FAILURE/ROLLED_BACK continua sendo problema até um deploy seguinte dar certo.
+async function deployStatus({ config, readFile }) {
+  const rawStatus = await readStatusFile(config.operationsDeployStatusFile, { readFile });
+  return {
+    ...rawStatus,
+    ...(rawStatus.sha ? { shortSha: String(rawStatus.sha).slice(0, 12) } : {}),
+    ...(rawStatus.previousSha ? { shortPreviousSha: String(rawStatus.previousSha).slice(0, 12) } : {})
+  };
+}
+
 function collectProblems({
   recurringJobs,
   dataRetention,
   reportApprovalQueue,
   backup,
   restore,
+  deploy = { status: 'NOT_CONFIGURED' },
   omie,
   commercialImport,
   database = { status: 'UNKNOWN' },
@@ -380,6 +392,24 @@ function collectProblems({
   if (restore.status === 'INVALID') {
     problems.push(problem('Status de restore está inválido.', { restore }));
   }
+  if (deploy.status === 'ROLLED_BACK') {
+    problems.push(problem('Último deploy falhou e voltou automaticamente para a versão anterior.', {
+      deploy,
+      ...(deploy.shortSha ? { source: deploy.shortSha } : {})
+    }));
+  }
+  if (deploy.status === 'FAILURE') {
+    problems.push(problem('Último deploy falhou.', {
+      deploy,
+      ...(deploy.shortSha ? { source: deploy.shortSha } : {})
+    }));
+  }
+  if (deploy.status === 'INVALID') {
+    problems.push(problem('Status de deploy está inválido.', { deploy }));
+  }
+  if ((deploy.status === 'NOT_CONFIGURED' || deploy.status === 'MISSING') && config.operationsRequireDeployStatus) {
+    problems.push(problem('Status de deploy obrigatório está ausente.', { deploy }));
+  }
   for (const { latestRun } of omie.scopes) {
     if (latestRun?.status !== 'ERROR') continue;
     problems.push(problem('Sincronização Omie falhou na última execução.', {
@@ -418,6 +448,7 @@ export async function getOperationalStatus({
     jobLocks,
     backup,
     restore,
+    deploy,
     omie,
     commercialImport,
     database
@@ -428,6 +459,7 @@ export async function getOperationalStatus({
     activeJobLocks(prismaClient, now),
     backupStatus({ config, now, readFile }),
     restoreStatus({ config, now, readFile }),
+    deployStatus({ config, readFile }),
     omieSyncStatus(prismaClient, config),
     commercialImportStatus(prismaClient, config),
     databaseRoleStatus(prismaClient)
@@ -439,6 +471,7 @@ export async function getOperationalStatus({
     reportApprovalQueue,
     backup,
     restore,
+    deploy,
     omie,
     commercialImport,
     database,
@@ -458,6 +491,7 @@ export async function getOperationalStatus({
     },
     backup,
     restore,
+    deploy,
     omie,
     commercialImport,
     database,

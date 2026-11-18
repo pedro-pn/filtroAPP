@@ -40,16 +40,22 @@ echo "unexpected docker call: $args" >&2
 exit 0
 `;
 
-function runDeploy({ args = [], env = {}, dirty = false } = {}) {
+function runDeploy({ args = [], env = {}, dirty = false, notifyEnv = null } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'deploy-prod-'));
   const project = path.join(root, 'project');
   const bin = path.join(root, 'bin');
   const log = path.join(root, 'docker.log');
+  const curlLog = path.join(root, 'curl.log');
   const backupLog = path.join(root, 'backup.log');
   fs.mkdirSync(project);
   fs.mkdirSync(bin);
   fs.writeFileSync(path.join(bin, 'docker'), FAKE_DOCKER);
   fs.chmodSync(path.join(bin, 'docker'), 0o755);
+  // curl falso: registra a chamada do aviso de deploy sem sair para a rede.
+  fs.writeFileSync(path.join(bin, 'curl'), `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >> "${curlLog}"\nexit \${FAKE_FAIL_CURL:-0}\n`);
+  fs.chmodSync(path.join(bin, 'curl'), 0o755);
+  const notifyEnvFile = path.join(root, 'notify.env');
+  if (notifyEnv !== null) fs.writeFileSync(notifyEnvFile, notifyEnv);
   const backup = path.join(root, 'backup.sh');
   fs.writeFileSync(backup, `#!/usr/bin/env bash\necho "INCLUDE_REPORTS=$INCLUDE_REPORTS B2_URI=$B2_URI BACKUP_ROOT=$BACKUP_ROOT" >> "${backupLog}"\necho "BACKUP" >> "${log}"\nexit \${FAKE_FAIL_BACKUP:-0}\n`);
   fs.chmodSync(backup, 0o755);
@@ -83,6 +89,10 @@ function runDeploy({ args = [], env = {}, dirty = false } = {}) {
       FAKE_LOG: log,
       FAKE_ROOT: root,
       FAKE_RUNNING_SHA: 'a'.repeat(40),
+      DEPLOY_NOTIFY_ENV_FILE: notifyEnvFile,
+      TELEGRAM_TOKEN: '',
+      TELEGRAM_CHAT_ID: '',
+      TELEGRAM_API_URL: 'https://telegram.invalid',
       ...env
     },
     encoding: 'utf8'
@@ -92,8 +102,9 @@ function runDeploy({ args = [], env = {}, dirty = false } = {}) {
   const backups = fs.existsSync(backupLog) ? fs.readFileSync(backupLog, 'utf8') : '';
   const currentSha = path.join(root, 'state', 'current-sha');
   const deployed = fs.existsSync(currentSha) ? fs.readFileSync(currentSha, 'utf8').trim() : null;
+  const notifications = fs.existsSync(curlLog) ? fs.readFileSync(curlLog, 'utf8').trim().split('\n').filter(Boolean) : [];
   fs.rmSync(root, { recursive: true, force: true });
-  return { result, calls, status, backups, sha, deployed };
+  return { result, calls, status, backups, sha, deployed, notifications };
 }
 
 const indexOf = (calls, predicate) => calls.findIndex(predicate);
@@ -181,6 +192,46 @@ test('manual rollback keeps a way back and switches without build or migrations'
   assert.ok(keep >= 0 && keep < up);
   assert.ok(!calls.some(call => call.includes(' build ')));
   assert.equal(status.status, 'SUCCESS');
+});
+
+const NOTIFY_ENV = 'POSTGRES_PASSWORD=nao-deve-vazar\nexport TELEGRAM_TOKEN="123:abc"\nTELEGRAM_CHAT_ID=-100777\n';
+
+test('a rollback after a failed deploy is announced on Telegram with only the two Telegram keys', () => {
+  const { result, status, notifications } = runDeploy({ env: { FAKE_FAIL_NEW_HEALTH: '1' }, notifyEnv: NOTIFY_ENV });
+  assert.equal(result.status, 1);
+  assert.equal(status.status, 'ROLLED_BACK');
+  assert.equal(notifications.length, 1);
+  assert.match(notifications[0], /--max-time 15/);
+  assert.match(notifications[0], /https:\/\/telegram\.invalid\/bot123:abc\/sendMessage/);
+  assert.match(notifications[0], /chat_id=-100777/);
+  assert.match(notifications[0], /voltou para aaaaaaaaaaaa/);
+  assert.doesNotMatch(notifications[0], /nao-deve-vazar/);
+});
+
+test('a failed build is announced; a healthy deploy is silent unless DEPLOY_NOTIFY_SUCCESS=true', () => {
+  const failed = runDeploy({ env: { FAKE_FAIL_BUILD: '1' }, notifyEnv: NOTIFY_ENV });
+  assert.equal(failed.status.status, 'FAILURE');
+  assert.equal(failed.notifications.length, 1);
+  assert.match(failed.notifications[0], /build falhou/);
+
+  const quiet = runDeploy({ notifyEnv: NOTIFY_ENV });
+  assert.equal(quiet.result.status, 0, quiet.result.stderr || quiet.result.stdout);
+  assert.deepEqual(quiet.notifications, []);
+
+  const loud = runDeploy({ env: { DEPLOY_NOTIFY_SUCCESS: 'true' }, notifyEnv: NOTIFY_ENV });
+  assert.equal(loud.notifications.length, 1);
+  assert.match(loud.notifications[0], new RegExp(loud.sha));
+});
+
+test('a Telegram failure or missing credentials never change the deploy result', () => {
+  const curlDown = runDeploy({ env: { FAKE_FAIL_CURL: '7', DEPLOY_NOTIFY_SUCCESS: 'true' }, notifyEnv: NOTIFY_ENV });
+  assert.equal(curlDown.result.status, 0, curlDown.result.stderr || curlDown.result.stdout);
+  assert.equal(curlDown.status.status, 'SUCCESS');
+  assert.match(curlDown.result.stdout, /não foi possível enviar o aviso/);
+
+  const noCredentials = runDeploy({ env: { FAKE_FAIL_NEW_HEALTH: '1' } });
+  assert.equal(noCredentials.status.status, 'ROLLED_BACK');
+  assert.deepEqual(noCredentials.notifications, []);
 });
 
 function writeBackup(dir, { sql = 'SELECT 1;', corruptChecksum = false } = {}) {
