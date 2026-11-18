@@ -4,6 +4,7 @@ export const queryKeys = {
   reportDetailBootstrap: (reportId: string, userId?: string | null) => ['bootstrap', 'report-detail', reportId, { userId: userId || 'anonymous' }] as const,
   gestorBootstrap: (userId?: string | null) => ['bootstrap', 'gestor', { userId: userId || 'anonymous' }] as const,
   collaborators: ['collaborators'] as const,
+  acompanhamentoColaboradores: (params?: unknown) => ['acompanhamento', 'colaboradores', params ?? {}] as const,
   projects: (active?: boolean, userId?: string | null) => ['projects', { active, userId: userId || 'anonymous' }] as const,
   equipment: ['equipment'] as const,
   inhibitionOptions: ['inhibition-options'] as const,

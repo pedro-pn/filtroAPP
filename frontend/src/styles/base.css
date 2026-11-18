@@ -2039,6 +2039,682 @@ a {
 }
 .acp-table tbody tr:hover { background: #f7faf8; }
 
+.acp-colab-wrap {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.acp-colab-filters {
+  grid-template-columns: minmax(120px, 160px) minmax(min(100%, 260px), 1fr) minmax(180px, auto);
+}
+
+.acp-colab-toggle-field {
+  align-self: center;
+}
+
+.acp-colab-skeleton {
+  padding: 14px;
+}
+
+.acp-colab-empty {
+  padding: 14px 0 0;
+}
+
+.acp-colab-month-table {
+  margin-top: 12px;
+}
+
+.acp-colab-month-table .acp-table td {
+  vertical-align: top;
+}
+
+.acp-link-btn {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--g);
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.acp-link-btn strong,
+.acp-link-btn small,
+.acp-colab-person strong,
+.acp-colab-person small {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.acp-link-btn small,
+.acp-colab-person small {
+  color: var(--mu);
+  font-size: 11px;
+}
+
+.acp-status-badge,
+.acp-colab-month-status {
+  display: inline-flex;
+  max-width: 100%;
+  min-width: 0;
+  align-items: center;
+  border: 1px solid var(--br);
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--tx);
+  background: var(--wh);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.acp-status-badge.alocado,
+.acp-colab-period.alocado,
+.acp-colab-month-status.ok {
+  border-color: var(--g);
+  color: var(--g);
+  background: #f3f8f4;
+}
+
+.acp-status-badge.sede,
+.acp-colab-period.sede {
+  border-color: var(--bl);
+  color: var(--bl);
+  background: #f2f7fd;
+}
+
+.acp-status-badge.folga,
+.acp-colab-month-status.below {
+  border-color: var(--br);
+  color: var(--mu);
+  background: var(--bg);
+}
+
+.acp-colab-periods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.acp-colab-period {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  max-width: min(100%, 190px);
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  padding: 4px 7px;
+  background: var(--wh);
+}
+
+.acp-colab-period strong,
+.acp-colab-period small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.acp-colab-period strong {
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.acp-colab-period small {
+  color: var(--mu);
+  font-size: 10px;
+  white-space: normal;
+}
+
+.acp-colab-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.acp-colab-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.acp-colab-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+}
+
+.acp-colab-person {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.acp-colab-kanban-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.acp-colab-board-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
+}
+
+.acp-colab-view-toggle {
+  margin-left: auto;
+}
+
+.acp-colab-view-toggle .acp-seg-btn {
+  min-width: 76px;
+}
+
+.acp-colab-map {
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid var(--br);
+  border-radius: var(--r);
+  background: rgba(255, 255, 255, 0.62);
+  overflow: hidden;
+}
+
+.acp-colab-map-header,
+.acp-colab-map-row {
+  display: grid;
+  grid-template-columns:
+    minmax(150px, 0.85fr)
+    minmax(130px, 0.66fr)
+    minmax(170px, 0.72fr)
+    minmax(270px, 1.45fr);
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+
+.acp-colab-map-header {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--br);
+  background: var(--wh);
+  color: var(--mu);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.acp-colab-map-list {
+  display: flex;
+  flex-direction: column;
+  max-height: min(64vh, 720px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.acp-colab-map-row {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--br);
+  border-left: 4px solid var(--br);
+  background: var(--wh);
+  color: var(--tx);
+  padding: 9px 12px 9px 8px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.acp-colab-map-row:last-child {
+  border-bottom: 0;
+}
+
+.acp-colab-map-row:hover {
+  background: #f7faf8;
+}
+
+.acp-colab-map-row:focus-visible {
+  outline: 3px solid rgba(9, 90, 44, 0.28);
+  outline-offset: -3px;
+}
+
+.acp-colab-map-row.alocado {
+  border-left-color: var(--g);
+}
+
+.acp-colab-map-row.sede {
+  border-left-color: var(--bl);
+}
+
+.acp-colab-map-row.folga {
+  border-left-color: var(--mu);
+}
+
+.acp-colab-map-person,
+.acp-colab-map-status {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.acp-colab-map-person strong,
+.acp-colab-map-person small,
+.acp-colab-map-status small {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.acp-colab-map-person strong {
+  color: var(--g);
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.acp-colab-map-person small,
+.acp-colab-map-status small {
+  color: var(--mu);
+  font-size: 11px;
+}
+
+.acp-colab-map-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  min-width: 0;
+}
+
+.acp-colab-map-metrics > span {
+  min-width: 0;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  background: var(--bg);
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.acp-colab-map-metrics small,
+.acp-colab-map-metrics strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.acp-colab-map-metrics small {
+  color: var(--mu);
+  font-size: 10px;
+}
+
+.acp-colab-map-metrics strong {
+  color: var(--tx);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.acp-colab-kanban {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(min(100%, 260px), 1fr));
+  gap: 12px;
+  align-items: start;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.acp-colab-column {
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid var(--br);
+  border-radius: var(--r);
+  background: rgba(255, 255, 255, 0.58);
+  overflow: hidden;
+}
+
+.acp-colab-column-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--br);
+  background: var(--wh);
+  min-width: 0;
+}
+
+.acp-colab-column-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.acp-colab-column-head strong,
+.acp-colab-column-head small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.acp-colab-column-head strong {
+  color: var(--g);
+  font-size: 13px;
+}
+
+.acp-colab-column-head small {
+  color: var(--mu);
+  font-size: 11px;
+}
+
+.acp-colab-column-head > span {
+  display: inline-flex;
+  min-width: 28px;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: var(--bg);
+  color: var(--tx);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.acp-colab-column.alocado .acp-colab-column-head {
+  border-top: 3px solid var(--g);
+}
+
+.acp-colab-column.sede .acp-colab-column-head {
+  border-top: 3px solid var(--bl);
+}
+
+.acp-colab-column.folga .acp-colab-column-head {
+  border-top: 3px solid var(--mu);
+}
+
+.acp-colab-column-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  max-height: min(62vh, 680px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  min-width: 0;
+}
+
+.acp-colab-column-empty {
+  padding: 10px 2px;
+}
+
+.acp-colab-kanban-card {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid var(--br);
+  border-radius: var(--r);
+  background: var(--wh);
+  color: var(--tx);
+  box-shadow: 0 6px 18px rgba(20, 20, 20, 0.06);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.acp-colab-kanban-card:hover {
+  border-color: var(--g);
+  box-shadow: 0 8px 22px rgba(20, 20, 20, 0.08);
+}
+
+.acp-colab-kanban-card:focus-visible {
+  outline: 3px solid rgba(9, 90, 44, 0.28);
+  outline-offset: 2px;
+}
+
+.acp-colab-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.acp-colab-card-title,
+.acp-colab-card-current {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.acp-colab-card-title {
+  flex: 1 1 auto;
+}
+
+.acp-colab-card-title strong,
+.acp-colab-card-title small,
+.acp-colab-card-current strong,
+.acp-colab-card-current small {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.acp-colab-card-title strong {
+  color: var(--g);
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.acp-colab-card-title small,
+.acp-colab-card-current small {
+  color: var(--mu);
+  font-size: 11px;
+}
+
+.acp-colab-card-current strong {
+  font-size: 12px;
+  color: var(--tx);
+}
+
+.acp-colab-card-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  min-width: 0;
+}
+
+.acp-colab-card-metrics > span {
+  min-width: 0;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  padding: 6px;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.acp-colab-card-metrics small,
+.acp-colab-card-metrics strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.acp-colab-card-metrics small {
+  color: var(--mu);
+  font-size: 10px;
+}
+
+.acp-colab-card-metrics strong {
+  font-size: 12px;
+  color: var(--tx);
+  line-height: 1.25;
+}
+
+.acp-colab-calendar {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 3px;
+  width: 100%;
+  min-width: 0;
+  margin-top: 8px;
+}
+
+.acp-colab-month {
+  min-width: 0;
+  min-height: 42px;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  background: var(--wh);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 3px 2px;
+}
+
+.acp-colab-month strong,
+.acp-colab-month small {
+  min-width: 0;
+  max-width: 100%;
+  line-height: 1.1;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.acp-colab-month strong {
+  font-size: 9px;
+  text-transform: uppercase;
+  color: var(--mu);
+}
+
+.acp-colab-month small {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--tx);
+}
+
+.acp-colab-month.ok {
+  border-color: var(--g);
+  background: #f3f8f4;
+}
+
+.acp-colab-month.below {
+  border-color: #d5bf73;
+  background: #fffaf0;
+}
+
+.acp-colab-month.empty {
+  color: var(--mu);
+  background: var(--bg);
+  opacity: 0.78;
+}
+
+.acp-colab-map .acp-colab-calendar {
+  margin-top: 0;
+}
+
+.acp-colab-map .acp-colab-month {
+  min-height: 34px;
+  padding: 2px;
+}
+
+.acp-colab-map .acp-colab-month strong {
+  font-size: 8px;
+}
+
+.acp-colab-map .acp-colab-month small {
+  font-size: 9px;
+}
+
+.job-role-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.job-role-name {
+  flex: 1 1 220px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.job-role-name strong,
+.job-role-name small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.job-role-name small {
+  color: var(--mu);
+  font-size: 11px;
+}
+
+.job-role-operational-toggle {
+  flex: 0 1 auto;
+}
+
+.job-role-edit-field {
+  flex: 1 1 240px;
+}
+
+@media (max-width: 720px) {
+  .acp-colab-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .acp-colab-detail-head {
+    flex-direction: column;
+  }
+
+  .acp-colab-kanban {
+    grid-template-columns: 1fr;
+  }
+
+  .acp-colab-map-header {
+    display: none;
+  }
+
+  .acp-colab-map-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .acp-colab-card-head {
+    flex-direction: column;
+  }
+
+  .acp-colab-map .acp-colab-calendar,
+  .acp-colab-calendar {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .acp-colab-period {
+    max-width: 100%;
+  }
+}
+
 /* Modal do cronograma: cabeçalho e rodapé (Salvar/Cancelar) fixos; só o corpo rola. */
 .modal-card.acp-manage-card {
   width: min(94vw, 980px); max-width: 980px;
@@ -4089,6 +4765,15 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
   border: 1px solid var(--rd);
   border-radius: var(--rs);
   padding: 8px;
+}
+
+.field-error {
+  display: block;
+  margin-top: 4px;
+  color: var(--rd);
+  font-size: 12px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 
 .checkbox-line {

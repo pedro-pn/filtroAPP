@@ -9,10 +9,11 @@ import { AcompanhamentoDashboard } from '../../components/projects/Acompanhament
 import { ProjectCardsBoard } from '../../components/projects/ProjectCardsBoard';
 import { SedeCostsBoard } from '../../components/projects/SedeCostsBoard';
 import { CostEngineManager } from '../../components/projects/CostEngineManager';
+import { CollaboratorsBoard } from '../../components/projects/CollaboratorsBoard';
 import { AcompanhamentoTutorial } from '../../components/AcompanhamentoTutorial';
 
-type Section = 'dashboard' | 'projetos' | 'sede' | 'custo';
-const SECTIONS: Section[] = ['dashboard', 'projetos', 'sede', 'custo'];
+type Section = 'dashboard' | 'projetos' | 'sede' | 'custo' | 'colaboradores';
+const SECTIONS: Section[] = ['dashboard', 'projetos', 'sede', 'custo', 'colaboradores'];
 
 function parseSection(value: string | null, fallback: Section = 'dashboard'): Section {
   return SECTIONS.includes(value as Section) ? value as Section : fallback;
@@ -48,6 +49,7 @@ export function AcompanhamentoPage() {
         nextParams.delete('cards');
       }
       if (nextSection !== 'custo') nextParams.delete('cost');
+      if (nextSection !== 'colaboradores') nextParams.delete('colaborador');
       return nextParams;
     }, { replace: true });
   }, [setSearchParams]);
@@ -55,7 +57,7 @@ export function AcompanhamentoPage() {
   // Ao entrar no módulo, a novidade do hub já foi "consumida".
   useEffect(() => { if (user) markAcompanhamentoNoveltySeen(user); }, [user]);
   useEffect(() => {
-    if (!isManager && section === 'custo') setSection('dashboard');
+    if (!isManager && (section === 'custo' || section === 'colaboradores')) setSection('dashboard');
   }, [isManager, section, setSection]);
 
   const handleLogout = () => {
@@ -97,6 +99,12 @@ export function AcompanhamentoPage() {
                 <span className="equip-nav-label">Custo</span>
               </button>
             ) : null}
+            {isManager ? (
+              <button className={`equip-nav-item ${section === 'colaboradores' ? 'active' : ''}`} type="button" aria-current={section === 'colaboradores'} onClick={() => setSection('colaboradores')}>
+                <span className="equip-nav-ico" aria-hidden="true">HH</span>
+                <span className="equip-nav-label">Colaboradores</span>
+              </button>
+            ) : null}
           </nav>
 
           <div className="equip-mobile-nav" data-acp-mobile-nav>
@@ -111,6 +119,7 @@ export function AcompanhamentoPage() {
               <option value="projetos">Projetos</option>
               <option value="sede">Sede</option>
               {isManager ? <option value="custo">Custo</option> : null}
+              {isManager ? <option value="colaboradores">Colaboradores</option> : null}
             </select>
           </div>
 
@@ -118,6 +127,7 @@ export function AcompanhamentoPage() {
             {section === 'projetos' ? <ProjectCardsBoard canManage={hasAcompanhamentoAccess} canManageGroups={isManager} canManageManualCosts={isManager} progressHistoryNoveltyUser={user} />
               : section === 'sede' ? <SedeCostsBoard />
               : section === 'custo' && isManager ? <CostEngineManager canManageCosts={isManager} />
+              : section === 'colaboradores' && isManager ? <CollaboratorsBoard noveltyUser={user} />
               : <AcompanhamentoDashboard canManage={hasAcompanhamentoAccess} />}
           </section>
         </div>

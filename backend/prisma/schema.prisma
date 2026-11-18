@@ -405,6 +405,7 @@ model JobRole {
   name               String                      @unique
   order              Int                         @default(0)
   isActive           Boolean                     @default(true)
+  isOperational      Boolean                     @default(true)
   createdAt          DateTime                    @default(now())
   updatedAt          DateTime                    @updatedAt
   plannedNormalHours ProjectPlannedNormalHours[]

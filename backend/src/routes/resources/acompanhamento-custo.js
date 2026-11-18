@@ -149,6 +149,7 @@ router.get('/cargos', requireAuth, requireAcompanhamentoManager, asyncHandler(as
     return {
       jobRoleId: role.id,
       name: role.name,
+      isOperational: role.isOperational,
       profileId: role.costProfile?.id ?? null,
       effectiveDate: set?.effectiveDate ?? null,
       params: normalizeCostParams(set?.params ?? null),

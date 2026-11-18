@@ -1,0 +1,1 @@
+ALTER TABLE "JobRole" ADD COLUMN "isOperational" BOOLEAN NOT NULL DEFAULT true;

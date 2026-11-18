@@ -1,6 +1,7 @@
 import { Router } from 'express';
 
 import acompanhamentoComercialRouter from './resources/acompanhamento-comercial.js';
+import acompanhamentoColaboradoresRouter from './resources/acompanhamento-colaboradores.js';
 import acompanhamentoCustoRouter from './resources/acompanhamento-custo.js';
 import acompanhamentoPontoRouter from './resources/acompanhamento-ponto.js';
 import authRouter from './resources/auth.js';
@@ -63,6 +64,7 @@ router.use('/equipamentos', equipamentosRouter);
 router.use('/estoque', estoqueRouter);
 router.use('/qualidade', qualidadeRouter);
 router.use('/acompanhamento/comercial', acompanhamentoComercialRouter);
+router.use('/acompanhamento/colaboradores', acompanhamentoColaboradoresRouter);
 router.use('/acompanhamento/custo', acompanhamentoCustoRouter);
 router.use('/acompanhamento/ponto', acompanhamentoPontoRouter);
 router.use('/operations', operationsRouter);

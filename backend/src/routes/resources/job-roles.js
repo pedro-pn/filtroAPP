@@ -12,7 +12,8 @@ const requireRdoInternal = requireModuleRole(...RDO_INTERNAL_ROLES);
 const schema = z.object({
   name: z.string().min(1),
   order: z.number().int().optional(),
-  isActive: z.boolean().optional()
+  isActive: z.boolean().optional(),
+  isOperational: z.boolean().optional()
 });
 
 router.get('/', requireAuth, requireRdoInternal, asyncHandler(async (req, res) => {
@@ -27,7 +28,12 @@ router.get('/', requireAuth, requireRdoInternal, asyncHandler(async (req, res) =
 router.post('/', requireAuth, requireRdoInternal, requireManager, asyncHandler(async (req, res) => {
   const data = schema.parse(req.body);
   const item = await prisma.jobRole.create({
-    data: { name: data.name.trim(), order: data.order ?? 0, isActive: data.isActive ?? true }
+    data: {
+      name: data.name.trim(),
+      order: data.order ?? 0,
+      isActive: data.isActive ?? true,
+      isOperational: data.isOperational ?? true
+    }
   });
   res.status(201).json(item);
 }));
@@ -39,7 +45,8 @@ router.patch('/:id', requireAuth, requireRdoInternal, requireManager, asyncHandl
     data: {
       ...(data.name !== undefined ? { name: data.name.trim() } : {}),
       ...(data.order !== undefined ? { order: data.order } : {}),
-      ...(data.isActive !== undefined ? { isActive: data.isActive } : {})
+      ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
+      ...(data.isOperational !== undefined ? { isOperational: data.isOperational } : {})
     }
   });
   res.json(item);
