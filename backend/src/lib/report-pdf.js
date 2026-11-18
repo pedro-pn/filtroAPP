@@ -3,7 +3,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import env from '../config/env.js';
 import { formatCnpj } from './cnpj.js';
+import { fetchWithTimeout } from './http/outbound.js';
 import { buildReportCollaboratorRows } from './report-collaborators.js';
 import { reportWorkLocation } from '../../../shared/modules/rdo-project-context.js';
 import { formatDateOnly } from '../../../shared/modules/date-only.js';
@@ -339,9 +341,16 @@ async function loadImageBytes(src) {
     return Buffer.from(base64, 'base64');
   }
   if (/^https?:\/\//i.test(src)) {
-    const res = await fetch(src);
-    if (!res.ok) return null;
-    return Buffer.from(await res.arrayBuffer());
+    // Imagem remota lenta ou fora do ar não pode travar a geração do PDF:
+    // com prazo esgotado ou falha de rede, segue sem a imagem.
+    try {
+      const res = await fetchWithTimeout(src, {}, { timeoutMs: env.remoteImageTimeoutMs });
+      if (!res.ok) return null;
+      return Buffer.from(await res.arrayBuffer());
+    } catch (error) {
+      console.warn('Imagem remota indisponível para o PDF.', error?.message || error);
+      return null;
+    }
   }
   try {
     return await fs.readFile(src);

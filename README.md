@@ -649,6 +649,10 @@ Nginx HTTP interno
 | `OMIE_SYNC_ENABLED` | Não | Ativa a sincronização automática com o Omie |
 | `OMIE_SYNC_INTERVAL_MINUTES` | Não | Intervalo entre sincronizações Omie |
 | `OMIE_SYNC_SINCE_DAYS` | Não | Janela incremental de receitas Omie; compras sempre reconciliam o histórico completo |
+| `OMIE_TIMEOUT_MS` | Não | Prazo de cada chamada à API Omie (padrão 30000; até 2 novas tentativas em falha de rede/502/503/504) |
+| `ZAPSIGN_TIMEOUT_MS` | Não | Prazo de cada chamada à ZapSign (padrão 30000) |
+| `REMOTE_IMAGE_TIMEOUT_MS` | Não | Prazo para baixar imagem remota no PDF de relatório (padrão 15000) |
+| `HEALTH_DB_TIMEOUT_MS` | Não | Prazo do `SELECT 1` de `GET /health`; acima disso responde 503 (padrão 2000) |
 | `PONTOMAIS_API_TOKEN` | Não | Token usado pela integração de dados de ponto e produtividade |
 | `API_TOKEN_HASH_KEY_V1` | Sim em produção | Chave de pelo menos 32 caracteres usada para derivar hashes dos tokens da API de integrações |
 | `API_TOKEN_ACTIVE_KEY_VERSION` | Não | Versão ativa da chave de hash dos tokens (padrão: `1`) |
