@@ -205,23 +205,25 @@ export async function resolveMissionResponsible(tx, payload) {
   };
 }
 
-export function missionMovePendencies(mission) {
+export function missionMovePendencies(mission, { requireTeam = true } = {}) {
   const pendencies = [];
-  const required = (mission.demands || []).reduce((sum, demand) => sum + Number(demand.requiredCount || 0), 0);
-  const covered = (mission.demands || []).reduce((sum, demand) => {
-    const rolePeriods = (mission.allocations || [])
-      .filter(allocation => !allocation.deletedAt && allocation.jobRoleId === demand.jobRoleId)
-      .flatMap(allocation => allocationPeriods(allocation, mission));
-    return sum + Math.min(Number(demand.requiredCount || 0), maximumConcurrentAllocationCount(rolePeriods));
-  }, 0);
   if (!mission.headquartersResponsibleUserId || !mission.headquartersResponsibleName || !mission.headquartersResponsibleRole) {
     pendencies.push('vincular o líder');
   }
   if (![mission.mobilizationDate, mission.executionStartDate, mission.executionEndDate].every(Boolean)) {
     pendencies.push('preencher as datas obrigatórias');
   }
-  if (!required) pendencies.push('selecionar a equipe');
-  else if (covered < required) pendencies.push('completar a equipe');
+  if (requireTeam) {
+    const required = (mission.demands || []).reduce((sum, demand) => sum + Number(demand.requiredCount || 0), 0);
+    const covered = (mission.demands || []).reduce((sum, demand) => {
+      const rolePeriods = (mission.allocations || [])
+        .filter(allocation => !allocation.deletedAt && allocation.jobRoleId === demand.jobRoleId)
+        .flatMap(allocation => allocationPeriods(allocation, mission));
+      return sum + Math.min(Number(demand.requiredCount || 0), maximumConcurrentAllocationCount(rolePeriods));
+    }, 0);
+    if (!required) pendencies.push('selecionar a equipe');
+    else if (covered < required) pendencies.push('completar a equipe');
+  }
   if (mission.scheduleStatus !== 'CONFIRMED') pendencies.push('confirmar a programação');
   return pendencies;
 }
@@ -514,7 +516,9 @@ export async function moveMissionStage(missionId, payload, context = {}, depende
         });
       }
     }
-    const pendencies = missionMovePendencies(existing);
+    const pendencies = missionMovePendencies(existing, {
+      requireTeam: !['FINAL_MEASUREMENT', 'FINISHED'].includes(payload.stage)
+    });
     if (pendencies.length) {
       throw planningError(`Complete os dados obrigatórios antes de mover a missão: ${pendencies.join(', ')}.`, {
         code: 'MISSION_INCOMPLETE_FOR_KANBAN',

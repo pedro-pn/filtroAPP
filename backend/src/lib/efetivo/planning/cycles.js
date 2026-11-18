@@ -211,7 +211,14 @@ export async function updateMissionCycle(missionId, cycleId, payload, context = 
     const period = validateUpdatedCycle(mission.cycles, existing, payload, mission, `O projeto ${mission.project.code}`);
     const proposedCycles = mission.cycles.map(cycle => cycle.id === cycleId ? { ...cycle, ...storedCycle(payload) } : cycle);
     ensureIndividualCyclesInsideProject(mission, proposedCycles);
-    await validateInheritedAllocationsForPeriod(tx, mission, period, payload.allowInactiveCollaborator === true, payload.allowPreAdmissionCollaborator === true);
+    // Registrar ou corrigir a saída efetiva não realoca a equipe já mobilizada.
+    // Mudanças posteriores no RH não devem impedir o registro desse histórico.
+    const onlyUpdatesActualDemobilization = mission.plan?.kind === 'OFFICIAL'
+      && ['EXECUTION', 'FINAL_MEASUREMENT', 'FINISHED'].includes(mission.stage)
+      && parseDateKey(payload.mobilizationDate) === parseDateKey(existing.mobilizationDate);
+    if (!onlyUpdatesActualDemobilization) {
+      await validateInheritedAllocationsForPeriod(tx, mission, period, payload.allowInactiveCollaborator === true, payload.allowPreAdmissionCollaborator === true);
+    }
     const cycle = await tx.efetivoMissionCycle.update({ where: { id: cycleId }, data: storedCycle(payload) });
     await finishCycleMutation(tx, mission, context, {
       action: 'MISSION_CYCLE_UPDATE', entityType: 'MISSION_CYCLE', entityId: cycle.id,

@@ -69,3 +69,25 @@ test('desmobilização efetiva pode ocorrer depois da previsão; novos ciclos ai
   assert.deepEqual(validateNewCycle([], { mobilizationDate: '2026-10-25', demobilizationDate: null }, mission, 'Projeto'), { startDate: '2026-10-25', endDate: '2026-10-25' });
   assert.throws(() => validateNewCycle(mission.cycles, { mobilizationDate: '2026-10-18', demobilizationDate: null }, mission, 'Projeto'), error => error.code === 'OPEN_MOBILIZATION_CYCLE');
 });
+
+for (const change of ['planejamento', 'remobilização']) {
+  test(`${change} continua validando a equipe quando não se trata somente de registrar a saída efetiva`, async () => {
+    const { mission, database } = fixture();
+    mission.stage = change === 'planejamento' ? 'STANDBY' : 'EXECUTION';
+    mission.allocations = [{ collaboratorId: 'person', jobRoleId: 'old-role', cycles: [] }];
+    database.collaborator = { findUnique: async () => ({ id: 'person', name: 'Pessoa', jobRoleId: 'new-role', isActive: true }) };
+    database.collaboratorAbsence = { findMany: async () => [] };
+    database.efetivoMissionAllocation = { findMany: async () => [] };
+    let cycle = mission.cycles[0];
+    if (change === 'remobilização') {
+      cycle.demobilizationDate = '2026-10-12';
+      cycle = { id: 'second', mobilizationDate: '2026-10-15', demobilizationDate: null };
+      mission.cycles.push(cycle);
+    }
+    await assert.rejects(updateMissionCycle(mission.id, cycle.id, {
+      mobilizationDate: change === 'remobilização' ? '2026-10-16' : '2026-10-10',
+      demobilizationDate: '2026-10-20'
+    }, {}, { database }), error => error.conflicts?.some(conflict => conflict.code === 'WRONG_JOB_ROLE'));
+    assert.equal(cycle.demobilizationDate, null);
+  });
+}

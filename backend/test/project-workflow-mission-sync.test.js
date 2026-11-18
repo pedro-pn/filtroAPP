@@ -109,6 +109,38 @@ test('desmobilização anterior ao fim previsto sincroniza retorno e preserva a 
   assert.equal(state.audits.at(-1).afterData.returnDate, '2026-09-19');
 });
 
+test('saída efetiva da equipe não é bloqueada por funções alteradas no RH depois da programação', async () => {
+  const mission = completeMission({
+    stage: 'FINAL_MEASUREMENT',
+    mobilizationDate: new Date('2026-11-09T00:00:00Z'),
+    executionStartDate: new Date('2026-11-09T00:00:00Z'),
+    executionEndDate: new Date('2026-11-12T00:00:00Z'),
+    cycles: [{ id: 'cycle-1', isDefault: true, mobilizationDate: new Date('2026-11-09T00:00:00Z'), demobilizationDate: null }],
+    allocations: [
+      { id: 'allocation-1', collaboratorId: 'person-1', jobRoleId: 'old-role-1', cycles: [] },
+      { id: 'allocation-2', collaboratorId: 'person-2', jobRoleId: 'old-role-2', cycles: [] }
+    ]
+  });
+  mission.project.mobilizationDate = mission.mobilizationDate;
+  const allocations = structuredClone(mission.allocations);
+  const { database, state } = fakeDatabase(mission);
+  database.collaborator = { findUnique: async ({ where }) => ({ id: where.id, name: 'Pessoa', jobRoleId: 'new-role', isActive: true }) };
+  database.collaboratorAbsence = { findMany: async () => [] };
+  database.efetivoMissionAllocation = { findMany: async () => [] };
+
+  // Registra a saída, corrige a data e permite desfazer o registro sem realocar pessoas.
+  for (const returnDate of ['2026-11-14', '2026-11-15', null]) {
+    const result = await synchronizeOfficialMissionDemobilization(database, 'project-1', returnDate, { actorUserId: 'leader-1' });
+    assert.equal(result.returnDate?.toISOString().slice(0, 10) || null, returnDate);
+    assert.equal(state.mission.cycles[0].demobilizationDate?.toISOString().slice(0, 10) || null, returnDate);
+    assert.equal(state.mission.project.demobilizationDate?.toISOString().slice(0, 10) || null, returnDate);
+    assert.equal(state.mission.cycles[0].mobilizationDate.toISOString().slice(0, 10), '2026-11-09');
+    assert.equal(state.mission.executionEndDate.toISOString().slice(0, 10), '2026-11-12');
+    assert.deepEqual(state.mission.allocations, allocations);
+    assert.equal(state.audits.at(-1).action, 'MISSION_DEMOBILIZATION_UPDATE');
+  }
+});
+
 test('desmobilização rejeita retorno anterior à mobilização sem alterar a missão', async () => {
   const { database, state } = fakeDatabase(completeMission({ stage: 'FINAL_MEASUREMENT' }));
   await assert.rejects(
@@ -134,6 +166,46 @@ test('encerramento move a missão oficial para Finalizada', async () => {
   const result = await synchronizeOfficialMissionStage(database, 'project-1', 'FINISHED', { actorUserId: 'leader-1' });
   assert.equal(result.stage, 'FINISHED');
   assert.equal(state.audits.at(-1).afterData.stage, 'FINISHED');
+});
+
+for (const stage of ['DEMOBILIZATION', 'POST_JOB', 'FINAL_MEASUREMENT', 'FINISHED']) {
+  test(`${stage} não exige recompor a equipe prevista para fechar o projeto`, async () => {
+    const mission = completeMission({
+      stage: stage === 'DEMOBILIZATION' ? 'EXECUTION' : 'FINAL_MEASUREMENT',
+      demands: [{ jobRoleId: 'role-1', requiredCount: 6 }],
+      allocations: [
+        { id: 'allocation-1', jobRoleId: 'role-1', cycles: [] },
+        { id: 'allocation-2', jobRoleId: 'role-2', cycles: [] }
+      ]
+    });
+    const allocations = structuredClone(mission.allocations);
+    const demands = structuredClone(mission.demands);
+    const { database, state } = fakeDatabase(mission);
+    const result = await synchronizeOfficialMissionStage(database, 'project-1', stage, { actorUserId: 'leader-1' });
+    assert.equal(result.stage, missionStageForProjectWorkflow(stage));
+    assert.deepEqual(state.mission.allocations, allocations);
+    assert.deepEqual(state.mission.demands, demands);
+    if (stage === 'DEMOBILIZATION' || stage === 'FINISHED') {
+      assert.equal(state.audits.at(-1).action, 'MISSION_STAGE_CHANGE');
+    }
+  });
+}
+
+test('desmobilização não exige selecionar equipe quando a demanda histórica está vazia', async () => {
+  const { database } = fakeDatabase(completeMission({ stage: 'EXECUTION', demands: [], allocations: [] }));
+  const result = await synchronizeOfficialMissionStage(database, 'project-1', 'DEMOBILIZATION');
+  assert.equal(result.stage, 'FINAL_MEASUREMENT');
+});
+
+test('desmobilização preserva a exigência de confirmação da programação', async () => {
+  const { database, state } = fakeDatabase(completeMission({ stage: 'EXECUTION', scheduleStatus: 'DRAFT', allocations: [] }));
+  await assert.rejects(
+    synchronizeOfficialMissionStage(database, 'project-1', 'DEMOBILIZATION'),
+    error => error.code === 'PROJECT_WORKFLOW_MISSION_INCOMPLETE'
+      && error.issues.some(issue => issue.message === 'confirmar a programação')
+      && !error.issues.some(issue => issue.message === 'completar a equipe')
+  );
+  assert.equal(state.updates.length, 0);
 });
 
 test('mobilização exige missão oficial confirmada e completa', async () => {
