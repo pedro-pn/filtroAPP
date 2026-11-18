@@ -9,7 +9,7 @@ import { OPERATIONAL_DOWNLOADS } from '../../../lib/api-credentials/extended-ope
 import { getEfetivoProjectStatus, validateEfetivoProjectStatusRequest } from '../../../lib/api-credentials/efetivo-project-status.js';
 import { getJobRoleSalary, validateJobRoleSalaryRequest } from '../../../lib/api-credentials/job-role-salary.js';
 import { getJobRoleHourlyReference } from '../../../lib/api-credentials/job-role-hourly-reference.js';
-import { ALLOCATION_REVIEW_OPERATION, listConfirmedAllocations, validateAllocationReviewQuery } from '../../../lib/api-credentials/allocation-review.js';
+import { ALLOCATION_REVIEW_OPERATION, ALLOCATION_REVIEW_SCHEMA_VERSION, listReviewAllocations, validateAllocationReviewQuery } from '../../../lib/api-credentials/allocation-review.js';
 import { createCrmDocument, createCrmProject, upsertCrmCommercialFact, validateCommercialFact, validateCrmDocument, validateProjectCreation, validateProjectWriteAccess } from '../../../lib/api-credentials/efetivo-project-writes.js';
 import { receiveCrmOpportunity, validateCrmOpportunity } from '../../../lib/projects/crm-opportunities.js';
 import { getCrmPlanningState, listCrmPlanningStates, validatePlanningReadAccess, validatePlanningListQuery, validatePlanningDetailParams } from '../../../lib/projects/crm-planning-read.js';
@@ -44,8 +44,8 @@ export function createOperationalRouter({
     const result = await runMeteredApiOperation(req, {
       prismaClient, operationId: ALLOCATION_REVIEW_OPERATION, requestedRows: query.limit,
       execute: async () => {
-        const body = await listConfirmedAllocations(prismaClient, query, context);
-        return { rows: body.items.length, body: { ...body, generatedAt: new Date().toISOString(), schemaVersion: '1.0', requestId: req.requestId } };
+        const body = await listReviewAllocations(prismaClient, query, context);
+        return { rows: body.items.length, body: { ...body, generatedAt: new Date().toISOString(), schemaVersion: ALLOCATION_REVIEW_SCHEMA_VERSION, requestId: req.requestId } };
       }
     });
     res.json(result.body);

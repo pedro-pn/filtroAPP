@@ -9,6 +9,9 @@ import { projectCardsCache } from '../src/lib/resource-list-cache.js';
 
 const context = { scopes: new Set(['projetos.read', 'rdo.relatorios.read', 'eventos.read', 'qualidade.registros.read', 'omie.notas.read']),
   projectAccessMode: 'ALL', maxPageSize: 100, cursorKey: 'project-distribution-test-cursor-key-32-characters' };
+// As fixtures ficam anteriores ao snapshot da API, independentemente da
+// precisão ou do avanço do relógio do PostgreSQL WASM durante a suíte completa.
+const fixtureDate = new Date('2026-01-01T00:00:00.000Z');
 
 test('projetos privados: isolamento real no Prisma, dados relacionados, paginação e liberações por destino', { timeout: 120_000 }, async t => {
   const database = await apiSimulationDatabase();
@@ -17,19 +20,20 @@ test('projetos privados: isolamento real no Prisma, dados relacionados, paginaç
   const client = raw.$extends(projectAccessExtension);
   const user = await raw.user.create({ data: { username: 'distribution-admin', name: 'Admin', passwordHash: 'test', role: 'MANAGER', accountType: 'ADMIN' } });
   const makeProject = (code, extra = {}) => raw.project.create({ data: {
-    code, name: `Projeto ${code}`, clientName: 'Cliente', clientCnpj: '12345678000195', contractCode: '1234', location: 'Local', ...extra
+    code, name: `Projeto ${code}`, clientName: 'Cliente', clientCnpj: '12345678000195', contractCode: '1234', location: 'Local',
+    createdAt: fixtureDate, updatedAt: fixtureDate, ...extra
   } });
   const hidden = await makeProject('private', { managerOnly: true });
   const shared = await makeProject('shared');
   for (const project of [hidden, shared]) {
     await raw.report.create({ data: { id: `r-${project.code}`, projectId: project.id, reportDate: new Date(),
       arrivalTime: '08:00', departureTime: '17:00', lunchBreak: '01:00', daytimeCount: 1, status: 'APPROVED',
-      createdByUserId: user.id, services: { create: { serviceType: 'TEST' } } } });
+      createdByUserId: user.id, createdAt: fixtureDate, updatedAt: fixtureDate, services: { create: { serviceType: 'TEST' } } } });
     await raw.qualityRecord.create({ data: { id: `q-${project.code}`, number: `Q-${project.code}`, type: 'DESVIO', seq: project === hidden ? 1 : 2,
       year: 2026, registeredAt: new Date(), eventDate: new Date(), projectId: project.id } });
     await raw.omieProject.create({ data: { codigo: `om-${project.code}`, osNumber: project.code, projectId: project.id } });
     await raw.omieInvoice.create({ data: { id: `i-${project.code}`, source: 'NFSE', codigoProjeto: `om-${project.code}`,
-      numero: '1', dataEmissao: new Date(), valor: 100, receiptStatus: 'OPEN', syncedAt: new Date() } });
+      numero: '1', dataEmissao: fixtureDate, valor: 100, receiptStatus: 'OPEN', syncedAt: fixtureDate } });
   }
 
   await t.test('todas as contas não admin, inclusive com papel MANAGER, recebem somente projetos públicos', async () => {
@@ -79,7 +83,7 @@ test('projetos privados: isolamento real no Prisma, dados relacionados, paginaç
 
   await t.test('ativar API explicitamente permite sincronizar sem liberar o projeto para contas não admin', async () => {
     await raw.project.update({ where: { id: hidden.id }, data: {
-      distributionSettings: { ...projectDistributionDefaults({ managerOnly: true }), api: true, efetivo: true }
+      distributionSettings: { ...projectDistributionDefaults({ managerOnly: true }), api: true, efetivo: true }, updatedAt: fixtureDate
     } });
     const projects = await listOperationalResources(raw, 'operational.Project.list', {}, context);
     assert.equal(projects.items.length, 2);

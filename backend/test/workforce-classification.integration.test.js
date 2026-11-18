@@ -15,7 +15,7 @@ import { receiveConectaEvent } from '../src/lib/conecta-rh/service.js';
 import { listCollaboratorsWithCurrentJobRole } from '../src/lib/collaborators/job-role-service.js';
 import { deriveSelectedMissionTeam } from '../src/lib/efetivo/planning/mission-team.js';
 import { loadConfirmedReviewDays } from '../src/lib/efetivo/allocation-review/confirmed-days.js';
-import { listConfirmedAllocations, ALLOCATION_REVIEW_SCOPE } from '../src/lib/api-credentials/allocation-review.js';
+import { listReviewAllocations, ALLOCATION_REVIEW_SCOPE } from '../src/lib/api-credentials/allocation-review.js';
 import { reportCollaboratorCreateManyData } from '../src/lib/report-collaborators.js';
 
 test('classificação central: herança, exceções, RH, HTTP, migração e histórico em PostgreSQL real', { timeout: 180000 }, async t => {
@@ -128,10 +128,12 @@ test('classificação central: herança, exceções, RH, HTTP, migração e hist
     assert.equal((await db.efetivoMissionPlan.findUniqueOrThrow({ where: { id: mission.id } })).needsReplanning, true);
     assert.equal(await db.efetivoMissionAllocation.count({ where: { missionId: mission.id } }), 1);
     assert.equal((await loadConfirmedReviewDays({ from: '2026-11-01', to: '2026-11-09' }, db)).length, 1);
-    const exported = await listConfirmedAllocations(db, { from: '2026-11-01', to: '2026-11-09' }, {
+    const exported = await listReviewAllocations(db, { from: '2026-11-01', to: '2026-11-09' }, {
       scopes: new Set([ALLOCATION_REVIEW_SCOPE]), projectAccessMode: 'ALL', maxPageSize: 100, cursorKey: 'test-classification-key-at-least-32', credentialId: 'test'
     });
-    assert.equal(exported.items.length, 0);
+    assert.ok(exported.items.length > 0);
+    assert.equal(exported.items.some(item => item.collaborator.id === operator.id), false);
+    assert.ok(exported.items.every(item => item.confirmationStatus === 'PENDING' && item.confirmedAt === null));
     assert.equal(await db.allocationReviewWeek.count({ where: { id: week.id } }), 1);
   });
 

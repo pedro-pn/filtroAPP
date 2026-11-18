@@ -2,9 +2,10 @@
 
 A recepção de RH do Conecta está documentada em [RH — Conecta → FiltroAPP](INTEGRACAO_CONECTA_RH.md), incluindo pré-admissão e datas provisórias.
 
-A exportação da conferência diária para o Conecta está disponível em
+A exportação das alocações diárias e do status de conferência para o Conecta está disponível em
 `GET /api/integracoes/v1/efetivo/conferencia/alocacoes`, com o escopo
-`efetivo.conferencia.read`. Consulte o [contrato e exemplos](INTEGRACAO_CONECTA_ALOCACOES.md)
+`efetivo.conferencia.read`. O contrato 2.0 inclui dias pendentes e sugestões
+automáticas com `confirmationStatus`. Consulte o [contrato e exemplos](INTEGRACAO_CONECTA_ALOCACOES.md)
 e o [prompt para o desenvolvedor do Conecta](PROMPT_CONECTA_ALOCACOES.md).
 
 Esta API fornece acesso controlado aos dados do Filtrovali sem conceder acesso direto ao banco, incluindo Qualidade, cadastros operacionais, salários por cargo, relatórios, estoque, manutenção e operações contratadas do CRM. A disponibilidade no ambiente depende da publicação e homologação do código pelo operador; esta implementação não executa deploy.

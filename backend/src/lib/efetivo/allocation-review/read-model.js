@@ -297,12 +297,12 @@ function reviewProjectIds({ reports, trails, overrides, effectiveIndex, savedWee
   return referencedProjectIds;
 }
 
-async function loadReviewMonthSources(weekStarts, deps) {
+async function loadReviewMonthSources(weekStarts, deps, collaboratorIds = null) {
   const database = deps.database || prisma;
   const from = weekStarts[0];
   const to = shiftKey(weekStarts.at(-1), 6);
   const [sources, savedWeeks] = await Promise.all([
-    loadReviewSources({ from, to }, deps),
+    loadReviewSources({ from, to, collaboratorIds }, deps),
     database.allocationReviewWeek.findMany({ where: { weekStart: { in: weekStarts.map(utcDate) } }, include: REVIEW_WEEK_INCLUDE })
   ]);
   const savedWeek = { rows: savedWeeks.flatMap(week => week.rows) };
@@ -311,7 +311,7 @@ async function loadReviewMonthSources(weekStarts, deps) {
   const userIds = [...new Set(savedWeeks.map(week => week.closedByUserId).filter(Boolean))];
   const [collaborators, projects, users] = await Promise.all([
     database.collaborator.findMany({
-      where: { AND: [collaboratorVisibilityWhere('ALLOCATION_REVIEW'), reviewCollaboratorWhere({ from, to, extraIds })] },
+      where: { AND: [collaboratorVisibilityWhere('ALLOCATION_REVIEW'), reviewCollaboratorWhere({ from, to, extraIds, collaboratorIds })] },
       select: COLLABORATOR_SELECT,
       orderBy: { name: 'asc' }
     }),
@@ -552,6 +552,15 @@ export function assembleReviewWeek(context, { now = new Date(), user = null } = 
 export async function getReviewWeek({ weekStart, now = new Date(), user = null }, deps = {}) {
   const context = await loadReviewWeekContext({ weekStart }, deps);
   return assembleReviewWeek(context, { now, user });
+}
+
+// A API e a visão mensal compartilham as mesmas regras e leem cada fonte uma
+// única vez por intervalo, inclusive nas semanas ainda não persistidas.
+export async function loadReviewRangeContexts({ from, to, collaboratorIds = null }, deps = {}) {
+  const weekStarts = [];
+  for (let monday = mondayOf(from); monday <= to; monday = shiftKey(monday, 7)) weekStarts.push(monday);
+  const reviewSources = await loadReviewMonthSources(weekStarts, deps, collaboratorIds);
+  return Promise.all(weekStarts.map(weekStart => loadReviewWeekContext({ weekStart, collaboratorIds }, { ...deps, reviewSources })));
 }
 
 // Contagem para o badge: semanas já encerradas, desde a primeira semana com conferência registrada

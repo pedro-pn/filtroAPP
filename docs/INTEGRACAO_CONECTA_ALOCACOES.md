@@ -1,4 +1,21 @@
-# Alocação conferida — FiltroAPP → Conecta
+# Alocações e status de conferência — FiltroAPP → Conecta
+
+## Alteração do contrato em 18/11/2026
+
+A resposta passa a usar `schemaVersion: "2.0"`. O mesmo endpoint, token e escopo
+agora disponibilizam alocações conferidas, ajustes salvos e sugestões automáticas,
+mesmo quando ninguém abriu ou salvou a semana na conferência. O Conecta consulta
+esta API; não há envio de webhook pelo FiltroAPP.
+
+O novo campo obrigatório `confirmationStatus` distingue `CONFIRMED` de `PENDING`.
+O Conecta deve importar os dois e mostrar **Aguardando confirmação** em cada dia
+`PENDING`, mesmo quando todas as fontes automáticas concordam. A confirmação
+continua sendo feita no FiltroAPP, por colaborador/semana, e vale para os dias
+persistidos daquela linha. Fechamento da semana não é requisito.
+
+Mudanças que o consumidor deve aceitar: `confirmedAt` e `updatedAt` podem ser
+`null`; `weekVersion` pode ser `0`; `kind` pode ser `NONE`. Após a publicação,
+reiniciar consultas sem cursores antigos e reimportar os períodos desejados.
 
 ## Consulta
 
@@ -47,6 +64,7 @@ projetos; todos os projetos do mesmo dia ficam no mesmo item.
       "id": "dia-exemplo",
       "date": "2026-10-01",
       "kind": "TRAVEL",
+      "confirmationStatus": "CONFIRMED",
       "collaborator": {
         "id": "colaborador-exemplo",
         "code": "0042",
@@ -75,7 +93,7 @@ projetos; todos os projetos do mesmo dia ficam no mesmo item.
     "snapshotAt": "2026-11-05T12:00:00.000Z"
   },
   "generatedAt": "2026-11-05T12:00:00.000Z",
-  "schemaVersion": "1.0",
+  "schemaVersion": "2.0",
   "requestId": "requisicao-exemplo"
 }
 ```
@@ -89,6 +107,7 @@ projetos; todos os projetos do mesmo dia ficam no mesmo item.
 | `FERIAS` | Férias | Lista vazia. |
 | `AFASTAMENTO` | Afastamento | Lista vazia; sem motivo clínico. |
 | `TREINAMENTO` | Treinamento | Lista vazia. |
+| `NONE` | Sem informação | Lista vazia; manter aviso de confirmação pendente. |
 
 `projects[].code` é o número do projeto e deve ser tratado como texto.
 `clientCnpj` retorna 14 dígitos sem máscara, preservando zeros; `null` indica
@@ -96,16 +115,48 @@ ausência ou tamanho inválido no cadastro, sem completar ou truncar números.
 Não há validação de dígito verificador nesta exportação. Sede não possui projeto
 ou CNPJ de cliente neste modelo; o endpoint não inventa CNPJ da empresa.
 
-Somente dias persistidos de linhas conferidas (`confirmedAt != null`) são
-publicados. A semana pode estar aberta; fechamento semanal não é requisito.
+Cada dia usa o ajuste salvo na conferência, quando houver; caso contrário, usa
+o mesmo cálculo automático da tela de conferência (ponto, RDO, Efetivo, ajustes
+manuais, ausências e calendário). Não é necessário persistir a semana antes.
+Dias elegíveis sem informação também são publicados como `NONE`. Dias futuros
+podem ser retornados como previsão e permanecem pendentes. Dias fora do vínculo
+não recebem sugestões; dias já persistidos são preservados no histórico.
 Colaboradores hoje inativos e projetos arquivados continuam no histórico.
 Se algum projeto de um dia estiver excluído ou indisponível para o canal API,
 o dia inteiro é omitido para não publicar uma alocação parcial.
 
-Ausência de um dia significa **sem conferência publicada**; não significa sede,
-folga ou falta. Não contém sugestões, rascunhos, observações livres, CPF,
-salários ou identidade de quem conferiu. Nome, matrícula, código e dados do
+Ausência de um dia significa **sem alocação publicada**; não significa sede,
+folga ou falta. Não contém fontes detalhadas da sugestão, observações livres,
+CPF, salários ou identidade de quem conferiu. Nome, matrícula, código e dados do
 cliente refletem o cadastro atual; não são snapshots históricos do cadastro.
+
+| Campo | Regra |
+| --- | --- |
+| `confirmationStatus` | `CONFIRMED`: exibir “Conferido”; `PENDING`: exibir “Aguardando confirmação”. |
+| `confirmedAt` | Data/hora da conferência efetiva, ou `null` para pendentes. |
+| `updatedAt` | Última edição persistida do dia; `null` em sugestões ainda não gravadas. Não usar para incremental. |
+| `weekVersion` | Versão da semana; `0` quando ainda não gravada. Não ordena revisões de sugestões automáticas. |
+| `id` | ID persistido ou sintético `automatic:<collaboratorId>:<date>`. Pode mudar ao confirmar; a chave é `(collaborator.id, date)`. |
+
+Exemplo dos campos de um dia automático ainda não conferido:
+
+```json
+{
+  "id": "automatic:colaborador-exemplo:2026-11-16",
+  "date": "2026-11-16",
+  "kind": "PROJECT",
+  "confirmationStatus": "PENDING",
+  "confirmedAt": null,
+  "weekStart": "2026-11-16",
+  "weekVersion": 0,
+  "updatedAt": null
+}
+```
+
+O exemplo acima é parcial; `collaborator` e `projects` seguem o formato completo
+da resposta sintética. A mudança de `PENDING` para `CONFIRMED` deve atualizar a
+mesma entrada no Conecta e retirar o aviso. Desconferir faz o caminho inverso,
+preservando a alocação como pendente; não deve apagá-la apenas por esse motivo.
 
 ## Importação e correções
 
@@ -121,12 +172,14 @@ cliente refletem o cadastro atual; não são snapshots históricos do cadastro.
    inclusive quando a resposta completa for vazia. Preservar dados próprios do RH.
 4. Não aplicar páginas parciais. Se ocorrer `409 ALLOCATION_REVIEW_CHANGED`,
    descartar a área temporária e reiniciar o período sem cursor. O cursor é
-   assinado, vinculado à credencial/filtros e verifica revisões das semanas e
-   alterações dos cadastros referenciados, dentro de leituras Repeatable Read.
+   assinado, vinculado à credencial/filtros/versão do contrato e verifica o
+   resultado completo, incluindo sugestões, status de conferência e cadastros,
+   dentro de leituras Repeatable Read.
 5. Reconsultar periodicamente períodos já importados: desconfirmações, edições,
    exclusões e correções retroativas não geram tombstones neste endpoint.
-   `updatedAt` do dia não detecta desconfirmação; não implementar incremental
-   usando esse campo. Disponibilizar reimportação manual de qualquer mês.
+   `updatedAt` do dia não detecta todas as mudanças de fontes ou de confirmação;
+   pode ser `null`. Não implementar incremental usando esse campo. Disponibilizar
+   reimportação manual de qualquer mês.
 
 Em timeout, 429 e 5xx, repetir com backoff e respeitar `Retry-After`. Em 400,
 corrigir parâmetros/cursor; em 401/403, corrigir credencial/permissões. Registrar

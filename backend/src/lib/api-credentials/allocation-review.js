@@ -4,12 +4,15 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 
 import { IntegrationApiError } from '../../middleware/api-request-context.js';
-import { mondayOf } from '../efetivo/allocation-review/read-model.js';
+import { assembleReviewWeek, loadReviewRangeContexts } from '../efetivo/allocation-review/read-model.js';
+import { getAllocationTrailsForRange } from '../acompanhamento/allocation-audit.js';
+import { withAllocationReviewSources } from '../projects/access-scope.js';
 import { projectChannelWhere } from '../projects/distribution.js';
 import { createSignedCursor, readSignedCursor, stableJson } from './cursor.js';
 
 export const ALLOCATION_REVIEW_OPERATION = 'efetivo.allocationReview.list';
 export const ALLOCATION_REVIEW_SCOPE = 'efetivo.conferencia.read';
+export const ALLOCATION_REVIEW_SCHEMA_VERSION = '2.0';
 
 const DAY_MS = 86400000;
 const dateOf = value => new Date(`${value}T00:00:00.000Z`);
@@ -41,16 +44,17 @@ export function validateAllocationReviewQuery(input, context) {
   return query;
 }
 
-function serializeDay(day) {
+function serializeDay(day, collaborator, projects) {
+  const confirmedAt = day.confirmedAt ? new Date(day.confirmedAt).toISOString() : null;
   return {
     id: day.id,
-    date: dateKey(day.workDate),
+    date: day.date,
     kind: day.kind,
     collaborator: {
-      id: day.collaborator.id, code: day.collaborator.code,
-      name: day.collaborator.name, registrationNumber: day.collaborator.registrationNumber
+      id: collaborator.id, code: collaborator.code,
+      name: collaborator.name, registrationNumber: collaborator.registrationNumber
     },
-    projects: day.projects.map(({ project }) => {
+    projects: day.projectIds.map(id => projects.get(id)).map(project => {
       const digits = String(project.clientCnpj || '').replace(/\D/g, '');
       return {
         id: project.id, code: project.code, name: project.name,
@@ -58,75 +62,102 @@ function serializeDay(day) {
         clientCnpj: digits.length === 14 ? digits : null
       };
     }),
-    confirmedAt: new Date(day.row.confirmedAt).toISOString(),
-    weekStart: dateKey(day.row.week.weekStart),
-    weekVersion: day.row.week.version,
-    updatedAt: new Date(day.updatedAt).toISOString()
+    confirmationStatus: confirmedAt ? 'CONFIRMED' : 'PENDING',
+    confirmedAt,
+    weekStart: day.weekStart,
+    weekVersion: day.weekVersion,
+    updatedAt: day.updatedAt ? new Date(day.updatedAt).toISOString() : null
   };
 }
 
-export async function listConfirmedAllocations(client, input, context) {
+export async function listReviewAllocations(client, input, context, deps = {}) {
   const query = validateAllocationReviewQuery(input, context);
   const filters = { from: query.from, to: query.to, collaboratorId: query.collaboratorId || null,
     workforceClassifications: workforceVisibilityClasses('API'),
-    credentialId: context.credentialId };
+    reviewWorkforceClassifications: workforceVisibilityClasses('ALLOCATION_REVIEW'),
+    schemaVersion: ALLOCATION_REVIEW_SCHEMA_VERSION, credentialId: context.credentialId };
   const cursor = query.cursor ? readSignedCursor({ cursor: query.cursor, key: context.cursorKey,
     operationId: ALLOCATION_REVIEW_OPERATION, filters, positionKeys: ['date', 'collaboratorId', 'revision'] }) : null;
   const range = { gte: dateOf(query.from), lte: dateOf(query.to) };
-  const confirmed = { workDate: range, row: { confirmedAt: { not: null } }, collaborator: collaboratorVisibilityWhere('API'),
+  const savedWhere = { workDate: range, collaborator: collaboratorVisibilityWhere('API'),
     ...(query.collaboratorId ? { collaboratorId: query.collaboratorId } : {}) };
 
   // Cada página lê revisões e dados no mesmo snapshot do banco. Se houver edição,
   // confirmação/desconfirmação ou mudança dos cadastros entre páginas, o cliente
   // deve recomeçar o período para não aplicar uma importação parcial/inconsistente.
   return client.$transaction(async database => {
-    const weeks = await database.allocationReviewWeek.findMany({
-      where: { weekStart: { gte: dateOf(mondayOf(query.from)), lte: dateOf(query.to) } },
-      select: { id: true, version: true }, orderBy: { weekStart: 'asc' }
+    const [contexts, savedDays] = await withAllocationReviewSources(() => Promise.all([
+      loadReviewRangeContexts({ from: query.from, to: query.to,
+        collaboratorIds: query.collaboratorId ? [query.collaboratorId] : null }, {
+        ...deps, database,
+        getTrails: deps.getTrails || (range => getAllocationTrailsForRange(range, { database }))
+      }),
+      database.allocationReviewDay.findMany({
+        where: savedWhere,
+        select: {
+          id: true, workDate: true, kind: true, updatedAt: true, collaboratorId: true,
+          row: { select: { confirmedAt: true, week: { select: { weekStart: true, version: true } } } },
+          projects: { select: { projectId: true } }
+        }
+      })
+    ]));
+    const days = new Map();
+    // Preserva o histórico persistido mesmo quando o vínculo hoje está inativo.
+    for (const day of savedDays) days.set(`${day.collaboratorId}|${dateKey(day.workDate)}`, {
+      id: day.id, collaboratorId: day.collaboratorId, date: dateKey(day.workDate), kind: day.kind,
+      projectIds: day.projects.map(item => item.projectId).sort(), confirmedAt: day.row.confirmedAt,
+      weekStart: dateKey(day.row.week.weekStart), weekVersion: day.row.week.version, updatedAt: day.updatedAt
     });
-    // O hash usa os campos publicados, não apenas MAX(updatedAt): duas edições
-    // concorrentes podem confirmar em ordem diferente de seus timestamps.
-    const collaborators = await database.collaborator.findMany({
-      where: { allocationReviewDays: { some: confirmed } },
-      select: { id: true, code: true, name: true, registrationNumber: true }, orderBy: { id: 'asc' }
-    });
-    const projects = await database.project.findMany({
-      where: { AND: [projectChannelWhere('api'), { allocationReviewDayProjects: { some: { day: confirmed } } }] },
-      select: { id: true, code: true, name: true, clientName: true, clientCnpj: true }, orderBy: { id: 'asc' }
-    });
-    const revision = createHash('sha256').update(stableJson({ weeks, collaborators, projects })).digest('hex');
+    const now = new Date(context.snapshotAt || new Date());
+    for (const source of contexts) {
+      const week = assembleReviewWeek(source, { now });
+      for (const row of week.rows) for (const day of row.days) {
+        if (!day.eligible || !day.value || day.date < query.from || day.date > query.to) continue;
+        const key = `${row.collaborator.id}|${day.date}`;
+        if (days.has(key)) continue;
+        days.set(key, {
+          id: `automatic:${row.collaborator.id}:${day.date}`, collaboratorId: row.collaborator.id,
+          date: day.date, kind: day.value.kind, projectIds: [...day.value.projectIds].sort(),
+          // Uma sugestão não persistida nunca herda a confirmação da linha.
+          confirmedAt: null, weekStart: week.week.weekStart, weekVersion: week.week.version, updatedAt: null
+        });
+      }
+    }
+    const [collaborators, projects] = await Promise.all([
+      database.collaborator.findMany({
+        where: { AND: [{ id: { in: [...new Set([...days.values()].map(day => day.collaboratorId))] } }, collaboratorVisibilityWhere('API')] },
+        select: { id: true, code: true, name: true, registrationNumber: true }
+      }),
+      database.project.findMany({
+        where: { AND: [{ id: { in: [...new Set([...days.values()].flatMap(day => day.projectIds))] } }, projectChannelWhere('api')] },
+        select: { id: true, code: true, name: true, clientName: true, clientCnpj: true }
+      })
+    ]);
+    const collaboratorById = new Map(collaborators.map(item => [item.id, item]));
+    const projectById = new Map(projects.map(item => [item.id, item]));
+    const compare = (a, b) => a < b ? -1 : a > b ? 1 : 0;
+    const items = [...days.values()]
+      // Omitir o dia inteiro impede exportação parcial de múltiplos projetos.
+      .filter(day => collaboratorById.has(day.collaboratorId) && day.projectIds.every(id => projectById.has(id)))
+      .sort((a, b) => compare(a.date, b.date) || compare(a.collaboratorId, b.collaboratorId))
+      .map(day => serializeDay(day, collaboratorById.get(day.collaboratorId), projectById));
+    // Inclui o resultado automático: ponto, RDO, ausência, calendário e planejamento
+    // podem mudar sem incrementar a versão de uma semana ainda não conferida.
+    const weeks = contexts.map(source => ({ weekStart: source.weekStart, version: source.savedWeek?.version || 0 }));
+    const revision = createHash('sha256').update(stableJson({ weeks, items })).digest('hex');
     if (cursor && cursor.position.revision !== revision) {
       throw new IntegrationApiError(409, 'ALLOCATION_REVIEW_CHANGED', 'Os dados foram alterados. Reinicie a consulta do período sem cursor.');
     }
-    const rows = await database.allocationReviewDay.findMany({
-      where: {
-        ...confirmed,
-        // Não publicar parte de um dia com múltiplos projetos nem expor projetos
-        // excluídos ou que não foram disponibilizados para a API.
-        projects: { every: { project: projectChannelWhere('api') } },
-        ...(cursor ? { OR: [
-          { workDate: { gt: dateOf(cursor.position.date) } },
-          { workDate: dateOf(cursor.position.date), collaboratorId: { gt: cursor.position.collaboratorId } }
-        ] } : {})
-      },
-      select: {
-        id: true, workDate: true, kind: true, updatedAt: true, collaboratorId: true,
-        collaborator: { select: { id: true, code: true, name: true, registrationNumber: true } },
-        row: { select: { confirmedAt: true, week: { select: { weekStart: true, version: true } } } },
-        projects: { orderBy: { projectId: 'asc' }, select: { project: { select: {
-          id: true, code: true, name: true, clientName: true, clientCnpj: true
-        } } } }
-      },
-      orderBy: [{ workDate: 'asc' }, { collaboratorId: 'asc' }], take: query.limit + 1
-    });
+    const rows = cursor ? items.filter(day => compare(day.date, cursor.position.date) > 0
+      || (day.date === cursor.position.date && compare(day.collaborator.id, cursor.position.collaboratorId) > 0)) : items;
     const pageRows = rows.slice(0, query.limit);
     const hasMore = rows.length > query.limit;
     const last = pageRows.at(-1);
     const snapshotAt = cursor?.snapshotAt || new Date(context.snapshotAt || new Date()).toISOString();
     const nextCursor = hasMore ? createSignedCursor({ key: context.cursorKey, payload: {
       version: 1, operationId: ALLOCATION_REVIEW_OPERATION, filters, snapshotAt,
-      position: { date: dateKey(last.workDate), collaboratorId: last.collaboratorId, revision }
+      position: { date: last.date, collaboratorId: last.collaborator.id, revision }
     } }) : null;
-    return { items: pageRows.map(serializeDay), page: { limit: query.limit, hasMore, nextCursor, snapshotAt } };
-  }, { isolationLevel: 'RepeatableRead' });
+    return { items: pageRows, page: { limit: query.limit, hasMore, nextCursor, snapshotAt } };
+  }, { isolationLevel: 'RepeatableRead', timeout: 60_000 });
 }

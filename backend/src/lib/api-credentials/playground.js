@@ -19,7 +19,7 @@ import { checkPlaygroundDownload } from './playground-downloads.js';
 import { getEfetivoProjectStatus, validateEfetivoProjectStatusRequest } from './efetivo-project-status.js';
 import { getJobRoleSalary, validateJobRoleSalaryRequest } from './job-role-salary.js';
 import { getJobRoleHourlyReference } from './job-role-hourly-reference.js';
-import { ALLOCATION_REVIEW_OPERATION, listConfirmedAllocations, validateAllocationReviewQuery } from './allocation-review.js';
+import { ALLOCATION_REVIEW_OPERATION, ALLOCATION_REVIEW_SCHEMA_VERSION, listReviewAllocations, validateAllocationReviewQuery } from './allocation-review.js';
 import { withWorkforceVisibility } from '../collaborators/workforce-visibility-context.js';
 import { createCrmDocument, createCrmProject, upsertCrmCommercialFact, validateCommercialFact, validateCrmDocument, validateProjectCreation, validateProjectWriteAccess } from './efetivo-project-writes.js';
 import { receiveCrmOpportunity, validateCrmOpportunity } from '../projects/crm-opportunities.js';
@@ -208,9 +208,9 @@ async function executeScopedPlaygroundOperation(prisma, credentialId, input, opt
       body = { ...await getProjectMeasurement(prisma, parsed.pathParams, query, context), generatedAt: new Date().toISOString(), schemaVersion: '1.0', requestId };
       rows = 1;
     } else if (parsed.operationId === ALLOCATION_REVIEW_OPERATION) {
-      const result = await listConfirmedAllocations(prisma, query, { ...context,
+      const result = await listReviewAllocations(prisma, query, { ...context,
         cursorKey: options.cursorKey || context.envConfig.apiTokenHashKeys[context.envConfig.apiTokenActiveKeyVersion] });
-      body = { ...result, generatedAt: new Date().toISOString(), schemaVersion: '1.0', requestId };
+      body = { ...result, generatedAt: new Date().toISOString(), schemaVersion: ALLOCATION_REVIEW_SCHEMA_VERSION, requestId };
       rows = result.items.length;
     } else if (parsed.operationId === 'jobRoles.hourlyReference.get') {
       body = await getJobRoleHourlyReference(prisma, parsed.pathParams, query, context);
