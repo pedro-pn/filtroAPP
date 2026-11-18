@@ -23,10 +23,17 @@ test('fetchWithTimeout aborts a hanging call and reports a timeout error', async
   const hanging = (_url, init) => new Promise((_resolve, reject) => {
     init.signal.addEventListener('abort', () => reject(init.signal.reason));
   });
-  await assert.rejects(
-    fetchWithTimeout('https://slow.example.test/api', {}, { timeoutMs: 20, fetchImpl: hanging }),
-    error => error.code === 'OUTBOUND_TIMEOUT' && /slow\.example\.test/.test(error.message)
-  );
+  // O timer de AbortSignal.timeout não segura o event loop; num servidor real
+  // há outros handles abertos. No teste, um timer comum mantém o processo vivo.
+  const keepAlive = setTimeout(() => {}, 5000);
+  try {
+    await assert.rejects(
+      fetchWithTimeout('https://slow.example.test/api', {}, { timeoutMs: 20, fetchImpl: hanging }),
+      error => error.code === 'OUTBOUND_TIMEOUT' && /slow\.example\.test/.test(error.message)
+    );
+  } finally {
+    clearTimeout(keepAlive);
+  }
 });
 
 test('fetchWithTimeout retries network failures and 503 up to the limit', async () => {
