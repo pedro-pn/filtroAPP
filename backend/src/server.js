@@ -50,6 +50,11 @@ server.listen(env.port, () => {
   if (!env.surveyTokenSecret) {
     console.warn('[AVISO] SURVEY_TOKEN_SECRET não definido. Os tokens de pesquisa estão usando um fallback inseguro. Defina essa variável em produção.');
   }
+  if (env.nodeEnv === 'production') {
+    Promise.all([import('./lib/prisma.js'), import('./lib/operations/database-role.js')])
+      .then(([{ default: prisma }, { warnIfPrivilegedDatabaseRole }]) => warnIfPrivilegedDatabaseRole(prisma, { processName: 'backend' }))
+      .catch(error => console.warn('Falha ao conferir o papel do banco.', error));
+  }
   if (env.backgroundJobsInApi) {
     import('./jobs/background-jobs.js')
       .then(({ startBackgroundJobs }) => startBackgroundJobs())

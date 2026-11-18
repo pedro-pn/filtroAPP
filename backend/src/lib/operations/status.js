@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 
 import env from '../../config/env.js';
 import prisma from '../prisma.js';
+import { databaseRoleStatus } from './database-role.js';
 import { errorTrackingStatus } from './error-tracking.js';
 
 export const RECURRING_JOB_NAMES = [
@@ -304,10 +305,17 @@ function collectProblems({
   restore,
   omie,
   commercialImport,
+  database = { status: 'UNKNOWN' },
   config,
   now
 }) {
   const problems = [];
+  if (database.status === 'PRIVILEGED' && config.operationsRequireRestrictedDbRole) {
+    problems.push(problem('Aplicação conectada ao banco com papel de dono/superusuário.', {
+      scope: 'database-role',
+      ...(database.user ? { source: database.user } : {})
+    }));
+  }
   for (const job of recurringJobs) {
     if (job.latestRun?.status === 'FAILED') {
       problems.push(problem('Job recorrente falhou na última execução.', { job: job.name }));
@@ -411,7 +419,8 @@ export async function getOperationalStatus({
     backup,
     restore,
     omie,
-    commercialImport
+    commercialImport,
+    database
   ] = await Promise.all([
     latestRecurringJobRuns(prismaClient),
     dataRetentionStatus(prismaClient),
@@ -420,7 +429,8 @@ export async function getOperationalStatus({
     backupStatus({ config, now, readFile }),
     restoreStatus({ config, now, readFile }),
     omieSyncStatus(prismaClient, config),
-    commercialImportStatus(prismaClient, config)
+    commercialImportStatus(prismaClient, config),
+    databaseRoleStatus(prismaClient)
   ]);
 
   const problems = collectProblems({
@@ -431,6 +441,7 @@ export async function getOperationalStatus({
     restore,
     omie,
     commercialImport,
+    database,
     config,
     now
   });
@@ -449,6 +460,7 @@ export async function getOperationalStatus({
     restore,
     omie,
     commercialImport,
+    database,
     errorTracking: errorTrackingStatus(config),
     alerting: {
       enabled: config.operationsAlertJobEnabled,

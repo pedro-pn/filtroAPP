@@ -3,6 +3,7 @@ import env from './config/env.js';
 import { startBackgroundJobs } from './jobs/background-jobs.js';
 import { captureOperationalError } from './lib/operations/error-tracking.js';
 import prisma from './lib/prisma.js';
+import { warnIfPrivilegedDatabaseRole } from './lib/operations/database-role.js';
 // The reports module owns the approval processor implementation and registers it
 // during module initialization. The API loads it through the router tree; the
 // standalone worker must load it explicitly before starting the queue.
@@ -48,4 +49,8 @@ process.once('SIGINT', () => void shutdown('SIGINT'));
 
 stopHealthReporter = startWorkerHealthReporter();
 startBackgroundJobs({ keepAlive: true });
+if (env.nodeEnv === 'production') {
+  warnIfPrivilegedDatabaseRole(prisma, { processName: 'worker' })
+    .catch(error => console.warn('[worker] falha ao conferir o papel do banco', error));
+}
 console.log(`[worker] jobs iniciados em ${env.nodeEnv}`);
