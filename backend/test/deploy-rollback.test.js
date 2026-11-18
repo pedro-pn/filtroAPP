@@ -70,6 +70,8 @@ function runDeploy({ args = [], env = {}, dirty = false } = {}) {
     env: {
       ...process.env,
       PATH: `${bin}${path.delimiter}${process.env.PATH || ''}`,
+      // Guarda extra: se o docker real for chamado por engano, ele não alcança daemon nenhum.
+      DOCKER_HOST: 'unix:///nonexistent/filtrovali-test-docker.sock',
       PROJECT_DIR: project,
       STATE_DIR: path.join(root, 'state'),
       DEPLOY_STATUS_FILE: statusFile,
@@ -217,6 +219,8 @@ function runDrill({ sanity = '262|12|40|300|5000|2026-11-17|20|1200 MB', backup 
     env: {
       ...process.env,
       PATH: `${bin}${path.delimiter}${process.env.PATH || ''}`,
+      // Guarda extra: se o docker real for chamado por engano, ele não alcança daemon nenhum.
+      DOCKER_HOST: 'unix:///nonexistent/filtrovali-test-docker.sock',
       RESTORE_DRILL_SOURCE: source,
       RESTORE_STATUS_FILE: statusFile,
       RESTORE_DRILL_WORK_ROOT: path.join(root, 'work'),
