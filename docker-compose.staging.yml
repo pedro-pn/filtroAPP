@@ -44,16 +44,52 @@ services:
     networks:
       - filtrovali-staging-net
 
+  # Aplica as migrations com o dono das tabelas (MIGRATION_DATABASE_URL; sem ela,
+  # cai para DATABASE_URL) e termina. backend e worker só sobem depois que ele
+  # conclui com sucesso e não recebem a credencial do dono.
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: filtrovali-staging-migrate
+    restart: "no"
+    command: ["npx", "prisma", "migrate", "deploy"]
+    env_file:
+      - backend/.env.staging
+    environment:
+      APP_ENV: staging
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - filtrovali-staging-net
+    mem_limit: 1g
+    cpus: 1.0
+    pids_limit: 100
+
   backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args:
+        APP_GIT_SHA: ${APP_GIT_SHA:-unknown}
+    # Tag por commit: permite voltar à imagem anterior sem rebuild (deploy/deploy-prod.sh).
+    image: filtrovali-staging-backend:${APP_GIT_SHA:-latest}
     container_name: filtrovali-staging-backend
     restart: unless-stopped
+    # Migrations rodam no serviço migrate; a API só inicia.
+    command: ["node", "src/server.js"]
     env_file:
       - backend/.env.staging
     environment:
       BACKGROUND_JOBS_IN_API: "false"
+      # A credencial do dono fica só no serviço migrate.
+      MIGRATION_DATABASE_URL: ""
+      # A senha do postgres (lida do env-file para o container do banco e o backup)
+      # também não entra nos containers da aplicação.
+      POSTGRES_PASSWORD: ""
+      STAGING_POSTGRES_PASSWORD: ""
       ASSINATURAS_MAX_PDF_MB: "200"
       ASSINATURAS_MAX_PAGES: "500"
       APP_ENV: staging
@@ -65,6 +101,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     volumes:
       - filtrovali_staging_relatorios:/data/relatorios
       - ${STAGING_OPERATIONS_STATUS_DIR:-/root/backups/filtrovali-staging/status}:/ops-status:ro
@@ -83,6 +121,10 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args:
+        APP_GIT_SHA: ${APP_GIT_SHA:-unknown}
+    # Tag por commit: permite voltar à imagem anterior sem rebuild (deploy/deploy-prod.sh).
+    image: filtrovali-staging-worker:${APP_GIT_SHA:-latest}
     container_name: filtrovali-staging-worker
     restart: unless-stopped
     command: ["node", "src/worker.js"]
@@ -90,6 +132,11 @@ services:
       - backend/.env.staging
     environment:
       BACKGROUND_JOBS_IN_API: "false"
+      MIGRATION_DATABASE_URL: ""
+      # A senha do postgres (lida do env-file para o container do banco e o backup)
+      # também não entra nos containers da aplicação.
+      POSTGRES_PASSWORD: ""
+      STAGING_POSTGRES_PASSWORD: ""
       ASSINATURAS_MAX_PDF_MB: "200"
       ASSINATURAS_MAX_PAGES: "500"
       APP_ENV: staging
@@ -125,6 +172,8 @@ services:
       args:
         VITE_ERROR_TRACKING_ENABLED: ${VITE_ERROR_TRACKING_ENABLED:-false}
         VITE_ERROR_TRACKING_ENDPOINT: ${VITE_ERROR_TRACKING_ENDPOINT:-}
+        APP_GIT_SHA: ${APP_GIT_SHA:-unknown}
+    image: filtrovali-staging-nginx:${APP_GIT_SHA:-latest}
     container_name: filtrovali-staging-nginx
     restart: unless-stopped
     depends_on:

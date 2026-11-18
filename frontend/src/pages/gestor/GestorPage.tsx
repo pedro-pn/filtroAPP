@@ -1,4 +1,5 @@
 import { useUsefulQueryContent } from '../../observability/useUsefulContent';
+import { PASSWORD_MIN_LENGTH } from '../../../../shared/modules/password-policy.js';
 import { todayDateOnly } from '../../utils/dateOnly';
 import { ProjectServiceCategoryFields } from '../../components/projects/ProjectServiceCategoryFields';
 import { ProjectDistributionFields } from '../../components/projects/ProjectDistributionFields';
@@ -3412,7 +3413,7 @@ export function GestorPage() {
             </Field>
             {editing ? <Field
               label="Nova senha"
-              helperText={editing ? 'Deixe em branco para manter a senha atual.' : undefined}
+              helperText={editing ? `Deixe em branco para manter a senha atual. A nova senha precisa ter pelo menos ${PASSWORD_MIN_LENGTH} caracteres e encerra as sessões abertas da conta.` : undefined}
               id={`user-password${idSuffix}`}
               required={!editing}
             >
@@ -3421,6 +3422,7 @@ export function GestorPage() {
                 type="password"
                 value={userForm.password}
                 autoComplete="new-password"
+                minLength={PASSWORD_MIN_LENGTH}
                 onChange={(event) =>
                   setUserForm((current) => ({
                     ...current,

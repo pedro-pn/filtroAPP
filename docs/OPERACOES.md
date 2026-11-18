@@ -1,5 +1,8 @@
 # Operações da API de integrações
 
+> Incidentes gerais (aplicação fora do ar, banco, deploy ruim, restore, troca de
+> credencial, serviço externo): `docs/RUNBOOK_INCIDENTES.md`.
+
 ## Runbook: suspeita de vazamento de token
 
 1. No painel **Administração → Tokens de API**, localize a credencial pelo nome, destinatário ou identificação mascarada. Não copie o segredo para chamado, chat, motivo, query string ou log.

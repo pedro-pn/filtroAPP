@@ -30,7 +30,10 @@ router.post('/client-errors', clientErrorLimiter, asyncHandler(async (req, res) 
   error.name = data.name || 'ClientError';
   if (data.stack) error.stack = data.stack;
 
+  // Rota pública: os erros do navegador vão só para o webhook, nunca para o
+  // e-mail, para que ninguém consiga disparar e-mails para a equipe por aqui.
   const result = await captureOperationalError(error, {
+    email: false,
     source: data.source || 'frontend',
     context: {
       url: data.url || null,
