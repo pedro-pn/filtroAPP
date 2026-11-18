@@ -288,8 +288,9 @@ app.use((err, req, res, _next) => {
       console.warn('Falha ao reportar erro HTTP operacional.', captureError);
     });
   }
+  // Vai no cabeçalho (não no corpo) para não alterar o contrato das respostas.
+  if (requestId) res.setHeader('X-Request-Id', requestId);
   res.status(status).json({
-    ...(requestId ? { requestId } : {}),
     error: status >= 500
       ? (isProduction ? 'Erro interno do servidor.' : observableError.message)
       : (err.message || 'Erro interno do servidor.'),

@@ -336,7 +336,7 @@ Controle de repetição:
   normalização quando some. Esse estado fica no resultado do próprio job no banco.
 
 Os e-mails levam só a primeira linha da mensagem de erro, as linhas `at ...` da
-pilha, rota, método, status, request id (o mesmo devolvido ao usuário na resposta
+pilha, rota, método, status, request id (o mesmo devolvido no cabeçalho `X-Request-Id` da resposta
 5xx e gravado no log como `[http-5xx] requestId=...`), id numérico do usuário,
 ambiente e versão (`APP_GIT_SHA`). E-mails e CPFs são mascarados. Erros enviados
 pelo navegador para a rota pública `/api/operations/client-errors` nunca geram
