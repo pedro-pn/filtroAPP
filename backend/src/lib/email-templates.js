@@ -705,6 +705,94 @@ export function buildReportSignatureRequestEmailTemplate({
   };
 }
 
+export function buildStandaloneSignatureRequestEmailTemplate({
+  documentTitle,
+  requesterNameSnapshot,
+  signerName,
+  signUrl,
+  expiresLabel
+}) {
+  const safeTitle = escapeHtml(documentTitle || 'Documento');
+  const safeRequester = escapeHtml(requesterNameSnapshot || 'Solicitante');
+  const safeSigner = escapeHtml(signerName || 'Assinante');
+  const safeUrl = escapeHtml(signUrl);
+  const safeExpires = escapeHtml(expiresLabel || 'prazo informado no convite');
+  const title = 'Documento disponível para assinatura';
+  const intro = `${safeRequester} solicitou sua assinatura eletrônica no documento ${safeTitle}.`;
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Assinante:</strong> ${safeSigner}</div>
+        <div><strong>Documento:</strong> ${safeTitle}</div>
+        <div><strong>Solicitante:</strong> ${safeRequester}</div>
+        <div><strong>Prazo:</strong> ${safeExpires}</div>
+      </div>
+    </div>
+    <p style="margin:16px 0"><a href="${safeUrl}" style="display:inline-block;background:#30503a;color:#fff;text-decoration:none;padding:12px 16px;border-radius:10px;font-weight:700">Assinar documento</a></p>
+    <p style="font-size:13px;line-height:1.7;margin:0 0 8px">Este link é individual. Se preferir, copie e cole no navegador:</p>
+    <p style="font-size:12px;line-height:1.7;word-break:break-all;margin:0">${safeUrl}</p>
+    ${privacyHtmlLine()}
+  `;
+  return {
+    subject: `[Filtrovali] Assinatura disponível - ${documentTitle || 'Documento'}`,
+    text: [
+      `Olá, ${signerName || 'Assinante'}.`,
+      '',
+      `${requesterNameSnapshot || 'O solicitante'} pediu sua assinatura no documento ${documentTitle || 'Documento'}.`,
+      `Prazo: ${expiresLabel || 'consulte o convite'}`,
+      '',
+      `Assinar documento: ${signUrl}`,
+      '',
+      privacyTextLine()
+    ].join('\n'),
+    html: wrapEmailHtml({
+      title,
+      intro,
+      body,
+      footer: 'Este link é individual e foi gerado automaticamente pelo sistema Filtrovali.'
+    })
+  };
+}
+
+export function buildStandaloneSignatureCompletedEmailTemplate({
+  documentTitle,
+  signerNames,
+  finalDocumentHash,
+  appUrl
+}) {
+  const safeTitle = escapeHtml(documentTitle || 'Documento');
+  const names = Array.isArray(signerNames) ? signerNames.filter(Boolean) : [];
+  const safeNames = names.map(escapeHtml);
+  const safeHash = escapeHtml(finalDocumentHash || '—');
+  const safeAppUrl = escapeHtml(appUrl || '');
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Documento:</strong> ${safeTitle}</div>
+        <div><strong>Assinantes:</strong> ${safeNames.join(', ') || '—'}</div>
+        <div style="word-break:break-all"><strong>Hash final:</strong> ${safeHash}</div>
+      </div>
+    </div>
+    ${safeAppUrl ? `<p style="margin:16px 0"><a href="${safeAppUrl}/assinaturas" style="color:#30503a;font-weight:700">Abrir Assinaturas</a></p>` : ''}
+  `;
+  return {
+    subject: `[Filtrovali] Documento concluído - ${documentTitle || 'Documento'}`,
+    text: [
+      `O documento ${documentTitle || 'Documento'} recebeu todas as assinaturas.`,
+      `Assinantes: ${names.join(', ') || '—'}`,
+      `Hash final: ${finalDocumentHash || '—'}`,
+      appUrl ? `Acesso: ${String(appUrl).replace(/\/+$/, '')}/assinaturas` : '',
+      privacyTextLine()
+    ].filter(Boolean).join('\n'),
+    html: wrapEmailHtml({
+      title: 'Documento concluído',
+      intro: `O documento ${safeTitle} recebeu todas as assinaturas.`,
+      body,
+      footer: 'Este aviso foi gerado automaticamente pelo sistema Filtrovali.'
+    })
+  };
+}
+
 export function buildReportSignatureReminderEmailTemplate({
   projectCode,
   projectName,

@@ -14,6 +14,7 @@ import { startOmieSyncJob } from './lib/omie/sync.js';
 import { startPontoMaisSyncJob } from './lib/pontomais/job.js';
 import { startLegacyZapSignReconciliationJob } from './lib/zapsign-legacy-reconciliation.js';
 import { startReportApprovalPostProcessingJob } from './lib/reports/jobs.js';
+import { startAssinaturasJobs } from './lib/assinaturas/jobs.js';
 
 const server = http.createServer(app);
 
@@ -60,6 +61,7 @@ server.listen(env.port, () => {
   startOmieSyncJob();
   startPontoMaisSyncJob();
   startReportApprovalPostProcessingJob();
+  startAssinaturasJobs();
   startOperationalAlertJob();
   syncRomaneioCatalog().catch(error => {
     console.error('Falha ao sincronizar catálogo de romaneio na inicialização.', error);

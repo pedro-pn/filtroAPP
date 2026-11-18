@@ -22,6 +22,8 @@ import {
 } from '../../lib/module-roles.js';
 import { hashPassword } from '../../lib/password.js';
 import prisma from '../../lib/prisma.js';
+import { deleteUserWithSignatureDocuments } from '../../lib/assinaturas/file-quarantine.js';
+import { userDeletionImpact } from '../../lib/assinaturas/service.js';
 import { requireAuth, requireHubAdmin } from '../../middleware/auth.js';
 
 const router = Router();
@@ -413,8 +415,16 @@ router.put('/:id', asyncHandler(async (req, res) => {
   res.json(publicUser(user));
 }));
 
+router.get('/:id/impacto', asyncHandler(async (req, res) => {
+  await prisma.user.findUniqueOrThrow({ where: { id: req.params.id }, select: { id: true } });
+  const assinaturas = await userDeletionImpact(prisma, req.params.id);
+  res.json({ assinaturas });
+}));
+
 router.delete('/:id', asyncHandler(async (req, res) => {
-  await prisma.user.delete({ where: { id: req.params.id } });
+  await deleteUserWithSignatureDocuments(prisma, req.params.id, {
+    actorUserId: req.user?.id || null
+  });
   res.status(204).end();
 }));
 

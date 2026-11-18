@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router';
 
 import { useAuth } from '../../auth/AuthContext';
 import { accountPageStateFromPath } from '../../auth/moduleNavigation';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { useUserMutations, useUsers } from '../../hooks/useUsers';
 import { useCollaborators } from '../../hooks/useCollaborators';
@@ -17,7 +18,7 @@ import {
   sameModuleRoles
 } from '../../modules/registry';
 import { rolesForAccountType } from './accountRoleRules';
-import type { UserPayload } from '../../api/users';
+import type { UserDeletionImpact, UserPayload } from '../../api/users';
 import type { AccountType, ModuleRole, UserRole } from '../../types/auth';
 import type { InternalUserSummary } from '../../types/domain';
 
@@ -121,6 +122,8 @@ export function AdminAccountsPage() {
   const [showForm, setShowForm] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [deletingUser, setDeletingUser] = useState<InternalUserSummary | null>(null);
+  const [deletionImpact, setDeletionImpact] = useState<UserDeletionImpact | null>(null);
 
   const visibleUsers = useMemo(() => {
     return (usersQuery.data || [])
@@ -342,6 +345,45 @@ export function AdminAccountsPage() {
     }
   }
 
+  async function openDeleteDialog(target: InternalUserSummary) {
+    setMessage('');
+    setError('');
+    setDeletingUser(target);
+    setDeletionImpact(null);
+    try {
+      const impact = await userMutations.deletionImpact.mutateAsync(target.id);
+      setDeletionImpact(impact);
+    } catch (err) {
+      setDeletingUser(null);
+      setError(err instanceof Error ? err.message : 'Falha ao consultar o impacto da exclusão.');
+    }
+  }
+
+  function closeDeleteDialog() {
+    if (userMutations.removeUser.isPending) return;
+    setDeletingUser(null);
+    setDeletionImpact(null);
+  }
+
+  async function confirmDelete() {
+    if (!deletingUser || !deletionImpact || deletionImpact.assinaturas.finalizing > 0) return;
+    setError('');
+    try {
+      await userMutations.removeUser.mutateAsync(deletingUser.id);
+      setMessage('Conta excluída. Documentos concluídos foram preservados sem proprietário.');
+      setDeletingUser(null);
+      setDeletionImpact(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Falha ao excluir a conta.');
+    }
+  }
+
+  const deletionDescription = !deletionImpact
+    ? 'Consultando documentos de assinatura vinculados à conta…'
+    : deletionImpact.assinaturas.finalizing > 0
+      ? `${deletionImpact.assinaturas.finalizing} documento(s) estão em finalização. Aguarde a conclusão para excluir a conta.`
+      : `${deletionImpact.assinaturas.toDelete} documento(s) não concluído(s) serão colocados em quarentena e excluídos; ${deletionImpact.assinaturas.toPreserve} documento(s) concluído(s) serão preservados sem proprietário.`;
+
   async function handleLogout() {
     await logout();
     navigate('/login', { replace: true });
@@ -447,6 +489,9 @@ export function AdminAccountsPage() {
                   <button className={`mini-btn ${user.isActive ? 'danger' : 'alt'}`} type="button" onClick={() => void toggleActive(user)} disabled={userMutations.updateUser.isPending}>
                     {user.isActive ? 'Desativar' : 'Ativar'}
                   </button>
+                  <button className="mini-btn danger" type="button" onClick={() => void openDeleteDialog(user)} disabled={userMutations.deletionImpact.isPending || userMutations.removeUser.isPending}>
+                    Excluir
+                  </button>
                 </div>
                 {editingUser?.id === user.id ? renderAccountForm() : null}
               </article>
@@ -456,6 +501,18 @@ export function AdminAccountsPage() {
           <div className="page-card placeholder-copy">Nenhuma conta encontrada.</div>
         )}
       </main>
+      <ConfirmDialog
+        open={Boolean(deletingUser)}
+        title="Excluir conta permanentemente?"
+        description={deletionDescription}
+        highlight={deletingUser ? `${deletingUser.name} · ${deletingUser.username}` : undefined}
+        confirmLabel={userMutations.removeUser.isPending ? 'Excluindo…' : 'Excluir conta'}
+        confirmationText={deletingUser && deletionImpact && deletionImpact.assinaturas.finalizing === 0 ? deletingUser.username : undefined}
+        confirmationLabel={deletingUser ? `Digite ${deletingUser.username} para confirmar` : undefined}
+        confirmDisabled={!deletionImpact || deletionImpact.assinaturas.finalizing > 0 || userMutations.removeUser.isPending}
+        onConfirm={() => void confirmDelete()}
+        onCancel={closeDeleteDialog}
+      />
     </Shell>
   );
 }

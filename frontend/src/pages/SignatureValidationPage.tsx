@@ -2,8 +2,9 @@ import { useState, type DragEvent } from 'react';
 import { useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 
-import { getSignatureValidation } from '../api/signatureValidation';
+import { getSignatureValidation, getStandaloneSignatureValidation } from '../api/signatureValidation';
 import { useToast } from '../components/ui/ToastContext';
+import { formatSignatureDateTime } from './assinaturas/utils/datetime';
 import { formatDateOnlyPtBr } from '../utils/dateOnly';
 
 const assetsBaseUrl = (import.meta.env.VITE_ASSETS_BASE_URL || '').replace(/\/$/, '');
@@ -25,13 +26,7 @@ async function sha256File(file: File) {
     .join('');
 }
 
-function formatDateTime(value?: string | null) {
-  if (!value) return '-';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('pt-BR');
-}
-
-export function SignatureValidationPage() {
+export function SignatureValidationPage({ source = 'report' }: { source?: 'report' | 'standalone' }) {
   const { validationCode = '' } = useParams();
   const showToast = useToast();
   const [fileHash, setFileHash] = useState('');
@@ -40,8 +35,8 @@ export function SignatureValidationPage() {
   const [isDraggingPdf, setIsDraggingPdf] = useState(false);
 
   const validationQuery = useQuery({
-    queryKey: ['signature-validation', validationCode],
-    queryFn: () => getSignatureValidation(validationCode),
+    queryKey: ['signature-validation', source, validationCode],
+    queryFn: () => source === 'standalone' ? getStandaloneSignatureValidation(validationCode) : getSignatureValidation(validationCode),
     enabled: !!validationCode
   });
 
@@ -108,6 +103,15 @@ export function SignatureValidationPage() {
                 <div className="det-row"><span className="det-label">Data</span><span className="det-val">{formatDateOnlyPtBr(payload.report.reportDate || '')}</span></div>
               </div>
             ) : null}
+            {payload.document ? (
+              <div className="det-section">
+                <div className="det-row"><span className="det-label">Código</span><span className="det-val">{payload.validationCode}</span></div>
+                <div className="det-row"><span className="det-label">Documento</span><span className="det-val">{payload.document.title}</span></div>
+                <div className="det-row"><span className="det-label">Arquivo original</span><span className="det-val">{payload.document.originalFileName}</span></div>
+                <div className="det-row"><span className="det-label">Solicitante</span><span className="det-val">{payload.document.requesterNameSnapshot}</span></div>
+                <div className="det-row"><span className="det-label">Concluído em</span><span className="det-val">{formatSignatureDateTime(payload.completedAt)}</span></div>
+              </div>
+            ) : null}
             {expectedHash ? (
               <div className="signature-validation-hashes">
                 <div><span className="detail-label">Hash PDF final esperado</span><span className="detail-value">{expectedHash}</span></div>
@@ -118,13 +122,13 @@ export function SignatureValidationPage() {
               <div className="signature-validation-signers">
                 <div className="section-subtitle">Signatários</div>
                 {payload.signers.map(signer => (
-                  <div className="det-row" key={`${signer.email}-${signer.status}`}>
+                  <div className="det-row" key={`${signer.email || signer.name}-${signer.status}`}>
                     <span className="det-label">{signer.status}</span>
                     <span className="det-val">
-                      {signer.name} ({signer.email})
+                      {signer.name}{signer.email ? ` (${signer.email})` : ''}
                       {signer.declaredName ? ` - nome informado: ${signer.declaredName}` : ''}
                       {' - '}
-                      {formatDateTime(signer.signedAt || signer.rejectedAt)}
+                      {formatSignatureDateTime(signer.signedAt || signer.rejectedAt)}
                     </span>
                   </div>
                 ))}

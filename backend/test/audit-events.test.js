@@ -7,6 +7,10 @@ import {
   normalizeAuditEvent,
   recordAuditEvent
 } from '../src/lib/audit/events.js';
+import {
+  anonymizeDocumentAccessEvidence,
+  recordDocumentEvent
+} from '../src/lib/assinaturas/audit.js';
 
 test('normalizeAuditEvent trims required fields and evidence', () => {
   assert.deepEqual(
@@ -101,4 +105,100 @@ test('recordAuditEvent writes EPI signature request audit logs through the commo
       userAgent: null
     }
   });
+});
+
+test('recordAuditEvent writes standalone signature document audit logs', async () => {
+  const calls = [];
+  const client = {
+    signatureDocumentAuditLog: {
+      async create(args) {
+        calls.push(args);
+        return args.data;
+      }
+    }
+  };
+
+  await recordAuditEvent(client, {
+    module: AUDIT_MODULES.ASSINATURAS,
+    entityType: AUDIT_ENTITY_TYPES.SIGNATURE_DOCUMENT,
+    entityId: 'document-1',
+    relatedEntityId: 'signer-1',
+    actorUserId: 'user-1',
+    action: 'CONVITE_CRIADO',
+    description: 'Convite criado.',
+    evidence: { ipAddress: '127.0.0.1', userAgent: 'Unit Test' }
+  });
+
+  assert.deepEqual(calls[0], {
+    data: {
+      documentId: 'document-1',
+      signerId: 'signer-1',
+      actorUserId: 'user-1',
+      action: 'CONVITE_CRIADO',
+      description: 'Convite criado.',
+      ipAddress: '127.0.0.1',
+      userAgent: 'Unit Test'
+    }
+  });
+});
+
+test('recordAuditEvent keeps rejecting unknown audit targets', async () => {
+  await assert.rejects(
+    () => recordAuditEvent({}, {
+      module: 'desconhecido',
+      entityType: 'registro',
+      entityId: '1',
+      action: 'TESTE'
+    }),
+    TypeError
+  );
+});
+
+test('recordDocumentEvent maps document and signer without exposing semantic mutation', async () => {
+  const calls = [];
+  const client = {
+    signatureDocumentAuditLog: {
+      async create(args) {
+        calls.push(args);
+        return args.data;
+      }
+    }
+  };
+
+  await recordDocumentEvent(client, {
+    document: { id: 'document-1' },
+    signer: { id: 'signer-1' },
+    actorUserId: 'user-1',
+    action: 'LINK_RECUPERADO'
+  });
+
+  assert.equal(calls[0].data.documentId, 'document-1');
+  assert.equal(calls[0].data.signerId, 'signer-1');
+  assert.equal(calls[0].data.actorUserId, 'user-1');
+});
+
+test('anonymização altera só IP/UA e acrescenta evento observável', async () => {
+  const updates = [];
+  const creates = [];
+  const client = {
+    signatureDocumentAuditLog: {
+      async updateMany(args) {
+        updates.push(args);
+        return { count: 2 };
+      },
+      async create(args) {
+        creates.push(args);
+        return args.data;
+      }
+    }
+  };
+  const cutoff = new Date('2026-01-01T00:00:00.000Z');
+
+  assert.equal(await anonymizeDocumentAccessEvidence(client, {
+    documentId: 'document-1',
+    cutoff
+  }), 2);
+  assert.deepEqual(updates[0].data, { ipAddress: null, userAgent: null });
+  assert.equal(creates[0].data.action, 'DADOS_ACESSO_ANONIMIZADOS');
+  assert.equal(creates[0].data.documentId, 'document-1');
 });

@@ -27,6 +27,7 @@
     "backfill:equipment-notifications": "node scripts/backfill-equipment-notifications.js",
     "backfill:equipment-technical": "node scripts/backfill-equipment-technical.js",
     "audit:report-files": "node scripts/audit-report-files.js",
+    "benchmark:assinaturas": "node scripts/benchmark-assinaturas.js",
     "repair:report-file-paths": "node scripts/repair-report-file-paths.js",
     "import:rdo-manual-pdfs": "node scripts/import-manual-rdo-pdfs.js"
   },

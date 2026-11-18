@@ -14,6 +14,14 @@ export interface UserPayload {
   collaboratorId?: string | null;
 }
 
+export interface UserDeletionImpact {
+  assinaturas: {
+    toDelete: number;
+    toPreserve: number;
+    finalizing: number;
+  };
+}
+
 export async function listUsers(group?: 'internal' | 'client') {
   const response = await apiClient.get<InternalUserSummary[]>(adminApiPath('/accounts'), {
     params: group ? { group } : undefined
@@ -33,6 +41,11 @@ export async function updateUser(id: string, payload: Partial<UserPayload>) {
 
 export async function removeUser(id: string) {
   await apiClient.delete(adminApiPath(`/accounts/${id}`));
+}
+
+export async function getUserDeletionImpact(id: string) {
+  const response = await apiClient.get<UserDeletionImpact>(adminApiPath(`/accounts/${id}/impacto`));
+  return response.data;
 }
 
 export async function resendClientAccess(id: string) {

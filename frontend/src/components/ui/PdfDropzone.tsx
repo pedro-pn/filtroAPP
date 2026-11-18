@@ -17,6 +17,7 @@ interface Props {
   emptyText?: string;
   emptyHint?: string;
   selectedHint?: string;
+  error?: string;
 }
 
 export function PdfDropzone({
@@ -35,7 +36,8 @@ export function PdfDropzone({
   onFiles,
   emptyText,
   emptyHint = 'ou clique para selecionar',
-  selectedHint
+  selectedHint,
+  error
 }: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -67,13 +69,15 @@ export function PdfDropzone({
   }
 
   return (
-    <div className="field-group">
+    <div className={`field-group ${error ? 'field-invalid' : ''}`}>
       <label htmlFor={id}>{label}</label>
       <div
         className={`pdf-dropzone ${dragOver ? 'drag-over' : ''} ${selectedName ? 'has-file' : ''}`}
         role="button"
         tabIndex={disabled ? -1 : 0}
         aria-disabled={disabled}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? `${id}-error` : undefined}
         onClick={open}
         onKeyDown={handleKeyDown}
         onDragOver={event => {
@@ -121,6 +125,7 @@ export function PdfDropzone({
           </button>
         ) : null}
       </div>
+      {error ? <div className="field-error" id={`${id}-error`}>{error}</div> : null}
       {currentName && !selectedName && !currentRemoved ? (
         <div className="pdf-dropzone-current">
           {currentUrl

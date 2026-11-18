@@ -29,6 +29,19 @@ const allowedOrigins = String(env.allowedOrigin || '')
   .map(origin => origin.trim())
   .filter(Boolean);
 
+export function sanitizedHttpErrorForObservability(error, req) {
+  const secret = String(req?.headers?.['x-signature-token'] || '').trim();
+  const redact = value => {
+    const text = String(value || '');
+    return secret ? text.split(secret).join('[REDACTED]') : text;
+  };
+  const sanitized = new Error(redact(error?.message || error || 'Erro HTTP'));
+  sanitized.name = redact(error?.name || 'Error');
+  sanitized.stack = redact(error?.stack || sanitized.stack);
+  if (error?.code) sanitized.code = redact(error.code);
+  return sanitized;
+}
+
 fs.mkdirSync(env.assetsDir, { recursive: true });
 fs.mkdirSync(env.reportsDir, { recursive: true });
 
@@ -48,9 +61,17 @@ app.use(cors({
   },
   exposedHeaders: ['Content-Disposition']
 }));
-app.use((req, res, next) => {
-  const isUploadsApi = req.path.startsWith('/api/uploads') || req.path.startsWith('/api/rdo/uploads');
-  // Endpoints que recebem PDFs/anexos em base64 no corpo (até MAX_PDF_BYTES = 20MB).
+
+export function jsonBodyLimitForRequest(method, requestPath) {
+  const isStandaloneSignatureUpload = method === 'POST'
+    && requestPath === '/api/assinaturas/documentos';
+  if (isStandaloneSignatureUpload) return '30mb';
+
+  const isStandalonePublicSignatureApi = requestPath === '/api/assinaturas/publico'
+    || requestPath.startsWith('/api/assinaturas/publico/');
+  if (isStandalonePublicSignatureApi) return '3mb';
+
+  const isUploadsApi = requestPath.startsWith('/api/uploads') || requestPath.startsWith('/api/rdo/uploads');
   const isEquipmentUploadApi = [
     '/api/manometers',
     '/api/rdo/manometers',
@@ -59,18 +80,24 @@ app.use((req, res, next) => {
     '/api/equipamentos',
     '/api/estoque',
     '/api/qualidade/registros'
-  ].some(prefix => req.path === prefix || req.path.startsWith(`${prefix}/`));
-  const isStockDocumentUploadApi = /^\/api\/estoque\/itens\/[^/]+\/documentos$/.test(req.path);
-  const isManualReportUploadApi = req.path === '/api/reports/manual-upload'
-    || req.path === '/api/rdo/reports/manual-upload'
-    || /^\/api(?:\/rdo)?\/reports\/[^/]+\/manual-pdf$/.test(req.path);
-  const isSignatureApi = req.path.includes('/request-signature') || req.path.includes('/public-sign');
-  const limit = isStockDocumentUploadApi
-    ? '30mb'
-    : isUploadsApi || isEquipmentUploadApi || isManualReportUploadApi ? '25mb' : isSignatureApi ? '3mb' : '1mb';
+  ].some(prefix => requestPath === prefix || requestPath.startsWith(`${prefix}/`));
+  const isStockDocumentUploadApi = /^\/api\/estoque\/itens\/[^/]+\/documentos$/.test(requestPath);
+  const isManualReportUploadApi = requestPath === '/api/reports/manual-upload'
+    || requestPath === '/api/rdo/reports/manual-upload'
+    || /^\/api(?:\/rdo)?\/reports\/[^/]+\/manual-pdf$/.test(requestPath);
+  const isSignatureApi = requestPath.includes('/request-signature') || requestPath.includes('/public-sign');
+  if (isStockDocumentUploadApi) return '30mb';
+  if (isUploadsApi || isEquipmentUploadApi || isManualReportUploadApi) return '25mb';
+  if (isSignatureApi) return '3mb';
+  return '1mb';
+}
+
+app.use((req, res, next) => {
+  const limit = jsonBodyLimitForRequest(req.method, req.path);
   return express.json({ limit })(req, res, next);
 });
-app.use(morgan('dev'));
+morgan.token('safe-url', req => req.originalUrl?.split('?')[0] || req.url?.split('?')[0] || '/');
+app.use(morgan(':method :safe-url :status :response-time ms - :res[content-length]'));
 app.use(requestMetrics);
 
 async function serveAuthorizedStoredFile(req, res) {
@@ -134,7 +161,8 @@ app.get('/health', (_req, res) => {
 app.use('/api', apiRouter);
 
 app.use((err, req, res, _next) => {
-  console.error(err);
+  const observableError = sanitizedHttpErrorForObservability(err, req);
+  console.error(observableError);
 
   // Corpo malformado: não expor a mensagem interna do parser de JSON.
   if (err && (err.type === 'entity.parse.failed' || (err instanceof SyntaxError && 'body' in err))) {
@@ -182,11 +210,11 @@ app.use((err, req, res, _next) => {
   const isProduction = env.nodeEnv === 'production';
   const status = err.status || err.statusCode || 500;
   if (status >= 500) {
-    captureOperationalError(err, {
+    captureOperationalError(observableError, {
       source: 'backend.http',
       context: {
         method: req.method,
-        path: req.originalUrl || req.url,
+        path: req.path,
         statusCode: status
       }
     }).catch(captureError => {
@@ -194,7 +222,9 @@ app.use((err, req, res, _next) => {
     });
   }
   res.status(status).json({
-    error: status >= 500 && isProduction ? 'Erro interno do servidor.' : (err.message || 'Erro interno do servidor.'),
+    error: status >= 500
+      ? (isProduction ? 'Erro interno do servidor.' : observableError.message)
+      : (err.message || 'Erro interno do servidor.'),
     ...(err.code ? { code: err.code } : {}),
     ...(Array.isArray(err.conflicts) && err.conflicts.length ? { conflicts: err.conflicts } : {}),
     ...(Array.isArray(err.issues) && err.issues.length ? { issues: err.issues } : {})

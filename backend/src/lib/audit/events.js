@@ -1,11 +1,13 @@
 export const AUDIT_MODULES = {
   RDO: 'rdo',
-  EPI: 'epi'
+  EPI: 'epi',
+  ASSINATURAS: 'assinaturas'
 };
 
 export const AUDIT_ENTITY_TYPES = {
   REPORT: 'report',
-  EPI_SIGNATURE_REQUEST: 'epi-signature-request'
+  EPI_SIGNATURE_REQUEST: 'epi-signature-request',
+  SIGNATURE_DOCUMENT: 'signature-document'
 };
 
 function stringValue(value) {
@@ -75,6 +77,23 @@ export async function recordAuditEvent(client, event) {
       data: {
         requestId: normalized.entityId,
         action: normalized.action,
+        ipAddress: normalized.evidence.ipAddress,
+        userAgent: normalized.evidence.userAgent
+      }
+    });
+  }
+
+  if (
+    normalized.module === AUDIT_MODULES.ASSINATURAS
+    && normalized.entityType === AUDIT_ENTITY_TYPES.SIGNATURE_DOCUMENT
+  ) {
+    return client.signatureDocumentAuditLog.create({
+      data: {
+        documentId: normalized.entityId,
+        signerId: normalized.relatedEntityId,
+        actorUserId: normalized.actorUserId,
+        action: normalized.action,
+        description: normalized.description,
         ipAddress: normalized.evidence.ipAddress,
         userAgent: normalized.evidence.userAgent
       }

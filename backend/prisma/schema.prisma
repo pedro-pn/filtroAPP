@@ -88,6 +88,7 @@ enum AppModule {
   ACOMPANHAMENTO
   QUALIDADE
   EFETIVO
+  ASSINATURAS
 }
 
 enum ModuleRoleCode {
@@ -110,6 +111,77 @@ enum ModuleRoleCode {
   QUALIDADE_VIEWER
   EFETIVO_MANAGER
   EFETIVO_VIEWER
+  ASSINATURAS_USER
+}
+
+enum SignatureDocumentStatus {
+  RASCUNHO
+  AGUARDANDO_ASSINATURAS
+  FINALIZANDO
+  CONCLUIDO
+  CANCELADO
+}
+
+enum SignatureDocumentSignerStatus {
+  PENDENTE
+  VISUALIZADO
+  ASSINADO
+  EXPIRADO
+  REVOGADO
+}
+
+enum SignatureDocumentEmailStatus {
+  NAO_APLICAVEL
+  PENDENTE
+  EM_ENVIO
+  ENVIADO
+  FALHOU
+  REVISAO_NECESSARIA
+}
+
+enum SignatureDocumentInviteInvalidationReason {
+  MANUAL
+  DOCUMENTO_CANCELADO
+  DOCUMENTO_EXCLUIDO
+}
+
+enum SignatureDocumentFilePurgeStatus {
+  PREPARANDO
+  PENDENTE
+  EM_PROCESSAMENTO
+  CONCLUIDO
+  FALHOU
+  CANCELADO
+}
+
+enum SignatureDocumentAuditAction {
+  DOCUMENTO_CRIADO
+  CONFIGURACAO_ATUALIZADA
+  DOCUMENTO_PUBLICADO
+  DOCUMENTO_DESPUBLICADO
+  CONVITE_CRIADO
+  EMAIL_SOLICITADO
+  EMAIL_ENVIADO
+  EMAIL_FALHOU
+  LINK_RECUPERADO
+  LINK_ACESSADO
+  DOCUMENTO_VISUALIZADO
+  ASSINATURA_REALIZADA
+  CONVITE_EXPIRADO
+  CONVITE_RENOVADO
+  CONVITE_REVOGADO
+  FINALIZACAO_INICIADA
+  FINALIZACAO_FALHOU
+  PDF_FINAL_GERADO
+  DOCUMENTO_CONCLUIDO
+  DOCUMENTO_CANCELADO
+  DOCUMENTO_ARQUIVADO
+  DOCUMENTO_RESTAURADO
+  DOCUMENTO_EXCLUIDO
+  DOCUMENTO_EXCLUSAO_DESFEITA
+  ARQUIVOS_PURGADOS
+  PROPRIETARIO_REMOVIDO
+  DADOS_ACESSO_ANONIMIZADOS
 }
 
 enum CollaboratorAbsenceType {
@@ -785,8 +857,8 @@ model EfetivoMissionPlan {
   returnDate                            DateTime?                    @db.Date
   version                               Int                          @default(1)
   kanbanOrder                           Int                          @default(0)
-  needsReplanning                      Boolean                      @default(false)
-  replanningReason                     String?
+  needsReplanning                       Boolean                      @default(false)
+  replanningReason                      String?
   createdByUserId                       String?
   updatedByUserId                       String?
   deletedAt                             DateTime?
@@ -1594,6 +1666,8 @@ model User {
   updatedQualityRecords                QualityRecord[]                     @relation("QualityRecordUpdater")
   deletedQualityRecords                QualityRecord[]                     @relation("QualityRecordDeletedBy")
   responsibleEfetivoMissions           EfetivoMissionPlan[]                @relation("EfetivoMissionResponsibleUser")
+  signatureDocuments                   SignatureDocument[]                 @relation("SignatureDocumentOwner")
+  signatureDocumentAuditLogs           SignatureDocumentAuditLog[]         @relation("SignatureDocumentAuditActor")
 
   @@index([clientCnpj])
 }
@@ -2520,4 +2594,175 @@ model IntegrationSyncRun {
 
   @@index([integration, startedAt])
   @@index([status])
+}
+
+// === Modulo Assinaturas Avulsas ===
+
+model SignatureDocument {
+  id                        String                                   @id @default(cuid())
+  ownerUserId               String?
+  requesterNameSnapshot     String
+  title                     String
+  originalFileName          String
+  mimeType                  String                                   @default("application/pdf")
+  fileSizeBytes             Int
+  pageCount                 Int
+  pageDimensions            Json
+  sourceStoragePath         String?
+  sourceDocumentHash        String
+  finalStoragePath          String?
+  finalDocumentHash         String?
+  validationCode            String?                                  @unique
+  status                    SignatureDocumentStatus                  @default(RASCUNHO)
+  tokenExpiresAt            DateTime?
+  finalizationClaimedAt     DateTime?
+  finalizationAttempts      Int                                      @default(0)
+  finalizationNextAttemptAt DateTime?
+  finalizationLastError     String?
+  cancelReason              String?
+  publishedAt               DateTime?
+  completedAt               DateTime?
+  canceledAt                DateTime?
+  archivedAt                DateTime?
+  deletedAt                 DateTime?
+  filesPurgedAt             DateTime?
+  createdAt                 DateTime                                 @default(now())
+  updatedAt                 DateTime                                 @updatedAt
+  owner                     User?                                    @relation("SignatureDocumentOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  signers                   SignatureDocumentSigner[]
+  fields                    SignatureDocumentField[]
+  auditLogs                 SignatureDocumentAuditLog[]
+  completionNotification    SignatureDocumentCompletionNotification?
+
+  @@index([ownerUserId, deletedAt, archivedAt, createdAt])
+  @@index([ownerUserId])
+  @@index([ownerUserId, status])
+  @@index([status, finalizationNextAttemptAt])
+  @@index([deletedAt])
+  @@index([archivedAt])
+}
+
+model SignatureDocumentSigner {
+  id                      String                                     @id @default(cuid())
+  documentId              String
+  name                    String
+  email                   String?
+  position                Int
+  status                  SignatureDocumentSignerStatus              @default(PENDENTE)
+  isRequired              Boolean                                    @default(true)
+  tokenHash               String?                                    @unique
+  tokenEncrypted          String?
+  tokenIv                 String?
+  tokenAuthTag            String?
+  tokenExpiresAt          DateTime?
+  renewalCount            Int                                        @default(0)
+  invalidationReason      SignatureDocumentInviteInvalidationReason?
+  emailStatus             SignatureDocumentEmailStatus               @default(NAO_APLICAVEL)
+  emailAttempts           Int                                        @default(0)
+  emailSentAt             DateTime?
+  emailLastError          String?
+  emailClaimedAt          DateTime?
+  declaredSignerName      String?
+  signatureImageDataUrl   String?
+  ipAddress               String?
+  userAgent               String?
+  privacyNoticeAcceptedAt DateTime?
+  privacyNoticeVersion    String?
+  viewedAt                DateTime?
+  signedAt                DateTime?
+  revokedAt               DateTime?
+  expiredAt               DateTime?
+  createdAt               DateTime                                   @default(now())
+  updatedAt               DateTime                                   @updatedAt
+  document                SignatureDocument                          @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  fields                  SignatureDocumentField[]
+  auditLogs               SignatureDocumentAuditLog[]
+
+  @@unique([documentId, position])
+  @@index([documentId])
+  @@index([documentId, status])
+  @@index([status, tokenExpiresAt])
+  @@index([emailStatus, emailClaimedAt])
+}
+
+model SignatureDocumentField {
+  id           String                  @id @default(cuid())
+  documentId   String
+  signerId     String
+  pageNumber   Int
+  x            Decimal                 @db.Decimal(9, 8)
+  y            Decimal                 @db.Decimal(9, 8)
+  width        Decimal                 @db.Decimal(9, 8)
+  height       Decimal                 @db.Decimal(9, 8)
+  pageWidthPt  Decimal                 @db.Decimal(10, 3)
+  pageHeightPt Decimal                 @db.Decimal(10, 3)
+  pageRotation Int                     @default(0)
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+  document     SignatureDocument       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  signer       SignatureDocumentSigner @relation(fields: [signerId], references: [id], onDelete: Cascade)
+
+  @@index([documentId, pageNumber])
+  @@index([signerId])
+}
+
+model SignatureDocumentAuditLog {
+  id          String                       @id @default(cuid())
+  documentId  String
+  signerId    String?
+  actorUserId String?
+  action      SignatureDocumentAuditAction
+  description String?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime                     @default(now())
+  document    SignatureDocument            @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  signer      SignatureDocumentSigner?     @relation(fields: [signerId], references: [id], onDelete: SetNull)
+  actor       User?                        @relation("SignatureDocumentAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([documentId, createdAt])
+  @@index([signerId])
+  @@index([actorUserId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model SignatureDocumentFilePurge {
+  id             String                           @id @default(cuid())
+  operationKey   String                           @unique
+  targetUserId   String
+  quarantineRoot String
+  manifest       Json
+  status         SignatureDocumentFilePurgeStatus @default(PREPARANDO)
+  attempts       Int                              @default(0)
+  claimedAt      DateTime?
+  nextAttemptAt  DateTime?
+  lastError      String?
+  completedAt    DateTime?
+  createdAt      DateTime                         @default(now())
+  updatedAt      DateTime                         @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([targetUserId])
+  @@index([createdAt])
+}
+
+model SignatureDocumentCompletionNotification {
+  id                String                       @id @default(cuid())
+  documentId        String                       @unique
+  idempotencyKey    String                       @unique
+  emailTo           String
+  status            SignatureDocumentEmailStatus @default(PENDENTE)
+  attempts          Int                          @default(0)
+  claimedAt         DateTime?
+  nextAttemptAt     DateTime?
+  providerMessageId String?
+  lastError         String?
+  sentAt            DateTime?
+  createdAt         DateTime                     @default(now())
+  updatedAt         DateTime                     @updatedAt
+  document          SignatureDocument            @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextAttemptAt])
+  @@index([createdAt])
 }

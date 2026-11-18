@@ -31,6 +31,7 @@ import { PrivacyRightsPage } from './pages/PrivacyRightsPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { SignatureValidationPage } from './pages/SignatureValidationPage';
 import { SurveyPage } from './pages/SurveyPage';
+import { AssinaturasPublicSignPage } from './pages/assinaturas/AssinaturasPublicSignPage';
 
 const RDO_REPORT_WRITE_ACCESS = moduleRouteAccess('rdo', 'reportWrite');
 const RDO_COLLABORATOR_ACCESS = moduleRouteAccess('rdo', 'collaborator');
@@ -85,7 +86,9 @@ export default function App() {
         <Route path="/pesquisa/:token" element={<SurveyPage />} />
         <Route path="/assinar/:token" element={<PublicSignaturePage />} />
         <Route path="/epi/assinar/:token" element={<EpiPublicSignaturePage />} />
+        <Route path="/assinaturas/assinar" element={<AssinaturasPublicSignPage />} />
         <Route path="/validar-assinatura/:validationCode" element={<SignatureValidationPage />} />
+        <Route path="/validar-documento/:validationCode" element={<SignatureValidationPage source="standalone" />} />
 
         <Route element={<PrivateRoute />}>
           <Route path="/" element={<RootRedirect />} />

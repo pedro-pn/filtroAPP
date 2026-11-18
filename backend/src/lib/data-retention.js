@@ -1,4 +1,5 @@
 import prisma from './prisma.js';
+import { anonymizeDocumentAccessEvidence } from './assinaturas/audit.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RETENTION_JOB_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -24,6 +25,10 @@ export function retentionTargets(cutoffs) {
       OR: [{ ipAddress: { not: null } }, { userAgent: { not: null } }]
     },
     epiAuditLogs: {
+      createdAt: { lt: cutoffs.auditLogAnonymizeBefore },
+      OR: [{ ipAddress: { not: null } }, { userAgent: { not: null } }]
+    },
+    signatureDocumentAuditLogs: {
       createdAt: { lt: cutoffs.auditLogAnonymizeBefore },
       OR: [{ ipAddress: { not: null } }, { userAgent: { not: null } }]
     },
@@ -60,6 +65,7 @@ export async function previewDataRetention({ prismaClient = prisma, now = new Da
     expiredPasswordTokens,
     reportAuditLogs,
     epiAuditLogs,
+    signatureDocumentAuditLogs,
     satisfactionSurveys,
     abandonedDrafts,
     abandonedDraftsToReview
@@ -68,6 +74,9 @@ export async function previewDataRetention({ prismaClient = prisma, now = new Da
     prismaClient.passwordResetToken.count({ where: targets.expiredPasswordTokens }),
     prismaClient.reportAuditLog.count({ where: targets.reportAuditLogs }),
     prismaClient.epiSignatureRequestAuditLog.count({ where: targets.epiAuditLogs }),
+    prismaClient.signatureDocumentAuditLog?.count
+      ? prismaClient.signatureDocumentAuditLog.count({ where: targets.signatureDocumentAuditLogs })
+      : 0,
     prismaClient.satisfactionSurvey.count({ where: targets.satisfactionSurveys }),
     prismaClient.reportDraft.count({ where: targets.abandonedDrafts }),
     prismaClient.reportDraft.findMany({
@@ -93,6 +102,7 @@ export async function previewDataRetention({ prismaClient = prisma, now = new Da
     expiredPasswordTokens,
     reportAuditLogsToAnonymize: reportAuditLogs,
     epiAuditLogsToAnonymize: epiAuditLogs,
+    signatureDocumentAuditLogsToAnonymize: signatureDocumentAuditLogs,
     satisfactionSurveysToAnonymize: satisfactionSurveys,
     abandonedDraftsToReview: abandonedDrafts,
     abandonedDraftPreviewLimit,
@@ -210,6 +220,32 @@ async function executeRetentionMutations(prismaClient, targets, {
     batchSize,
     maxBatchesPerTarget
   });
+  let signatureDocumentAuditLogs = { count: 0, batches: 0 };
+  if (prismaClient.signatureDocumentAuditLog?.findMany) {
+    const candidates = await prismaClient.signatureDocumentAuditLog.findMany({
+      where: targets.signatureDocumentAuditLogs,
+      orderBy: { createdAt: 'asc' },
+      take: batchSize * maxBatchesPerTarget,
+      select: { documentId: true }
+    });
+    const documentIds = Array.from(new Set(candidates.map(item => item.documentId).filter(Boolean)));
+    for (let index = 0; index < documentIds.length; index += batchSize) {
+      const batch = documentIds.slice(index, index + batchSize);
+      const count = await prismaClient.$transaction(async tx => {
+        await acquireDataRetentionLock(tx);
+        let updated = 0;
+        for (const documentId of batch) {
+          updated += await anonymizeDocumentAccessEvidence(tx, {
+            documentId,
+            cutoff: targets.signatureDocumentAuditLogs.createdAt.lt
+          });
+        }
+        return updated;
+      });
+      signatureDocumentAuditLogs.count += count;
+      signatureDocumentAuditLogs.batches += 1;
+    }
+  }
   const satisfactionSurveys = await processRetentionBatches({
     prismaClient,
     modelName: 'satisfactionSurvey',
@@ -244,6 +280,7 @@ async function executeRetentionMutations(prismaClient, targets, {
     expiredPasswordTokens: expiredPasswordTokens.count,
     reportAuditLogsAnonymized: reportAuditLogs.count,
     epiAuditLogsAnonymized: epiAuditLogs.count,
+    signatureDocumentAuditLogsAnonymized: signatureDocumentAuditLogs.count,
     satisfactionSurveysAnonymized: satisfactionSurveys.count,
     abandonedDraftsDeleted: abandonedDrafts.count,
     abandonedDraftIdsDeleted,
@@ -253,6 +290,7 @@ async function executeRetentionMutations(prismaClient, targets, {
       expiredPasswordTokens: expiredPasswordTokens.batches,
       reportAuditLogs: reportAuditLogs.batches,
       epiAuditLogs: epiAuditLogs.batches,
+      signatureDocumentAuditLogs: signatureDocumentAuditLogs.batches,
       satisfactionSurveys: satisfactionSurveys.batches,
       abandonedDrafts: abandonedDraftIdsDeleted.length ? 1 : 0
     },

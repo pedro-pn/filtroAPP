@@ -1,6 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { createUser, listUsers, removeUser, resendClientAccess, type UserPayload, updateUser } from '../api/users';
+import {
+  createUser,
+  getUserDeletionImpact,
+  listUsers,
+  removeUser,
+  resendClientAccess,
+  type UserPayload,
+  updateUser
+} from '../api/users';
 import { queryKeys } from './queryKeys';
 
 export function useUsers(group?: 'internal' | 'client') {
@@ -36,6 +44,10 @@ export function useUserMutations() {
     onSuccess: invalidateUsers
   });
 
+  const deletionImpactMutation = useMutation({
+    mutationFn: (id: string) => getUserDeletionImpact(id)
+  });
+
   const resendMutation = useMutation({
     mutationFn: (id: string) => resendClientAccess(id)
   });
@@ -43,6 +55,7 @@ export function useUserMutations() {
   return {
     createUser: createMutation,
     updateUser: updateMutation,
+    deletionImpact: deletionImpactMutation,
     removeUser: removeMutation,
     resendClientAccess: resendMutation
   };

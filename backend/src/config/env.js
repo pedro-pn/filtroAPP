@@ -35,6 +35,19 @@ function integerWithDefault(name, defaultValue, { min, max } = {}) {
   }, schema);
 }
 
+function numberWithDefault(name, defaultValue, { min, max } = {}) {
+  let schema = z.number({
+    invalid_type_error: `${name} deve ser numerico.`
+  }).finite(`${name} deve ser finito.`);
+  if (min !== undefined) schema = schema.min(min, `${name} deve ser maior ou igual a ${min}.`);
+  if (max !== undefined) schema = schema.max(max, `${name} deve ser menor ou igual a ${max}.`);
+
+  return z.preprocess(value => {
+    const normalized = emptyToUndefined(value);
+    return normalized === undefined ? defaultValue : Number(normalized);
+  }, schema);
+}
+
 function booleanWithDefault(name, defaultValue) {
   return z.preprocess(value => {
     const normalized = emptyToUndefined(value);
@@ -131,6 +144,12 @@ const rawEnvSchema = z.object({
   SURVEY_TOKEN_SECRET_PREVIOUS: stringWithDefault(''),
   SIGNATURE_TOKEN_SECRET: stringWithDefault(''),
   SIGNATURE_TOKEN_SECRET_PREVIOUS: stringWithDefault(''),
+  ASSINATURAS_MAX_PDF_MB: integerWithDefault('ASSINATURAS_MAX_PDF_MB', 20, { min: 1 }),
+  ASSINATURAS_MAX_PAGES: integerWithDefault('ASSINATURAS_MAX_PAGES', 50, { min: 1 }),
+  ASSINATURAS_MAX_SIGNERS: integerWithDefault('ASSINATURAS_MAX_SIGNERS', 20, { min: 1 }),
+  ASSINATURAS_TOKEN_MAX_DAYS: integerWithDefault('ASSINATURAS_TOKEN_MAX_DAYS', 90, { min: 1 }),
+  ASSINATURAS_DELETED_RETENTION_DAYS: integerWithDefault('ASSINATURAS_DELETED_RETENTION_DAYS', 90, { min: 0 }),
+  ASSINATURAS_PREVIEW_SCALE: numberWithDefault('ASSINATURAS_PREVIEW_SCALE', 1.5, { min: 0.1, max: 4 }),
   DATA_RETENTION_JOB_ENABLED: booleanWithDefault('DATA_RETENTION_JOB_ENABLED', false),
   ZAPSIGN_API_BASE_URL: stringWithDefault('https://api.zapsign.com.br/api/v1'),
   LIBREOFFICE_BINARY: stringWithDefault('soffice'),
@@ -234,6 +253,12 @@ export function loadEnv(source = process.env) {
     previousSurveyTokenSecrets: parseList(raw.SURVEY_TOKEN_SECRET_PREVIOUS),
     signatureTokenSecret: raw.SIGNATURE_TOKEN_SECRET,
     previousSignatureTokenSecrets: parseList(raw.SIGNATURE_TOKEN_SECRET_PREVIOUS),
+    assinaturasMaxPdfMb: raw.ASSINATURAS_MAX_PDF_MB,
+    assinaturasMaxPages: raw.ASSINATURAS_MAX_PAGES,
+    assinaturasMaxSigners: raw.ASSINATURAS_MAX_SIGNERS,
+    assinaturasTokenMaxDays: raw.ASSINATURAS_TOKEN_MAX_DAYS,
+    assinaturasDeletedRetentionDays: raw.ASSINATURAS_DELETED_RETENTION_DAYS,
+    assinaturasPreviewScale: raw.ASSINATURAS_PREVIEW_SCALE,
     dataRetentionJobEnabled: raw.DATA_RETENTION_JOB_ENABLED,
     zapsignApiBaseUrl: raw.ZAPSIGN_API_BASE_URL,
     libreOfficeBinary: raw.LIBREOFFICE_BINARY,

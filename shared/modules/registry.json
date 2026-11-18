@@ -607,6 +607,51 @@
           ]
         }
       ]
+    },
+    {
+      "id": "assinaturas",
+      "prismaModule": "ASSINATURAS",
+      "badge": "ASS",
+      "title": "Assinaturas",
+      "copy": "Envio de PDF avulso, coleta de assinaturas e trilha de auditoria.",
+      "hub": {
+        "enabled": true,
+        "roles": [
+          "assinaturas:user"
+        ],
+        "path": "/assinaturas"
+      },
+      "pathPrefixes": [
+        "/assinaturas"
+      ],
+      "pathExclusions": [
+        "/assinaturas/assinar"
+      ],
+      "routes": {
+        "index": "/assinaturas"
+      },
+      "routeGroups": {
+        "default": {
+          "allowedAccountTypes": [
+            "ADMIN",
+            "INTERNAL"
+          ],
+          "allowedModuleRoles": [
+            "assinaturas:user"
+          ]
+        }
+      },
+      "roles": [
+        {
+          "code": "ASSINATURAS_USER",
+          "public": "assinaturas:user",
+          "label": "Assinaturas - Usuário",
+          "accountTypes": [
+            "ADMIN",
+            "INTERNAL"
+          ]
+        }
+      ]
     }
   ]
 }

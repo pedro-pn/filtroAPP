@@ -18,15 +18,30 @@ export interface SignatureValidationPayload {
       clientName: string;
     };
   };
+  document?: {
+    id: string;
+    title: string;
+    originalFileName: string;
+    requesterNameSnapshot: string;
+    status: string;
+  };
+  completedAt?: string | null;
   signers?: Array<{
     name: string;
     declaredName?: string | null;
-    email: string;
-    role: string;
+    email?: string;
+    role?: string;
     status: string;
     signedAt?: string | null;
     rejectedAt?: string | null;
   }>;
+}
+
+export async function getStandaloneSignatureValidation(validationCode: string) {
+  const response = await apiClient.get<SignatureValidationPayload>(
+    `/assinaturas/validar/${encodeURIComponent(validationCode)}`
+  );
+  return response.data;
 }
 
 export async function getSignatureValidation(validationCode: string) {

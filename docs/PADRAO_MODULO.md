@@ -250,3 +250,19 @@ Um modulo novo so esta pronto quando:
 - esta registrado em `shared/modules/registry.json` e com registry gerado;
 - tem teste automatizado;
 - passa no CI completo.
+
+## Referência: módulo Assinaturas
+
+`Assinaturas` é uma implementação de referência para módulos com documentos e uma superfície pública. A fronteira de domínio está em `backend/src/lib/assinaturas/`; a rota autenticada exige `assinaturas:user`, enquanto convite e validação têm contratos públicos mínimos e independentes.
+
+Decisões reutilizáveis desse módulo:
+
+- segredo público no fragmento do navegador, somente em memória, e enviado à API por header dedicado; nunca em path/query, log, telemetria ou auditoria;
+- escrita de PDF original/final e prévias apenas em armazenamento gerenciado, com hash de integridade;
+- operações pós-commit recuperáveis por claim, retry/backoff e jobs rastreados;
+- exclusão que cruza banco e filesystem usa manifesto durável e quarentena com rollback/reconciliação;
+- navegação interna usa `?doc=`, `?page=`, `?tab=` e `?status=`, limpando combinações incompatíveis;
+- datas de negócio são exibidas com formatador compartilhado em `America/Sao_Paulo`;
+- onboarding permanente via Driver.js é marcado por usuário no `localStorage`.
+
+Na exclusão da conta proprietária (decisão D16 da feature), documentos não concluídos são excluídos e seus bytes passam por quarentena; documentos concluídos são preservados como órfãos, com o nome histórico e a auditoria intactos.

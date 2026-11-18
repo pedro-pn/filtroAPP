@@ -24,6 +24,12 @@ test('loadEnv parses defaults from a minimal valid environment', () => {
   assert.equal(env.errorTrackingWebhookUrl, '');
   assert.equal(env.projectIntakeWebhookToken, '');
   assert.equal(env.pontomaisApiToken, '');
+  assert.equal(env.assinaturasMaxPdfMb, 20);
+  assert.equal(env.assinaturasMaxPages, 50);
+  assert.equal(env.assinaturasMaxSigners, 20);
+  assert.equal(env.assinaturasTokenMaxDays, 90);
+  assert.equal(env.assinaturasDeletedRetentionDays, 90);
+  assert.equal(env.assinaturasPreviewScale, 1.5);
 });
 
 test('loadEnv mantém o token do Ponto Mais opcional e normalizado', () => {
@@ -60,6 +66,19 @@ test('loadEnv rejects invalid numeric and boolean values', () => {
     () => loadEnv({ DATABASE_URL: databaseUrl, SEND_CLIENT_EMAILS: 'maybe' }),
     /SEND_CLIENT_EMAILS/
   );
+  for (const [name, value] of [
+    ['ASSINATURAS_MAX_PDF_MB', '0'],
+    ['ASSINATURAS_MAX_PAGES', '0'],
+    ['ASSINATURAS_MAX_SIGNERS', '0'],
+    ['ASSINATURAS_TOKEN_MAX_DAYS', '0'],
+    ['ASSINATURAS_DELETED_RETENTION_DAYS', '-1'],
+    ['ASSINATURAS_PREVIEW_SCALE', '0']
+  ]) {
+    assert.throws(
+      () => loadEnv({ DATABASE_URL: databaseUrl, [name]: value }),
+      new RegExp(name)
+    );
+  }
 });
 
 test('loadEnv enforces production security variables', () => {
