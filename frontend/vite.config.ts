@@ -6,7 +6,12 @@ import { randomUUID } from 'node:crypto';
 const sharedWorkspaceRoot = decodeURIComponent(new URL('../shared', import.meta.url).pathname);
 
 export default defineConfig(({ command }) => {
-  const appVersion = command === 'build' ? randomUUID() : 'development';
+  // O deploy passa o commit em APP_GIT_SHA: a versão do app passa a apontar para o
+  // código no ar. Sem SHA válido (build local), cada build segue com uma versão única.
+  const gitSha = (process.env.APP_GIT_SHA ?? '').trim();
+  const appVersion = command === 'build'
+    ? (/^[0-9a-f]{7,40}$/i.test(gitSha) ? gitSha.toLowerCase() : randomUUID())
+    : 'development';
   const apiProxyTarget =
     process.env.VITE_API_PROXY_TARGET ?? 'http://localhost:4000';
   const proxy: Record<string, ProxyOptions> = Object.fromEntries(

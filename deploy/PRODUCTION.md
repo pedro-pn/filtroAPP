@@ -213,6 +213,94 @@ ser:
 docker compose --env-file backend/.env.production -f docker-compose.prod.yml up -d --build
 ```
 
+## Deploy versionado e volta de versão
+
+`deploy/deploy-prod.sh` é o caminho padrão de publicação. Ele publica o commit em
+`HEAD`, marca as imagens com o SHA (`filtrovali-{backend,worker,nginx}:<sha>`),
+confere a versão no ar e, se algo falhar, volta sozinho para as imagens que
+estavam rodando. **Rode no servidor:**
+
+```bash
+cd ~/apps/filtroAPP
+git pull --ff-only
+deploy/deploy-prod.sh
+```
+
+O que o script faz, em ordem:
+
+1. recusa checkout com arquivo rastreado alterado (o que vai ao ar precisa estar no Git);
+2. lê o commit em execução (`APP_GIT_SHA` gravado na imagem) e marca as imagens
+   em execução como `:previous`;
+3. builda backend, worker e nginx com `APP_GIT_SHA=<sha de HEAD>`; se o build
+   falhar, nada muda;
+4. faz um dump só do banco em `/root/backups/filtrovali/pre-deploy` (mantém 3);
+5. `docker compose up -d --wait` (migrations antes do backend);
+6. confere `/health` do backend, `app-version.json` do frontend (deve ser o SHA)
+   e o healthcheck do worker;
+7. se 5 ou 6 falharem, sobe as imagens `:previous` sem build e sem migrations e
+   confere de novo. O resultado vai para
+   `/root/backups/filtrovali/status/deploy-latest.json` e
+   `/root/backups/filtrovali/deploy/deploy-history.log`.
+
+Depois de um deploy ou de uma volta, `:latest` aponta para o que está no ar; por
+isso `docker compose ... up -d backend` sem `APP_GIT_SHA` continua subindo a versão
+certa. O script mantém as 5 imagens de commit mais recentes (`KEEP_IMAGES`).
+
+Volta manual:
+
+```bash
+deploy/deploy-prod.sh --rollback                       # versão anterior ao último deploy
+deploy/deploy-prod.sh --rollback-to <sha>              # imagem local de um commit
+deploy/deploy-prod.sh --rollback-to before-rollback    # desfaz a volta
+```
+
+**Migrations só andam para frente.** A volta troca o código, não o schema. Quando
+a migration nova só acrescenta tabelas/colunas (padrão do projeto), o código
+anterior funciona com o banco novo. Se ela apagou ou reescreveu dados, a volta de
+dados é o restore do dump do passo 4: `docs/RUNBOOK_INCIDENTES.md`, seção 3.
+
+Opções: `--skip-backup` (sem o dump do passo 4), `--force` (republica o mesmo
+commit), `--allow-dirty` (só em emergência; o commit gravado na imagem não
+descreve as alterações locais). Variáveis: `HEALTH_TIMEOUT_SECONDS` (240),
+`KEEP_IMAGES` (5), `PRE_DEPLOY_BACKUP_KEEP` (3).
+
+O caminho manual da seção "Subida em produção" continua válido como plano B; sem
+`APP_GIT_SHA`, as imagens saem marcadas como `:latest` e o `/health` mostra
+`unknown`.
+
+### Ensaio de restauração
+
+`deploy/restore-drill.sh` prova que o backup fora do servidor volta: baixa o
+último backup diário do B2, confere os checksums, restaura num PostgreSQL
+descartável (container próprio, sem rede, apagado no fim), confere migrations,
+usuários, projetos, relatórios e a data do último relatório, e grava o resultado
+em `restore-latest.json`, o mesmo arquivo que o painel de Operações lê. Nunca
+toca o banco de produção. **Rode no servidor** a primeira vez à mão:
+
+```bash
+cd ~/apps/filtroAPP
+deploy/restore-drill.sh
+cat /root/backups/filtrovali/status/restore-latest.json
+```
+
+Precisa de espaço livre em disco para o dump descompactado mais o banco
+restaurado. Depois do primeiro ensaio com sucesso, agende-o (mensal) e ligue a
+cobrança no painel/alerta:
+
+```bash
+( crontab -l; echo '30 4 2 * * /root/apps/filtroAPP/deploy/restore-drill.sh >> /root/logs/restore-drill.log 2>&1' ) | crontab -
+```
+
+```env
+OPERATIONS_BACKUP_STATUS_FILE=/ops-status/backup-latest.json
+OPERATIONS_RESTORE_STATUS_FILE=/ops-status/restore-latest.json
+OPERATIONS_REQUIRE_BACKUP_STATUS=true
+OPERATIONS_REQUIRE_RESTORE_STATUS=true
+OPERATIONS_RESTORE_MAX_AGE_DAYS=35
+```
+
+(recrie backend e worker depois de editar o env-file).
+
 ## Falhas de rede no build (`npm ci`)
 
 O build do frontend usa Node 24, exigido por `@zxing/library@0.23.0`.
@@ -309,7 +397,9 @@ VITE_ERROR_TRACKING_ENDPOINT=
 ```
 
 Depois que o restore periódico estiver agendado e validado, altere
-`OPERATIONS_REQUIRE_RESTORE_STATUS=true`.
+`OPERATIONS_REQUIRE_RESTORE_STATUS=true` (o ensaio é `deploy/restore-drill.sh`,
+seção "Ensaio de restauração"; com agenda mensal use
+`OPERATIONS_RESTORE_MAX_AGE_DAYS=35`).
 
 O frontend também pode enviar erros não tratados para o backend:
 
@@ -320,8 +410,8 @@ VITE_ERROR_TRACKING_ENABLED=true
 Se o endpoint padrão `/api/operations/client-errors` não for usado, defina
 `VITE_ERROR_TRACKING_ENDPOINT`.
 
-Os scripts `deploy/backup-prod.sh` e `deploy/restore-prod.sh` escrevem os arquivos
-de status. O compose de produção já monta
+Os scripts `deploy/backup-prod.sh`, `deploy/restore-prod.sh` e
+`deploy/restore-drill.sh` escrevem os arquivos de status. O compose de produção já monta
 `${OPERATIONS_STATUS_DIR:-/root/backups/filtrovali/status}` no backend em
 `/ops-status:ro`; a tarefa manual é criar esse diretório no host e preencher as
 variáveis no env-file de produção.
