@@ -47,8 +47,8 @@ export function hubModulesForUser(user: Pick<AuthUser, 'accountType' | 'moduleRo
       id: 'epi' as const,
       badge: 'EPI',
       title: 'Liberação de EPI',
-      copy: 'Módulo em implantação.',
-      disabled: true
+      copy: 'Fichas de entrega, devolução e assinatura por colaborador.',
+      path: '/epi'
     }] : [])
   ];
 

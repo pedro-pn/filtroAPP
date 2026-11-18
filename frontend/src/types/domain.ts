@@ -10,6 +10,9 @@ export interface Collaborator {
   name: string;
   role: string;
   email: string | null;
+  cpf?: string | null;
+  registrationNumber?: string | null;
+  admissionDate?: string | null;
   signatureImage: string | null;
   isActive: boolean;
 }
