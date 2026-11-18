@@ -19,7 +19,11 @@ import { startLegacyZapSignReconciliationJob } from '../lib/zapsign-legacy-recon
 
 export function startBackgroundJobs({ keepAlive = false } = {}) {
   startConectaRhJob();
-  startDataRetentionJob({ enabled: env.dataRetentionJobEnabled });
+  startDataRetentionJob({
+    enabled: env.dataRetentionJobEnabled,
+    collaboratorRetention: env.collaboratorRetentionEnabled,
+    surveyResponseRetention: env.surveyResponseRetentionEnabled
+  });
   startSurveyReminderJob();
   startSignatureReminderJob();
   startCalibrationReminderJob();

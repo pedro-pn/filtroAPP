@@ -639,6 +639,36 @@ Os scripts `deploy/backup-prod.sh`, `deploy/restore-prod.sh` e
 `/ops-status:ro`; a tarefa manual é criar esse diretório no host e preencher as
 variáveis no env-file de produção.
 
+## Retenção LGPD
+
+O worker roda um job diário de retenção quando `DATA_RETENTION_JOB_ENABLED=true`. A rotina base só apaga sessões e
+tokens expirados e logs da API com mais de `API_TOKEN_LOG_RETENTION_DAYS`, e anonimiza IP/User-Agent antigos
+(auditoria após 2 anos, pesquisa após 1 ano). Rascunhos de RDO nunca são apagados pelo job. Alvos que anonimizam
+conteúdo têm flag própria e só rodam com a rotina base ligada:
+
+| Flag | O que faz |
+|---|---|
+| `COLLABORATOR_RETENTION_ENABLED` | Colaboradores inativos com `terminationDate` há mais de 5 anos: apaga e-mail, observação do Efetivo, imagem de assinatura, ausências, apelidos/vínculos do ponto e os dados pessoais dos eventos brutos do Conecta RH; nome/CPF/matrícula só ficam quando há EPI ou RDO vinculados. Pula colaboradores com exceção em `DataRetentionHold`. |
+| `SURVEY_RESPONSE_RETENTION_ENABLED` | Pesquisas respondidas (ou enviadas sem resposta) há mais de 2 anos: apaga e-mail, notas de acompanhamento e respostas de texto livre; mantém NPS/escala/escolhas. |
+
+Cada execução fica em `DataRetentionRun` (contagens no `summary.lgpd`). Sempre simule antes de ligar uma flag
+(rode no servidor; a saída só traz contagens e ids):
+
+```bash
+docker compose --env-file backend/.env.production -f docker-compose.prod.yml exec -T backend npm run retention:dry-run
+```
+
+Para manter um colaborador fora da anonimização (processo trabalhista, fiscalização), marque a exceção antes do prazo
+(rode no servidor, como dono do banco):
+
+```bash
+docker compose --env-file backend/.env.production -f docker-compose.prod.yml exec -T postgres \
+  psql -U postgres -d filtrovali -c "INSERT INTO \"DataRetentionHold\" (id, kind, \"targetId\", reason, \"updatedAt\") SELECT 'hold_' || id, 'COLLABORATOR', id, 'motivo', now() FROM \"Collaborator\" WHERE code = 'CODIGO' ON CONFLICT DO NOTHING;"
+```
+
+Depois de editar o `.env.production`, recrie backend e worker
+(`docker compose --env-file backend/.env.production -f docker-compose.prod.yml up -d backend worker`).
+
 ## Certificado
 
 O `nginx` já está preparado para servir o domínio principal

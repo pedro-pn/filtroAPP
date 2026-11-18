@@ -78,6 +78,7 @@ jobs:
       HISTORICAL_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali_suites_test?schema=public
       PROJECT_DELETION_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali_suites_test?schema=public
       SYSTEMS_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali_suites_test?schema=public
+      LGPD_RETENTION_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali_suites_test?schema=public
       EFETIVO_DB_TESTS: "1"
       TRUST_PROXY: "false"
       SIGNATURE_TOKEN_SECRET: ci-signature-token-secret
