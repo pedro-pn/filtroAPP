@@ -791,3 +791,12 @@ jobs:
           DATABASE_URL: postgresql://filtrovali_app:ci_app_role_password_0000000000@localhost:5432/conecta_allocation_test
           TEST_CONECTA_DATABASE_URL: postgresql://filtrovali_app:ci_app_role_password_0000000000@localhost:5432/conecta_allocation_test
         run: node --test test/integration-allocation-review.test.js
+
+      # A cópia de produção da homologação é anonimizada antes de ficar visível
+      # (deploy/sync-staging.sh). Aqui o SQL roda num banco migrado com dados
+      # fictícios: precisa mascarar tudo e falhar ao achar coluna pessoal sem regra.
+      - name: Staging anonymization masks personal data and fails closed
+        run: |
+          psql "$OWNER_PSQL" -X -q -v ON_ERROR_STOP=1 -c "CREATE DATABASE staging_anon_test"
+          MIGRATION_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/staging_anon_test?schema=public" npm run prisma:deploy
+          ../deploy/db/test-anonymize-staging.sh "postgresql://postgres:postgres@localhost:5432/staging_anon_test"

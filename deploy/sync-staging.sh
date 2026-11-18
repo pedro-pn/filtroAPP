@@ -2,6 +2,11 @@
 # Sincroniza o banco de homologação com o último snapshot de produção.
 #
 # Comportamento:
+#   - O dump de produção é restaurado num banco TEMPORÁRIO e anonimizado
+#     (deploy/db/anonymize-staging.sql) antes de virar o banco da homologação.
+#     Se a anonimização falhar, o sync aborta e a homologação fica como estava.
+#   - Arquivos de produção (fotos, anexos, PDFs) nunca são copiados: a
+#     homologação usa arquivos sintéticos.
 #   - Se o ambiente de homologação estiver PARADO: sobe o banco, aplica o snapshot,
 #     roda migrations e desliga tudo ao final.
 #   - Se o ambiente de homologação estiver RODANDO: para backend, worker e nginx,
@@ -31,6 +36,7 @@ POSTGRES_DB="${POSTGRES_DB:-filtrovali}"
 POSTGRES_USER="${POSTGRES_USER:-postgres}"
 APP_DB_ROLE="${APP_DB_ROLE:-filtrovali_app}"
 APP_ROLE_SQL="${APP_ROLE_SQL:-$SCRIPT_DIR/db/app-role.sql}"
+ANONYMIZE_SQL="${ANONYMIZE_SQL:-$SCRIPT_DIR/db/anonymize-staging.sql}"
 REPORTS_VOLUME="${REPORTS_VOLUME:-filtrovali_staging_relatorios}"
 RESTORE_REPORTS="${RESTORE_REPORTS:-false}"
 BUILD_SERVICES="${BUILD_SERVICES:-true}"
@@ -72,6 +78,14 @@ if [ -z "$STAGING_ADMIN_PASSWORD" ] && [ -z "$STAGING_ADMIN_PASSWORD_HASH" ]; th
   echo "[sync-staging] configure STAGING_ADMIN_PASSWORD ou STAGING_ADMIN_PASSWORD_HASH em $STAGING_ENV_FILE. O sync não restaura credenciais de produção em homologação." >&2
   exit 1
 fi
+
+if [ ! -f "$ANONYMIZE_SQL" ]; then
+  echo "[sync-staging] $ANONYMIZE_SQL não encontrado. Sem anonimização, dados de produção não vão para a homologação." >&2
+  exit 1
+fi
+
+DB_SWAPPED=false
+STAGING_WAS_UP=false
 
 # ---------------------------------------------------------------------------
 # Funções auxiliares
@@ -253,7 +267,7 @@ sanitize_staging_database() {
   staging_source_hash_sql="$(sql_escape "$(staging_mock_file_hash report-source.pdf)")"
   staging_final_hash_sql="$(sql_escape "$(staging_mock_file_hash report-final.pdf)")"
 
-  log "sanitizando credenciais, sessões e tokens públicos restaurados de produção"
+  log "ajustando arquivos sintéticos, links e o admin exclusivo de homologação"
   docker compose -f "$STAGING_COMPOSE_FILE" exec -T postgres \
     psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<SQL
 BEGIN;
@@ -279,7 +293,6 @@ SET
   "name" = 'Colaborador Staging ' || "code",
   "email" = NULL,
   "cpf" = NULL,
-  "registrationNumber" = NULL,
   "signatureImage" = NULL,
   "updatedAt" = CURRENT_TIMESTAMP;
 
@@ -530,6 +543,13 @@ notify_failure() {
   log "falhou com exit code $exit_code na linha $line_no: $cmd" >&2
   cleanup_failed_restore
 
+  # Falha antes da troca de banco: a homologação continua com o banco anterior;
+  # religa o que estava rodando.
+  if [ "$DB_SWAPPED" != "true" ] && [ "$STAGING_WAS_UP" = "true" ]; then
+    log "religando backend, worker e nginx com o banco anterior" >&2
+    docker compose -f "$STAGING_COMPOSE_FILE" up -d backend worker nginx >/dev/null 2>&1 || true
+  fi
+
   if [ -n "$TELEGRAM_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
     local host
     host="$(hostname)"
@@ -601,7 +621,6 @@ log "usando backup: $BACKUP_DIR (${BACKUP_AGE_HOURS}h atrás)"
 
 cd "$PROJECT_DIR"
 
-STAGING_WAS_UP=false
 if docker compose -f "$STAGING_COMPOSE_FILE" ps --quiet --status running 2>/dev/null | grep -q .; then
   STAGING_WAS_UP=true
   log "ambiente de homologação estava RODANDO"
@@ -668,6 +687,11 @@ gunzip -c "$BACKUP_DIR/postgres.sql.gz" \
   | docker compose -f "$STAGING_COMPOSE_FILE" exec -T postgres \
       psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$RESTORE_DB" -q
 
+log "anonimizando dados pessoais no banco temporário $RESTORE_DB (antes de ficar visível à homologação)"
+docker compose -f "$STAGING_COMPOSE_FILE" exec -T postgres \
+  psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$RESTORE_DB" < "$ANONYMIZE_SQL"
+log "anonimização concluída"
+
 log "ativando banco restaurado"
 docker compose -f "$STAGING_COMPOSE_FILE" exec -T postgres \
   psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres <<SQL
@@ -683,7 +707,8 @@ SQL
 
 RESTORE_DB=""
 PREVIOUS_DB=""
-log "banco restaurado e ativado"
+DB_SWAPPED=true
+log "banco restaurado, anonimizado e ativado"
 
 # ---------------------------------------------------------------------------
 # Arquivos de relatórios em homologação
