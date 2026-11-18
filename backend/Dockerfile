@@ -33,6 +33,12 @@ RUN mkdir -p /data/assets && cp -R ./assets/. /data/assets/
 COPY Modelos /workspace/Modelos
 COPY equipamentos /workspace/equipamentos
 
+# Commit do build (deploy/deploy-prod.sh passa o SHA); exposto em /health para
+# conferir qual código está no ar. Fica no fim para não invalidar o cache.
+ARG APP_GIT_SHA=unknown
+ENV APP_GIT_SHA=$APP_GIT_SHA
+LABEL org.opencontainers.image.revision=$APP_GIT_SHA
+
 ENV NODE_ENV=production
 EXPOSE 4000
 

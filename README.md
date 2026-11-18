@@ -577,6 +577,20 @@ docker compose -f ../infra-proxy/docker-compose.yml up -d
 
 ### Atualização de versão
 
+Caminho padrão (build marcado com o commit, conferência pós-deploy e volta
+automática; detalhes em `deploy/PRODUCTION.md`, "Deploy versionado e volta de versão"):
+
+```bash
+git pull --ff-only
+deploy/deploy-prod.sh              # publica HEAD; volta sozinho se a conferência falhar
+deploy/deploy-prod.sh --rollback   # volta manual para a versão anterior
+```
+
+Incidentes (fora do ar, banco cheio, deploy ruim, restore, troca de credencial,
+serviço externo parado): `docs/RUNBOOK_INCIDENTES.md`.
+
+Caminho manual (plano B):
+
 ```bash
 # 1. Fazer backup validado antes de qualquer deploy
 ./deploy/backup-prod.sh

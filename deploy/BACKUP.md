@@ -330,4 +330,32 @@ BACKUP_SOURCE=/root/backups/filtrovali/2026-04-24-030001 RUN_MIGRATIONS=false ./
 - Backup horário completo (banco + relatórios + certificados) com retenção curta no Backblaze B2
 - Backup diário completo com retenção longa
 - Snapshot periódico do disco EBS
-- Teste de restore pelo menos uma vez
+- Ensaio de restauração mensal automatizado (`deploy/restore-drill.sh`, abaixo)
+
+## Ensaio de restauração (`deploy/restore-drill.sh`)
+
+Backup que nunca foi restaurado não é backup comprovado. O ensaio:
+
+1. pega o backup mais recente de `b2://filtrovali-backups/daily` (ou
+   `RESTORE_DRILL_B2_URI`, ou uma pasta local em `RESTORE_DRILL_SOURCE`);
+2. confere `SHA256SUMS`, a integridade do `postgres.sql.gz` e a leitura do
+   `relatorios.tar.gz`;
+3. restaura o dump com `ON_ERROR_STOP` num container `postgres:16-alpine`
+   descartável, **sem rede** e apagado no fim (nunca no banco de produção);
+4. confere migrations aplicadas, usuários, projetos, colaboradores, relatórios e
+   a idade do último relatório (`RESTORE_DRILL_MAX_DATA_AGE_HOURS`, padrão 96);
+5. grava `restore-latest.json` (`kind: restore-drill`, duração, contagens), lido
+   pelo painel de Operações.
+
+Rode no servidor (primeira vez à mão, depois mensal no cron):
+
+```bash
+cd ~/apps/filtroAPP
+deploy/restore-drill.sh
+# cron sugerido: 30 4 2 * * /root/apps/filtroAPP/deploy/restore-drill.sh >> /root/logs/restore-drill.log 2>&1
+```
+
+Com o ensaio agendado, ligue `OPERATIONS_REQUIRE_RESTORE_STATUS=true` e
+`OPERATIONS_RESTORE_MAX_AGE_DAYS=35` no `backend/.env.production`. Se
+`TELEGRAM_TOKEN`/`TELEGRAM_CHAT_ID` estiverem no ambiente do cron, uma falha também
+avisa no Telegram, como no backup.
