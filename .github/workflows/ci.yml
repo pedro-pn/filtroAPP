@@ -629,6 +629,9 @@ jobs:
       - name: Verify Nginx health in an isolated local container
         run: python3 deploy/test-nginx-health.py
 
+      - name: Verify the runtime maintenance page in isolated containers
+        run: python3 deploy/test-nginx-maintenance.py
+
       - name: Build staging images
         run: docker compose -f docker-compose.staging.yml build backend nginx
 

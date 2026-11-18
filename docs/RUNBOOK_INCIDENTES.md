@@ -47,6 +47,13 @@ filas, último backup e último restore.
 
 ## 1. Aplicação fora do ar
 
+Antes de mexer: se o problema vai demorar (restore, migration manual, banco cheio),
+ligue a página de manutenção para os usuários verem um aviso em vez de erro:
+`deploy/maintenance.sh on "motivo"` (desligue com `deploy/maintenance.sh off`).
+Se a tela de manutenção aparece sem ninguém ter ligado, confira
+`deploy/maintenance.sh status`: um deploy interrompido com `kill -9` pode ter deixado
+o flag ligado.
+
 1. `dcp ps`: algum serviço `exited`, `restarting` ou `unhealthy`?
 2. Veja o motivo: `dcp logs --tail 200 <serviço>`.
    - `OOMKilled` / memória: `docker inspect -f '{{.State.OOMKilled}}' filtrovali-backend`.
