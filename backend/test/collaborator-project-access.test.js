@@ -178,6 +178,47 @@ test('report access rejects reports under soft-deleted projects', async () => {
   );
 });
 
+test('client report access can reuse preloaded project visibility context', async () => {
+  const project = {
+    id: 'project-1',
+    deletedAt: null,
+    managerOnly: false,
+    clientCnpj: '12345678000190',
+    clientEmailPrimary: 'client@example.com',
+    clientEmailCc: []
+  };
+  const parentRdo = {
+    id: 'rdo-1',
+    projectId: 'project-1',
+    reportType: 'RDO',
+    status: 'SIGNED',
+    reportDate: new Date('2026-05-20T00:00:00.000Z'),
+    project
+  };
+  const serviceReport = {
+    id: 'rtp-1',
+    projectId: 'project-1',
+    reportType: 'RTP',
+    status: 'APPROVED',
+    reportDate: new Date('2026-05-21T00:00:00.000Z'),
+    specialConditions: { parentRdoId: 'rdo-1' },
+    project
+  };
+  const clientAuth = {
+    user: {
+      id: 'client-1',
+      role: 'CLIENT',
+      username: 'client@example.com'
+    }
+  };
+  const clientVisibilityById = new Map([
+    [parentRdo.id, parentRdo],
+    [serviceReport.id, serviceReport]
+  ]);
+
+  assert.equal(await canAccessReport(clientAuth, serviceReport, { clientVisibilityById }), true);
+});
+
 test('tube rows require diameter and length when service uses tubing', () => {
   assert.doesNotThrow(() => assertCompleteTubeRows([{
     serviceType: 'pressao',

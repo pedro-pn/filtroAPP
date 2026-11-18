@@ -18,6 +18,9 @@ const EQUIPMENT_FILE_CANDIDATES = [
   '/workspace/equipamentos'
 ].filter(Boolean);
 const RDO_OWNED_CATALOG_SOURCES = new Set(['UNIT', 'PARTICLE_COUNTER']);
+const ROMANEIO_CATALOG_SYNC_TTL_MS = 60_000;
+let lastSuccessfulCatalogSyncAt = 0;
+let catalogSyncInFlight = null;
 
 function normalizeSpaces(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -275,10 +278,36 @@ async function syncParticleCounters(tx) {
   }
 }
 
-export async function syncRomaneioCatalog() {
+async function runRomaneioCatalogSync() {
   await prisma.$transaction(async tx => {
     await syncFileCatalog(tx);
     await syncUnits(tx);
     await syncParticleCounters(tx);
   }, { timeout: 30_000 });
+  lastSuccessfulCatalogSyncAt = Date.now();
+}
+
+function startRomaneioCatalogSync() {
+  if (!catalogSyncInFlight) {
+    catalogSyncInFlight = runRomaneioCatalogSync()
+      .then(() => ({ synced: true }))
+      .finally(() => {
+        catalogSyncInFlight = null;
+      });
+  }
+
+  return catalogSyncInFlight;
+}
+
+export async function syncRomaneioCatalog() {
+  await startRomaneioCatalogSync();
+}
+
+export async function ensureRomaneioCatalogSynced({ ttlMs = ROMANEIO_CATALOG_SYNC_TTL_MS } = {}) {
+  const now = Date.now();
+  if (lastSuccessfulCatalogSyncAt && now - lastSuccessfulCatalogSyncAt < ttlMs) {
+    return { synced: false };
+  }
+
+  return startRomaneioCatalogSync();
 }

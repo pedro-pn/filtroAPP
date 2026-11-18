@@ -9,6 +9,7 @@ import {
 } from '../../lib/calibration-certificates.js';
 import { notifyCalibrationUpdatedSafely } from '../../lib/calibration-reminders.js';
 import prisma from '../../lib/prisma.js';
+import { manometersCache } from '../../lib/resource-list-cache.js';
 import { requireAuth, requireInternalUser, requireManager } from '../../middleware/auth.js';
 
 const router = Router();
@@ -30,10 +31,10 @@ const schema = z.object({
 });
 
 router.get('/', requireInternalUser, asyncHandler(async (_req, res) => {
-  const items = await prisma.manometer.findMany({
+  const items = await manometersCache.get(() => prisma.manometer.findMany({
     orderBy: { code: 'asc' },
     include: currentCalibrationCertificateInclude
-  });
+  }));
   res.json(items.map(withCurrentCalibrationCertificate));
 }));
 
@@ -56,6 +57,7 @@ router.post('/', requireManager, asyncHandler(async (req, res) => {
       equipment: item,
       previousExpiresAt: existing.expiresAt
     });
+    manometersCache.clear();
     const freshItem = await prisma.manometer.findUnique({
       where: { id: item.id },
       include: currentCalibrationCertificateInclude
@@ -74,6 +76,7 @@ router.post('/', requireManager, asyncHandler(async (req, res) => {
     where: { id: item.id },
     include: currentCalibrationCertificateInclude
   });
+  manometersCache.clear();
   res.status(201).json(withCurrentCalibrationCertificate(freshItem));
 }));
 
@@ -103,11 +106,13 @@ router.put('/:id', requireManager, asyncHandler(async (req, res) => {
     where: { id: item.id },
     include: currentCalibrationCertificateInclude
   });
+  manometersCache.clear();
   res.json(withCurrentCalibrationCertificate(freshItem));
 }));
 
 router.delete('/:id', requireManager, asyncHandler(async (req, res) => {
   await prisma.manometer.update({ where: { id: req.params.id }, data: { isActive: false } });
+  manometersCache.clear();
   res.status(204).end();
 }));
 

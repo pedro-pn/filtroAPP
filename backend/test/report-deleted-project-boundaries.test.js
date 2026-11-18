@@ -256,6 +256,100 @@ function stubAuthenticatedCollaborator(t) {
   });
 }
 
+test('GET /reports keeps legacy array response when pagination is not requested', async t => {
+  stubAuthenticatedManager(t);
+  const originals = {
+    reportFindMany: prisma.report.findMany,
+    reportCount: prisma.report.count
+  };
+  prisma.report.findMany = async args => {
+    assert.equal(args.skip, undefined);
+    assert.equal(args.take, undefined);
+    return [activeReport({ id: 'report-1' })];
+  };
+  prisma.report.count = async () => {
+    throw new Error('legacy report list must not count rows');
+  };
+  t.after(() => {
+    prisma.report.findMany = originals.reportFindMany;
+    prisma.report.count = originals.reportCount;
+  });
+
+  const response = await dispatchApp('GET', '/api/reports', undefined);
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(Array.isArray(response.json), true);
+  assert.equal(response.json.length, 1);
+  assert.equal(response.json[0].id, 'report-1');
+});
+
+test('GET /reports returns paginated payload when page parameters are provided', async t => {
+  stubAuthenticatedManager(t);
+  const originals = {
+    reportFindMany: prisma.report.findMany,
+    reportCount: prisma.report.count
+  };
+  prisma.report.findMany = async args => {
+    assert.equal(args.skip, 2);
+    assert.equal(args.take, 2);
+    return [
+      activeReport({ id: 'report-3' }),
+      activeReport({ id: 'report-4' })
+    ];
+  };
+  prisma.report.count = async args => {
+    assert.equal(args.where.deletedAt, null);
+    return 5;
+  };
+  t.after(() => {
+    prisma.report.findMany = originals.reportFindMany;
+    prisma.report.count = originals.reportCount;
+  });
+
+  const response = await dispatchApp('GET', '/api/reports?page=2&pageSize=2', undefined);
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json.pagination, {
+    page: 2,
+    pageSize: 2,
+    total: 5,
+    totalPages: 3
+  });
+  assert.deepEqual(response.json.items.map(item => item.id), ['report-3', 'report-4']);
+});
+
+test('GET /reports can use summary select for paginated lists', async t => {
+  stubAuthenticatedManager(t);
+  const originals = {
+    reportFindMany: prisma.report.findMany,
+    reportCount: prisma.report.count
+  };
+  prisma.report.findMany = async args => {
+    assert.equal(args.include, undefined);
+    assert.equal(args.select.id, true);
+    assert.equal(args.select.project.select.name, true);
+    assert.equal(args.select.services.select.attachments, undefined);
+    assert.equal(args.select.versions, undefined);
+    return [activeReport({ id: 'report-summary' })];
+  };
+  prisma.report.count = async () => 1;
+  t.after(() => {
+    prisma.report.findMany = originals.reportFindMany;
+    prisma.report.count = originals.reportCount;
+  });
+
+  const response = await dispatchApp('GET', '/api/reports?page=1&pageSize=10&summary=true', undefined);
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json.items.map(item => item.id), ['report-summary']);
+  assert.deepEqual(response.json.pagination, {
+    page: 1,
+    pageSize: 10,
+    total: 1,
+    totalPages: 1
+  });
+});
+
 test('collaborator direct report routes reject hidden projects for operator participants', async t => {
   stubAuthenticatedCollaborator(t);
   const originals = {

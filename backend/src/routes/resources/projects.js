@@ -10,6 +10,7 @@ import { invalidateUnsignedInternalSignatureRound, signatureEvidenceFromRequest 
 import { ModuleRoleCodes } from '../../lib/module-roles.js';
 import prisma from '../../lib/prisma.js';
 import { clearPendingProjectLegacyExternalSignatureState, shouldProvisionProjectClientAccounts } from '../../lib/project-visibility.js';
+import { statisticsProjectsCache } from '../../lib/resource-list-cache.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireManager, requireModuleRole } from '../../middleware/auth.js';
 import { reconcileProjectClientSignatureRequirements } from './reports.js';
 
@@ -323,6 +324,7 @@ router.post('/', requireAuth, requireRdoAccess, requireManager, asyncHandler(asy
     }
     return created;
   });
+  statisticsProjectsCache.clear();
   res.status(201).json(item);
 }));
 
@@ -441,6 +443,7 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
     });
   }
 
+  statisticsProjectsCache.clear();
   res.json(item);
 }));
 
@@ -449,6 +452,7 @@ router.delete('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandle
     userId: req.auth.user.id,
     evidence: signatureEvidenceFromRequest(req)
   });
+  statisticsProjectsCache.clear();
   res.status(204).end();
 }));
 
