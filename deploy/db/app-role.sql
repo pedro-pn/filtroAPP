@@ -71,14 +71,16 @@ SELECT
   has_schema_privilege(r.rolname, 'public', 'CREATE') AS can_create_in_public,
   (
     SELECT count(*)
-    FROM pg_tables t
-    WHERE t.schemaname = 'public'
-      AND t.tablename <> '_prisma_migrations'
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public'
+      AND c.relkind IN ('r', 'p')
+      AND c.relname <> '_prisma_migrations'
       AND NOT (
-        has_table_privilege(r.rolname, format('public.%I', t.tablename), 'SELECT')
-        AND has_table_privilege(r.rolname, format('public.%I', t.tablename), 'INSERT')
-        AND has_table_privilege(r.rolname, format('public.%I', t.tablename), 'UPDATE')
-        AND has_table_privilege(r.rolname, format('public.%I', t.tablename), 'DELETE')
+        has_table_privilege(r.rolname, c.oid, 'SELECT')
+        AND has_table_privilege(r.rolname, c.oid, 'INSERT')
+        AND has_table_privilege(r.rolname, c.oid, 'UPDATE')
+        AND has_table_privilege(r.rolname, c.oid, 'DELETE')
       )
   ) AS tables_missing_grants
 FROM pg_roles r

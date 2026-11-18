@@ -37,17 +37,19 @@ try {
     WHERE r.rolname = current_user
   `);
   const { rows: missing } = await client.query(`
-    SELECT t.tablename AS "table"
-    FROM pg_tables t
-    WHERE t.schemaname = 'public'
-      AND t.tablename <> '_prisma_migrations'
+    SELECT c.relname AS "table"
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public'
+      AND c.relkind IN ('r', 'p')
+      AND c.relname <> '_prisma_migrations'
       AND NOT (
-        has_table_privilege(format('public.%I', t.tablename), 'SELECT')
-        AND has_table_privilege(format('public.%I', t.tablename), 'INSERT')
-        AND has_table_privilege(format('public.%I', t.tablename), 'UPDATE')
-        AND has_table_privilege(format('public.%I', t.tablename), 'DELETE')
+        has_table_privilege(c.oid, 'SELECT')
+        AND has_table_privilege(c.oid, 'INSERT')
+        AND has_table_privilege(c.oid, 'UPDATE')
+        AND has_table_privilege(c.oid, 'DELETE')
       )
-    ORDER BY t.tablename
+    ORDER BY c.relname
   `);
   const { rows: missingSequences } = await client.query(`
     SELECT c.relname AS "sequence"
