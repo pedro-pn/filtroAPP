@@ -86,6 +86,10 @@ services:
       BACKGROUND_JOBS_IN_API: "false"
       # A credencial do dono fica só no serviço migrate.
       MIGRATION_DATABASE_URL: ""
+      # A senha do postgres (lida do env-file para o container do banco e o backup)
+      # também não entra nos containers da aplicação.
+      POSTGRES_PASSWORD: ""
+      STAGING_POSTGRES_PASSWORD: ""
       ASSINATURAS_MAX_PDF_MB: "200"
       ASSINATURAS_MAX_PAGES: "500"
       APP_ENV: staging
@@ -129,6 +133,10 @@ services:
     environment:
       BACKGROUND_JOBS_IN_API: "false"
       MIGRATION_DATABASE_URL: ""
+      # A senha do postgres (lida do env-file para o container do banco e o backup)
+      # também não entra nos containers da aplicação.
+      POSTGRES_PASSWORD: ""
+      STAGING_POSTGRES_PASSWORD: ""
       ASSINATURAS_MAX_PDF_MB: "200"
       ASSINATURAS_MAX_PAGES: "500"
       APP_ENV: staging

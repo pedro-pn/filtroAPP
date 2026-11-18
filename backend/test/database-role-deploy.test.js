@@ -23,6 +23,10 @@ for (const file of ['docker-compose.prod.yml', 'docker-compose.staging.yml']) {
     assert.match(backend, /migrate:\s+condition: service_completed_successfully/);
     for (const block of [backend, worker]) {
       assert.match(block, /MIGRATION_DATABASE_URL: ""/);
+      // O env-file também alimenta o container do Postgres; a senha do dono
+      // precisa ser zerada nos containers da aplicação.
+      assert.match(block, /\n\s+POSTGRES_PASSWORD: ""/);
+      assert.match(block, /\n\s+STAGING_POSTGRES_PASSWORD: ""/);
     }
   });
 }
