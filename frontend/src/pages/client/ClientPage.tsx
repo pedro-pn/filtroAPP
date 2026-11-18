@@ -63,7 +63,8 @@ export function ClientPage() {
     return {
       total: reports.length,
       approved: reports.filter(report => report.status === 'APPROVED').length,
-      signed: reports.filter(report => report.status === 'SIGNED').length
+      signed: reports.filter(report => report.status === 'SIGNED').length,
+      projectCount: new Set(reports.map(report => report.project.id)).size
     };
   }, [reportsQuery.data]);
 
@@ -233,6 +234,19 @@ export function ClientPage() {
         }
       />
       <main className="page-scroll">
+        <section className="client-welcome-card">
+          <div className="section-title">Bem-vindo</div>
+          <div className="client-welcome-title">{user?.name || 'Cliente'}</div>
+          <div className="client-welcome-subtitle">
+            Acompanhe os relatórios liberados e registre a aprovação do cliente.
+          </div>
+          <div className="client-welcome-meta">
+            <span><strong>Usuário:</strong> {user?.username || '—'}</span>
+            <span><strong>E-mail:</strong> {user?.email || '—'}</span>
+            <span><strong>Projetos vinculados:</strong> {reportSummary.projectCount}</span>
+          </div>
+        </section>
+
         <section className="page-card">
           <div className="section-title">{TEXT.summary}</div>
           <div className="stats-grid">

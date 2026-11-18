@@ -148,12 +148,17 @@ function MaterialField({
   const material = getString(data.material);
   const materialOther = getString(data.materialOther);
   const selected = ['Aço carbono', 'Inox'].includes(material) ? material : material ? 'Outro' : '';
+  const isPre = Boolean(data._prefilled && material);
 
   return (
     <>
       <div className={fieldClass(invalidKey, 'material')}>
-        <label>{label} {requiredMark()}</label>
+        <label>
+          {label} {requiredMark()}
+          {isPre ? <span className="pre-badge">pré-preenchido</span> : null}
+        </label>
         <select
+          className={isPre ? 'pre' : ''}
           value={selected}
           disabled={disabled}
           onChange={event => {
@@ -398,20 +403,16 @@ function EtapasSection({ serviceType, data, onChange, disabled, invalidKey }: Pi
 
 function PressureField({ data, onChange, disabled, invalidKey, field, unitField, label }: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'invalidKey'> & { field: string; unitField: string; label: string }) {
   return (
-    <div className="fg-r2">
-      <div className={fieldClass(invalidKey, field)}>
-        <label>{label} {requiredMark()}</label>
+    <div className={fieldClass(invalidKey, field)}>
+      <label>{label} {requiredMark()}</label>
+      <div className="num-unit">
         <input
-          type="number"
-          min="0"
-          step="0.01"
+          inputMode="decimal"
+          placeholder="0"
           value={getString(data[field])}
           disabled={disabled}
-          onChange={event => onChange({ [field]: event.target.value })}
+          onChange={event => onChange({ [field]: onlyNumberPunctuation(event.target.value) })}
         />
-      </div>
-      <div className="field-group">
-        <label>Unidade</label>
         <select value={getString(data[unitField]) || 'bar'} disabled={disabled} onChange={event => onChange({ [unitField]: event.target.value })}>
           <option value="bar">bar</option>
           <option value="psi">psi</option>
@@ -426,18 +427,16 @@ function PressureField({ data, onChange, disabled, invalidKey, field, unitField,
 
 function VolumeField({ data, onChange, disabled, invalidKey }: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'invalidKey'>) {
   return (
-    <div className="fg-r2">
-      <div className={fieldClass(invalidKey, 'volumeOleo')}>
-        <label>Volume de óleo {requiredMark()}</label>
+    <div className={fieldClass(invalidKey, 'volumeOleo')}>
+      <label>Volume de óleo {requiredMark()}</label>
+      <div className="num-unit">
         <input
           inputMode="decimal"
+          placeholder="0"
           value={getString(data.volumeOleo)}
           disabled={disabled}
           onChange={event => onChange({ volumeOleo: onlyNumberPunctuation(event.target.value) })}
         />
-      </div>
-      <div className="field-group">
-        <label>Unidade</label>
         <select value={getString(data.volumeOleoUnit) || 'L'} disabled={disabled} onChange={event => onChange({ volumeOleoUnit: event.target.value })}>
           <option value="L">L</option>
           <option value="mL">mL</option>

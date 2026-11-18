@@ -110,6 +110,7 @@ export function NewReportPage() {
   const [invalidTarget, setInvalidTarget] = useState<string | null>(null);
   const [collaboratorToAdd, setCollaboratorToAdd] = useState('');
   const [nightCollaboratorToAdd, setNightCollaboratorToAdd] = useState('');
+  const [collaboratorsPrefilled, setCollaboratorsPrefilled] = useState(false);
 
   const projects = projectsQuery.data || [];
   const collaborators = (collaboratorsQuery.data || []).filter(item => item.isActive);
@@ -147,7 +148,10 @@ export function NewReportPage() {
     if (!projectId || collaboratorIds.length > 0) return;
     if (!lastReport) return;
     const ids = (lastReport.collaborators || []).map(l => l.collaboratorId).filter(Boolean);
-    if (ids.length) setCollaborators(ids);
+    if (ids.length) {
+      setCollaborators(ids);
+      setCollaboratorsPrefilled(true);
+    }
   }, [projectId, lastReport, collaboratorIds.length, setCollaborators]);
 
   function handleContinueServices() {
@@ -160,7 +164,8 @@ export function NewReportPage() {
         material: service.material || '',
         startTime: '',
         endTime: '',
-        notes: typeof service.extraData?.notes === 'string' ? service.extraData.notes : ''
+        notes: typeof service.extraData?.notes === 'string' ? service.extraData.notes : '',
+        _prefilled: true
       });
     });
   }
@@ -637,7 +642,8 @@ export function NewReportPage() {
     <Shell>
       <TopBar
         title={TEXT.newReport}
-        subtitle="RDO"
+        subtitle={rdoSteps[step]}
+        step={`${step + 1} / ${rdoSteps.length}`}
         actions={
           <button className="topbar-chip" type="button" onClick={() => navigate(backPath)}>
             {TEXT.back}
@@ -646,13 +652,6 @@ export function NewReportPage() {
       />
       <main className="page-scroll">
         <section className="page-card rdo-step-panel">
-          <div className="rdo-step-head">
-            <div>
-              <div className="section-title">{rdoSteps[step]}</div>
-              <div className="placeholder-copy">Etapa {step + 1} de {rdoSteps.length}</div>
-            </div>
-            <span className="status-pill status-approved">{step + 1} / {rdoSteps.length}</span>
-          </div>
           <div className="rdo-progress-track" aria-hidden="true">
             <div className="rdo-progress-fill" style={{ width: `${((step + 1) / rdoSteps.length) * 100}%` }} />
           </div>
@@ -753,7 +752,10 @@ export function NewReportPage() {
 
         {/* Card 3: Equipe diurna */}
         <section className="page-card">
-          <div className="section-title">{TEXT.team}</div>
+          <div className="section-title">
+            {TEXT.team}
+            {collaboratorsPrefilled ? <span className="pre-badge">pré-preenchido</span> : null}
+          </div>
           <div
             className={`colab-list ${invalidTarget === 'header:collaborators' ? 'field-invalid-panel' : ''}`}
             data-invalid-target="header:collaborators"
@@ -921,8 +923,12 @@ export function NewReportPage() {
                   </div>
                   <div className="admin-form-grid">
                     <div className={serviceFieldState(service.id, 'equipmentId')}>
-                      <label>Equipamento(s) <span style={{ color: 'var(--rd)' }}>*</span></label>
+                      <label>
+                        Equipamento(s) <span style={{ color: 'var(--rd)' }}>*</span>
+                        {service.data._prefilled && service.data.equipmentId ? <span className="pre-badge">pré-preenchido</span> : null}
+                      </label>
                       <input
+                        className={service.data._prefilled && service.data.equipmentId ? 'pre' : ''}
                         value={typeof service.data.equipmentId === 'string' ? service.data.equipmentId : ''}
                         placeholder="Informar equipamento do cliente..."
                         onChange={event => updateService(service.id, { equipmentId: event.target.value })}
@@ -930,8 +936,12 @@ export function NewReportPage() {
                     </div>
                     {normalizeServiceType(service.type) !== 'inibicao' ? (
                       <div className={serviceFieldState(service.id, 'system')}>
-                        <label>Sistema <span style={{ color: 'var(--rd)' }}>*</span></label>
+                        <label>
+                          Sistema <span style={{ color: 'var(--rd)' }}>*</span>
+                          {service.data._prefilled && service.data.system ? <span className="pre-badge">pré-preenchido</span> : null}
+                        </label>
                         <input
+                          className={service.data._prefilled && service.data.system ? 'pre' : ''}
                           value={typeof service.data.system === 'string' ? service.data.system : ''}
                           onChange={event => updateService(service.id, { system: event.target.value })}
                         />
