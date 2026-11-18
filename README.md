@@ -669,6 +669,10 @@ Nginx HTTP interno
 | `OPERATIONS_ALERT_JOB_ENABLED` | Não | Ativa o job de alertas operacionais |
 | `OPERATIONS_ALERT_INTERVAL_MS` | Não | Intervalo do job de alertas operacionais |
 | `OPERATIONS_ALERT_WEBHOOK_URL` | Não | Webhook de alertas operacionais |
+| `OPERATIONS_ALERT_EMAILS` | Não (recomendado em produção) | E-mails, separados por vírgula, que recebem erros 5xx, falhas de processo/job e alertas operacionais |
+| `OPERATIONS_ALERT_EMAIL_THROTTLE_MINUTES` | Não | Janela mínima entre e-mails do mesmo erro (padrão 30) |
+| `OPERATIONS_ALERT_REPEAT_HOURS` | Não | Reenvio do mesmo alerta operacional enquanto persistir (padrão 6) |
+| `APP_GIT_SHA` | Não | Versão (SHA do commit) gravada na imagem; aparece nos alertas |
 | `OPERATIONS_REQUIRE_BACKUP_STATUS` / `OPERATIONS_BACKUP_STATUS_FILE` / `OPERATIONS_BACKUP_MAX_AGE_HOURS` | Não | Monitoramento de backup |
 | `OPERATIONS_REQUIRE_RESTORE_STATUS` / `OPERATIONS_RESTORE_STATUS_FILE` / `OPERATIONS_RESTORE_MAX_AGE_DAYS` | Não | Monitoramento de restore |
 | `ERROR_TRACKING_PROVIDER` / `ERROR_TRACKING_WEBHOOK_URL` | Não | Captura e encaminhamento de erros |

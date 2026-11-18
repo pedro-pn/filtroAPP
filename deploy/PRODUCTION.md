@@ -109,8 +109,10 @@ docker compose --env-file backend/.env.production -f docker-compose.prod.yml exe
    - Em homologação/teste com banco de produção, definir `SEND_CLIENT_EMAILS=false` para bloquear todos os envios operacionais do sistema.
    - Para observabilidade operacional, configurar `OPERATIONS_BACKUP_STATUS_FILE`,
      `OPERATIONS_RESTORE_STATUS_FILE`, `OPERATIONS_REQUIRE_BACKUP_STATUS=true`,
-     `OPERATIONS_ALERT_WEBHOOK_URL` e `ERROR_TRACKING_WEBHOOK_URL` quando esses
-     recursos estiverem ativos. Use `OPERATIONS_REQUIRE_RESTORE_STATUS=false` no
+     `OPERATIONS_ALERT_JOB_ENABLED=true` e `OPERATIONS_ALERT_EMAILS` (e-mail da
+     equipe que recebe os alertas; veja "Alertas por e-mail" abaixo). Os webhooks
+     `OPERATIONS_ALERT_WEBHOOK_URL` e `ERROR_TRACKING_WEBHOOK_URL` são opcionais e
+     podem funcionar junto com o e-mail. Use `OPERATIONS_REQUIRE_RESTORE_STATUS=false` no
      deploy inicial e altere para `true` depois que o restore periódico estiver
      agendado e publicando `restore-latest.json`.
    - Para rastreamento de erro do frontend em Docker, configurar
@@ -301,12 +303,54 @@ OPERATIONS_BACKUP_MAX_AGE_HOURS=26
 OPERATIONS_RESTORE_MAX_AGE_DAYS=30
 OPERATIONS_ALERT_JOB_ENABLED=true
 OPERATIONS_ALERT_INTERVAL_MS=3600000
-OPERATIONS_ALERT_WEBHOOK_URL=https://seu-monitoramento.example/webhook
+OPERATIONS_ALERT_EMAILS=ti@empresa.example,responsavel@empresa.example
+OPERATIONS_ALERT_EMAIL_THROTTLE_MINUTES=30
+OPERATIONS_ALERT_REPEAT_HOURS=6
+# Opcionais (podem ficar vazios quando só o e-mail for usado):
+OPERATIONS_ALERT_WEBHOOK_URL=
 ERROR_TRACKING_PROVIDER=webhook
-ERROR_TRACKING_WEBHOOK_URL=https://seu-monitoramento.example/errors
+ERROR_TRACKING_WEBHOOK_URL=
 VITE_ERROR_TRACKING_ENABLED=true
 VITE_ERROR_TRACKING_ENDPOINT=
 ```
+
+### Alertas por e-mail
+
+Com `OPERATIONS_ALERT_EMAILS` preenchido, o backend e o worker enviam e-mail
+pelo mesmo SMTP/OAuth2 dos demais e-mails do sistema para:
+
+- erros HTTP 5xx, `unhandledRejection` e exceções não tratadas da API e do worker;
+- falhas de jobs recorrentes (com o banco fora do ar, as falhas de todos os jobs
+  viram um único alerta);
+- o job `operational-alert-check` (backup com falha ou velho, restore, jobs
+  parados, Omie, banco comercial), quando `OPERATIONS_ALERT_JOB_ENABLED=true`.
+
+Controle de repetição:
+
+- erros: no máximo um e-mail por tipo de erro e rota/job a cada
+  `OPERATIONS_ALERT_EMAIL_THROTTLE_MINUTES` (padrão 30). O próximo e-mail informa
+  quantas ocorrências iguais foram suprimidas. O controle é em memória, por
+  processo: um reinício zera a janela, e API e worker contam separadamente;
+- status operacional: um e-mail quando o problema aparece ou muda, outro a cada
+  `OPERATIONS_ALERT_REPEAT_HOURS` (padrão 6) enquanto persistir, e um aviso de
+  normalização quando some. Esse estado fica no resultado do próprio job no banco.
+
+Os e-mails levam só a primeira linha da mensagem de erro, as linhas `at ...` da
+pilha, rota, método, status, request id (o mesmo devolvido ao usuário na resposta
+5xx e gravado no log como `[http-5xx] requestId=...`), id numérico do usuário,
+ambiente e versão (`APP_GIT_SHA`). E-mails e CPFs são mascarados. Erros enviados
+pelo navegador para a rota pública `/api/operations/client-errors` nunca geram
+e-mail, só vão para o webhook, se houver.
+
+`SEND_CLIENT_EMAILS=false` bloqueia todo e-mail de saída, inclusive os alertas.
+
+Para provar que o alerta chega (pilar 12.1), rode no servidor depois do deploy:
+
+```bash
+docker compose --env-file backend/.env.production -f docker-compose.prod.yml exec backend npm run ops:test-alert
+```
+
+O comando informa o resultado por canal e sai com código 1 se nenhum entregou.
 
 Depois que o restore periódico estiver agendado e validado, altere
 `OPERATIONS_REQUIRE_RESTORE_STATUS=true`.

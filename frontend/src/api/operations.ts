@@ -101,7 +101,9 @@ export type OperationalStatus = {
   alerting: {
     enabled: boolean;
     webhookConfigured: boolean;
+    emailRecipientsConfigured?: number;
     intervalMs: number;
+    repeatMs?: number | null;
   };
 };
 
