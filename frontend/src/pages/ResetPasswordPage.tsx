@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 
 import { getResetPasswordStatus, resendPasswordSetup, resetPassword } from '../api/auth';
+import { PASSWORD_MIN_LENGTH } from '../../../shared/modules/password-policy.js';
 import { BrandLogo } from '../components/brand/BrandLogo';
 import { Alert, Button, Field, Input } from '../components/ui/ds';
 import './AuthPasswordPage.css';
@@ -119,13 +120,13 @@ export function ResetPasswordPage() {
         {username ? <div className="auth-access-username">
           <span>Seu usuário</span><strong>{username}</strong>
         </div> : null}
-        <Field id="new-password" label="Nova senha" helperText="Use pelo menos 6 caracteres." optionalText={null} required>
+        <Field id="new-password" label="Nova senha" helperText={`Use pelo menos ${PASSWORD_MIN_LENGTH} caracteres.`} optionalText={null} required>
           <Input type="password" value={password} onChange={event => setPassword(event.target.value)}
-            minLength={6} autoComplete="new-password" required />
+            minLength={PASSWORD_MIN_LENGTH} autoComplete="new-password" required />
         </Field>
         <Field id="confirm-password" label="Confirmar nova senha" optionalText={null} required>
           <Input type="password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)}
-            minLength={6} autoComplete="new-password" required />
+            minLength={PASSWORD_MIN_LENGTH} autoComplete="new-password" required />
         </Field>
         {error ? <Alert tone="danger">{error}</Alert> : null}
         <Button variant="primary" type="submit" loading={isSaving}>

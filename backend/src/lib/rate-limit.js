@@ -32,7 +32,11 @@ export function createMemoryRateLimit({
   max,
   message,
   keyGenerator = defaultKeyGenerator,
-  maxKeys = 1000
+  maxKeys = 1000,
+  // Quando true, respostas < 400 devolvem a tentativa ao contador: o limite passa a
+  // medir só falhas. Usado nos limites amplos do login (por IP e por usuário) para
+  // não bloquear vários colaboradores legítimos atrás do mesmo NAT.
+  skipSuccessfulRequests = false
 }) {
   const hits = new Map();
   const cappedMaxKeys = Number.isFinite(maxKeys) && maxKeys > 0 ? maxKeys : 1000;
@@ -55,6 +59,12 @@ export function createMemoryRateLimit({
 
     if (entry.count > max) {
       return res.status(429).json({ error: message || 'Muitas tentativas. Tente novamente mais tarde.' });
+    }
+
+    if (skipSuccessfulRequests && typeof res.once === 'function') {
+      res.once('finish', () => {
+        if (res.statusCode < 400 && entry.count > 0) entry.count -= 1;
+      });
     }
 
     next();
