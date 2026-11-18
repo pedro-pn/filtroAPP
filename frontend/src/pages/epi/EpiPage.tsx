@@ -135,7 +135,7 @@ function parseEpiTab(value: string | null): Tab {
 }
 
 type RemoveDialogState =
-  | { kind: 'record'; id: string; title: string; description: string }
+  | { kind: 'record'; id: string; title: string; description: string; hasPendingSignature: boolean }
   | { kind: 'catalog'; id: string; title: string; description: string };
 
 const emptyRecord: EpiRecordPayload = {
@@ -328,6 +328,9 @@ export function EpiPage() {
     mutationFn: removeEpiRecord,
     onSuccess: () => {
       invalidate();
+      setSelectedRecordIds(new Set());
+      setSelectedArchivedRecordIds(new Set());
+      setLastSignUrl('');
       showToast('EPI removido.', 'success');
     },
     onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível remover o EPI.', 'error')
@@ -517,11 +520,13 @@ export function EpiPage() {
 
   function confirmRemoveRecord(record: EpiRecord) {
     const description = `${record.epiName} (${caLabel(record.ca)}${record.size ? ` · Tam. ${record.size}` : ''})`;
+    const hasPendingSignature = record.signatureRequest?.status === 'PENDING';
     setRemoveDialog({
       kind: 'record',
       id: record.id,
-      title: 'Remover EPI da ficha',
-      description
+      title: hasPendingSignature ? 'Cancelar adição do EPI' : 'Remover EPI da ficha',
+      description,
+      hasPendingSignature
     });
   }
 
@@ -537,7 +542,11 @@ export function EpiPage() {
 
   function removeDialogDescription() {
     if (!removeDialog) return '';
-    if (removeDialog.kind === 'record') return 'Este EPI será removido da ficha do colaborador.';
+    if (removeDialog.kind === 'record') {
+      return removeDialog.hasPendingSignature
+        ? 'A adição deste EPI será cancelada e o link de assinatura será invalidado. Os demais EPIs do mesmo link serão mantidos e precisarão de um novo link para assinatura.'
+        : 'Este EPI será removido da ficha do colaborador.';
+    }
     return 'Este EPI deixará de aparecer no catálogo para novos lançamentos.';
   }
 
@@ -856,7 +865,7 @@ export function EpiPage() {
                                   </Button>
                                 ) : null}
                                 {!hasSignatureEvidence(record) ? (
-                                  <RemoveIconButton label={`Remover EPI ${record.epiName}`} onClick={() => confirmRemoveRecord(record)} />
+                                  <RemoveIconButton label={`Remover EPI ${record.epiName}`} disabled={removeRecordMutation.isPending} onClick={() => confirmRemoveRecord(record)} />
                                 ) : null}
                               </div>
                             ) : null}

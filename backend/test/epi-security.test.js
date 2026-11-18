@@ -746,7 +746,7 @@ test('signed EPI return update is limited to first devolution date only', () => 
   assert.equal(isSignedEpiReturnUpdate({ id: 'record-1', signedAt: null, signatureImageDataUrl: null }, { devolutionDate: '19/05/2026' }), false);
 });
 
-test('EPI records with active pending signature requests cannot be updated or deleted', () => {
+test('EPI records with active pending signature requests can be removed but cannot be updated', () => {
   const record = {
     id: 'record-1',
     signedAt: null,
@@ -759,7 +759,7 @@ test('EPI records with active pending signature requests cannot be updated or de
   };
 
   assert.throws(() => assertCanUpdateEpiRecord(record), /solicitação de assinatura ativa/);
-  assert.throws(() => assertCanDeleteEpiRecord(record), /solicitação de assinatura ativa/);
+  assert.doesNotThrow(() => assertCanDeleteEpiRecord(record));
 });
 
 test('pending EPI signature requests can be replaced, but signed requests cannot', () => {

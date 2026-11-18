@@ -544,8 +544,9 @@ function assertNotPendingReturnRevision(record) {
 
 export function assertCanDeleteEpiRecord(record) {
   assertNotPendingReturnRevision(record);
-  assertNoActivePendingEpiSignatureRequest(record);
-  if (!record?.signedAt && !record?.signatureImageDataUrl) return;
+  if (!record?.signedAt && !record?.signatureImageDataUrl
+    && record?.signatureRequest?.status !== 'SIGNED'
+    && !record?.signatureRequest?.signedAt && !record?.signatureRequest?.signatureImageDataUrl) return;
   const error = new Error('EPI assinado não pode ser removido. Arquive o registro para preservá-lo.');
   error.status = 409;
   error.statusCode = 409;
@@ -1290,13 +1291,45 @@ router.post('/collaborators/:id/records/archive', requireEpiTechnician, asyncHan
   res.json(epiCollaboratorDto(collaborator));
 }));
 
-router.delete('/records/:id', requireEpiTechnician, asyncHandler(async (req, res) => {
-  const record = await prisma.epiRecord.findUniqueOrThrow({
-    where: { id: req.params.id },
-    include: { signatureRequest: true }
+export async function removeUnsignedEpiRecord({ recordId, evidence = {}, client = prisma }) {
+  await client.$transaction(async tx => {
+    const record = await tx.epiRecord.findUniqueOrThrow({
+      where: { id: recordId },
+      include: { signatureRequest: true }
+    });
+    assertCanDeleteEpiRecord(record);
+    // Match the unsigned state again so a concurrent signature or new request wins safely.
+    const removed = await tx.epiRecord.deleteMany({
+      where: {
+        id: recordId,
+        signedAt: null,
+        signatureImageDataUrl: record.signatureImageDataUrl,
+        signatureRequestId: record.signatureRequestId,
+        pendingReturn: false
+      }
+    });
+    if (removed.count !== 1) {
+      const error = new Error('O EPI foi alterado. Atualize a ficha e tente novamente.');
+      error.statusCode = 409;
+      throw error;
+    }
+    if (record.signatureRequest?.status === 'PENDING') {
+      const revoked = await tx.epiSignatureRequest.updateMany({
+        where: { id: record.signatureRequestId, status: 'PENDING', signedAt: null, signatureImageDataUrl: null },
+        data: { status: 'EXPIRED' }
+      });
+      if (revoked.count !== 1) {
+        const error = new Error('A solicitação de assinatura foi alterada. Atualize a ficha e tente novamente.');
+        error.statusCode = 409;
+        throw error;
+      }
+      await logEpiSignatureRequestEvent(tx, record.signatureRequest, 'EXPIRED', evidence);
+    }
   });
-  assertCanDeleteEpiRecord(record);
-  await prisma.epiRecord.delete({ where: { id: req.params.id } });
+}
+
+router.delete('/records/:id', requireEpiTechnician, asyncHandler(async (req, res) => {
+  await removeUnsignedEpiRecord({ recordId: req.params.id, evidence: signatureEvidenceFromRequest(req) });
   res.status(204).send();
 }));
 
