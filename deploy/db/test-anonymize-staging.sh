@@ -74,8 +74,8 @@ expect "e-mail de colaborador removido" 'SELECT count(*) FROM "Collaborator" WHE
 expect "assinatura removida" 'SELECT count(*) FROM "Collaborator" WHERE "signatureImage" IS NOT NULL' '0'
 expect "nota pessoal removida" 'SELECT count(*) FROM "Collaborator" WHERE "efetivoNote" IS NOT NULL' '0'
 expect "nome do colaborador trocado" "SELECT name FROM \"Collaborator\" WHERE id = 'anon-col-1'" 'Colaborador Staging A001'
-expect "matrícula virou hash" \
-  "SELECT count(*) FROM \"Collaborator\" WHERE \"registrationNumber\" LIKE 'STG-%' AND \"registrationNumber\" <> 'MAT-777'" '1'
+expect "matrículas viraram hash (as duas semeadas)" \
+  "SELECT count(*) FROM \"Collaborator\" WHERE \"registrationNumber\" LIKE 'STG-%' AND \"registrationNumber\" NOT IN ('MAT-777', 'MAT-888')" '2'
 expect "hash da matrícula é o mesmo no Ponto (ligação preservada)" \
   "SELECT count(*) FROM \"Collaborator\" c JOIN \"PontoExternalEmployee\" p ON p.\"registrationNumber\" = c.\"registrationNumber\" WHERE c.id = 'anon-col-1'" '1'
 expect "nome do Ponto anonimizado" "SELECT count(*) FROM \"PontoExternalEmployee\" WHERE \"externalName\" ILIKE '%MARIA%'" '0'
