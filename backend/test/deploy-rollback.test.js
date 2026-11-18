@@ -45,7 +45,7 @@ echo "unexpected docker call: $args" >&2
 exit 0
 `;
 
-function runDeploy({ args = [], env = {}, dirty = false, notifyEnv = null, migrations = [], maintenanceAlreadyOn = false } = {}) {
+function runDeploy({ args = [], env = {}, dirty = false, notifyEnv = null, migrations = [], maintenanceAlreadyOn = false, migrationSql = {} } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'deploy-prod-'));
   const project = path.join(root, 'project');
   const bin = path.join(root, 'bin');
@@ -73,7 +73,7 @@ function runDeploy({ args = [], env = {}, dirty = false, notifyEnv = null, migra
   for (const name of migrations) {
     const dir = path.join(project, 'backend', 'prisma', 'migrations', name);
     fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, 'migration.sql'), 'SELECT 1;\n');
+    fs.writeFileSync(path.join(dir, 'migration.sql'), migrationSql[name] || 'SELECT 1;\n');
   }
   const maintenanceDir = path.join(root, 'maintenance');
   if (maintenanceAlreadyOn) {
@@ -267,6 +267,48 @@ test('failing to create the maintenance flag never blocks the deploy', () => {
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.match(result.stdout, /não foi possível ligar a página de manutenção/);
   assert.equal(status.status, 'SUCCESS');
+});
+
+const CONTRACT_SQL = '-- migration-safety: contract — coluna legacy sem uso desde a versão anterior\nALTER TABLE "A" DROP COLUMN "legacy";\n';
+
+test('a pending contract migration stops the deploy before the build unless --allow-contract', () => {
+  const options = {
+    migrations: MIGRATIONS,
+    migrationSql: { '20261120000000_new': CONTRACT_SQL },
+    env: { FAKE_APPLIED_MIGRATIONS: '20260101000000_old\\n' }
+  };
+  const blocked = runDeploy(options);
+  assert.equal(blocked.result.status, 1);
+  assert.equal(blocked.status.status, 'FAILURE');
+  assert.match(blocked.status.message, /migration contract pendente \(20261120000000_new\) sem --allow-contract/);
+  assert.ok(!blocked.calls.some(call => call.includes(' build ')), 'nothing may be built');
+  assert.ok(!blocked.calls.some(call => call.includes(' tag ')), 'running images must not be retagged');
+
+  const allowed = runDeploy({ ...options, args: ['--allow-contract'] });
+  assert.equal(allowed.result.status, 0, allowed.result.stderr || allowed.result.stdout);
+  assert.match(allowed.result.stdout, /ATENÇÃO: migration\(s\) contract pendente\(s\): 20261120000000_new/);
+  assert.match(allowed.result.stdout, /dump pré-deploy/);
+  assert.ok(allowed.calls.includes('MAINTENANCE_ON_AT_UP'));
+});
+
+test('an already applied contract migration does not block later deploys', () => {
+  const { result } = runDeploy({
+    migrations: MIGRATIONS,
+    migrationSql: { '20261120000000_new': CONTRACT_SQL },
+    env: { FAKE_APPLIED_MIGRATIONS: '20260101000000_old\\n20261120000000_new\\n' }
+  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+});
+
+test('when pending migrations cannot be listed, any contract migration in the checkout requires --allow-contract', () => {
+  const { result, status } = runDeploy({
+    migrations: MIGRATIONS,
+    migrationSql: { '20260101000000_old': CONTRACT_SQL },
+    env: { FAKE_FAIL_PSQL: '1' }
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /não deu para conferir/);
+  assert.match(status.message, /sem --allow-contract/);
 });
 
 const NOTIFY_ENV = 'POSTGRES_PASSWORD=nao-deve-vazar\nexport TELEGRAM_TOKEN="123:abc"\nTELEGRAM_CHAT_ID=-100777\n';
