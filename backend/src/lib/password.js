@@ -3,6 +3,8 @@ import { promisify } from 'node:util';
 
 const scrypt = promisify(scryptCallback);
 
+export { PASSWORD_MIN_LENGTH, PASSWORD_MIN_LENGTH_MESSAGE } from '../../../shared/modules/password-policy.js';
+
 export async function hashPassword(password) {
   const salt = randomBytes(16).toString('hex');
   const derived = await scrypt(password, salt, 64);

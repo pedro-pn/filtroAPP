@@ -24,7 +24,7 @@ import {
   notificationPreferences,
   notificationPreferenceTokenStatus
 } from '../../lib/notification-preferences.js';
-import { hashPassword, verifyPassword } from '../../lib/password.js';
+import { hashPassword, PASSWORD_MIN_LENGTH, PASSWORD_MIN_LENGTH_MESSAGE, verifyPassword } from '../../lib/password.js';
 import { CLIENT_PRIVACY_NOTICE_VERSION } from '../../lib/privacy-consent.js';
 import prisma from '../../lib/prisma.js';
 import { requireAuth } from '../../middleware/auth.js';
@@ -48,7 +48,7 @@ const forgotPasswordSchema = z.object({
 });
 const resetPasswordSchema = z.object({
   token: z.string().min(1, 'Token obrigatório.'),
-  password: z.string().min(6, 'A senha deve ter pelo menos 6 caracteres.')
+  password: z.string().min(PASSWORD_MIN_LENGTH, PASSWORD_MIN_LENGTH_MESSAGE)
 });
 const resendPasswordSetupSchema = z.object({
   token: z.string().min(1, 'Token obrigatório.')
@@ -58,7 +58,7 @@ const emailChangeTokenSchema = z.object({
 });
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, 'Informe a senha atual.'),
-  newPassword: z.string().min(6, 'A nova senha deve ter pelo menos 6 caracteres.')
+  newPassword: z.string().min(PASSWORD_MIN_LENGTH, `A nova senha deve ter pelo menos ${PASSWORD_MIN_LENGTH} caracteres.`)
 });
 const accountSchema = z.object({
   email: z.union([z.string().trim().email('Informe um e-mail válido.'), z.literal(''), z.null()]).optional(),
@@ -126,11 +126,39 @@ function authRateLimitIp(req) {
   return req.ip || req.socket?.remoteAddress || req.connection?.remoteAddress || 'unknown';
 }
 
+const LOGIN_RATE_LIMIT_MESSAGE = 'Muitas tentativas de login. Tente novamente mais tarde.';
+
+// Três camadas no login, todas com a mesma resposta 429 genérica (sem revelar se o
+// usuário existe):
+// 1. IP + usuário: 8 tentativas/15 min — o mesmo atacante na mesma conta.
 const loginRateLimit = createMemoryRateLimit({
   windowMs: AUTH_RATE_LIMIT_WINDOW_MS,
   max: 8,
-  message: 'Muitas tentativas de login. Tente novamente mais tarde.',
+  message: LOGIN_RATE_LIMIT_MESSAGE,
   keyGenerator: req => `${authRateLimitIp(req)}:login:${authRateLimitIdentifier(req.body?.username)}`
+});
+
+// 2. Só IP: 50 falhas/15 min em qualquer usuário — barra password spraying a partir
+//    de um IP. Conta apenas falhas para não travar equipes inteiras atrás do mesmo NAT.
+const loginIpRateLimit = createMemoryRateLimit({
+  windowMs: AUTH_RATE_LIMIT_WINDOW_MS,
+  max: 50,
+  message: LOGIN_RATE_LIMIT_MESSAGE,
+  maxKeys: 10_000,
+  skipSuccessfulRequests: true,
+  keyGenerator: req => `login-ip:${authRateLimitIp(req)}`
+});
+
+// 3. Só usuário: 20 falhas/15 min vindas de qualquer IP — barra ataque distribuído
+//    contra uma conta (ex.: admin). Custo aceito: um atacante pode bloquear o login
+//    daquela conta por até 15 min; a senha continua protegida.
+const loginUsernameRateLimit = createMemoryRateLimit({
+  windowMs: AUTH_RATE_LIMIT_WINDOW_MS,
+  max: 20,
+  message: LOGIN_RATE_LIMIT_MESSAGE,
+  maxKeys: 10_000,
+  skipSuccessfulRequests: true,
+  keyGenerator: req => `login-user:${authRateLimitIdentifier(req.body?.username)}`
 });
 
 const forgotPasswordRateLimit = createMemoryRateLimit({
@@ -515,7 +543,7 @@ async function findLoginCandidates(identifier) {
   });
 }
 
-router.post('/login', loginRateLimit, asyncHandler(async (req, res) => {
+router.post('/login', loginRateLimit, loginIpRateLimit, loginUsernameRateLimit, asyncHandler(async (req, res) => {
   const data = loginSchema.parse(req.body);
   const candidates = await findLoginCandidates(data.username);
   let user = null;

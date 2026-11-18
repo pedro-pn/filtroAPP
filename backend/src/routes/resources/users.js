@@ -12,7 +12,7 @@ import { normalizeCnpj } from '../../lib/cnpj.js';
 import { buildInternalUserWelcomeEmailTemplate, buildPasswordResetEmailTemplate } from '../../lib/email-templates.js';
 import { clientEmailsEnabled, getMissingMailerConfig, sendClientMail, sendMail } from '../../lib/mailer.js';
 import { accountTypeForLegacyRole, defaultPublicModuleRolesForLegacyRole, moduleRoleRows, normalizePublicModuleRoles, prismaModuleRole, publicModuleRolesForAccountType, requiredLegacyRoleForPublicModuleRole, serializeModuleRoles } from '../../lib/module-roles.js';
-import { hashPassword } from '../../lib/password.js';
+import { hashPassword, PASSWORD_MIN_LENGTH, PASSWORD_MIN_LENGTH_MESSAGE } from '../../lib/password.js';
 import prisma from '../../lib/prisma.js';
 import { deleteUserWithSignatureDocuments } from '../../lib/assinaturas/file-quarantine.js';
 import { userDeletionImpact } from '../../lib/assinaturas/service.js';
@@ -33,7 +33,7 @@ const schema = z.object({
   username: z.string().min(1),
   name: z.string().min(1),
   email: z.union([z.string().trim().email(), z.literal(''), z.null()]).optional(),
-  password: z.string().min(6).optional(),
+  password: z.string().min(PASSWORD_MIN_LENGTH, PASSWORD_MIN_LENGTH_MESSAGE).optional(),
   role: z.nativeEnum(UserRole),
   accountType: z.nativeEnum(AccountType).optional(),
   moduleRoles: z.array(z.string()).optional(),
@@ -43,6 +43,14 @@ const schema = z.object({
   isActive: z.boolean().optional(),
   collaboratorId: z.string().nullable().optional()
 });
+
+export function sessionRevocationWhere(targetUserId, auth) {
+  // O admin editando a própria conta mantém a sessão atual (como em /auth/change-password).
+  if (auth?.user?.id === targetUserId && auth.sessionId) {
+    return { userId: targetUserId, id: { not: auth.sessionId } };
+  }
+  return { userId: targetUserId };
+}
 
 function clientCnpjForAccount(username, accountType) {
   if (accountType !== AccountType.CLIENT) return null;
@@ -482,14 +490,24 @@ router.put(
         : {})
     };
 
-    const user = await prisma.user.update({
+    const updateArgs = {
       where: { id: req.params.id },
       data: payload,
       include: {
         collaborator: { include: { jobRole: true } },
         moduleRoles: true
       }
-    });
+    };
+    // Senha definida pelo admin ou conta desativada: derruba as sessões abertas da
+    // conta, para que um token roubado não continue valendo após o "reset".
+    const revokeSessions = Boolean(data.password) || data.isActive === false;
+    const user = revokeSessions
+      ? await prisma.$transaction(async tx => {
+          const updated = await tx.user.update(updateArgs);
+          await tx.userSession.deleteMany({ where: sessionRevocationWhere(req.params.id, req.auth) });
+          return updated;
+        })
+      : await prisma.user.update(updateArgs);
 
     res.json(publicUser(user));
   })

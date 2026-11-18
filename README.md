@@ -842,6 +842,19 @@ ser retomado. O comando preserva os registros anteriores de envio concluído.
 
 ---
 
+## Senhas e sessões
+
+Senhas novas (criação, troca, redefinição e definição pelo
+admin) precisam de pelo menos 10 caracteres (`shared/modules/password-policy.js`);
+o login não aplica o mínimo, então contas antigas continuam entrando. Redefinir a
+senha por link derruba todas as sessões; trocar a própria senha derruba as outras;
+o admin definir a senha de alguém ou desativar a conta derruba todas as sessões
+daquela conta. O login tem três limites em memória por janela de 15 minutos: 8
+tentativas por IP + usuário, 50 falhas por IP (qualquer usuário) e 20 falhas por
+usuário (qualquer IP), sempre com a mesma resposta 429 genérica.
+
+---
+
 ## Rotas da API
 
 Prefixo base: `/api`. As rotas do módulo de relatórios são servidas tanto sob `/api/rdo/*` quanto na raiz (`/api/*`) por compatibilidade.
