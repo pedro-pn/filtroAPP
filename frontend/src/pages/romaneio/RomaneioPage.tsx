@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { Fragment, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 
@@ -35,6 +35,16 @@ const measureLabels: Record<RomaneioMeasureType, string> = {
   UNIT: 'unidade',
   LENGTH: 'm',
   WEIGHT: 'kg'
+};
+const kindLabels: Record<RomaneioCatalogItem['kind'], string> = {
+  EQUIPMENT: 'Equipamento',
+  CONNECTION: 'Conexão'
+};
+const sourceLabels: Record<RomaneioCatalogItem['sourceType'], string> = {
+  FILE: 'Planilha',
+  MANUAL: 'Manual',
+  UNIT: 'RDO',
+  PARTICLE_COUNTER: 'RDO'
 };
 const rdoOwnedCatalogSources = new Set(['UNIT', 'PARTICLE_COUNTER']);
 
@@ -91,6 +101,8 @@ export function RomaneioPage() {
   const [editingCategory, setEditingCategory] = useState('');
   const [editingCategoryName, setEditingCategoryName] = useState('');
   const [expandedCatalogCategories, setExpandedCatalogCategories] = useState<Set<string>>(() => new Set());
+  const [catalogDashboardOpen, setCatalogDashboardOpen] = useState(false);
+  const [catalogDashboardCategory, setCatalogDashboardCategory] = useState('');
   const [recipientEmail, setRecipientEmail] = useState('');
   const [recipientName, setRecipientName] = useState('');
 
@@ -201,6 +213,45 @@ export function RomaneioPage() {
   const catalogCategories = useMemo(() => {
     return Array.from(new Set((catalogQuery.data || []).map(item => item.categoryName).filter(Boolean))).sort((a, b) => a.localeCompare(b));
   }, [catalogQuery.data]);
+  const dashboardCategories = useMemo(() => ['Todos', ...catalogCategories], [catalogCategories]);
+  const dashboardItems = useMemo(() => {
+    const items = catalogQuery.data || [];
+    const scoped = catalogDashboardCategory && catalogDashboardCategory !== 'Todos'
+      ? items.filter(item => item.categoryName === catalogDashboardCategory)
+      : items;
+    return [...scoped].sort((a, b) => (
+      a.categoryName.localeCompare(b.categoryName)
+      || String(a.code || '').localeCompare(String(b.code || ''))
+      || a.name.localeCompare(b.name)
+    ));
+  }, [catalogDashboardCategory, catalogQuery.data]);
+  const dashboardSections = useMemo(() => {
+    const map = new Map<string, RomaneioCatalogItem[]>();
+    dashboardItems.forEach(item => {
+      if (!map.has(item.categoryName)) map.set(item.categoryName, []);
+      map.get(item.categoryName)?.push(item);
+    });
+    return Array.from(map.entries());
+  }, [dashboardItems]);
+  const dashboardTotals = useMemo(() => {
+    const items = catalogQuery.data || [];
+    return {
+      total: items.length,
+      equipment: items.filter(item => item.kind === 'EQUIPMENT').length,
+      connection: items.filter(item => item.kind === 'CONNECTION').length,
+      serialized: items.filter(item => item.isSerialized).length
+    };
+  }, [catalogQuery.data]);
+
+  useEffect(() => {
+    if (!catalogDashboardCategory && dashboardCategories.length) {
+      setCatalogDashboardCategory(dashboardCategories[0]);
+      return;
+    }
+    if (catalogDashboardCategory && !dashboardCategories.includes(catalogDashboardCategory)) {
+      setCatalogDashboardCategory(dashboardCategories[0] || '');
+    }
+  }, [catalogDashboardCategory, dashboardCategories]);
 
   function handleCatalogCategoryChange(value: string) {
     if (value === NEW_CATEGORY_VALUE) {
@@ -283,6 +334,11 @@ export function RomaneioPage() {
     renameCategoryMutation.mutate({ currentName: editingCategory, newName });
   }
 
+  function openCatalogDashboard() {
+    setCatalogDashboardCategory(current => current || dashboardCategories[0] || '');
+    setCatalogDashboardOpen(true);
+  }
+
   async function handleLogout() {
     await logout();
     navigate('/login', { replace: true });
@@ -304,7 +360,7 @@ export function RomaneioPage() {
           </>
         }
       />
-      <main className="page-scroll">
+      <main className={`page-scroll ${catalogDashboardOpen && tab === 'equipamentos' ? 'romaneio-dashboard-page' : ''}`}>
         <section className="page-card romaneio-panel">
           <div className="admin-toolbar">
             <div className="sec">Romaneios</div>
@@ -408,6 +464,117 @@ export function RomaneioPage() {
 
         {tab === 'equipamentos' && (
           <>
+            <section className="page-card romaneio-panel">
+              <div className="admin-toolbar romaneio-dashboard-toolbar">
+                <div>
+                  <div className="sec">Tabela de equipamentos</div>
+                  <div className="rel-meta">{dashboardTotals.total} item(ns) cadastrados no catálogo do romaneio</div>
+                </div>
+                <button
+                  className={catalogDashboardOpen ? 'secondary-button' : 'primary-button'}
+                  type="button"
+                  onClick={() => catalogDashboardOpen ? setCatalogDashboardOpen(false) : openCatalogDashboard()}
+                >
+                  {catalogDashboardOpen ? 'Fechar tabela' : 'Abrir tabela expandida'}
+                </button>
+              </div>
+              {catalogDashboardOpen ? (
+                <div className="romaneio-dashboard">
+                  <div className="romaneio-dashboard-summary" aria-label="Resumo do catálogo">
+                    <div>
+                      <span>Total</span>
+                      <strong>{dashboardTotals.total}</strong>
+                    </div>
+                    <div>
+                      <span>Equipamentos</span>
+                      <strong>{dashboardTotals.equipment}</strong>
+                    </div>
+                    <div>
+                      <span>Conexões</span>
+                      <strong>{dashboardTotals.connection}</strong>
+                    </div>
+                    <div>
+                      <span>Itens únicos</span>
+                      <strong>{dashboardTotals.serialized}</strong>
+                    </div>
+                  </div>
+                  <div className="filter-tabs romaneio-dashboard-tabs" role="tablist" aria-label="Páginas da tabela de equipamentos">
+                    {dashboardCategories.map(category => (
+                      <button
+                        className={`filter-tab ${catalogDashboardCategory === category ? 'active' : ''}`}
+                        type="button"
+                        role="tab"
+                        aria-selected={catalogDashboardCategory === category}
+                        key={category}
+                        onClick={() => setCatalogDashboardCategory(category)}
+                      >
+                        {category}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="romaneio-table-sheet">
+                    <div className="romaneio-table-head">
+                      <div className="romaneio-table-brand">FILTROVALI</div>
+                      <div className="romaneio-table-heading">
+                        <div className="romaneio-table-title">ROMANEIO DE EQUIPAMENTOS</div>
+                        <div className="romaneio-table-subtitle">Catálogo disponível para emissão de romaneios</div>
+                      </div>
+                      <div className="romaneio-table-count">
+                        <span>Página</span>
+                        <strong>{catalogDashboardCategory || 'Todos'}</strong>
+                        <span>{dashboardItems.length} item(ns)</span>
+                      </div>
+                    </div>
+                    <div className="romaneio-table-info-grid">
+                      <div><span>Categoria</span><strong>{catalogDashboardCategory || 'Todos'}</strong></div>
+                      <div><span>Total da página</span><strong>{dashboardItems.length}</strong></div>
+                      <div><span>Equipamentos</span><strong>{dashboardItems.filter(item => item.kind === 'EQUIPMENT').length}</strong></div>
+                      <div><span>Conexões</span><strong>{dashboardItems.filter(item => item.kind === 'CONNECTION').length}</strong></div>
+                    </div>
+                    <div className="romaneio-table-wrap">
+                      <table className="romaneio-equipment-table">
+                        <thead>
+                          <tr>
+                            <th>Item</th>
+                            <th>Código</th>
+                            <th>Descrição do equipamento / material</th>
+                            <th>Tipo</th>
+                            <th>Und.</th>
+                            <th>Controle</th>
+                            <th>Origem</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dashboardSections.map(([category, items]) => (
+                            <Fragment key={category}>
+                              <tr className="romaneio-equipment-category-row">
+                                <td colSpan={7}>{category}</td>
+                              </tr>
+                              {items.map((item, index) => (
+                                <tr key={item.id}>
+                                  <td>{String(dashboardItems.findIndex(candidate => candidate.id === item.id) + 1 || index + 1).padStart(2, '0')}</td>
+                                  <td>{item.code || '-'}</td>
+                                  <td>{item.name}</td>
+                                  <td>{kindLabels[item.kind]}</td>
+                                  <td>{item.defaultUnitLabel || measureLabels[item.measureType]}</td>
+                                  <td>{item.isSerialized ? 'Item único' : 'Quantidade'}</td>
+                                  <td>{sourceLabels[item.sourceType]}</td>
+                                </tr>
+                              ))}
+                            </Fragment>
+                          ))}
+                          {!dashboardItems.length ? (
+                            <tr>
+                              <td colSpan={7}>Nenhum equipamento encontrado nesta página.</td>
+                            </tr>
+                          ) : null}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </section>
             {isManager ? (
               <section className="page-card romaneio-panel">
                 <form className="admin-form-grid manager-header-grid" onSubmit={submitCatalog}>
