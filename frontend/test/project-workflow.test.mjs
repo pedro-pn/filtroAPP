@@ -228,7 +228,7 @@ test('Preparação acompanha equipe nominal e liberações do cliente com salvam
   assert.match(schema, /Colaborador informado/);
   assert.match(schema, /EXAMS_RELEASED/);
   assert.match(schema, /TRAININGS_RELEASED/);
-  assert.match(panel, /futura integração externa/);
+  assert.match(panel, /A conferência documental permanece sob responsabilidade da equipe/);
   assert.match(panel, /Confirmação do atendimento/);
   assert.doesNotMatch(panel, /Data da solicitação|Data da conclusão/);
   assert.match(panel, /Solicitado\$\{values\.requestedAt/);

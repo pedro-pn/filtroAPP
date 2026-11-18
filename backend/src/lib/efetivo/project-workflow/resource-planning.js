@@ -221,8 +221,8 @@ function publicTeamPlanning(workflow, roleCatalog) {
     demands,
     catalog: roleCatalog,
     hiringRequired: demands.some(item => item.hiringNeed > 0),
-    complianceSource: 'SOLIDES',
-    complianceStatus: 'AWAITING_INTEGRATION'
+    complianceSource: 'CONECTA',
+    complianceStatus: 'PER_COLLABORATOR'
   };
 }
 

@@ -1,0 +1,18 @@
+.conecta-rh { min-width: 0; }
+.project-workflow-team-rh { grid-column: 1 / -1; min-width: 0; }
+.conecta-rh-compact { border-top: 1px solid var(--line); margin-top: .5rem; padding-top: .5rem; }
+.conecta-rh summary { cursor: pointer; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .4rem; font-size: .8125rem; }
+.conecta-rh summary::before { content: '▸'; }
+.conecta-rh[open] summary::before { content: '▾'; }
+.conecta-rh summary > span:first-of-type { flex: 1; }
+.conecta-rh-summary-label { display: grid; gap: .2rem; }
+.conecta-rh-summary-label small { color: var(--muted); font-size: var(--text-xs); font-weight: 400; }
+.conecta-rh-body { display: grid; gap: .75rem; margin-top: .65rem; }
+.conecta-rh .conecta-rh-note, .conecta-rh li p, .conecta-rh li small { color: var(--muted); font-size: .75rem; line-height: 1.5; margin: 0; }
+.conecta-rh-group h4 { margin: 0 0 .4rem; font-size: .8125rem; }
+.conecta-rh-group ul { list-style: none; padding: 0; margin: 0; display: grid; gap: .5rem; }
+.conecta-rh-group li { display: grid; gap: .3rem; padding: .65rem; border: 1px solid var(--line); border-radius: .5rem; overflow-wrap: anywhere; }
+.conecta-rh-item-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .4rem; font-size: .8125rem; }
+.conecta-rh .conecta-rh-expiry { color: var(--warning); font-weight: 600; }
+.conecta-rh-evidence { display: grid; gap: .35rem; justify-items: start; }
+.conecta-rh-evidence p[role=alert] { color: var(--danger); }

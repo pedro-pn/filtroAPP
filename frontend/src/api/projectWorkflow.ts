@@ -56,6 +56,7 @@ export interface ProjectOperationalMissionSummary {
     id: string;
     collaboratorId: string;
     jobRoleId: string;
+    periods?: Array<{ startDate: string; endDate: string }>;
     collaborator: { id: string; name: string; isActive: boolean; role: string; canOperateReports?: boolean } | null;
     jobRole: { id: string; name: string } | null;
   }>;
@@ -112,6 +113,7 @@ export interface ProjectWorkflowTeamPreparation {
   members: Array<{
     allocationId: string;
     collaboratorId: string;
+    periods?: Array<{ startDate: string; endDate: string }>;
     name: string;
     role: string;
     checks: Array<{
@@ -404,8 +406,8 @@ export interface ProjectWorkflowResourcePlanning {
     demands: ProjectWorkflowTeamDemand[];
     catalog: ProjectWorkflowRolePlanningOption[];
     hiringRequired: boolean;
-    complianceSource: 'SOLIDES';
-    complianceStatus: 'AWAITING_INTEGRATION';
+    complianceSource: 'CONECTA';
+    complianceStatus: 'PER_COLLABORATOR';
   };
   equipment: {
     defined: boolean | null;

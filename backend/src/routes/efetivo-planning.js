@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import asyncHandler from '../lib/async-handler.js';
 import { getConectaCompliance } from '../lib/conecta-rh/service.js';
+import { createEfetivoRhRouter } from './efetivo-rh.js';
 import { requireEfetivoManager, requireEfetivoViewer } from '../lib/efetivo/access.js';
 import {
   deleteHoliday,
@@ -168,6 +169,8 @@ router.get('/availability', requireEfetivoViewer, asyncHandler(async (req, res) 
 router.get('/collaborators', requireEfetivoViewer, asyncHandler(async (req, res) => {
   res.json(await listPlanningCollaborators(collaboratorListQuerySchema.parse(req.query)));
 }));
+
+router.use('/collaborators', createEfetivoRhRouter());
 
 router.get('/collaborators/:collaboratorId/rh', requireEfetivoViewer, asyncHandler(async (req, res) => {
   const id = idSchema.parse(req.params.collaboratorId);
