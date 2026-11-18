@@ -47,8 +47,13 @@ function safePathPart(value) {
 export function isProjectImagePath(relativePath, projectCode) {
   const code = safePathPart(projectCode);
   if (!code || !relativePath || !IMAGE_EXTENSION.test(relativePath)) return false;
-  const [firstFolder] = relativePath.split('/').filter(Boolean);
-  return Boolean(firstFolder && firstFolder.startsWith(`Missão ${code} - `) && relativePath.includes('/'));
+  // Sem "..", "." nem barra invertida: o caminho não pode sair da pasta do projeto
+  // (ex.: "Missão 1234 - X/../Missão 9999 - Y/foto.jpg" apagaria foto de outro projeto).
+  if (relativePath.includes('\\')) return false;
+  const parts = relativePath.split('/').filter(Boolean);
+  if (parts.some(part => part === '..' || part === '.')) return false;
+  const [firstFolder] = parts;
+  return Boolean(firstFolder && firstFolder.startsWith(`Missão ${code} - `) && parts.length > 1);
 }
 
 function referenceOf(item) {
@@ -239,7 +244,10 @@ export async function purgeProjectFiles(prismaClient, project, {
     totals.pdfAttachmentsRemoved += changed.pdfAttachments.length;
     for (const relativePath of changed.removed) {
       const target = path.resolve(reportsDir, ...relativePath.split('/'));
-      if (insideRoot(reportsDir, target)) files.push(target);
+      // Confere de novo depois de resolver: o arquivo tem de ficar dentro da pasta
+      // do próprio projeto, não só dentro da pasta de relatórios.
+      const projectFolder = path.resolve(reportsDir, relativePath.split('/').filter(Boolean)[0]);
+      if (insideRoot(reportsDir, target) && insideRoot(projectFolder, target)) files.push(target);
     }
     for (const attachment of changed.pdfAttachments) {
       try {

@@ -28,6 +28,11 @@ test('only image files inside the project folder are retention targets', () => {
   assert.equal(isProjectImagePath(`${FOLDER}/RDO 01/relatorio.pdf`, '1234'), false);
   assert.equal(isProjectImagePath('certificados-calibracao/manometro.jpg', '1234'), false);
   assert.equal(isProjectImagePath('Missão 9999 - Outro/foto.jpg', '1234'), false);
+  // Caminhos que saem da pasta do projeto nunca contam como foto dele.
+  assert.equal(isProjectImagePath(`${FOLDER}/../Missão 9999 - Outro/foto.jpg`, '1234'), false);
+  assert.equal(isProjectImagePath(`${FOLDER}/./RDO 01/foto.jpg`, '1234'), false);
+  assert.equal(isProjectImagePath(`${FOLDER}\\..\\Missão 9999 - Outro\\foto.jpg`, '1234'), false);
+  assert.equal(isProjectImagePath(`${FOLDER}/foto.jpg`, '1234'), true);
 });
 
 test('photo references are stripped from lists and scalar fields, everything else stays', () => {
