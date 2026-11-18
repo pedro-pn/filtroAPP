@@ -5,12 +5,12 @@ import { projectSystemSelectionPatch, projectSystemSuggestionOptions, systemName
 import { SearchCombobox } from '../ui/SearchCombobox';
 
 // Os campos continuam sendo texto do cliente. Nunca consultam o cadastro dos nossos equipamentos.
-export function ProjectSystemInput({ projectId, data, field, onChange, disabled, className, id, serviceType, source = 'reports', suggestions = [] }: {
+export function ProjectSystemInput({ projectId, data, field, onChange, disabled, className, id, error, serviceType, source = 'reports', suggestions = [] }: {
   projectId?: string | null;
   data: Record<string, unknown>;
   field: 'equipmentId' | 'system';
   onChange: (patch: Record<string, unknown>) => void;
-  disabled?: boolean; className?: string; id?: string;
+  disabled?: boolean; className?: string; id?: string; error?: string;
   source?: 'reports' | 'scope';
   suggestions?: ProjectSystem[];
   serviceType?: string;
@@ -31,7 +31,7 @@ export function ProjectSystemInput({ projectId, data, field, onChange, disabled,
     }
   }, [source, disabled, data.__projectSystemId, query.data, onChange]);
   return <>
-    <SearchCombobox id={id} inputClassName={className} disabled={disabled} maxLength={180} allowCustomValue hideLabel variant="select"
+    <SearchCombobox id={id} inputClassName={className} disabled={disabled} error={error} maxLength={180} allowCustomValue hideLabel variant="select"
       label={field === 'equipmentId' ? 'Equipamento do cliente' : 'Sistema'}
       toggleLabel={field === 'equipmentId' ? 'Mostrar sugestões de equipamentos do cliente' : 'Mostrar sugestões de sistemas'}
       options={options.map(value => ({ value, label: value }))} loading={query.isFetching && !query.data} emptyText={emptyText}
