@@ -71,6 +71,14 @@ jobs:
       PROPOSAL_SCOPE_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali?schema=public
       DRAFTS_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali?schema=public
       STATISTICS_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali?schema=public
+      # Suítes que exigem um banco cujo nome termina em _test (criado no passo abaixo).
+      # O teste ci-db-suite-coverage falha se uma suíte com guarda de ambiente não rodar em nenhum job.
+      SUITES_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali_suites_test?schema=public
+      RDO_SIMULATION_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali_suites_test?schema=public
+      HISTORICAL_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali_suites_test?schema=public
+      PROJECT_DELETION_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali_suites_test?schema=public
+      SYSTEMS_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali_suites_test?schema=public
+      EFETIVO_DB_TESTS: "1"
       TRUST_PROXY: "false"
       SIGNATURE_TOKEN_SECRET: ci-signature-token-secret
       SURVEY_TOKEN_SECRET: ci-survey-token-secret
@@ -106,6 +114,11 @@ jobs:
 
       - name: Apply database migrations
         run: npm run prisma:deploy
+
+      - name: Create and migrate isolated suites database
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d filtrovali -v ON_ERROR_STOP=1 -c 'CREATE DATABASE filtrovali_suites_test'
+          DATABASE_URL="$SUITES_TEST_DATABASE_URL" npm run prisma:deploy
 
       - name: Setup Python (gerador do Data Book)
         uses: actions/setup-python@v7
@@ -190,6 +203,7 @@ jobs:
         run: >-
           node --test --test-concurrency=1 test/commercial-additional-contributions.integration.test.js
           test/commercial-additional-migration.integration.test.js
+          test/commercial-proposal-backfill.integration.test.js
           test/proposal-scope-databook.integration.test.js
           test/comercialapp-bridge.integration.test.js test/commercial-proposal-sync.test.js
           test/commercialapp-scope.test.js test/acompanhamento-planned-hours.test.js
@@ -288,6 +302,13 @@ jobs:
 
       - name: Verify labor source parity and freshness on PostgreSQL
         run: node --test test/acompanhamento-labor-performance.integration.test.js
+
+      # Passo separado: escritas concorrentes no mesmo banco mudam a versão derivada
+      # do cache e quebram a contagem de leituras de acompanhamento-detail-performance.
+      - name: Verify Acompanhamento financial permissions and project card names
+        run: >-
+          node --test test/acompanhamento-financial-permissions.integration.test.js
+          test/acompanhamento-project-card-name.integration.test.js
 
   http-performance:
     name: HTTP performance contracts (PostgreSQL)
