@@ -37,6 +37,11 @@ BACKUP_CMD="${BACKUP_CMD:-$SCRIPT_DIR/backup-prod.sh}"
 PRE_DEPLOY_BACKUP_ROOT="${PRE_DEPLOY_BACKUP_ROOT:-/root/backups/filtrovali/pre-deploy}"
 PRE_DEPLOY_BACKUP_KEEP="${PRE_DEPLOY_BACKUP_KEEP:-3}"
 KEEP_IMAGES="${KEEP_IMAGES:-5}"
+# Aviso por Telegram em FAILURE/ROLLED_BACK (e em SUCCESS com DEPLOY_NOTIFY_SUCCESS=true).
+# Do arquivo só são lidas TELEGRAM_TOKEN e TELEGRAM_CHAT_ID; nada mais é carregado.
+DEPLOY_NOTIFY_ENV_FILE="${DEPLOY_NOTIFY_ENV_FILE:-/root/.config/filtroapp-backup/env}"
+DEPLOY_NOTIFY_SUCCESS="${DEPLOY_NOTIFY_SUCCESS:-false}"
+TELEGRAM_API_URL="${TELEGRAM_API_URL:-https://api.telegram.org}"
 APP_SERVICES=(backend worker nginx)
 
 MODE="deploy"
@@ -73,6 +78,35 @@ json_escape() {
   printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\n\r'
 }
 
+# Lê uma chave KEY=valor (aceita `export` e aspas) sem executar o arquivo.
+read_env_key() {
+  local file="$1" key="$2"
+  [ -r "$file" ] || return 0
+  sed -n -E "s/^[[:space:]]*(export[[:space:]]+)?${key}=[\"']?([^\"']*)[\"']?[[:space:]]*$/\\2/p" "$file" | tail -n 1
+}
+
+notify_deploy() {
+  local status="$1" message="$2" token chat text
+  case "$status" in
+    FAILURE|ROLLED_BACK) ;;
+    SUCCESS) [ "$DEPLOY_NOTIFY_SUCCESS" = "true" ] || return 0 ;;
+    *) return 0 ;;
+  esac
+  token="${TELEGRAM_TOKEN:-$(read_env_key "$DEPLOY_NOTIFY_ENV_FILE" TELEGRAM_TOKEN)}"
+  chat="${TELEGRAM_CHAT_ID:-$(read_env_key "$DEPLOY_NOTIFY_ENV_FILE" TELEGRAM_CHAT_ID)}"
+  [ -n "$token" ] && [ -n "$chat" ] || return 0
+  command -v curl > /dev/null 2>&1 || return 0
+  case "$status" in
+    SUCCESS) text="✅ Deploy Filtrovali ($MODE) em $(hostname): ${NEW_SHA:-$TARGET_TAG}" ;;
+    ROLLED_BACK) text="⚠️ Deploy Filtrovali falhou em $(hostname) e voltou para ${PREV_SHA:0:12}: $message" ;;
+    *) text="❌ Deploy Filtrovali ($MODE) falhou em $(hostname): $message" ;;
+  esac
+  curl -sS --max-time 15 -X POST "${TELEGRAM_API_URL%/}/bot${token}/sendMessage" \
+    -d "chat_id=${chat}" --data-urlencode "text=${text:0:900}" > /dev/null 2>&1 \
+    || log "AVISO: não foi possível enviar o aviso do deploy pelo Telegram"
+  return 0
+}
+
 write_status() {
   local status="$1" message="$2"
   mkdir -p "$(dirname "$DEPLOY_STATUS_FILE")" "$STATE_DIR"
@@ -91,6 +125,7 @@ EOF
   mv "${DEPLOY_STATUS_FILE}.tmp" "$DEPLOY_STATUS_FILE"
   printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Iseconds)" "$MODE" "$status" "$PREV_SHA" "${NEW_SHA:-$TARGET_TAG}" \
     >> "$STATE_DIR/deploy-history.log"
+  notify_deploy "$status" "$message" || true
 }
 
 container_id() {

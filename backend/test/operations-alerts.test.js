@@ -155,3 +155,26 @@ test('sendOperationalAlert reports not-configured when no channel exists', async
   assert.equal(result.sent, false);
   assert.equal(result.reason, 'not-configured');
 });
+
+test('deploy problems name the status, the version still running and the reason; a new failed SHA re-alerts', () => {
+  const deployProblem = sha => ({
+    message: 'Último deploy falhou e voltou automaticamente para a versão anterior.',
+    source: sha.slice(0, 12),
+    deploy: {
+      status: 'ROLLED_BACK',
+      sha,
+      shortSha: sha.slice(0, 12),
+      shortPreviousSha: 'b'.repeat(12),
+      finishedAt: '2026-11-18T20:04:00+00:00',
+      message: 'conferência pós-deploy falhou'
+    }
+  });
+  const first = { ok: false, generatedAt: '2026-11-18T20:05:00.000Z', problems: [deployProblem('a'.repeat(40))] };
+  const message = operationalAlertMessage(first);
+  assert.match(message, /deploy=ROLLED_BACK/);
+  assert.match(message, /no_ar=bbbbbbbbbbbb/);
+  assert.match(message, /motivo="conferência pós-deploy falhou"/);
+
+  const second = { ...first, problems: [deployProblem('c'.repeat(40))] };
+  assert.notEqual(operationalAlertSignature(first), operationalAlertSignature(second));
+});
