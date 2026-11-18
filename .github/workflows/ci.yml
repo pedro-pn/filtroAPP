@@ -714,16 +714,13 @@ jobs:
           node scripts/check-database-role.js --require-restricted
           psql "$OWNER_PSQL" -X -q -v ON_ERROR_STOP=1 -c 'DROP TABLE "ZzCiFutureTable"'
 
-      - name: Integration suites (triggers, advisory locks, outbox) run as the restricted role
+      - name: Integration suites (advisory locks, statistics, costs) run as the restricted role
         env:
           DRAFTS_TEST_DATABASE_URL: ${{ env.APP_URL }}
           STATISTICS_TEST_DATABASE_URL: ${{ env.APP_URL }}
           ADDITIONAL_METRICS_TEST_DATABASE_URL: ${{ env.APP_URL }}
           CHEMICAL_COST_TEST_DATABASE_URL: ${{ env.APP_URL }}
           PROPOSAL_PERCENTAGE_TEST_DATABASE_URL: ${{ env.APP_URL }}
-          TEST_NOTIFICATION_DATABASE_URL: ${{ env.APP_URL }}
-          TEST_RDO_EQUIPMENT_DATABASE_URL: ${{ env.APP_URL }}
-          TEST_CONECTA_DATABASE_URL: ${{ env.APP_URL }}
         run: >-
           node --test --test-concurrency=1
           test/drafts-concurrency.test.js
@@ -731,7 +728,31 @@ jobs:
           test/acompanhamento-additional-metrics.integration.test.js
           test/acompanhamento-chemical-cost.integration.test.js
           test/acompanhamento-proposal-percentage.integration.test.js
-          test/notification-center.integration.test.js
-          test/rdo-equipment-slots.integration.test.js
-          test/equipment-operation-manual.integration.test.js
-          test/integration-allocation-review.test.js
+
+      # Estas suítes exigem bancos com nome próprio (proteção contra rodar no banco errado).
+      - name: Prepare dedicated databases (owner migrates, restricted role runs)
+        run: |
+          for db in filtroapp_notifications_test filtroapp_equipment_test conecta_allocation_test; do
+            psql "$OWNER_PSQL" -X -q -v ON_ERROR_STOP=1 -c "CREATE DATABASE $db"
+            MIGRATION_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/$db?schema=public" npm run prisma:deploy
+            psql "postgresql://postgres:postgres@localhost:5432/$db" -X -q -v ON_ERROR_STOP=1 \
+              -v app_role=filtrovali_app -f ../deploy/db/app-role.sql
+          done
+
+      - name: Notification triggers and outbox run as the restricted role
+        env:
+          DATABASE_URL: postgresql://filtrovali_app:ci_app_role_password_0000000000@localhost:5432/filtroapp_notifications_test
+          TEST_NOTIFICATION_DATABASE_URL: postgresql://filtrovali_app:ci_app_role_password_0000000000@localhost:5432/filtroapp_notifications_test
+        run: node --test test/notification-center.integration.test.js
+
+      - name: RDO equipment suites run as the restricted role
+        env:
+          DATABASE_URL: postgresql://filtrovali_app:ci_app_role_password_0000000000@localhost:5432/filtroapp_equipment_test
+          TEST_RDO_EQUIPMENT_DATABASE_URL: postgresql://filtrovali_app:ci_app_role_password_0000000000@localhost:5432/filtroapp_equipment_test
+        run: node --test --test-concurrency=1 test/rdo-equipment-slots.integration.test.js test/equipment-operation-manual.integration.test.js
+
+      - name: Conecta allocation suite runs as the restricted role
+        env:
+          DATABASE_URL: postgresql://filtrovali_app:ci_app_role_password_0000000000@localhost:5432/conecta_allocation_test
+          TEST_CONECTA_DATABASE_URL: postgresql://filtrovali_app:ci_app_role_password_0000000000@localhost:5432/conecta_allocation_test
+        run: node --test test/integration-allocation-review.test.js
