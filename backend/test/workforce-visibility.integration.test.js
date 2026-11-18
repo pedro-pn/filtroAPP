@@ -17,6 +17,7 @@ import { collaboratorsCache } from '../src/lib/resource-list-cache.js';
 import { createWorkforceClassificationRouter } from '../src/routes/resources/workforce-classification.js';
 import epiRouter from '../src/routes/resources/epis.js';
 import romaneioRouter from '../src/routes/resources/romaneios.js';
+import projectsRouter from '../src/routes/resources/projects.js';
 import prisma from '../src/lib/prisma.js';
 import { createApiToken } from '../src/lib/api-credentials/token.js';
 import { createApiTokenAuthenticator } from '../src/middleware/api-token-auth.js';
@@ -36,7 +37,7 @@ test('visibilidade configurável: persistência, seleção, API, cache, autoriza
     const role = await db.jobRole.create({ data: { name: value, normalizedKey: value, workforceClassification: value, isOperational: value === 'OPERATIONAL' } });
     people.push(await db.collaborator.create({ data: { code: value, name: value, jobRoleId: role.id }, include: { jobRole: true } }));
   }
-  const admin = await db.user.create({ data: { username: 'visibility-admin', name: 'Administrador de visibilidade', passwordHash: 'synthetic', role: 'MANAGER', accountType: 'ADMIN', moduleRoles: { create: { module: 'ROMANEIO', role: 'ROMANEIO_MANAGER' } } } });
+  const admin = await db.user.create({ data: { username: 'visibility-admin', name: 'Administrador de visibilidade', passwordHash: 'synthetic', role: 'MANAGER', accountType: 'ADMIN', moduleRoles: { create: [{ module: 'ROMANEIO', role: 'ROMANEIO_MANAGER' }, { module: 'RDO', role: 'RDO_MANAGER' }] } } });
   let configuration = await getWorkforceVisibility(db);
   async function save(rules, reason = 'Regras revisadas pelo administrador.') {
     configuration = await updateWorkforceVisibility(db, { version: configuration.version, rules, reason }, admin.id);
@@ -206,6 +207,7 @@ test('visibilidade configurável: persistência, seleção, API, cache, autoriza
     app.use('/api/admin/workforce-classification', createWorkforceClassificationRouter({ database: db }));
     app.use('/api/epi', epiRouter);
     app.use('/api/romaneio', romaneioRouter);
+    app.use('/api/projects', projectsRouter);
     app.use((error, _req, res, _next) => res.status(error.statusCode || error.status || 400).json({ code: error.code, error: error.message }));
     const server = app.listen(0, '127.0.0.1'); await new Promise(resolve => server.once('listening', resolve));
     t.after(() => new Promise(resolve => server.close(resolve)));
@@ -227,6 +229,20 @@ test('visibilidade configurável: persistência, seleção, API, cache, autoriza
     assert.equal(allowedOperator.id, people[1].id);
     assert.equal(allowedOperator.workforceClassificationOverride, undefined);
     assert.equal((await db.project.findUniqueOrThrow({ where: { code: 'visibility-project' } })).operatorId, people[1].id);
+    const projectData = { code: 'visibility-rental', name: 'Locação', clientName: 'Teste', clientCnpj: '12345678000190',
+      contractCode: 'SEM PROPOSTA', location: 'Sede', operatorId: people[1].id };
+    const blockedProject = await request('/projects', 'admin-visibility', 'POST', { ...projectData, serviceCategory: 'SERVICE' });
+    assert.equal(blockedProject.status, 409, JSON.stringify(blockedProject.body));
+    assert.equal(blockedProject.body.code, 'COLLABORATOR_NOT_VISIBLE');
+    const rental = await request('/projects', 'admin-visibility', 'POST', { ...projectData, serviceCategory: 'RENTAL' });
+    assert.equal(rental.status, 201, JSON.stringify(rental.body));
+    assert.equal(rental.body.operatorId, null);
+    const rentalUpdate = await request(`/projects/${rental.body.id}`, 'admin-visibility', 'PUT', { operatorId: people[1].id });
+    assert.equal(rentalUpdate.status, 200, JSON.stringify(rentalUpdate.body));
+    assert.equal(rentalUpdate.body.operatorId, null);
+    const serviceUpdate = await request(`/projects/${rental.body.id}`, 'admin-visibility', 'PUT', { serviceCategory: 'SERVICE', operatorId: people[1].id });
+    assert.equal(serviceUpdate.status, 409, JSON.stringify(serviceUpdate.body));
+    assert.equal((await db.project.findUniqueOrThrow({ where: { id: rental.body.id } })).serviceCategory, 'RENTAL');
     const epiList = await request('/epi/collaborators', 'technician-visibility');
     assert.deepEqual(epiList.body.map(item => item.code), ['OPERATIONAL']);
     const recordsBefore = await db.epiRecord.count();

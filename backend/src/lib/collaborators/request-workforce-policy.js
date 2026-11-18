@@ -26,6 +26,9 @@ export async function requireOperationalRequestParticipants(database, req) {
   // This does not change login/module permissions of these employees.
   if (/^\/(?:epi|admin|users|auth|privacy|notifications|assinaturas)(?:\/|$)/.test(path)
     || /^\/integracoes\/v1\/rh\/conecta(?:\/|$)/.test(path)) return;
+  // Project handlers validate the normalized data inside the write transaction.
+  // Rental projects discard operatorId, including on partial updates.
+  if (/^\/(?:rdo\/)?projects(?:\/[^/]+)?$/.test(path)) return;
   const ids = requestCollaboratorIds(req.body);
   if (ids.length) await requireVisibleCollaborators(database, ids);
 }

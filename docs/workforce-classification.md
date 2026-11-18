@@ -45,7 +45,7 @@ Registros históricos e consultas financeiras que os utilizam não são excluíd
 ## Implantação e revisão inicial
 
 1. Fazer o backup habitual do banco antes da implantação.
-2. Gerar o cliente Prisma e aplicar `20261118150000_workforce_classification` e `20261118160000_workforce_visibility` pelo fluxo normal de migrações (`prisma migrate deploy`). Backend, worker e frontend devem usar a mesma versão.
+2. Gerar o cliente Prisma e aplicar `20261118150000_workforce_classification`, `20261118160000_workforce_visibility` e `20261118170000_workforce_classification_read_revision` pelo fluxo normal de migrações (`prisma migrate deploy`). A última mantém a nova tabela de auditoria no mecanismo compartilhado de invalidação de cache. Backend, worker e frontend devem usar a mesma versão.
 3. A migração recupera a classificação original dos agregados Conecta, restringe vínculos não operacionais, conserva cargos locais já não operacionais e registra a classificação inicial. Ela não remove colaboradores, entregas de EPI, dias conferidos ou alocações.
 4. Revisar **Padrões por cargo**, os filtros **Aguardando classificação** e **Somente divergências com o Conecta**, e a aba **Visibilidade por módulo**, definindo as exceções de negócio no aplicativo. A migração da visibilidade mantém o padrão da tabela acima e preserva uma configuração já existente.
 5. Depois da revisão, os consumidores externos devem reconciliar a lista completa e reler os períodos da conferência. Registros de classificações desabilitadas saem das consultas; dados já copiados no sistema consumidor precisam ser reconciliados por ele.
