@@ -649,6 +649,7 @@ conteúdo têm flag própria e só rodam com a rotina base ligada:
 | Flag | O que faz |
 |---|---|
 | `COLLABORATOR_RETENTION_ENABLED` | Colaboradores inativos com `terminationDate` há mais de 5 anos: apaga e-mail, observação do Efetivo, imagem de assinatura, ausências, apelidos/vínculos do ponto e os dados pessoais dos eventos brutos do Conecta RH; nome/CPF/matrícula só ficam quando há EPI ou RDO vinculados. Pula colaboradores com exceção em `DataRetentionHold`. |
+| `PROJECT_FILE_RETENTION_ENABLED` | Projetos arquivados cujo encerramento (a data mais recente entre a finalização no módulo Relatórios, a data de término e o último RDO) passou de 10 anos: remove do JSON dos RDOs as referências a fotos da pasta do próprio projeto, apaga os PDFs anexados (`ReportPdfAttachment`) e os arquivos correspondentes em `/data/relatorios`. Mantém RDOs, PDFs emitidos/assinados (`ReportVersion`), assinaturas, Data Book e certificados de calibração. Pula projetos com exceção. Arquivo que não puder ser apagado fica no log do worker e em `filesFailed`. |
 | `SURVEY_RESPONSE_RETENTION_ENABLED` | Pesquisas respondidas (ou enviadas sem resposta) há mais de 2 anos: apaga e-mail, notas de acompanhamento e respostas de texto livre; mantém NPS/escala/escolhas. |
 
 Cada execução fica em `DataRetentionRun` (contagens no `summary.lgpd`). Sempre simule antes de ligar uma flag
@@ -658,8 +659,9 @@ Cada execução fica em `DataRetentionRun` (contagens no `summary.lgpd`). Sempre
 docker compose --env-file backend/.env.production -f docker-compose.prod.yml exec -T backend npm run retention:dry-run
 ```
 
-Para manter um colaborador fora da anonimização (processo trabalhista, fiscalização), marque a exceção antes do prazo
-(rode no servidor, como dono do banco):
+Exceções (projeto com contrato que exige guarda maior, colaborador com processo): marque no painel de Operações, seção
+"Privacidade (LGPD)", pelo código do projeto ou do colaborador, com o motivo. Alternativa por SQL (rode no servidor,
+como dono do banco):
 
 ```bash
 docker compose --env-file backend/.env.production -f docker-compose.prod.yml exec -T postgres \

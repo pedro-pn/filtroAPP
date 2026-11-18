@@ -225,6 +225,7 @@ Dados que **não integram o documento legal** e existem apenas para operação d
 | `SatisfactionSurvey` — `submittedIp`, `submittedUserAgent` | Indefinida | Anonimizar após resposta + 1 ano | Job periódico |
 | `ReportDraft` — rascunhos abandonados | Indefinida | Revisar após 6 meses sem edição; exclusão somente por rotina operacional explícita | Dry-run/execução manual controlada |
 | `SatisfactionSurvey` — `emailTo`, `followUpNotes`, respostas de texto livre | Indefinida | Apagar após 2 anos da resposta (ou do envio); notas numéricas permanecem sem vínculo | Job periódico com `SURVEY_RESPONSE_RETENTION_ENABLED=true` |
+| Fotos e PDFs anexados aos RDOs (`specialConditions`/`extraData`, `ReportPdfAttachment`, arquivos em `/data/relatorios`) | Indefinida | Remover 10 anos após o encerramento do projeto; PDFs emitidos/assinados (`ReportVersion`), assinaturas e Data Book permanecem; exceção por projeto em `DataRetentionHold` | Job periódico com `PROJECT_FILE_RETENTION_ENABLED=true` (decisão de 2026-11-18) |
 | `Collaborator` desligado (+ ausências, apelidos do ponto, eventos brutos do Conecta RH) | Indefinida | Anonimizar 5 anos após `terminationDate`; nome/CPF/matrícula mantidos só com EPI/RDO vinculados; exceção em `DataRetentionHold` suspende | Job periódico com `COLLABORATOR_RETENTION_ENABLED=true` (decisão de 2026-11-18) |
 
 > **Importante:** "anonimizar IP" significa substituir o valor por `null` ou `"[anonimizado]"` no banco — não exclui o registro de auditoria, apenas remove o dado identificador. O log de *que* ação aconteceu permanece.
@@ -489,6 +490,8 @@ Legenda: `[ ]` pendente, `[x]` concluído. Manter este checklist no repositório
 
 - [x] Anonimizar colaboradores desligados há mais de 5 anos (`lib/privacy/collaborator-retention.js`), atrás de `COLLABORATOR_RETENTION_ENABLED`, respeitando as exceções em `DataRetentionHold`.
 - [x] Aplicar a regra de 2 anos das respostas de pesquisa (`lib/privacy/survey-retention.js`), atrás de `SURVEY_RESPONSE_RETENTION_ENABLED`.
+- [x] Remover fotos e anexos dos RDOs 10 anos após o encerramento do projeto (`lib/privacy/project-file-retention.js`), atrás de `PROJECT_FILE_RETENTION_ENABLED`, mantendo PDFs emitidos/assinados e respeitando as exceções.
+- [x] Exceções (legal hold) por projeto ou colaborador no painel de Operações (`/api/operations/retention-holds`, só administrador).
 
 **Execução manual:** em homologação/produção, executar `npm run retention:dry-run` para contagens (a saída inclui o bloco `lgpd` com as contagens de colaboradores e pesquisas e o estado das flags) e `npm run retention:apply` para aplicar anonimização/limpeza não destrutiva. Para excluir rascunhos antigos, usar somente execução operacional explícita com backup: `npm run retention:apply -- --delete-abandoned-drafts`.
 

@@ -678,6 +678,7 @@ Nginx HTTP interno
 | `API_TOKEN_MAX_OVERLAP_MINUTES` | Não | Sobreposição máxima entre tokens durante rotação (padrão: `60`) |
 | `DATA_RETENTION_JOB_ENABLED` | Não | Liga o job diário de retenção LGPD no worker: sessões/tokens expirados, IP/User-Agent antigos, logs da API (padrão: `false`) |
 | `COLLABORATOR_RETENTION_ENABLED` | Não | Com o job ligado, anonimiza colaboradores desligados há mais de 5 anos, exceto os marcados em `DataRetentionHold` (padrão: `false`) |
+| `PROJECT_FILE_RETENTION_ENABLED` | Não | Com o job ligado, remove fotos e PDFs anexados dos RDOs 10 anos após o encerramento do projeto, mantendo os PDFs emitidos/assinados e as exceções (padrão: `false`) |
 | `SURVEY_RESPONSE_RETENTION_ENABLED` | Não | Com o job ligado, apaga e-mail, notas e texto livre de pesquisas com mais de 2 anos (padrão: `false`) |
 | `SMTP_HOST` | Sim | Servidor SMTP (`smtp.office365.com`) |
 | `SMTP_PORT` | Sim | Porta SMTP (padrão: `587`) |

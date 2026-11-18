@@ -126,3 +126,33 @@ export async function getOperationalStatus() {
   const response = await apiClient.get<OperationalStatus>('/operations/status');
   return response.data;
 }
+
+export type RetentionHoldKind = 'project' | 'collaborator';
+
+export type RetentionHoldItem = {
+  id: string;
+  code: string;
+  name: string;
+  reason: string | null;
+  setAt: string | null;
+};
+
+export type RetentionHolds = {
+  projects: RetentionHoldItem[];
+  collaborators: RetentionHoldItem[];
+};
+
+export async function getRetentionHolds() {
+  const response = await apiClient.get<RetentionHolds>('/operations/retention-holds');
+  return response.data;
+}
+
+export async function setRetentionHold(input: {
+  kind: RetentionHoldKind;
+  code: string;
+  hold: boolean;
+  reason?: string | null;
+}) {
+  const response = await apiClient.put<RetentionHoldItem & { hold: boolean }>('/operations/retention-holds', input);
+  return response.data;
+}

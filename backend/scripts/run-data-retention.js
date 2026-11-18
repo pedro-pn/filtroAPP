@@ -26,7 +26,8 @@ try {
       : await previewDataRetention({ apiTokenLogRetentionDays: env.apiTokenLogRetentionDays, jobRunRetentionDays,
         lgpdTargets: true, lgpdFlags: {
           COLLABORATOR_RETENTION_ENABLED: env.collaboratorRetentionEnabled,
-          SURVEY_RESPONSE_RETENTION_ENABLED: env.surveyResponseRetentionEnabled
+          SURVEY_RESPONSE_RETENTION_ENABLED: env.surveyResponseRetentionEnabled,
+          PROJECT_FILE_RETENTION_ENABLED: env.projectFileRetentionEnabled
         } });
     console.log(JSON.stringify({
       mode: 'dry-run',
@@ -42,6 +43,7 @@ try {
       // Alvos LGPD seguem as mesmas flags do job agendado.
       collaboratorRetention: env.collaboratorRetentionEnabled,
       surveyResponseRetention: env.surveyResponseRetentionEnabled,
+      projectFileRetention: env.projectFileRetentionEnabled,
       ...(Number.isFinite(batchSize) && batchSize > 0 ? { batchSize } : {}),
       ...(Number.isFinite(maxBatchesPerTarget) && maxBatchesPerTarget > 0 ? { maxBatchesPerTarget } : {})
     });
