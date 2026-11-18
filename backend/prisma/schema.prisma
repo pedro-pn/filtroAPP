@@ -1065,6 +1065,9 @@ model Project {
   acompanhamentoReviewedAt       DateTime? // última conferência enquanto arquivado no Acompanhamento
   acompanhamentoReportArchivedAt DateTime? // última finalização originada no módulo Relatórios
   acompanhamentoCardName         String?   // nome de exibição apenas no card individual do Acompanhamento
+  // LGPD: fotos e anexos dos RDOs removidos 10 anos após o encerramento
+  // (lib/privacy/project-file-retention.js); exceções em DataRetentionHold.
+  filesRetentionPurgedAt         DateTime?
 
   clientName                 String
   clientCnpj                 String

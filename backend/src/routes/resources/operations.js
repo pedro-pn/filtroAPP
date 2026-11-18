@@ -4,6 +4,8 @@ import { z } from 'zod';
 import asyncHandler from '../../lib/async-handler.js';
 import { captureOperationalError, errorTrackingStatus } from '../../lib/operations/error-tracking.js';
 import { getOperationalStatus } from '../../lib/operations/status.js';
+import { listRetentionHolds, setRetentionHold } from '../../lib/privacy/retention-holds.js';
+import prisma from '../../lib/prisma.js';
 import { createMemoryRateLimit } from '../../lib/rate-limit.js';
 import { requireAuth, requireHubAdmin } from '../../middleware/auth.js';
 
@@ -53,6 +55,17 @@ router.use(requireAuth, requireHubAdmin);
 
 router.get('/status', asyncHandler(async (_req, res) => {
   res.json(await getOperationalStatus());
+}));
+
+// Exceções (legal hold) da retenção LGPD por projeto ou colaborador.
+router.get('/retention-holds', asyncHandler(async (_req, res) => {
+  res.json(await listRetentionHolds(prisma));
+}));
+
+router.put('/retention-holds', asyncHandler(async (req, res) => {
+  const item = await setRetentionHold(prisma, req.body, { userId: req.auth.user.id });
+  if (!item) return res.status(404).json({ error: 'Código não encontrado.' });
+  res.json(item);
 }));
 
 export default router;

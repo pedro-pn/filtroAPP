@@ -22,7 +22,8 @@ export function startBackgroundJobs({ keepAlive = false } = {}) {
   startDataRetentionJob({
     enabled: env.dataRetentionJobEnabled,
     collaboratorRetention: env.collaboratorRetentionEnabled,
-    surveyResponseRetention: env.surveyResponseRetentionEnabled
+    surveyResponseRetention: env.surveyResponseRetentionEnabled,
+    projectFileRetention: env.projectFileRetentionEnabled
   });
   startSurveyReminderJob();
   startSignatureReminderJob();

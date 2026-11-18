@@ -190,7 +190,8 @@ function emptyRetentionClient(extra = {}) {
   const client = {
     userSession: emptyModel(), passwordResetToken: emptyModel(), reportAuditLog: emptyModel(),
     epiSignatureRequestAuditLog: emptyModel(), satisfactionSurvey: emptyModel(), reportDraft: emptyModel(),
-    collaborator: emptyModel(), jobRun: emptyModel(), dataRetentionHold: emptyModel(),
+    collaborator: emptyModel(), jobRun: emptyModel(), dataRetentionHold: emptyModel(), project: emptyModel(),
+    report: emptyModel(), reportAttachment: emptyModel(), reportPdfAttachment: emptyModel(),
     dataRetentionRun: { create: async args => { client.audit.push(args); return { id: 'run' }; },
       update: async args => { client.audit.push(args); } },
     audit: [],

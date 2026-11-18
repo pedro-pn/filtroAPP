@@ -35,6 +35,7 @@ import { NAVIGATION_CHROME_ICONS } from '../layout/navigationIcons';
 import type { NavigationModel } from '../layout/navigationModel';
 import { createNavigationModel } from '../layout/navigationModel';
 import { PageHeader } from '../layout/PageHeader';
+import { RetentionHoldsCard } from './RetentionHoldsCard';
 import { hubModulesForUser } from './hubModules';
 import {
   operationalDateTime as dateTime,
@@ -656,6 +657,15 @@ export function OperationsPage({ preview = false }: { preview?: boolean }) {
               </Card>
             </div>
           </section>
+          {!preview ? (
+            <section
+              className="ops-page__section"
+              aria-labelledby="ops-privacy-title"
+            >
+              <h2 id="ops-privacy-title">Privacidade (LGPD)</h2>
+              <RetentionHoldsCard />
+            </section>
+          ) : null}
         </>
       ) : null}
     </main>
