@@ -151,6 +151,12 @@ continua em `deploy/PRODUCTION.md`, "Subida em produção".
 
 ---
 
+**Deploy com migration contract** (apaga/renomeia/muda tipo; o script pediu
+`--allow-contract`): a volta de código pode não funcionar com o schema novo. Se a
+versão anterior falhar depois da volta, restaure o dump pré-deploy em
+`/root/backups/filtrovali/pre-deploy` (seção 4a) e volte o código com
+`deploy/deploy-prod.sh --rollback`.
+
 ## 4. Restaurar backup
 
 Backups: a cada 5 h local (`/root/backups/filtrovali/<timestamp>`, mantém 2),

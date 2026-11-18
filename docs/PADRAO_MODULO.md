@@ -209,6 +209,38 @@ Tabelas de modulo devem ter, quando aplicavel:
 Campos `Json` sao aceitaveis para formularios dinamicos, mas o contrato do payload
 deve ficar validado por schema e coberto por teste.
 
+### Migrations (expand/contract)
+
+Migrations so andam para frente, e a volta de versao do `deploy-prod.sh` troca o
+codigo, nao o schema. Para a volta funcionar, **toda migration precisa ser
+compativel com o codigo anterior** ("expand"). Mudancas que quebram o codigo
+anterior ("contract") saem em um deploy separado, depois que nenhum codigo no ar
+usa mais o que vai sumir.
+
+| Quero... | Deploy 1 (expand) | Deploy 2 (contract, depois que o 1 estabilizou) |
+|---|---|---|
+| campo obrigatorio novo | `ADD COLUMN` opcional ou com `DEFAULT`; codigo passa a gravar; backfill | `SET NOT NULL` |
+| renomear coluna/tabela | coluna nova + codigo grava nas duas e le da nova + backfill | `DROP COLUMN` da antiga |
+| remover coluna/tabela/enum | codigo para de ler e gravar | `DROP ...` |
+| mudar tipo | coluna nova com o tipo novo + gravacao dupla + backfill | `DROP` da antiga |
+
+O teste `backend/test/migration-safety.test.js` (job obrigatorio `Backend`) recusa
+migration nova com `DROP TABLE/COLUMN/TYPE/VIEW`, `RENAME` de tabela/coluna/enum,
+`ALTER COLUMN ... TYPE`, `SET NOT NULL`, `DROP DEFAULT`, `ADD COLUMN ... NOT NULL`
+sem `DEFAULT`, `TRUNCATE` ou `DELETE` sem `WHERE`, a menos que a primeira linha
+declare a quebra com o motivo:
+
+```sql
+-- migration-safety: contract — coluna "role" sem uso desde o deploy de 2026-11-20 (substituida por "jobRoleId")
+ALTER TABLE "Collaborator" DROP COLUMN "role";
+```
+
+`npm --prefix backend run migration:check` mostra a classificacao de cada
+migration nova (indice unico e `CHECK` novos aparecem como aviso). No deploy, uma
+migration contract pendente faz o `deploy/deploy-prod.sh` parar antes do build e
+pedir `--allow-contract`. As migrations ate `20261117190000_conecta_rh_read_revision`
+sao historico ja aplicado e ficam fora da regra.
+
 ## Ambiente
 
 Variaveis de ambiente sao validadas em `backend/src/config/env.js` com Zod. O boot

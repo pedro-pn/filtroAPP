@@ -9,7 +9,9 @@
 # Opções: --skip-backup (sem dump antes do deploy), --allow-dirty (aceita
 # arquivos rastreados alterados), --force (republica o mesmo commit),
 # --maintenance / --no-maintenance (força ligar/não ligar a página de manutenção;
-# o padrão liga só quando há migration pendente).
+# o padrão liga só quando há migration pendente), --allow-contract (aceita
+# migration pendente marcada "-- migration-safety: contract"; sem ele, o deploy
+# para antes do build, porque depois dela a volta de versão não é compatível).
 #
 # Fluxo do deploy:
 #   1. confere checkout limpo e descobre o commit no ar (APP_GIT_SHA da imagem);
@@ -59,6 +61,7 @@ APP_SERVICES=(backend worker nginx)
 MODE="deploy"
 TARGET_TAG=""
 ALLOW_DIRTY=false
+ALLOW_CONTRACT=false
 FORCE=false
 STARTED_AT="$(date -Iseconds)"
 NEW_SHA=""
@@ -73,7 +76,8 @@ while [ $# -gt 0 ]; do
     --force) FORCE=true; shift ;;
     --maintenance) MAINTENANCE=on; shift ;;
     --no-maintenance) MAINTENANCE=off; shift ;;
-    -h|--help) sed -n '2,27p' "$0"; exit 0 ;;
+    --allow-contract) ALLOW_CONTRACT=true; shift ;;
+    -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
     *) echo "Opção desconhecida: $1" >&2; exit 2 ;;
   esac
 done
@@ -144,6 +148,8 @@ EOF
 
 MAINTENANCE_SET_BY_DEPLOY=false
 PENDING_MIGRATIONS=()
+PENDING_KNOWN=true
+CONTRACT_MIGRATIONS=()
 
 maintenance_on() {
   local reason="$1"
@@ -188,6 +194,26 @@ find_pending_migrations() {
     name="$(basename "$dir")"
     grep -qxF -- "$name" <<< "$applied" || PENDING_MIGRATIONS+=("$name")
   done
+  return 0
+}
+
+# Migrations "contract" (apagam/renomeiam/mudam tipo; regra em
+# backend/scripts/migration-safety.js) declaram isso no cabeçalho. Com a lista de
+# pendentes desconhecida, considera todas as contract do checkout.
+find_contract_migrations() {
+  local name file
+  CONTRACT_MIGRATIONS=()
+  if [ "$PENDING_KNOWN" = "true" ]; then
+    for name in "${PENDING_MIGRATIONS[@]}"; do
+      file="$MIGRATIONS_DIR/$name/migration.sql"
+      grep -qiE '^--[[:space:]]*migration-safety:[[:space:]]*contract' "$file" && CONTRACT_MIGRATIONS+=("$name")
+    done
+  else
+    for file in "$MIGRATIONS_DIR"/*/migration.sql; do
+      [ -f "$file" ] || continue
+      grep -qiE '^--[[:space:]]*migration-safety:[[:space:]]*contract' "$file" && CONTRACT_MIGRATIONS+=("$(basename "$(dirname "$file")")")
+    done
+  fi
   return 0
 }
 
@@ -306,6 +332,10 @@ rollback_after_failure() {
     write_status "FAILURE" "$reason; sem imagens :previous"
     exit 1
   fi
+  if [ "${#CONTRACT_MIGRATIONS[@]}" -gt 0 ]; then
+    log "ATENÇÃO: este deploy tinha migration contract (${CONTRACT_MIGRATIONS[*]}); a versão anterior pode"
+    log "não funcionar com o schema atual. Se ela falhar, restaure o dump pré-deploy (runbook, seção 3)."
+  fi
   log "voltando automaticamente para a versão anterior ($PREV_SHA)"
   if switch_to_images previous && verify_release ""; then
     write_status "ROLLED_BACK" "$reason"
@@ -396,6 +426,33 @@ if [ "$NEW_SHA" = "$PREV_SHA" ] && [ "$FORCE" != "true" ]; then
 fi
 
 log "publicando $NEW_SHA (no ar: $PREV_SHA)"
+
+# Migrations pendentes: decidem a página de manutenção e a trava de "contract".
+if find_pending_migrations; then
+  if [ "${#PENDING_MIGRATIONS[@]}" -gt 0 ]; then
+    log "migrations pendentes (${#PENDING_MIGRATIONS[@]}): ${PENDING_MIGRATIONS[*]}"
+  else
+    log "nenhuma migration pendente"
+  fi
+else
+  PENDING_KNOWN=false
+  log "AVISO: não foi possível listar as migrations aplicadas (banco fora?)"
+fi
+find_contract_migrations
+if [ "${#CONTRACT_MIGRATIONS[@]}" -gt 0 ]; then
+  contract_scope="pendente(s)"
+  [ "$PENDING_KNOWN" = "true" ] || contract_scope="no checkout (não deu para conferir quais estão pendentes)"
+  log "ATENÇÃO: migration(s) contract $contract_scope: ${CONTRACT_MIGRATIONS[*]}"
+  log "Depois dela(s), a volta de versão (automática ou --rollback) sobe código que pode não funcionar"
+  log "com o schema novo; a volta de dados é o dump pré-deploy (docs/RUNBOOK_INCIDENTES.md, seção 3)."
+  if [ "$ALLOW_CONTRACT" != "true" ]; then
+    write_status "FAILURE" "migration contract pendente (${CONTRACT_MIGRATIONS[*]}) sem --allow-contract; nada foi trocado"
+    log "deploy interrompido antes do build. Confirme com: deploy/deploy-prod.sh --allow-contract"
+    exit 1
+  fi
+  log "--allow-contract: seguindo com a(s) migration(s) contract"
+fi
+
 tag_running_images previous
 
 export APP_GIT_SHA="$NEW_SHA"
@@ -420,16 +477,13 @@ case "$MAINTENANCE" in
   on) maintenance_on "deploy $NEW_SHA (--maintenance)" ;;
   off) log "página de manutenção desativada para este deploy (--no-maintenance)" ;;
   *)
-    if find_pending_migrations; then
-      if [ "${#PENDING_MIGRATIONS[@]}" -gt 0 ]; then
-        log "migrations pendentes (${#PENDING_MIGRATIONS[@]}): ${PENDING_MIGRATIONS[*]}"
-        maintenance_on "deploy $NEW_SHA: ${#PENDING_MIGRATIONS[@]} migration(s) pendente(s)"
-      else
-        log "nenhuma migration pendente; deploy sem página de manutenção"
-      fi
-    else
-      log "não foi possível listar as migrations aplicadas; ligando a manutenção por segurança"
+    if [ "$PENDING_KNOWN" != "true" ]; then
+      log "migrations não conferidas; ligando a manutenção por segurança"
       maintenance_on "deploy $NEW_SHA: migrations não conferidas"
+    elif [ "${#PENDING_MIGRATIONS[@]}" -gt 0 ]; then
+      maintenance_on "deploy $NEW_SHA: ${#PENDING_MIGRATIONS[@]} migration(s) pendente(s)"
+    else
+      log "deploy sem página de manutenção"
     fi
     ;;
 esac

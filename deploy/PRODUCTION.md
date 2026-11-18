@@ -295,8 +295,24 @@ a migration nova só acrescenta tabelas/colunas (padrão do projeto), o código
 anterior funciona com o banco novo. Se ela apagou ou reescreveu dados, a volta de
 dados é o restore do dump do passo 4: `docs/RUNBOOK_INCIDENTES.md`, seção 3.
 
-Opções: `--maintenance` / `--no-maintenance` (força ligar / não ligar a página de
-manutenção), `--skip-backup` (sem o dump do passo 4), `--force` (republica o mesmo
+A regra expand/contract (`docs/PADRAO_MODULO.md`, "Migrations") garante isso: o CI
+recusa migration que quebra o código anterior sem o cabeçalho
+`-- migration-safety: contract — <motivo>`, e o script, ao encontrar uma migration
+contract pendente, para **antes do build** com `FAILURE` e a mensagem
+"sem --allow-contract". Para seguir, confirme que o deploy anterior já não usa o que
+a migration remove e rode:
+
+```bash
+deploy/deploy-prod.sh --allow-contract
+```
+
+Depois desse deploy, `--rollback` sobe código que pode não funcionar com o schema
+novo; se a volta for necessária, a saída é o dump pré-deploy. Se o banco não
+responder na conferência das pendentes, qualquer migration contract do checkout
+exige `--allow-contract`.
+
+Opções: `--allow-contract` (aceita migration contract pendente), `--maintenance` /
+`--no-maintenance` (força ligar / não ligar a página de manutenção), `--skip-backup` (sem o dump do passo 4), `--force` (republica o mesmo
 commit), `--allow-dirty` (só em emergência; o commit gravado na imagem não
 descreve as alterações locais). Variáveis: `HEALTH_TIMEOUT_SECONDS` (240),
 `KEEP_IMAGES` (5), `PRE_DEPLOY_BACKUP_KEEP` (3).
