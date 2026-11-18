@@ -25,6 +25,7 @@ import { isApiWriteMethod } from './lib/api-credentials/write-mode.js';
 import { requestMetrics } from './middleware/request-metrics.js';
 import { requestSourceContext } from './lib/operations/request-sources.js';
 import apiRouter from './routes/index.js';
+import { publicErrorCode } from './lib/http/public-error-code.js';
 import {
   authorizeStoredFile,
   normalizeRelativeUploadPath,
@@ -300,7 +301,7 @@ app.use((err, req, res, _next) => {
     error: status >= 500
       ? (isProduction ? 'Erro interno do servidor.' : observableError.message)
       : (err.message || 'Erro interno do servidor.'),
-    ...(err.code ? { code: err.code } : {}),
+    ...(publicErrorCode(err, status, isProduction) ? { code: publicErrorCode(err, status, isProduction) } : {}),
     ...(Array.isArray(err.conflicts) && err.conflicts.length ? { conflicts: err.conflicts } : {}),
     ...(Array.isArray(err.issues) && err.issues.length ? { issues: err.issues } : {})
   });

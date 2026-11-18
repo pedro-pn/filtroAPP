@@ -160,6 +160,7 @@ test('loadEnv enforces production security variables', () => {
     () => loadEnv({
       DATABASE_URL: databaseUrl,
       NODE_ENV: 'production',
+      ALLOWED_ORIGIN: 'https://app.example.com',
       TRUST_PROXY: 'true',
       SIGNATURE_TOKEN_SECRET: 'signature-secret',
       SURVEY_TOKEN_SECRET: 'survey-secret'
@@ -170,6 +171,7 @@ test('loadEnv enforces production security variables', () => {
     () => loadEnv({
       DATABASE_URL: databaseUrl,
       NODE_ENV: 'production',
+      ALLOWED_ORIGIN: 'https://app.example.com',
       TRUST_PROXY: '1',
       SURVEY_TOKEN_SECRET: 'survey-secret'
     }),
@@ -179,6 +181,7 @@ test('loadEnv enforces production security variables', () => {
     () => loadEnv({
       DATABASE_URL: databaseUrl,
       NODE_ENV: 'production',
+      ALLOWED_ORIGIN: 'https://app.example.com',
       TRUST_PROXY: '1',
       SIGNATURE_TOKEN_SECRET: 'signature-secret'
     }),
@@ -187,6 +190,7 @@ test('loadEnv enforces production security variables', () => {
   assert.doesNotThrow(() => loadEnv({
     DATABASE_URL: databaseUrl,
     NODE_ENV: 'production',
+    ALLOWED_ORIGIN: 'https://app.example.com',
     TRUST_PROXY: '1',
     SIGNATURE_TOKEN_SECRET: 'signature-secret',
     SURVEY_TOKEN_SECRET: 'survey-secret',
@@ -196,6 +200,7 @@ test('loadEnv enforces production security variables', () => {
   assert.throws(() => loadEnv({
     DATABASE_URL: databaseUrl,
     NODE_ENV: 'production',
+    ALLOWED_ORIGIN: 'https://app.example.com',
     TRUST_PROXY: '1',
     SIGNATURE_TOKEN_SECRET: 'signature-secret',
     SURVEY_TOKEN_SECRET: 'survey-secret',
@@ -229,4 +234,23 @@ test('loadEnv configures the OpenAI note formatter (key optional, model configur
   assert.equal(custom.openaiReasoningEffort, 'none');
   assert.equal(custom.openaiTimeoutMs, 15000);
   assert.throws(() => loadEnv({ DATABASE_URL: databaseUrl, OPENAI_REASONING_EFFORT: 'turbo' }));
+});
+
+test('loadEnv requires ALLOWED_ORIGIN in production and keeps dev/test permissive', () => {
+  const production = {
+    DATABASE_URL: databaseUrl,
+    NODE_ENV: 'production',
+    TRUST_PROXY: '1',
+    SIGNATURE_TOKEN_SECRET: 'signature-secret',
+    SURVEY_TOKEN_SECRET: 'survey-secret',
+    API_TOKEN_HASH_KEY_V1: 'api-token-secret-with-at-least-32-characters'
+  };
+  assert.throws(() => loadEnv(production), /ALLOWED_ORIGIN/);
+  assert.throws(() => loadEnv({ ...production, ALLOWED_ORIGIN: ' , ' }), /ALLOWED_ORIGIN/);
+  assert.deepEqual(
+    loadEnv({ ...production, ALLOWED_ORIGIN: 'https://app.example.com' }).allowedOrigins,
+    ['https://app.example.com']
+  );
+  assert.doesNotThrow(() => loadEnv({ DATABASE_URL: databaseUrl, NODE_ENV: 'test' }));
+  assert.doesNotThrow(() => loadEnv({ DATABASE_URL: databaseUrl }));
 });
