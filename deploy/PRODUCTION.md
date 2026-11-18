@@ -47,25 +47,52 @@ O cutover para React em produção é feito pelo nginx:
 
 ## Modo manutenção
 
-Durante migrações ou janelas programadas, o frontend pode ser compilado para
-exibir somente a página temporária de manutenção. A página não depende de
-autenticação nem de chamadas ao backend.
+A página de manutenção liga e desliga **em tempo de execução**, sem rebuild do
+nginx: o nginx confere a cada requisição se existe o arquivo
+`/root/backups/filtrovali/maintenance/on` (pasta do host montada só leitura em
+`/maintenance`; mude com `MAINTENANCE_DIR`). Com ele:
 
-Para ativar:
+- rotas do app respondem **503** com a página estática `deploy/nginx/maintenance/index.html`
+  (recarrega sozinha a cada 30 s; sem script, compatível com a CSP);
+- `/api/*` responde **503** em JSON `{"error": "...", "code": "MAINTENANCE"}`; o app
+  aberto mostra essa mensagem nos avisos de erro (não derruba a sessão);
+- continuam respondendo: `/nginx-health`, `/assets/*` e qualquer requisição de
+  `127.0.0.1` dentro do container (healthcheck do Docker e conferências do
+  `deploy-prod.sh`). O teste usa o endereço da conexão (`$realip_remote_addr`), então
+  um cliente não escapa da manutenção mandando `X-Forwarded-For`;
+- as respostas mantêm os cabeçalhos de segurança, `Cache-Control: no-store` e
+  `Retry-After: 120`.
+
+**Rode no servidor:**
 
 ```bash
-docker compose -f docker-compose.prod.yml build --build-arg VITE_MAINTENANCE_MODE=true nginx
-docker compose -f docker-compose.prod.yml up -d nginx
+cd ~/apps/filtroAPP
+deploy/maintenance.sh on "migração de dados"   # liga
+deploy/maintenance.sh status
+deploy/maintenance.sh off                      # desliga
 ```
 
-Para voltar ao app normal:
+O `deploy-prod.sh` liga a manutenção sozinho quando há migration pendente (pastas de
+`backend/prisma/migrations` que não estão em `_prisma_migrations`) ou quando não
+consegue conferir; desliga depois da conferência pós-deploy e também em qualquer
+falha ou volta. `--maintenance` força ligar, `--no-maintenance` não liga. Se a
+manutenção já estava ligada à mão, o deploy não a desliga.
 
-```bash
-docker compose -f docker-compose.prod.yml build --build-arg VITE_MAINTENANCE_MODE=false nginx
-docker compose -f docker-compose.prod.yml up -d nginx
+Durante os poucos segundos em que o próprio container do nginx é recriado, o Caddy
+pode responder 502. Opcional (no repositório `infra-proxy`, não aqui): uma página
+de erro no Caddy para esse intervalo, por exemplo:
+
+```caddy
+app.filtrovali.com.br {
+	reverse_proxy filtrovali-nginx:80
+	handle_errors 502 503 504 {
+		respond "Sistema em atualização. Tente novamente em instantes." 503
+	}
+}
 ```
 
-No modo normal, a página de manutenção não fica disponível em nenhuma rota.
+O método antigo (rebuild do nginx com `VITE_MAINTENANCE_MODE=true`) continua
+funcionando, mas troca a imagem no ar; prefira o flag acima.
 
 ## Conversão DOCX -> PDF em produção
 
@@ -242,7 +269,8 @@ O que o script faz, em ordem:
 3. builda backend, worker e nginx com `APP_GIT_SHA=<sha de HEAD>`; se o build
    falhar, nada muda;
 4. faz um dump só do banco em `/root/backups/filtrovali/pre-deploy` (mantém 3);
-5. `docker compose up -d --wait` (migrations antes do backend);
+5. liga a página de manutenção se houver migration pendente (veja "Modo
+   manutenção") e roda `docker compose up -d --wait` (migrations antes do backend);
 6. confere `/health` do backend, `app-version.json` do frontend (deve ser o SHA)
    e o healthcheck do worker;
 7. se 5 ou 6 falharem, sobe as imagens `:previous` sem build e sem migrations e
@@ -267,7 +295,8 @@ a migration nova só acrescenta tabelas/colunas (padrão do projeto), o código
 anterior funciona com o banco novo. Se ela apagou ou reescreveu dados, a volta de
 dados é o restore do dump do passo 4: `docs/RUNBOOK_INCIDENTES.md`, seção 3.
 
-Opções: `--skip-backup` (sem o dump do passo 4), `--force` (republica o mesmo
+Opções: `--maintenance` / `--no-maintenance` (força ligar / não ligar a página de
+manutenção), `--skip-backup` (sem o dump do passo 4), `--force` (republica o mesmo
 commit), `--allow-dirty` (só em emergência; o commit gravado na imagem não
 descreve as alterações locais). Variáveis: `HEALTH_TIMEOUT_SECONDS` (240),
 `KEEP_IMAGES` (5), `PRE_DEPLOY_BACKUP_KEEP` (3).

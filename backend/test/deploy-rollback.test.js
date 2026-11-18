@@ -25,6 +25,7 @@ case "$args" in
   *"compose"*" config --services"*) printf 'postgres\\nbackend\\nworker\\nnginx\\n'; exit 0 ;;
   *"compose"*" build "*) [ "\${FAKE_FAIL_BUILD:-}" = 1 ] && exit 1; exit 0 ;;
   *"compose"*" up -d --wait"*)
+    [ -f "$FAKE_ROOT/maintenance/on" ] && echo "MAINTENANCE_ON_AT_UP" >> "$FAKE_LOG"
     [ "\${FAKE_UP_NO_START:-}" = 1 ] || echo "$APP_GIT_SHA" > "$state_file"
     [ "\${FAKE_FAIL_UP:-}" = 1 ] && exit 1
     exit 0 ;;
@@ -33,6 +34,10 @@ case "$args" in
     running="$(cat "$state_file" 2>/dev/null || echo old)"
     if [ "\${FAKE_FAIL_NEW_HEALTH:-}" = 1 ] && [ "$running" != previous ] && [ "$running" != old ]; then exit 1; fi
     exit 0 ;;
+  *"compose"*"exec -T postgres psql"*)
+    [ -n "\${FAKE_FAIL_PSQL:-}" ] && exit 1
+    [ -f "$FAKE_ROOT/maintenance/on" ] && echo "maintenance-on-during-psql" >> "$FAKE_LOG"
+    printf '%b' "\${FAKE_APPLIED_MIGRATIONS:-}"; exit 0 ;;
   *"compose"*"exec -T nginx wget -q -O - "*) echo "{\\"version\\":\\"$(cat "$state_file" 2>/dev/null || echo old)\\"}"; exit 0 ;;
   *"compose"*"exec -T nginx wget"*) exit 0 ;;
 esac
@@ -40,7 +45,7 @@ echo "unexpected docker call: $args" >&2
 exit 0
 `;
 
-function runDeploy({ args = [], env = {}, dirty = false, notifyEnv = null } = {}) {
+function runDeploy({ args = [], env = {}, dirty = false, notifyEnv = null, migrations = [], maintenanceAlreadyOn = false } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'deploy-prod-'));
   const project = path.join(root, 'project');
   const bin = path.join(root, 'bin');
@@ -65,7 +70,17 @@ function runDeploy({ args = [], env = {}, dirty = false, notifyEnv = null } = {}
   git('config', 'user.email', 'ci@example.com');
   git('config', 'user.name', 'CI');
   fs.writeFileSync(path.join(project, 'app.txt'), 'v1\n');
-  git('add', 'app.txt');
+  for (const name of migrations) {
+    const dir = path.join(project, 'backend', 'prisma', 'migrations', name);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'migration.sql'), 'SELECT 1;\n');
+  }
+  const maintenanceDir = path.join(root, 'maintenance');
+  if (maintenanceAlreadyOn) {
+    fs.mkdirSync(maintenanceDir, { recursive: true });
+    fs.writeFileSync(path.join(maintenanceDir, 'on'), 'manual\n');
+  }
+  git('add', '-A');
   git('commit', '-q', '-m', 'v1');
   const sha = git('rev-parse', 'HEAD');
   if (dirty) fs.writeFileSync(path.join(project, 'app.txt'), 'local change\n');
@@ -90,6 +105,7 @@ function runDeploy({ args = [], env = {}, dirty = false, notifyEnv = null } = {}
       FAKE_ROOT: root,
       FAKE_RUNNING_SHA: 'a'.repeat(40),
       DEPLOY_NOTIFY_ENV_FILE: notifyEnvFile,
+      MAINTENANCE_DIR: maintenanceDir,
       TELEGRAM_TOKEN: '',
       TELEGRAM_CHAT_ID: '',
       TELEGRAM_API_URL: 'https://telegram.invalid',
@@ -102,9 +118,10 @@ function runDeploy({ args = [], env = {}, dirty = false, notifyEnv = null } = {}
   const backups = fs.existsSync(backupLog) ? fs.readFileSync(backupLog, 'utf8') : '';
   const currentSha = path.join(root, 'state', 'current-sha');
   const deployed = fs.existsSync(currentSha) ? fs.readFileSync(currentSha, 'utf8').trim() : null;
+  const maintenanceLeftOn = fs.existsSync(path.join(maintenanceDir, 'on'));
   const notifications = fs.existsSync(curlLog) ? fs.readFileSync(curlLog, 'utf8').trim().split('\n').filter(Boolean) : [];
   fs.rmSync(root, { recursive: true, force: true });
-  return { result, calls, status, backups, sha, deployed, notifications };
+  return { result, calls, status, backups, sha, deployed, notifications, maintenanceLeftOn };
 }
 
 const indexOf = (calls, predicate) => calls.findIndex(predicate);
@@ -191,6 +208,64 @@ test('manual rollback keeps a way back and switches without build or migrations'
   const up = indexOf(calls, call => call.includes(' up -d --no-build --no-deps --force-recreate backend worker nginx'));
   assert.ok(keep >= 0 && keep < up);
   assert.ok(!calls.some(call => call.includes(' build ')));
+  assert.equal(status.status, 'SUCCESS');
+});
+
+const MIGRATIONS = ['20260101000000_old', '20261120000000_new'];
+
+test('pending migrations turn the maintenance page on for the switch and off after a healthy deploy', () => {
+  const { result, calls, maintenanceLeftOn } = runDeploy({
+    migrations: MIGRATIONS,
+    env: { FAKE_APPLIED_MIGRATIONS: '20260101000000_old\\n' }
+  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(result.stdout, /migrations pendentes \(1\): 20261120000000_new/);
+  assert.ok(calls.includes('MAINTENANCE_ON_AT_UP'), 'maintenance must be on while the stack is replaced');
+  assert.ok(!calls.includes('maintenance-on-during-psql'), 'maintenance only turns on after the check');
+  assert.equal(maintenanceLeftOn, false);
+});
+
+test('without pending migrations the deploy keeps the site open', () => {
+  const { result, calls, maintenanceLeftOn } = runDeploy({
+    migrations: MIGRATIONS,
+    env: { FAKE_APPLIED_MIGRATIONS: '20260101000000_old\\n20261120000000_new\\n' }
+  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(result.stdout, /nenhuma migration pendente/);
+  assert.ok(!calls.includes('MAINTENANCE_ON_AT_UP'));
+  assert.equal(maintenanceLeftOn, false);
+});
+
+test('an unreadable migration table turns maintenance on; a rollback still turns it off', () => {
+  const { result, status, calls, maintenanceLeftOn } = runDeploy({
+    migrations: MIGRATIONS,
+    env: { FAKE_FAIL_PSQL: '1', FAKE_FAIL_NEW_HEALTH: '1' }
+  });
+  assert.equal(result.status, 1);
+  assert.equal(status.status, 'ROLLED_BACK');
+  assert.ok(calls.includes('MAINTENANCE_ON_AT_UP'));
+  assert.equal(maintenanceLeftOn, false, 'the trap must clear the flag after a rollback');
+});
+
+test('--maintenance forces the page on, --no-maintenance skips it, and a manual flag is left alone', () => {
+  const forced = runDeploy({ args: ['--maintenance'] });
+  assert.equal(forced.result.status, 0, forced.result.stderr || forced.result.stdout);
+  assert.ok(forced.calls.includes('MAINTENANCE_ON_AT_UP'));
+  assert.equal(forced.maintenanceLeftOn, false);
+
+  const skipped = runDeploy({ args: ['--no-maintenance'], migrations: MIGRATIONS });
+  assert.ok(!skipped.calls.includes('MAINTENANCE_ON_AT_UP'));
+
+  const manual = runDeploy({ migrations: MIGRATIONS, maintenanceAlreadyOn: true });
+  assert.equal(manual.result.status, 0, manual.result.stderr || manual.result.stdout);
+  assert.match(manual.result.stdout, /já estava ligada/);
+  assert.equal(manual.maintenanceLeftOn, true, 'a maintenance window opened by hand stays open');
+});
+
+test('failing to create the maintenance flag never blocks the deploy', () => {
+  const { result, status } = runDeploy({ args: ['--maintenance'], env: { MAINTENANCE_DIR: '/proc/filtrovali-no-write' } });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(result.stdout, /não foi possível ligar a página de manutenção/);
   assert.equal(status.status, 'SUCCESS');
 });
 

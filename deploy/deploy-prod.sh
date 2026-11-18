@@ -7,7 +7,9 @@
 #   deploy/deploy-prod.sh --rollback-to SHA  # volta a uma imagem local marcada com esse commit
 #
 # Opções: --skip-backup (sem dump antes do deploy), --allow-dirty (aceita
-# arquivos rastreados alterados), --force (republica o mesmo commit).
+# arquivos rastreados alterados), --force (republica o mesmo commit),
+# --maintenance / --no-maintenance (força ligar/não ligar a página de manutenção;
+# o padrão liga só quando há migration pendente).
 #
 # Fluxo do deploy:
 #   1. confere checkout limpo e descobre o commit no ar (APP_GIT_SHA da imagem);
@@ -15,6 +17,7 @@
 #   3. builda backend/worker/nginx marcados com o SHA de HEAD;
 #   4. faz um dump só do banco (volta de dados se uma migration destruir algo);
 #   5. sobe a stack (migrations rodam antes do backend) e espera os healthchecks;
+#      com migration pendente, liga a página de manutenção antes e desliga depois;
 #   6. confere /health do backend, a versão do frontend e o worker;
 #   7. se 5 ou 6 falharem, sobe de novo as imagens :previous e confere.
 #
@@ -37,6 +40,15 @@ BACKUP_CMD="${BACKUP_CMD:-$SCRIPT_DIR/backup-prod.sh}"
 PRE_DEPLOY_BACKUP_ROOT="${PRE_DEPLOY_BACKUP_ROOT:-/root/backups/filtrovali/pre-deploy}"
 PRE_DEPLOY_BACKUP_KEEP="${PRE_DEPLOY_BACKUP_KEEP:-3}"
 KEEP_IMAGES="${KEEP_IMAGES:-5}"
+# Página de manutenção (mesmo flag de deploy/maintenance.sh). auto = liga só com
+# migration pendente; on/off forçam. Migrations pendentes: pastas de
+# backend/prisma/migrations do checkout que não estão aplicadas em _prisma_migrations.
+MAINTENANCE="${MAINTENANCE:-auto}"
+MAINTENANCE_DIR="${MAINTENANCE_DIR:-/root/backups/filtrovali/maintenance}"
+MIGRATIONS_DIR="${MIGRATIONS_DIR:-backend/prisma/migrations}"
+POSTGRES_SERVICE="${POSTGRES_SERVICE:-postgres}"
+POSTGRES_DB="${POSTGRES_DB:-filtrovali}"
+POSTGRES_USER="${POSTGRES_USER:-postgres}"
 # Aviso por Telegram em FAILURE/ROLLED_BACK (e em SUCCESS com DEPLOY_NOTIFY_SUCCESS=true).
 # Do arquivo só são lidas TELEGRAM_TOKEN e TELEGRAM_CHAT_ID; nada mais é carregado.
 DEPLOY_NOTIFY_ENV_FILE="${DEPLOY_NOTIFY_ENV_FILE:-/root/.config/filtroapp-backup/env}"
@@ -59,7 +71,9 @@ while [ $# -gt 0 ]; do
     --skip-backup) PRE_DEPLOY_BACKUP=false; shift ;;
     --allow-dirty) ALLOW_DIRTY=true; shift ;;
     --force) FORCE=true; shift ;;
-    -h|--help) sed -n '2,24p' "$0"; exit 0 ;;
+    --maintenance) MAINTENANCE=on; shift ;;
+    --no-maintenance) MAINTENANCE=off; shift ;;
+    -h|--help) sed -n '2,27p' "$0"; exit 0 ;;
     *) echo "Opção desconhecida: $1" >&2; exit 2 ;;
   esac
 done
@@ -126,6 +140,55 @@ EOF
   printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Iseconds)" "$MODE" "$status" "$PREV_SHA" "${NEW_SHA:-$TARGET_TAG}" \
     >> "$STATE_DIR/deploy-history.log"
   notify_deploy "$status" "$message" || true
+}
+
+MAINTENANCE_SET_BY_DEPLOY=false
+PENDING_MIGRATIONS=()
+
+maintenance_on() {
+  local reason="$1"
+  if [ -f "$MAINTENANCE_DIR/on" ]; then
+    log "página de manutenção já estava ligada (fica como está ao final)"
+    return 0
+  fi
+  # Não ligar a manutenção não pode impedir o deploy: só avisa.
+  if ! { mkdir -p "$MAINTENANCE_DIR" \
+      && printf '%s\tdeploy-prod.sh\t%s\n' "$(date -Iseconds)" "$reason" > "$MAINTENANCE_DIR/on.tmp" \
+      && mv "$MAINTENANCE_DIR/on.tmp" "$MAINTENANCE_DIR/on"; } 2>/dev/null; then
+    log "AVISO: não foi possível ligar a página de manutenção em $MAINTENANCE_DIR; seguindo sem ela"
+    return 0
+  fi
+  MAINTENANCE_SET_BY_DEPLOY=true
+  log "página de manutenção LIGADA: $reason"
+}
+
+maintenance_off() {
+  [ "$MAINTENANCE_SET_BY_DEPLOY" = "true" ] || return 0
+  rm -f "$MAINTENANCE_DIR/on"
+  MAINTENANCE_SET_BY_DEPLOY=false
+  log "página de manutenção desligada"
+}
+
+# Sempre desliga o que o deploy ligou, inclusive em falha, volta ou Ctrl+C.
+trap 'maintenance_off' EXIT
+
+# Preenche PENDING_MIGRATIONS. Retorna 1 quando não dá para saber (banco fora,
+# tabela ausente): quem chama trata como "há migration pendente".
+find_pending_migrations() {
+  local applied name dir
+  PENDING_MIGRATIONS=()
+  [ -d "$MIGRATIONS_DIR" ] || return 0
+  if ! applied="$(compose exec -T "$POSTGRES_SERVICE" psql -X -q -At -v ON_ERROR_STOP=1 \
+      -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+      -c 'SELECT migration_name FROM "_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL' 2>/dev/null)"; then
+    return 1
+  fi
+  for dir in "$MIGRATIONS_DIR"/*/; do
+    [ -f "${dir}migration.sql" ] || continue
+    name="$(basename "$dir")"
+    grep -qxF -- "$name" <<< "$applied" || PENDING_MIGRATIONS+=("$name")
+  done
+  return 0
 }
 
 container_id() {
@@ -307,6 +370,7 @@ if [ "$MODE" = "rollback" ]; then
     exit 1
   fi
   tag_running_images before-rollback
+  [ "$MAINTENANCE" = "on" ] && maintenance_on "volta manual para :$TARGET_TAG"
   expected=""
   [[ "$TARGET_TAG" =~ ^[0-9a-f]{40}$ ]] && expected="$TARGET_TAG"
   if switch_to_images "$TARGET_TAG" && verify_release "$expected"; then
@@ -352,6 +416,24 @@ if ! pre_deploy_backup; then
   exit 1
 fi
 
+case "$MAINTENANCE" in
+  on) maintenance_on "deploy $NEW_SHA (--maintenance)" ;;
+  off) log "página de manutenção desativada para este deploy (--no-maintenance)" ;;
+  *)
+    if find_pending_migrations; then
+      if [ "${#PENDING_MIGRATIONS[@]}" -gt 0 ]; then
+        log "migrations pendentes (${#PENDING_MIGRATIONS[@]}): ${PENDING_MIGRATIONS[*]}"
+        maintenance_on "deploy $NEW_SHA: ${#PENDING_MIGRATIONS[@]} migration(s) pendente(s)"
+      else
+        log "nenhuma migration pendente; deploy sem página de manutenção"
+      fi
+    else
+      log "não foi possível listar as migrations aplicadas; ligando a manutenção por segurança"
+      maintenance_on "deploy $NEW_SHA: migrations não conferidas"
+    fi
+    ;;
+esac
+
 log "subindo a stack (migrations antes do backend) e aguardando healthchecks"
 if ! compose up -d --wait --wait-timeout "$HEALTH_TIMEOUT_SECONDS" "${APP_SERVICES[@]}"; then
   # Versões antigas do Compose tratam um serviço one-shot encerrado (migrate)
@@ -364,6 +446,7 @@ elif ! verify_release "$NEW_SHA"; then
   rollback_after_failure "conferência pós-deploy falhou"
 fi
 
+maintenance_off
 mark_as_latest "$NEW_SHA"
 printf '%s\n' "$NEW_SHA" > "$STATE_DIR/current-sha"
 write_status "SUCCESS" "deploy concluído"

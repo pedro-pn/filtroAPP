@@ -176,6 +176,10 @@ services:
     # Este nginx so e alcancado pelo Caddy, via proxy-net.
     volumes:
       - ./deploy/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      # Página de manutenção (versionada) e pasta do flag `on` (deploy/maintenance.sh).
+      # Montadas do host para que uma imagem antiga, numa volta de versão, também as tenha.
+      - ./deploy/nginx/maintenance:/usr/share/nginx/maintenance:ro
+      - ${MAINTENANCE_DIR:-/root/backups/filtrovali/maintenance}:/maintenance:ro
       - filtrovali_certs:/etc/letsencrypt
       - filtrovali_certbot_www:/var/www/certbot
     networks:
