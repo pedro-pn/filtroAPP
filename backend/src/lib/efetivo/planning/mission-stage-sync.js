@@ -50,7 +50,11 @@ export async function synchronizeOfficialMissionStage(tx, projectId, workflowSta
     });
   }
   if (missionRequired && !force) {
-    const pendencies = missionMovePendencies(mission);
+    // A composição prevista libera a entrada operacional, mas não impede a saída
+    // de uma equipe que já executou o projeto.
+    const pendencies = missionMovePendencies(mission, {
+      requireTeam: ['MOBILIZATION', 'EXECUTION'].includes(targetStage)
+    });
     if (pendencies.length) {
       throw planningError(`Complete a programação oficial antes de avançar: ${pendencies.join(', ')}.`, {
         code: 'PROJECT_WORKFLOW_MISSION_INCOMPLETE',
