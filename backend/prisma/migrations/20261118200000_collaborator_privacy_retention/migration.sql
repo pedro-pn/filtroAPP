@@ -14,3 +14,8 @@ CREATE TABLE "DataRetentionHold" (
 );
 
 CREATE UNIQUE INDEX "DataRetentionHold_kind_targetId_key" ON "DataRetentionHold"("kind", "targetId");
+
+-- Mantém a nova tabela no contrato compartilhado de revisão de leituras derivadas.
+CREATE TRIGGER performance_read_revision
+AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON public."DataRetentionHold"
+FOR EACH STATEMENT EXECUTE FUNCTION public.bump_performance_read_revision();
