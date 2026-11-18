@@ -26,6 +26,7 @@
  */
 
 import prisma from '../prisma.js';
+import { currentSalaryParameterSets } from './salary-reference.js';
 import { loadRequestSource } from '../operations/request-sources.js';
 import { measureRequestStage } from '../operations/request-performance.js';
 import { laborReportQuery, loadLaborReportSources } from './labor-report-sources.js';
@@ -257,7 +258,7 @@ export function effectiveParameterSetAt(sets = [], dateKey) {
 // Versões de salário anteriores à criação do campo (inclusive agendadas) não
 // encerram um reajuste. Somente um percentual explícito, inclusive zero, o muda.
 export function effectiveCargoParameterSetAt(sets = [], dateKey) {
-  const selected = effectiveParameterSetAt(sets, dateKey);
+  const selected = effectiveParameterSetAt(currentSalaryParameterSets(sets), dateKey);
   if (!selected) return null;
   const adjustment = effectiveParameterSetAt(sets.filter(set => set.params?.reajusteHhPct != null), dateKey);
   return { ...selected, params: { ...selected.params, reajusteHhPct: adjustment?.params.reajusteHhPct ?? 0 } };
@@ -511,6 +512,7 @@ export function buildRoleParamsResolver({ roles = [], models = [] } = {}) {
     const roleSet = effectiveCargoParameterSetAt(roleSetsByName.get(roleName) || [], dateKey);
     if (!roleSet) return null;
     const override = roleSet.params || {};
+    if (override.salaryReference?.status === 'CANCELLED') return null;
     const modelKey = typeof override.baseModel === 'string' && override.baseModel
       ? override.baseModel
       : fallbackModelKey;

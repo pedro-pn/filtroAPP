@@ -1199,7 +1199,7 @@ paths:
         '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404':
-          description: Cargo inexistente (NOT_FOUND) ou salário não configurado na data (SALARY_NOT_FOUND).
+          description: Cargo inexistente (NOT_FOUND), salário não configurado na data (SALARY_NOT_FOUND) ou referência cancelada (SALARY_REFERENCE_CANCELLED).
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -1217,6 +1217,8 @@ paths:
         reajuste explícito; zero encerra o reajuste. Sem reajuste registrado, retorna
         zero e metadados nulos. Sem salário válido, salary, effectiveDate e version
         são nulos, mantendo o reajuste disponível para referências provisórias.
+        salaryStatus=CANCELLED identifica cancelamento explícito sem retornar salários
+        legados; referenceRevision cresce independentemente da vigência selecionada.
         Não expõe os parâmetros internos nem dados de colaboradores.
       security: [{ IntegrationToken: [] }]
       x-required-scopes: [cargos.salarios.read]
@@ -1240,7 +1242,7 @@ paths:
               schema:
                 type: object
                 additionalProperties: false
-                required: [jobRoleId, jobRoleName, referenceDate, salary, effectiveDate, version, hhAdjustmentPct, hhAdjustmentEffectiveDate, hhAdjustmentVersion]
+                required: [jobRoleId, jobRoleName, referenceDate, salary, effectiveDate, version, hhAdjustmentPct, hhAdjustmentEffectiveDate, hhAdjustmentVersion, salaryStatus, salaryOrigin, salaryReferenceId, salarySourceRevision, referenceRevision]
                 properties:
                   jobRoleId: { type: string }
                   jobRoleName: { type: string }
@@ -1251,6 +1253,11 @@ paths:
                   hhAdjustmentPct: { type: number, minimum: 0, maximum: 1, description: Fração de reajuste do HH; 0.1 representa 10%. }
                   hhAdjustmentEffectiveDate: { type: [string, 'null'], format: date }
                   hhAdjustmentVersion: { type: [integer, 'null'], minimum: 1 }
+                  salaryStatus: { type: string, enum: [CURRENT, CANCELLED, UNAVAILABLE] }
+                  salaryOrigin: { type: [string, 'null'], enum: [CONECTA, LOCAL, null] }
+                  salaryReferenceId: { type: [string, 'null'] }
+                  salarySourceRevision: { type: [integer, 'null'], minimum: 1 }
+                  referenceRevision: { type: integer, minimum: 0, description: Revisão monotônica da publicação do cargo, inclusive cancelamentos. }
         '400': { $ref: '#/components/responses/ValidationError' }
         '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -7578,6 +7585,13 @@ components:
           type:
             - string
             - "null"
+          format: uuid
+        cancellationReason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        batchId:
+          type: string
           format: uuid
     ConectaRhEmployment:
       type: object

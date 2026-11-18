@@ -79,6 +79,7 @@ function parameterSetHistory(sets = [], forCargo = false) {
       return {
         effectiveDate: set.effectiveDate,
         params: forCargo ? { ...params, reajusteHhPct } : params,
+        ...(forCargo ? { salaryReference: set.params?.salaryReference ?? null } : {}),
         note: set.note,
         updatedAt: set.createdAt
       };
@@ -93,6 +94,8 @@ function normalizeCostParams(params) {
   if (!params || typeof params !== 'object' || Array.isArray(params)) return params;
   const normalized = { ...params };
   delete normalized.inssPatronalPct;
+  // A local publication is an explicit management decision, not a replay of RH.
+  delete normalized.salaryReference;
   return normalized;
 }
 
@@ -195,7 +198,7 @@ const cargoParamsSchema = paramsSchema.extend({
   }).passthrough()
 });
 
-async function createCargoParameterSet(database, role, params, effectiveDate, note, userId) {
+async function createCargoParameterSet(database, role, params, effectiveDate, note, userId, preserveSalaryReference = false) {
   let profile = role.costProfile;
   if (!profile) {
     profile = await database.costProfile.create({ data: { key: `role:${role.id}`, label: role.name, jobRoleId: role.id } });
@@ -206,7 +209,8 @@ async function createCargoParameterSet(database, role, params, effectiveDate, no
       costProfileId: profile.id,
       version: currentVersion + 1,
       effectiveDate,
-      params: normalizeCostParams(params),
+      params: { ...normalizeCostParams(params), ...(preserveSalaryReference && params.salaryReference
+        ? { salaryReference: params.salaryReference } : {}) },
       note: note ?? null,
       createdByUserId: userId
     }
@@ -241,7 +245,7 @@ router.put('/cargos/reajuste-hh', requireAuth, requireAcompanhamentoManager, asy
     for (const { role, set } of entries) {
       saved.push(await createCargoParameterSet(database, role,
         { ...set.params, reajusteHhPct }, effectiveDate,
-        `Reajuste do HH: ${Number((reajusteHhPct * 100).toFixed(4))}%`, req.auth?.user?.id ?? null));
+        `Reajuste do HH: ${Number((reajusteHhPct * 100).toFixed(4))}%`, req.auth?.user?.id ?? null, true));
     }
     return { status: 201, body: { cargos: saved } };
   });

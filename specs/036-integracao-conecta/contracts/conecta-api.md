@@ -98,4 +98,24 @@ Fornecer salário-base mensal de referência da função, sem encargos, adiciona
 
 Incluir histórico salarial e ocorrências futuras/canceladas em feed, snapshots e consulta individual `job-role-salaries`. API do Conecta deve autorizar leitura salarial separadamente. FiltroAPP aplica o valor pela vigência ao cargo canônico mapeado e preserva os demais parâmetros de custo locais. Cargo não mapeado ou perfil incompatível fica PENDING.
 
+Cancelamento salarial preserva as revisões locais: o FiltroAPP acrescenta uma publicação
+com salário ausente e `salaryStatus=CANCELLED`; não recupera automaticamente valores
+legados. A referência de HH mantém o reajuste independente e publica `referenceRevision`
+monotônica, distinta de `version` e da revisão da ocorrência no Conecta. Correções de data
+e substituições são resolvidas pela identidade da ocorrência antes da seleção por vigência.
+Os cancelamentos já aplicados pela implementação anterior são regularizados pela migration
+`20261118190000_salary_cancellation_history`, sem reativação da referência excluída.
+
+Os campos opcionais `cancellationReason` (texto de 1 a 1000 caracteres) e `batchId` (UUID)
+são aceitos em `job_role_salary.data` e preservados na auditoria restrita. Não incluir
+dados pessoais na justificativa. Ausência desses campos preserva compatibilidade.
+
+Para uma substituição sem interrupção, publicar primeiro a nova ocorrência com
+`supersedesId` apontando para a anterior, aguardar `APPLIED` e depois entregar o cancelamento
+anterior. A publicação da nova referência e a supressão da ocorrência substituída são
+atômicas no receptor. Um cancelamento isolado sem substituta é uma pendência legítima;
+não deve ser usado para representar mera indisponibilidade, ausência em snapshot ou
+alteração de nome/classificação do cargo. Um protocolo de lotes atômicos entre múltiplos
+envelopes depende de homologação adicional; `batchId` sozinho é apenas correlação.
+
 No FiltroAPP, recepção salarial exige rh.conecta.eventos.write + rh.conecta.salarios.write. Status/painéis/logs não expõem amount ou payload sem autorização salarial; manter cargos.salarios.read na consulta já existente GET /api/integracoes/v1/cargos/:id/salario?referenceDate=YYYY-MM-DD. A conciliação geral de cargos continua sem valores. Reprocessamento e simulação salariais obedecem às mesmas restrições e não geram escrita posterior em modo simulado.
