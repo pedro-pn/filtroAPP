@@ -612,6 +612,12 @@ model Collaborator {
   signatureNoticeVersion         String?
   isActive                       Boolean                          @default(true)
   rdoCostSimulationExcluded      Boolean                          @default(false)
+  // LGPD: anonimização 5 anos após o desligamento (lib/privacy/collaborator-retention.js).
+  privacyAnonymizedAt            DateTime?
+  // Exceção (ex.: processo trabalhista): a rotina de retenção não toca o colaborador.
+  retentionHold                  Boolean                          @default(false)
+  retentionHoldReason            String?
+  retentionHoldSetAt             DateTime?
   createdAt                      DateTime                         @default(now())
   updatedAt                      DateTime                         @updatedAt
   projectsLed                    Project[]                        @relation("ProjectOperator")

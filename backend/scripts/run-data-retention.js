@@ -23,7 +23,11 @@ try {
   }
   if (!apply) {
     const preview = onlyJobRuns ? await previewJobRunRetention({ jobRunRetentionDays })
-      : await previewDataRetention({ apiTokenLogRetentionDays: env.apiTokenLogRetentionDays, jobRunRetentionDays });
+      : await previewDataRetention({ apiTokenLogRetentionDays: env.apiTokenLogRetentionDays, jobRunRetentionDays,
+        lgpdTargets: true, lgpdFlags: {
+          COLLABORATOR_RETENTION_ENABLED: env.collaboratorRetentionEnabled,
+          SURVEY_RESPONSE_RETENTION_ENABLED: env.surveyResponseRetentionEnabled
+        } });
     console.log(JSON.stringify({
       mode: 'dry-run',
       message: 'Nenhum dado foi alterado. Execute com --apply para aplicar a rotina de retenção.',
@@ -35,6 +39,9 @@ try {
       deleteAbandonedDrafts,
       abandonedDraftIds,
       apiTokenLogRetentionDays: env.apiTokenLogRetentionDays, jobRunRetentionDays,
+      // Alvos LGPD seguem as mesmas flags do job agendado.
+      collaboratorRetention: env.collaboratorRetentionEnabled,
+      surveyResponseRetention: env.surveyResponseRetentionEnabled,
       ...(Number.isFinite(batchSize) && batchSize > 0 ? { batchSize } : {}),
       ...(Number.isFinite(maxBatchesPerTarget) && maxBatchesPerTarget > 0 ? { maxBatchesPerTarget } : {})
     });

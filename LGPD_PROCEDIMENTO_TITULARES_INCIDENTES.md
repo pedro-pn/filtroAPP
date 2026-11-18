@@ -53,6 +53,12 @@ Executar somente ações aprovadas na triagem. Para exclusão/anonimização, pr
 
 Registrar evidência da ação executada: data, responsável, comando/rotina usada, escopo e resultado.
 
+Retenção automática (independe de pedido): colaboradores desligados há mais de 5 anos são anonimizados pelo job de
+retenção (`COLLABORATOR_RETENTION_ENABLED`), e respostas de pesquisa com mais de 2 anos perdem e-mail e texto livre
+(`SURVEY_RESPONSE_RETENTION_ENABLED`). Se houver processo, fiscalização ou pedido de preservação envolvendo um
+colaborador, marcar a exceção antes do prazo (`Collaborator.retentionHold = true`, com motivo em
+`retentionHoldReason`); a rotina não toca colaboradores marcados. Cada execução fica registrada em `DataRetentionRun`.
+
 ## 2. Incidentes de segurança com dados pessoais
 
 ### 2.1 Detecção e contenção

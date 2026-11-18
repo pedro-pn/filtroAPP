@@ -1,6 +1,9 @@
 import prisma from './prisma.js';
 import { anonymizeDocumentAccessEvidence } from './assinaturas/audit.js';
 
+import { previewCollaboratorRetention, runCollaboratorRetention } from './privacy/collaborator-retention.js';
+import { previewSurveyResponseRetention, runSurveyResponseRetention } from './privacy/survey-retention.js';
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RETENTION_JOB_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const DATA_RETENTION_ADVISORY_LOCK_ID = 2026052217;
@@ -84,7 +87,7 @@ export function abandonedDraftExplicitDeleteWhere(targets, draftIds) {
   };
 }
 
-export async function previewDataRetention({ prismaClient = prisma, now = new Date(), abandonedDraftPreviewLimit = 100, apiTokenLogRetentionDays = 365, jobRunRetentionDays = null } = {}) {
+export async function previewDataRetention({ prismaClient = prisma, now = new Date(), abandonedDraftPreviewLimit = 100, apiTokenLogRetentionDays = 365, jobRunRetentionDays = null, lgpdTargets = false, lgpdFlags = null } = {}) {
   const cutoffs = retentionCutoffs(now, apiTokenLogRetentionDays, jobRunRetentionDays);
   const targets = retentionTargets(cutoffs);
 
@@ -126,6 +129,13 @@ export async function previewDataRetention({ prismaClient = prisma, now = new Da
 
   const jobRunsWhere = await jobRunRetentionWhere(prismaClient, cutoffs);
   const jobRunsToDelete = jobRunsWhere ? await prismaClient.jobRun.count({ where: jobRunsWhere }) : null;
+  // Alvos LGPD (colaboradores desligados, respostas de pesquisa): só contagens e
+  // ids, sem dado pessoal; aplicados apenas com as flags próprias.
+  const lgpd = lgpdTargets ? {
+    ...(lgpdFlags ? { flags: lgpdFlags } : {}),
+    ...(await previewCollaboratorRetention({ prismaClient, now })),
+    ...(await previewSurveyResponseRetention({ prismaClient, now }))
+  } : null;
 
   return {
     now: cutoffs.now.toISOString(),
@@ -144,7 +154,8 @@ export async function previewDataRetention({ prismaClient = prisma, now = new Da
     abandonedDraftIdsToReview: abandonedDraftsToReview.map(draft => draft.id),
     abandonedDraftsToReviewSample: abandonedDraftsToReview,
     ...(apiRequestLogs === null ? {} : { apiRequestLogsToDelete: apiRequestLogs }),
-    ...(apiUsageBuckets === null ? {} : { apiUsageBucketsToDelete: apiUsageBuckets })
+    ...(apiUsageBuckets === null ? {} : { apiUsageBucketsToDelete: apiUsageBuckets }),
+    ...(lgpd ? { lgpd } : {})
   };
 }
 
@@ -384,7 +395,9 @@ export async function runDataRetention({
   maxBatchesPerTarget = DEFAULT_RETENTION_MAX_BATCHES_PER_TARGET,
   apiTokenLogRetentionDays = 365,
   jobRunRetentionDays = null,
-  scope = 'ALL'
+  scope = 'ALL',
+  collaboratorRetention = false,
+  surveyResponseRetention = false
 } = {}) {
   if (typeof prismaClient.$transaction !== 'function') {
     throw new Error('Retenção de dados requer transação para evitar mutação parcial.');
@@ -405,6 +418,8 @@ export async function runDataRetention({
         ...(scope === 'JOB_RUNS' ? { scope } : {}),
         ...(jobRunRetentionDays === null ? {} : { jobRunRetentionDays }),
         requestedAbandonedDraftIds: normalizeIdList(abandonedDraftIds),
+        ...(collaboratorRetention && scope === 'ALL' ? { collaboratorRetention: true } : {}),
+        ...(surveyResponseRetention && scope === 'ALL' ? { surveyResponseRetention: true } : {}),
         batchSize,
         maxBatchesPerTarget
       },
@@ -428,6 +443,16 @@ export async function runDataRetention({
       batchSize,
       maxBatchesPerTarget
     });
+    if (!jobRuns && (collaboratorRetention || surveyResponseRetention)) {
+      summary.lgpd = {
+        ...(collaboratorRetention ? await runCollaboratorRetention({
+          prismaClient, now, maxBatches: maxBatchesPerTarget, lock: acquireDataRetentionLock
+        }) : {}),
+        ...(surveyResponseRetention ? await runSurveyResponseRetention({
+          prismaClient, now, batchSize, maxBatches: maxBatchesPerTarget, lock: acquireDataRetentionLock
+        }) : {})
+      };
+    }
     await prismaClient.dataRetentionRun.update({
       where: { id: run.id },
       data: {
@@ -438,7 +463,7 @@ export async function runDataRetention({
       }
     });
 
-    const changed = Object.values(summary).some(count => count > 0);
+    const changed = Object.values({ ...summary, ...(summary.lgpd || {}) }).some(count => count > 0);
     if (changed) logger.info('Retenção de dados executada.', summary);
     return summary;
   } catch (error) {
@@ -460,11 +485,11 @@ export function shouldStartDataRetentionJob({ enabled = false } = {}) {
   return enabled === true;
 }
 
-export function startDataRetentionJob({ logger = console, enabled = false } = {}) {
+export function startDataRetentionJob({ logger = console, enabled = false, collaboratorRetention = false, surveyResponseRetention = false } = {}) {
   if (!shouldStartDataRetentionJob({ enabled })) return null;
 
   const run = () => {
-    runDataRetention({ logger }).catch(error => {
+    runDataRetention({ logger, collaboratorRetention, surveyResponseRetention }).catch(error => {
       logger.error('Falha no job de retenção de dados.', error);
     });
   };

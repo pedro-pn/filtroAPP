@@ -224,6 +224,8 @@ Dados que **não integram o documento legal** e existem apenas para operação d
 | `EpiSignatureRequestAuditLog` — `ipAddress`, `userAgent` | Indefinida | Anonimizar IP após 2 anos | Job periódico |
 | `SatisfactionSurvey` — `submittedIp`, `submittedUserAgent` | Indefinida | Anonimizar após resposta + 1 ano | Job periódico |
 | `ReportDraft` — rascunhos abandonados | Indefinida | Revisar após 6 meses sem edição; exclusão somente por rotina operacional explícita | Dry-run/execução manual controlada |
+| `SatisfactionSurvey` — `emailTo`, `followUpNotes`, respostas de texto livre | Indefinida | Apagar após 2 anos da resposta (ou do envio); notas numéricas permanecem sem vínculo | Job periódico com `SURVEY_RESPONSE_RETENTION_ENABLED=true` |
+| `Collaborator` desligado (+ ausências, apelidos do ponto, eventos brutos do Conecta RH) | Indefinida | Anonimizar 5 anos após `terminationDate`; nome/CPF/matrícula mantidos só com EPI/RDO vinculados; `retentionHold` suspende | Job periódico com `COLLABORATOR_RETENTION_ENABLED=true` (decisão de 2026-11-18) |
 
 > **Importante:** "anonimizar IP" significa substituir o valor por `null` ou `"[anonimizado]"` no banco — não exclui o registro de auditoria, apenas remove o dado identificador. O log de *que* ação aconteceu permanece.
 
@@ -485,7 +487,10 @@ Legenda: `[ ]` pendente, `[x]` concluído. Manter este checklist no repositório
 - [x] Criar testes unitários/integrados para cada regra de retenção.
 - [x] Documentar como executar o job manualmente em homologação/produção.
 
-**Execução manual:** em homologação/produção, executar `npm run retention:dry-run` para contagens e `npm run retention:apply` para aplicar anonimização/limpeza não destrutiva. Para excluir rascunhos antigos, usar somente execução operacional explícita com backup: `npm run retention:apply -- --delete-abandoned-drafts`.
+- [x] Anonimizar colaboradores desligados há mais de 5 anos (`lib/privacy/collaborator-retention.js`), atrás de `COLLABORATOR_RETENTION_ENABLED`, respeitando `Collaborator.retentionHold`.
+- [x] Aplicar a regra de 2 anos das respostas de pesquisa (`lib/privacy/survey-retention.js`), atrás de `SURVEY_RESPONSE_RETENTION_ENABLED`.
+
+**Execução manual:** em homologação/produção, executar `npm run retention:dry-run` para contagens (a saída inclui o bloco `lgpd` com as contagens de colaboradores e pesquisas e o estado das flags) e `npm run retention:apply` para aplicar anonimização/limpeza não destrutiva. Para excluir rascunhos antigos, usar somente execução operacional explícita com backup: `npm run retention:apply -- --delete-abandoned-drafts`.
 
 **Critério de aceite:** dados operacionais expiráveis são removidos ou anonimizados automaticamente sem afetar evidências legais.
 

@@ -676,6 +676,9 @@ Nginx HTTP interno
 | `API_TOKEN_COARSE_IP_REQUESTS_PER_MINUTE` | Não | Limite preventivo por IP antes da identificação da credencial |
 | `API_TOKEN_LOG_RETENTION_DAYS` | Não | Retenção dos logs de requisição da API (padrão: `365`) |
 | `API_TOKEN_MAX_OVERLAP_MINUTES` | Não | Sobreposição máxima entre tokens durante rotação (padrão: `60`) |
+| `DATA_RETENTION_JOB_ENABLED` | Não | Liga o job diário de retenção LGPD no worker: sessões/tokens expirados, IP/User-Agent antigos, logs da API (padrão: `false`) |
+| `COLLABORATOR_RETENTION_ENABLED` | Não | Com o job ligado, anonimiza colaboradores desligados há mais de 5 anos, exceto `retentionHold` (padrão: `false`) |
+| `SURVEY_RESPONSE_RETENTION_ENABLED` | Não | Com o job ligado, apaga e-mail, notas e texto livre de pesquisas com mais de 2 anos (padrão: `false`) |
 | `SMTP_HOST` | Sim | Servidor SMTP (`smtp.office365.com`) |
 | `SMTP_PORT` | Sim | Porta SMTP (padrão: `587`) |
 | `SMTP_SECURE` | Não | Para Exchange Online na porta 587, use `false` (STARTTLS) |
