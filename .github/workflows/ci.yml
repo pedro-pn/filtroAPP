@@ -145,11 +145,26 @@ jobs:
           else
             echo 'Extra Ubuntu mirror unavailable; keeping the runner default mirrors.'
           fi
-          printf 'Acquire::Retries "1";\nAcquire::http::Timeout "20";\nAcquire::https::Timeout "20";\n' | sudo tee /etc/apt/apt.conf.d/zz-ci-retries > /dev/null
+          printf 'Acquire::Retries "3";\nAcquire::http::Timeout "20";\nAcquire::https::Timeout "20";\n' | sudo tee /etc/apt/apt.conf.d/zz-ci-retries > /dev/null
+
+      # Mesmo problema do Chromium no job Frontend: o espelho do apt às vezes
+      # leva minutos por pacote. Os .deb ficam em cache; o apt só baixa o índice.
+      - name: Restore Hunspell Ubuntu packages
+        uses: actions/cache@v6
+        with:
+          path: ~/apt-archives
+          key: hunspell-pt-br-ubuntu-24.04-v1
 
       - name: Install Hunspell pt-BR (revisão ortográfica do Data Book)
-        timeout-minutes: 5
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends hunspell hunspell-pt-br
+        timeout-minutes: 15
+        run: |
+          mkdir -p ~/apt-archives/partial
+          printf 'Dir::Cache::Archives "%s/apt-archives/";\nAPT::Keep-Downloaded-Packages "true";\n' "$HOME" \
+            | sudo tee /etc/apt/apt.conf.d/zz-ci-archive-cache > /dev/null
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends hunspell hunspell-pt-br
+          # O apt grava como root; o cache só salva o que o runner consegue ler.
+          sudo rm -rf ~/apt-archives/partial ~/apt-archives/lock
+          sudo chown -R "$(id -u):$(id -g)" ~/apt-archives
 
       - name: Run Data Book generator tests
         working-directory: backend/databook
