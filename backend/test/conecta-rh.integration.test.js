@@ -162,7 +162,8 @@ test('Conecta: recepção real, referência provisória por vínculo, correçõe
     await receive(salary);
     assert.equal((await db.costParameterSet.findFirstOrThrow()).params.salarioBase, '4250.00');
     await receive({ ...salary, eventId: randomUUID(), revision: 2, data: { ...salary.data, status: 'CANCELLED' } });
-    assert.equal(await db.costParameterSet.count(), 0);
+    assert.equal(await db.costParameterSet.count(), 2);
+    assert.equal((await db.costParameterSet.findFirstOrThrow({ orderBy: { version: 'desc' } })).params.salarioBase, null);
     const compliance = envelope('compliance', { id: randomUUID(), personId, employmentId: null, category: 'TRAINING', typeCode: 'NR-35', title: 'NR-35',
       status: 'VALID', issuedOn: '2026-01-01', expiresOn: '2026-11-13', hasNoExpiry: false, evidence: null });
     await receive(compliance);
@@ -201,7 +202,7 @@ test('Conecta: recepção real, referência provisória por vínculo, correçõe
     await receive(salary);
     const mismatched = envelope('job_role_salary', { ...salary.data, id: randomUUID(), jobRoleId: secondRoleId, supersedesId: salary.aggregateId });
     assert.equal((await receive(mismatched)).status, 'FAILED');
-    assert.equal(await db.costParameterSet.count(), 1);
+    assert.equal(await db.costParameterSet.count(), 3);
   });
 
   await t.test('snapshot/feed preservam eventos e avançam cursor vazio; falha parcial não avança o watermark', async () => {

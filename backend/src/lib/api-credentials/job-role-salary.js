@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 
 import { IntegrationApiError } from '../../middleware/api-request-context.js';
+import { salaryReferenceAt } from '../acompanhamento/salary-reference.js';
 
 const paramsSchema = z.object({ id: z.string().trim().min(1).max(100) }).strict();
 const querySchema = z.object({ referenceDate: z.iso.date() }).strict();
@@ -31,9 +32,7 @@ export async function getJobRoleSalary(client, params, query, context) {
       name: true,
       costProfile: { select: {
         parameterSets: {
-          where: { effectiveDate: { lte: new Date(`${referenceDate}T00:00:00.000Z`) } },
           orderBy: [{ effectiveDate: 'desc' }, { version: 'desc' }],
-          take: 1,
           select: { params: true, effectiveDate: true, version: true }
         }
       } }
@@ -41,7 +40,10 @@ export async function getJobRoleSalary(client, params, query, context) {
   });
   if (!role) throw new IntegrationApiError(404, 'NOT_FOUND', 'Cargo não encontrado.');
 
-  const set = role.costProfile?.parameterSets[0];
+  const { set, salaryStatus } = salaryReferenceAt(role.costProfile?.parameterSets || [], referenceDate);
+  if (salaryStatus === 'CANCELLED') {
+    throw new IntegrationApiError(404, 'SALARY_REFERENCE_CANCELLED', 'Referência salarial cancelada na origem; aguardando regularização.');
+  }
   const salary = configuredJobRoleSalary(set);
   if (!salary) {
     throw new IntegrationApiError(404, 'SALARY_NOT_FOUND', 'Salário do cargo não configurado para a data de referência.');

@@ -178,19 +178,21 @@ async function projectSalary(tx, row) {
   const previousOccurrence = input.supersedesId && await aggregate(tx, row.companyId, 'job_role_salary', input.supersedesId);
   if (input.supersedesId && !previousOccurrence) return { reasonCode: 'SUPERSEDES_PENDING' };
   if (previousOccurrence && previousOccurrence.data.jobRoleId !== input.jobRoleId) return { status: 'FAILED', reasonCode: 'SUPERSEDES_MISMATCH' };
-  if (input.status === 'CANCELLED' || await superseded(tx, row)) {
-    if (row.localId) await tx.costParameterSet.deleteMany({ where: { id: row.localId } });
-    return { localId: null };
-  }
-  if (previousOccurrence?.localId) await tx.costParameterSet.deleteMany({ where: { id: previousOccurrence.localId } });
+  if (await superseded(tx, row)) return { localId: row.localId };
   const profile = await tx.costProfile.upsert({ where: { jobRoleId: role.localId },
     create: { key: `role:${role.localId}`, label: role.data.name, jobRoleId: role.localId }, update: {} });
   const previous = await tx.costParameterSet.findFirst({ where: { costProfileId: profile.id, effectiveDate: { lte: day(input.effectiveDate) } }, orderBy: [{ effectiveDate: 'desc' }, { version: 'desc' }] });
   const latest = await tx.costParameterSet.aggregate({ where: { costProfileId: profile.id }, _max: { version: true } });
+  const id = `conecta:${row.id}:${row.revision}`;
+  const existing = await tx.costParameterSet.findUnique({ where: { id } });
+  if (existing) return { localId: existing.id };
+  const cancelled = input.status === 'CANCELLED';
   const data = { effectiveDate: day(input.effectiveDate), version: (latest._max.version || 0) + 1,
-    params: { ...(previous?.params || {}), salarioBase: input.amount }, note: 'Salário-base por cargo recebido do Conecta.' };
-  const saved = await tx.costParameterSet.upsert({ where: { id: row.localId || `conecta:${row.id}` },
-    create: { id: `conecta:${row.id}`, costProfileId: profile.id, ...data }, update: data });
+    params: { ...(previous?.params || {}), salarioBase: cancelled ? null : input.amount,
+      salaryReference: { id: row.externalId, revision: row.revision, status: input.status, supersedesId: input.supersedesId,
+        occurredAt: row.occurredAt.toISOString(), cancellationReason: input.cancellationReason ?? null, batchId: input.batchId ?? null } },
+    note: cancelled ? 'Referência salarial cancelada pelo Conecta; regularização necessária.' : 'Salário-base por cargo recebido do Conecta.' };
+  const saved = await tx.costParameterSet.create({ data: { id, costProfileId: profile.id, ...data } });
   return { localId: saved.id };
 }
 

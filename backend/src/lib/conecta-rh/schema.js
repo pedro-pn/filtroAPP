@@ -14,7 +14,8 @@ const evidence = z.object({
 const schemas = {
   job_role: z.object({ id, name: text, isActive: z.boolean(), isOperational: z.boolean(), cbo: text.nullable() }).strict(),
   job_role_salary: z.object({ ...occurrence, jobRoleId: id, amount: z.string().regex(/^\d{1,10}\.\d{2}$/),
-    currency: z.literal('BRL'), basis: z.literal('MONTHLY'), effectiveDate: date }).strict(),
+    currency: z.literal('BRL'), basis: z.literal('MONTHLY'), effectiveDate: date,
+    cancellationReason: z.string().trim().min(1).max(1000).optional(), batchId: id.optional() }).strict(),
   employment: z.object({
     personId: id, employmentId: id, name: text, cpf: z.string().regex(/^\d{11}$/).nullable(),
     registrationNumber: text.nullable(), email: z.string().max(320).nullable(), isOperational: z.boolean(),

@@ -232,4 +232,12 @@ test('API salva reajustes individuais e em lote com validação, seleção expl�
   assert.equal((await request('/cargos/missing/parametros', {
     effectiveDate: '2026-11-15', params: { salarioBase: 1800 }
   })).status, 404);
+  const operator = roles.find(role => role.id === 'op');
+  const cancelledVersion = Math.max(...operator.costProfile.parameterSets.map(set => set.version)) + 1;
+  operator.costProfile.parameterSets.push(set('2026-11-21', cancelledVersion, {
+    salarioBase: null, salaryReference: { id: 'external-salary', revision: 2, status: 'CANCELLED' }
+  }));
+  assert.equal((await request('/cargos/reajuste-hh', { jobRoleIds: ['op'], effectiveDate: '2026-11-22', reajusteHhPct: 0.15 })).status, 201);
+  assert.equal(roles.find(role => role.id === 'op').costProfile.parameterSets.at(-1).params.salaryReference.status, 'CANCELLED',
+    'reajustar HH não autoriza recuperar salário cancelado nem usar o modelo genérico');
 });

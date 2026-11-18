@@ -42,7 +42,7 @@ function database(sets = history(), { hasRole = true, hasProfile = true } = {}) 
       calls.push(args);
       if (!hasRole || args.where.id !== params.id) return null;
       const selection = args.select.costProfile.select.parameterSets;
-      const selected = sets.filter(set => set.effectiveDate <= selection.where.effectiveDate.lte)
+      const selected = sets.filter(set => !selection.where || set.effectiveDate <= selection.where.effectiveDate.lte)
         .sort((a, b) => {
           for (const order of selection.orderBy) {
             const [field, direction] = Object.entries(order)[0];
@@ -50,7 +50,7 @@ function database(sets = history(), { hasRole = true, hasProfile = true } = {}) 
             if (difference) return direction === 'desc' ? -difference : difference;
           }
           return 0;
-        }).slice(0, selection.take);
+        }).slice(0, selection.take ?? sets.length);
       return { id: params.id, name: 'Operador', collaborators: ['NEVER_EXPOSE'],
         costProfile: hasProfile ? { parameterSets: selected } : null };
     } },
@@ -83,8 +83,7 @@ test('salary lookup uses the effective date before version and never anticipates
   assert.deepEqual(calls[0], {
     where: { id: params.id },
     select: { id: true, name: true, costProfile: { select: { parameterSets: {
-      where: { effectiveDate: { lte: new Date('2026-06-30T00:00:00Z') } },
-      orderBy: [{ effectiveDate: 'desc' }, { version: 'desc' }], take: 1,
+      orderBy: [{ effectiveDate: 'desc' }, { version: 'desc' }],
       select: { params: true, effectiveDate: true, version: true }
     } } } }
   });
@@ -133,7 +132,8 @@ test('API central catalog and playground expose the dedicated grant with a requi
   const definition = API_SCOPES.find(item => item.code === scope);
   assert.equal(definition.status, 'AVAILABLE');
   assert.deepEqual(definition.exposedFields, ['jobRoleId', 'jobRoleName', 'salary', 'effectiveDate', 'version',
-    'referenceDate', 'hhAdjustmentPct', 'hhAdjustmentEffectiveDate', 'hhAdjustmentVersion']);
+    'referenceDate', 'hhAdjustmentPct', 'hhAdjustmentEffectiveDate', 'hhAdjustmentVersion',
+    'salaryStatus', 'salaryOrigin', 'salaryReferenceId', 'salarySourceRevision', 'referenceRevision']);
   const operation = publicApiOperations().find(item => item.operationId === operationId);
   assert.deepEqual(operation.requiredScopes, [scope]);
   assert.deepEqual(operation.parameters.map(item => [item.name, item.required]), [['id', true], ['referenceDate', true]]);
