@@ -494,6 +494,32 @@ export function buildMonthlyAllocationReportEmailTemplate({ monthLabel, summary 
   };
 }
 
+export function buildTwoFactorCodeEmailTemplate({ userName, code, purpose = 'LOGIN', expiresLabel }) {
+  const enabling = purpose === 'ENABLE';
+  const title = enabling ? 'Ativar verificação em duas etapas' : 'Código de acesso';
+  const intro = enabling
+    ? `Use o código abaixo para ativar a verificação em duas etapas na conta ${escapeHtml(userName)}.`
+    : `Use o código abaixo para concluir o acesso à conta ${escapeHtml(userName)}.`;
+  const safeCode = escapeHtml(String(code));
+  const body = `
+    <p style="font-size:30px;letter-spacing:8px;font-weight:700;margin:8px 0 16px;font-family:monospace">${safeCode}</p>
+    <p style="font-size:13px;line-height:1.7;margin:0">Não compartilhe este código. A Filtrovali nunca pede o código por telefone ou mensagem.</p>
+  `;
+  const footer = `O código expira em ${escapeHtml(expiresLabel)}. Se você não tentou entrar, troque sua senha e avise o administrador.`;
+  return {
+    subject: enabling ? '[Filtrovali] Código para ativar a verificação em duas etapas' : `[Filtrovali] Código de acesso: ${code}`,
+    text: [
+      enabling
+        ? `Use o código ${code} para ativar a verificação em duas etapas na conta ${userName}.`
+        : `Use o código ${code} para concluir o acesso à conta ${userName}.`,
+      '',
+      `O código expira em ${expiresLabel}.`,
+      'Não compartilhe este código. Se você não tentou entrar, troque sua senha e avise o administrador.'
+    ].join('\n'),
+    html: wrapEmailHtml({ title, intro, body, footer })
+  };
+}
+
 export function buildPasswordResetEmailTemplate({ userName, resetUrl, expiresLabel }) {
   const title = 'Recuperação de senha';
   const intro = `Recebemos uma solicitação para redefinir a senha da conta ${userName}.`;

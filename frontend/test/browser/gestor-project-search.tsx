@@ -116,7 +116,7 @@ const root = createRoot(document.getElementById('root')!);
 import.meta.hot?.dispose(() => root.unmount());
 root.render(<React.StrictMode>
   <QueryClientProvider client={client}>
-    <AuthContext.Provider value={{ user, token: null, isBootstrapping: false, isAuthenticated: true, login: noop, logout: noop, refreshUser: noop, replaceUser() {} }}>
+    <AuthContext.Provider value={{ user, token: null, isBootstrapping: false, isAuthenticated: true, login: noop, completeTwoFactor: noop, logout: noop, refreshUser: noop, replaceUser() {} }}>
       <ThemeProvider><ToastProvider><BrowserRouter><GestorPage /></BrowserRouter></ToastProvider></ThemeProvider>
     </AuthContext.Provider>
   </QueryClientProvider>

@@ -469,6 +469,12 @@ test('POST /auth/reset-password revokes existing user sessions after password re
         calls.push(['tx.userSession.deleteMany', args]);
         return { count: 2 };
       }
+    },
+    trustedDevice: {
+      deleteMany: async args => {
+        calls.push(['tx.trustedDevice.deleteMany', args]);
+        return { count: 1 };
+      }
     }
   });
   t.after(() => {
@@ -484,6 +490,8 @@ test('POST /auth/reset-password revokes existing user sessions after password re
   assert.equal(response.statusCode, 200);
   const sessionDelete = calls.find(([name]) => name === 'tx.userSession.deleteMany')?.[1];
   assert.deepEqual(sessionDelete.where, { userId: tokenRow.userId });
+  const deviceDelete = calls.find(([name]) => name === 'tx.trustedDevice.deleteMany')?.[1];
+  assert.deepEqual(deviceDelete.where, { userId: tokenRow.userId }, 'trusted 2FA devices are revoked too');
 });
 
 test('POST /auth/change-password revokes other sessions and preserves current session', async t => {
@@ -530,6 +538,12 @@ test('POST /auth/change-password revokes other sessions and preserves current se
         calls.push(['tx.userSession.deleteMany', args]);
         return { count: 1 };
       }
+    },
+    trustedDevice: {
+      deleteMany: async args => {
+        calls.push(['tx.trustedDevice.deleteMany', args]);
+        return { count: 1 };
+      }
     }
   });
   t.after(() => {
@@ -549,6 +563,8 @@ test('POST /auth/change-password revokes other sessions and preserves current se
     userId: session.user.id,
     id: { not: session.id }
   });
+  const deviceDelete = calls.find(([name]) => name === 'tx.trustedDevice.deleteMany')?.[1];
+  assert.deepEqual(deviceDelete.where, { userId: session.user.id }, 'trusted 2FA devices are revoked too');
 });
 
 function nextTick() {

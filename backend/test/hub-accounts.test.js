@@ -44,6 +44,8 @@ test('publicUser exposes hub account fields with legacy fallback', () => {
       },
       privacyPolicyRequired: false,
       requiredPrivacyPolicyVersion: 'client_account_privacy_v1',
+      // Fora de produção o 2FA fica desligado por padrão (TWO_FACTOR_ENFORCEMENT).
+      twoFactor: { required: false, enabled: false },
       collaboratorId: null,
       collaborator: null
     }

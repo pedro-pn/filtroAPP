@@ -2,17 +2,19 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { Link, Navigate, useLocation } from 'react-router';
 
+import { resendTwoFactor } from '../api/auth';
 import { useAuth } from '../auth/AuthContext';
 import { preferredEntryPath } from '../auth/moduleNavigation';
 import { AppIcon } from '../components/icons/AppIcon';
 import { Alert, Button, Field, Input } from '../components/ui/ds';
+import type { TwoFactorChallenge } from '../types/auth';
 import { normalizeCnpjInput } from '../utils/formatCnpj';
 import { PublicFlowShell } from './PublicFlowShell';
 
 const REMEMBERED_USER_KEY = 'filtrovali-react-remembered-user';
 
 export function LoginPage({ preview = false }: { preview?: boolean }) {
-  const { isAuthenticated, isBootstrapping, token, user, login } = useAuth();
+  const { isAuthenticated, isBootstrapping, token, user, login, completeTwoFactor } = useAuth();
   const location = useLocation();
   const [username, setUsername] = useState(() => {
     if (preview) return '';
@@ -27,6 +29,11 @@ export function LoginPage({ preview = false }: { preview?: boolean }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [previewMessage, setPreviewMessage] = useState('');
+  const [challenge, setChallenge] = useState<TwoFactorChallenge | null>(null);
+  const [code, setCode] = useState('');
+  const [rememberDevice, setRememberDevice] = useState(true);
+  const [info, setInfo] = useState('');
+  const [isResending, setIsResending] = useState(false);
 
   // `?next=/caminho` devolve o usuário ao ponto de origem (ex.: página pública do QR) depois do login.
   const nextPath = useMemo(() => {
@@ -46,14 +53,85 @@ export function LoginPage({ preview = false }: { preview?: boolean }) {
     }
     setIsSubmitting(true);
     try {
-      await login({ username, password, rememberMe });
+      const outcome = await login({ username, password, rememberMe });
       if (rememberMe) localStorage.setItem(REMEMBERED_USER_KEY, username);
       else localStorage.removeItem(REMEMBERED_USER_KEY);
+      if (outcome.status === 'two-factor') {
+        setChallenge(outcome.challenge);
+        setCode('');
+        setInfo('');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Falha ao realizar login.');
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  async function handleVerify(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!challenge) return;
+    setError('');
+    setIsSubmitting(true);
+    try {
+      await completeTwoFactor({ username, challengeToken: challenge.challengeToken, code, rememberDevice });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Código inválido.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleResend() {
+    if (!challenge) return;
+    setError('');
+    setInfo('');
+    setIsResending(true);
+    try {
+      const result = await resendTwoFactor(challenge.challengeToken);
+      setInfo(`Enviamos um novo código para ${result.emailHint}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível reenviar o código.');
+    } finally {
+      setIsResending(false);
+    }
+  }
+
+  function backToPassword() {
+    setChallenge(null);
+    setCode('');
+    setPassword('');
+    setError('');
+    setInfo('');
+  }
+
+  if (challenge) {
+    return <PublicFlowShell title="Verificação em duas etapas" description="Sistema Integrado de Operação" logoVariant="login" preview={preview}>
+      <form className="public-flow-form" onSubmit={handleVerify}>
+        <p>Enviamos um código de 6 dígitos para <strong>{challenge.emailHint}</strong>. Ele vale por 10 minutos.</p>
+        <Field id="login-two-factor-code" label="Código" required optionalText={null}>
+          <Input
+            value={code}
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={7}
+            autoFocus
+            onChange={event => setCode(event.target.value.replace(/[^\d ]/g, ''))}
+          />
+        </Field>
+        <label className="public-flow-checkbox">
+          <input type="checkbox" checked={rememberDevice} onChange={event => setRememberDevice(event.target.checked)} />
+          Lembrar este navegador por {challenge.trustedDeviceDays} dias
+        </label>
+        {error ? <Alert tone="danger">{error}</Alert> : null}
+        {info ? <Alert tone="info">{info}</Alert> : null}
+        <Button variant="primary" type="submit" loading={isSubmitting} disabled={code.replace(/\D/g, '').length !== 6} fullWidth>{isSubmitting ? 'Verificando…' : 'Confirmar'}</Button>
+        <div className="public-flow-options">
+          <button type="button" className="public-flow-link-button" onClick={handleResend} disabled={isResending}>{isResending ? 'Reenviando…' : 'Reenviar código'}</button>
+          <button type="button" className="public-flow-link-button" onClick={backToPassword}>Voltar</button>
+        </div>
+      </form>
+    </PublicFlowShell>;
   }
 
   return <PublicFlowShell title="Acessar conta" titleHidden description="Sistema Integrado de Operação" logoVariant="login" preview={preview}>

@@ -1,13 +1,14 @@
 import { createContext, useContext } from 'react';
 
-import type { AuthUser, LoginPayload } from '../types/auth';
+import type { AuthUser, LoginOutcome, LoginPayload } from '../types/auth';
 
 export interface AuthContextValue {
   user: AuthUser | null;
   token: string | null;
   isBootstrapping: boolean;
   isAuthenticated: boolean;
-  login: (payload: LoginPayload) => Promise<void>;
+  login: (payload: LoginPayload) => Promise<LoginOutcome>;
+  completeTwoFactor: (payload: { username: string; challengeToken: string; code: string; rememberDevice?: boolean }) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   replaceUser: (user: AuthUser | null) => void;

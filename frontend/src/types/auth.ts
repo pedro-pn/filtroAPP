@@ -33,6 +33,7 @@ export interface AuthUser {
   };
   privacyPolicyRequired?: boolean;
   requiredPrivacyPolicyVersion?: string;
+  twoFactor?: { required: boolean; enabled: boolean };
   collaboratorId?: string | null;
 }
 
@@ -40,4 +41,35 @@ export interface LoginPayload {
   username: string;
   password: string;
   rememberMe?: boolean;
+  trustedDeviceToken?: string;
+}
+
+export interface TwoFactorChallenge {
+  challengeToken: string;
+  emailHint: string;
+  expiresAt: string;
+  trustedDeviceDays: number;
+}
+
+export type LoginOutcome = { status: 'authenticated' } | { status: 'two-factor'; challenge: TwoFactorChallenge };
+
+export interface TrustedDeviceInfo {
+  id: string;
+  label: string;
+  createdAt: string;
+  lastUsedAt: string;
+  expiresAt: string;
+  current: boolean;
+}
+
+export interface TwoFactorStatus {
+  requirement: 'REQUIRED' | 'ENABLED' | 'AVAILABLE' | 'NONE';
+  enforced: boolean;
+  required: boolean;
+  enabled: boolean;
+  canToggle: boolean;
+  emailHint: string;
+  hasEmail: boolean;
+  trustedDeviceDays: number;
+  trustedDevices: TrustedDeviceInfo[];
 }

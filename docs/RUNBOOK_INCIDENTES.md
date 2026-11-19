@@ -235,6 +235,26 @@ saber quando voltou.
 
 Para ver o erro de cada integração: `dcp logs --since 2h worker | grep -i <omie|conecta|zapsign|openai|smtp>`.
 
+### E-mail fora do ar → administradores sem login (2FA)
+
+O código da verificação em duas etapas vai por e-mail. Sem SMTP, o login de contas
+ADMIN para em "Não foi possível enviar o código". Escolha a menor saída:
+
+```bash
+# Uma conta só: libera UM login sem código nos próximos 60 min (fica registrado).
+dcp exec backend node scripts/disable-2fa.js --username <usuario> --minutes 60
+
+# Todos (SMTP fora por horas): desliga o 2FA até o e-mail voltar.
+echo 'TWO_FACTOR_ENFORCEMENT=off' >> backend/.env.production
+dcp up -d backend worker
+# Quando o e-mail voltar: remova a linha (ou use =on) e repita o "up -d".
+```
+
+Admin que perdeu acesso ao próprio e-mail: outro admin corrige o e-mail em
+**Gestão de contas**; se não houver outro admin, use o `disable-2fa.js` acima e
+corrija o e-mail logo depois de entrar. Os eventos ficam em `AuthSecurityEvent`
+(`TWO_FACTOR_BREAK_GLASS`, `TWO_FACTOR_BYPASS_USED`).
+
 ---
 
 ## 7. Alerta de abuso ou de custo

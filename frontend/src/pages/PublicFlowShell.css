@@ -30,6 +30,8 @@
 .public-flow-content > .fv-button, .public-flow-form > .fv-button { width: 100%; min-height: var(--space-12); }
 .public-flow-options { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); color: var(--muted); font-size: var(--text-sm); }
 .public-flow-options a, .public-flow-content a:not(.fv-button) { color: var(--brand-text); }
+.public-flow-link-button { background: none; border: 0; padding: 0; color: var(--brand-text); font: inherit; cursor: pointer; text-decoration: underline; }
+.public-flow-link-button:disabled { color: var(--muted); cursor: default; }
 .public-flow-checkbox { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--ink); font-size: var(--text-sm); }
 .public-flow-checkbox input { width: 17px; height: 17px; accent-color: var(--brand); }
 .public-flow-back { width: 100%; justify-content: center; text-decoration: none; }

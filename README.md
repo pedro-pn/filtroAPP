@@ -912,6 +912,20 @@ daquela conta. O login tem três limites em memória por janela de 15 minutos: 8
 tentativas por IP + usuário, 50 falhas por IP (qualquer usuário) e 20 falhas por
 usuário (qualquer IP), sempre com a mesma resposta 429 genérica.
 
+**Verificação em duas etapas (2FA, spec 039).** Contas ADMIN são obrigadas a
+confirmar o login com um código de 6 dígitos enviado ao e-mail da conta; contas
+internas podem ativar em **Minha conta**; contas de cliente ficam de fora. O
+código vale 10 minutos, aceita 5 tentativas, é de uso único e pode ser reenviado
+até 3 vezes. "Lembrar este navegador" dispensa o código por 30 dias naquele
+navegador; trocar ou redefinir a senha, o admin definir a senha ou desativar a
+conta, e desligar o 2FA removem os navegadores lembrados. Contas ADMIN precisam
+de e-mail (o cadastro recusa salvar sem). Escolha registrada: código por e-mail
+em vez de app autenticador; se a caixa de e-mail for comprometida, o segundo
+fator cai junto. Emergência: `scripts/disable-2fa.js` libera um login sem código
+para uma conta, e `TWO_FACTOR_ENFORCEMENT=off` desliga o 2FA de todos (veja
+`docs/RUNBOOK_INCIDENTES.md`). Fora de produção o padrão é `off`; na homologação
+o compose força `off`, porque ela não envia e-mails.
+
 ---
 
 ## Rotas da API
@@ -921,6 +935,8 @@ Prefixo base: `/api`. As rotas do módulo de relatórios são servidas tanto sob
 | Método | Rota | Descrição |
 |---|---|---|
 | `POST` | `/auth/login` · `/auth/logout` | Autenticação |
+| `POST` | `/auth/2fa/verify` · `/auth/2fa/resend` | Segunda etapa do login (código por e-mail) |
+| `GET/POST/DELETE` | `/auth/2fa` · `/auth/2fa/enable` · `/auth/2fa/enable/confirm` · `/auth/2fa/disable` · `/auth/2fa/devices[/:id]` | 2FA da própria conta e navegadores lembrados |
 | `GET/POST` | `/rdo/projects` · `GET/PATCH/DELETE /rdo/projects/:id` | Projetos |
 | `GET/POST` | `/rdo/reports` · `GET/PATCH/DELETE /rdo/reports/:id` | Relatórios |
 | `GET/POST/PATCH` | `/rdo/operational-reports` · `/rdo/operational-reports/:id/...` | RDOs de manutenção e produção, revisão, anexos e documentos |

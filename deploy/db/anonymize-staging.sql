@@ -75,6 +75,12 @@ INSERT INTO _anon_plan (tbl, col, strategy, expr) VALUES
   -- Sessões, tokens, rascunhos e filas com conteúdo de e-mail: nada disso vai para homologação.
   ('UserSession', '*', 'delete', NULL),
   ('PasswordResetToken', '*', 'delete', NULL),
+  -- 2FA (spec 039): desafios e navegadores lembrados de produção não valem na homologação;
+  -- a trilha de segurança perde IP e navegador.
+  ('TwoFactorChallenge', '*', 'delete', NULL),
+  ('TrustedDevice', '*', 'delete', NULL),
+  ('AuthSecurityEvent', 'ipAddress', 'null', NULL),
+  ('AuthSecurityEvent', 'userAgent', 'null', NULL),
   ('EmailChangeToken', '*', 'delete', NULL),
   ('NotificationPreferenceToken', '*', 'delete', NULL),
   ('ReportDraft', '*', 'delete', NULL),

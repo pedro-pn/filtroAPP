@@ -94,6 +94,9 @@ services:
       ASSINATURAS_MAX_PAGES: "500"
       APP_ENV: staging
       SEND_CLIENT_EMAILS: "false"
+      # Sem envio de e-mail o código do 2FA não chega: na homologação ele fica
+      # desligado, salvo STAGING_TWO_FACTOR_ENFORCEMENT=on (spec 039).
+      TWO_FACTOR_ENFORCEMENT: ${STAGING_TWO_FACTOR_ENFORCEMENT:-off}
       COMERCIALAPP_ALLOW_STAGING_HTTP: ${COMERCIALAPP_ALLOW_STAGING_HTTP:-false}
       DATABASE_CONNECTION_LIMIT: ${BACKEND_DATABASE_CONNECTION_LIMIT:-8}
       PRISMA_SLOW_QUERY_MS: ${PRISMA_SLOW_QUERY_MS:-1000}
@@ -141,6 +144,9 @@ services:
       ASSINATURAS_MAX_PAGES: "500"
       APP_ENV: staging
       SEND_CLIENT_EMAILS: "false"
+      # Sem envio de e-mail o código do 2FA não chega: na homologação ele fica
+      # desligado, salvo STAGING_TWO_FACTOR_ENFORCEMENT=on (spec 039).
+      TWO_FACTOR_ENFORCEMENT: ${STAGING_TWO_FACTOR_ENFORCEMENT:-off}
       COMERCIALAPP_ALLOW_STAGING_HTTP: ${COMERCIALAPP_ALLOW_STAGING_HTTP:-false}
       DATABASE_CONNECTION_LIMIT: ${WORKER_DATABASE_CONNECTION_LIMIT:-2}
       PRISMA_SLOW_QUERY_MS: ${PRISMA_SLOW_QUERY_MS:-1000}
