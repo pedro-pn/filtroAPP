@@ -1,4 +1,4 @@
-import env from '../config/env.js';
+import env from '../../config/env.js';
 
 // Sessão do navegador em cookie HttpOnly (spec 041). O token nunca chega ao
 // JavaScript da página: um XSS ou extensão não consegue levá-lo embora.

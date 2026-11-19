@@ -16,7 +16,7 @@ import {
   requestCookie,
   SESSION_COOKIE,
   setSessionCookie
-} from '../lib/session-cookie.js';
+} from '../lib/accounts/session-cookie.js';
 import { withProjectAccess } from '../lib/projects/access-scope.js';
 import { withWorkforceVisibility, workforceVisibilityRequestTarget } from '../lib/collaborators/workforce-visibility-context.js';
 import { requireOperationalRequestParticipants } from '../lib/collaborators/request-workforce-policy.js';

@@ -36,7 +36,7 @@ import {
   setSessionCookie,
   setTrustedDeviceCookie,
   TRUSTED_DEVICE_COOKIE
-} from '../../lib/session-cookie.js';
+} from '../../lib/accounts/session-cookie.js';
 import {
   consumeTwoFactorBypass,
   createTwoFactorChallenge,

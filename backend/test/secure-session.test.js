@@ -7,7 +7,7 @@ import app from '../src/app.js';
 import env from '../src/config/env.js';
 import { hashPassword } from '../src/lib/password.js';
 import prisma from '../src/lib/prisma.js';
-import { parseCookies, SESSION_COOKIE, TRUSTED_DEVICE_COOKIE } from '../src/lib/session-cookie.js';
+import { parseCookies, SESSION_COOKIE, TRUSTED_DEVICE_COOKIE } from '../src/lib/accounts/session-cookie.js';
 import { csrfRejection, requireAuth } from '../src/middleware/auth.js';
 
 // Spec 041: sessão em cookie HttpOnly, CSRF por cabeçalho + origem, inatividade
