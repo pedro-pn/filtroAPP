@@ -575,6 +575,15 @@ jobs:
       - name: Build frontend
         run: npm run build
 
+      # O job "E2E (real stack)" testa exatamente este bundle (spec 040, D3).
+      - name: Upload production bundle for the real e2e job
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 1
+          if-no-files-found: error
+
       - name: Check page loading budgets
         run: npm run performance:check
 
@@ -738,6 +747,176 @@ jobs:
           echo "frontend-unit: ${{ needs.frontend-unit.result }} / frontend-browser: ${{ needs.frontend-browser.result }}"
           test "${{ needs.frontend-unit.result }}" = success
           test "${{ needs.frontend-browser.result }}" = success
+
+  e2e-real:
+    name: E2E (real stack)
+    # Spec 040: navegador → bundle de produção → backend real → PostgreSQL real,
+    # com o código do 2FA capturado pelo Mailpit. Informativo até 10 execuções
+    # seguidas sem falha (decisão D1); não entra nos agregadores Frontend/Backend.
+    needs: frontend-unit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: filtrovali_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d filtrovali_e2e"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      mailpit:
+        image: axllent/mailpit:v1.33.0
+        env:
+          MP_SMTP_AUTH_ACCEPT_ANY: "1"
+          MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+        ports:
+          - 1025:1025
+          - 8025:8025
+    env:
+      E2E_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/filtrovali_e2e
+      E2E_MAILPIT_URL: http://127.0.0.1:8025
+      E2E_SMTP_PORT: "1025"
+      E2E_SEED_OUTPUT: ${{ github.workspace }}/output/e2e-real/seed.json
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Restore frontend node_modules
+        id: nodemodules
+        uses: actions/cache@v6
+        with:
+          path: frontend/node_modules
+          key: frontend-node-modules-${{ runner.os }}-node24-${{ hashFiles('frontend/package-lock.json') }}
+
+      - name: Install frontend dependencies
+        if: steps.nodemodules.outputs.cache-hit != 'true'
+        working-directory: frontend
+        run: npm ci
+
+      # O backend roda da imagem de produção (backend/Dockerfile): mesmo Node,
+      # LibreOffice (PDF do RDO) e dependências que vão ao ar. Cache de camadas
+      # do GitHub Actions: o apt/pip/npm da imagem só roda quando mudam.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build production backend image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: backend/Dockerfile
+          load: true
+          tags: filtrovali-backend:e2e
+          build-args: APP_GIT_SHA=${{ github.sha }}
+          cache-from: type=gha,scope=backend-e2e
+          cache-to: type=gha,mode=max,scope=backend-e2e
+
+      - name: Apply migrations and seed the disposable database
+        run: |
+          mkdir -p output/e2e-real
+          docker run --rm --network host \
+            -e NODE_ENV=test -e TRUST_PROXY=false \
+            -e DATABASE_URL="$E2E_DATABASE_URL" \
+            -e E2E_SEED_OUTPUT=/out/seed.json \
+            -v "$PWD/output/e2e-real:/out" \
+            filtrovali-backend:e2e \
+            sh -c "npx prisma migrate deploy && node prisma/e2e-seed.js"
+
+      - name: Start the backend
+        run: |
+          mkdir -p output/e2e-real/storage
+          docker run -d --name e2e-backend --network host \
+            -e NODE_ENV=test -e TZ=America/Sao_Paulo -e PORT=4100 \
+            -e DATABASE_URL="$E2E_DATABASE_URL" -e TRUST_PROXY=false \
+            -e BACKGROUND_JOBS_IN_API=false -e TWO_FACTOR_ENFORCEMENT=on -e SEND_CLIENT_EMAILS=true \
+            -e SMTP_HOST=127.0.0.1 -e SMTP_PORT="$E2E_SMTP_PORT" -e SMTP_SECURE=false \
+            -e SMTP_AUTH_MODE=password -e SMTP_USER=e2e -e SMTP_PASS=e2e \
+            -e SMTP_FROM="Filtrovali E2E <no-reply@e2e.test>" -e APP_URL=http://127.0.0.1:4194 \
+            -e REPORTS_DIR=/data/relatorios -v "$PWD/output/e2e-real/storage:/data/relatorios" \
+            -e SIGNATURE_TOKEN_SECRET=e2e-signature-token-secret -e SURVEY_TOKEN_SECRET=e2e-survey-token-secret \
+            filtrovali-backend:e2e node src/server.js
+          for _ in $(seq 1 60); do
+            curl --fail --silent --max-time 2 http://127.0.0.1:4100/health && exit 0
+            sleep 1
+          done
+          docker logs e2e-backend >&2
+          exit 1
+
+      - name: Download production bundle
+        uses: actions/download-artifact@v7
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - name: Wait for Mailpit
+        run: |
+          for _ in $(seq 1 30); do
+            curl --fail --silent --max-time 2 "$E2E_MAILPIT_URL/api/v1/info" > /dev/null && exit 0
+            sleep 1
+          done
+          echo "Mailpit não respondeu em 30 s" >&2
+          exit 1
+
+      - name: Resolve Playwright version
+        id: playwright
+        working-directory: frontend
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Playwright Chromium
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cache/ms-playwright
+            ~/apt-archives
+          key: playwright-chromium-ubuntu-24.04-${{ steps.playwright.outputs.version }}
+
+      - name: Install Chromium
+        timeout-minutes: 15
+        working-directory: frontend
+        run: |
+          # Mesmo esquema do frontend-browser: navegador do cache e, só se ele
+          # não abrir, dependências do sistema (cache de .deb e depois a rede).
+          npx playwright install chromium
+          probe() {
+            node -e "require('@playwright/test').chromium.launch().then(b => b.close()).catch(e => { console.error(e.message); process.exit(1); })"
+          }
+          if probe; then exit 0; fi
+          if ls ~/apt-archives/*.deb > /dev/null 2>&1 \
+            && sudo apt-get install -y --no-download --no-install-recommends ~/apt-archives/*.deb && probe; then
+            exit 0
+          fi
+          npx playwright install --with-deps chromium
+
+      - name: Run real end-to-end journeys
+        working-directory: frontend
+        env:
+          E2E_BACKEND_EXTERNAL: "1"
+        run: npm run test:e2e:real
+
+      - name: Collect backend log and captured e-mails
+        if: failure()
+        run: |
+          mkdir -p output/e2e-real
+          docker logs e2e-backend > output/e2e-real/backend.log 2>&1 || true
+          curl --silent --max-time 5 "$E2E_MAILPIT_URL/api/v1/messages?limit=50" > output/e2e-real/mailpit-messages.json || true
+
+      - name: Upload real e2e report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-real-report
+          path: output/e2e-real
+          if-no-files-found: warn
 
   docker:
     name: Docker
