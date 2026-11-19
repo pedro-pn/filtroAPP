@@ -39,10 +39,17 @@ jobs:
       - name: Run architecture check
         run: npm run architecture:check
 
-  backend:
-    name: Backend
+  # Os testes do backend rodam em 3 fatias paralelas (cada uma com seu
+  # PostgreSQL); o job "Backend" abaixo só consolida o resultado, para o nome
+  # exigido na proteção da main continuar o mesmo.
+  backend-tests:
+    name: Backend tests (${{ matrix.shard }}/3)
     # Keep native package installation on a fixed runner image.
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     services:
       postgres:
         image: postgres:16
@@ -99,12 +106,13 @@ jobs:
         run: npm ci
 
       - name: Generate audit report
+        if: matrix.shard == 1
         run: |
           mkdir -p ../audit-reports
           npm audit --audit-level=high --json > ../audit-reports/backend-audit.json
 
       - name: Upload backend audit report
-        if: always()
+        if: always() && matrix.shard == 1
         uses: actions/upload-artifact@v7
         with:
           name: backend-audit
@@ -173,13 +181,25 @@ jobs:
           sudo chown -R "$(id -u):$(id -g)" ~/apt-archives
 
       - name: Run Data Book generator tests
+        if: matrix.shard == 1
         working-directory: backend/databook
         run: python -m unittest discover -s tests -v
 
-      - name: Run backend tests
+      - name: Run backend tests (shard)
         env:
           DATABOOK_PYTHON: python
-        run: npm test
+        run: node scripts/run-test-shard.js --shard=${{ matrix.shard }} --of=3
+
+  backend:
+    name: Backend
+    if: always()
+    needs: [backend-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every backend test shard to succeed
+        run: |
+          echo "backend-tests: ${{ needs.backend-tests.result }}"
+          test "${{ needs.backend-tests.result }}" = success
 
   commercial-contributions:
     name: Commercial contributions (PostgreSQL)
@@ -502,8 +522,10 @@ jobs:
       - name: Verify mixed primary categories, secondary alternatives, permissions, bootstrap and operation manual photos
         run: node --test test/rdo-equipment-slots.test.js test/rdo-equipment-slots.integration.test.js test/equipment-operation-manual.integration.test.js
 
-  frontend:
-    name: Frontend
+  # Unitários/lint/build e navegador rodam em paralelo; o job "Frontend" abaixo
+  # consolida o resultado, para o nome exigido na proteção da main continuar o mesmo.
+  frontend-unit:
+    name: Frontend unit, lint and build
     # Keep browser dependencies on the same fixed Ubuntu release.
     runs-on: ubuntu-24.04
     defaults:
@@ -517,11 +539,19 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+
+      # node_modules inteiro em cache pelo lockfile: com cache, o `npm ci` (~1 min) é pulado.
+      - name: Restore frontend node_modules
+        id: nodemodules
+        uses: actions/cache@v6
+        with:
+          path: frontend/node_modules
+          key: frontend-node-modules-${{ runner.os }}-node24-${{ hashFiles('frontend/package-lock.json') }}
 
       - name: Install dependencies
+        if: steps.nodemodules.outputs.cache-hit != 'true'
         run: npm ci
+
 
       - name: Generate audit report
         run: |
@@ -547,6 +577,39 @@ jobs:
 
       - name: Check page loading budgets
         run: npm run performance:check
+
+  frontend-browser:
+    name: Frontend browser (${{ matrix.group }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        # rdo: suíte de formulários/notificações do RDO (a mais longa);
+        # others: EPI, carregamento de páginas, Efetivo e CONECTA RH.
+        group: [rdo, others]
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      # node_modules inteiro em cache pelo lockfile: com cache, o `npm ci` (~1 min) é pulado.
+      - name: Restore frontend node_modules
+        id: nodemodules
+        uses: actions/cache@v6
+        with:
+          path: frontend/node_modules
+          key: frontend-node-modules-${{ runner.os }}-node24-${{ hashFiles('frontend/package-lock.json') }}
+
+      - name: Install dependencies
+        if: steps.nodemodules.outputs.cache-hit != 'true'
+        run: npm ci
 
       - name: Prepare DNS for Ubuntu packages
         run: |
@@ -602,21 +665,26 @@ jobs:
           sudo chown -R "$(id -u):$(id -g)" ~/apt-archives
 
       - name: Verify EPI catalog sizes and required delivery selection in the browser
+        if: matrix.group == 'others'
         run: npx playwright test --config=playwright.quality-epi.config.ts --project=chromium epi-sizes.spec.ts
 
       - name: Verify RDO forms, notifications and equipment selection in the browser
+        if: matrix.group == 'rdo'
         run: >-
           npx playwright test --config=playwright.rdo.config.ts
           rdo-notifications-equipment.behavior.spec.ts rdo-project-context.behavior.spec.ts
           rdo-service-only-permission.behavior.spec.ts
 
       - name: Verify page loading, useful content and cross-context updates
+        if: matrix.group == 'others'
         run: npm run test:performance
 
       - name: Verify Efetivo project closeout and satisfaction surveys in the browser
+        if: matrix.group == 'others'
         run: npx playwright test --config=playwright.efetivo.config.ts
 
       - name: Verify CONECTA RH pre-admission confirmation in the browser
+        if: matrix.group == 'others'
         run: npx playwright test --config=playwright.conecta.config.ts
 
       - name: Upload page performance browser regression report
@@ -658,6 +726,18 @@ jobs:
           name: notifications-equipment-browser-report
           path: output/playwright/rdo-a1
           if-no-files-found: warn
+
+  frontend:
+    name: Frontend
+    if: always()
+    needs: [frontend-unit, frontend-browser]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every Frontend job to succeed
+        run: |
+          echo "frontend-unit: ${{ needs.frontend-unit.result }} / frontend-browser: ${{ needs.frontend-browser.result }}"
+          test "${{ needs.frontend-unit.result }}" = success
+          test "${{ needs.frontend-browser.result }}" = success
 
   docker:
     name: Docker
