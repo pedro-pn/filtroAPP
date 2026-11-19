@@ -147,11 +147,32 @@ jobs:
           else
             echo 'Extra Ubuntu mirror unavailable; keeping the runner default mirrors.'
           fi
-          printf 'Acquire::Retries "1";\nAcquire::http::Timeout "20";\nAcquire::https::Timeout "20";\n' | sudo tee /etc/apt/apt.conf.d/zz-ci-retries > /dev/null
+          printf 'Acquire::Retries "3";\nAcquire::http::Timeout "20";\nAcquire::https::Timeout "20";\n' | sudo tee /etc/apt/apt.conf.d/zz-ci-retries > /dev/null
+
+      # Mesmo cuidado do Chromium no job Frontend: os .deb ficam em cache e, com
+      # cache, a instalação não toca o espelho do apt.
+      - name: Restore Hunspell Ubuntu packages
+        id: hunspellcache
+        uses: actions/cache@v6
+        with:
+          path: ~/apt-archives
+          key: hunspell-pt-br-ubuntu-24.04-v1
 
       - name: Install Hunspell pt-BR (revisão ortográfica do Data Book)
-        timeout-minutes: 5
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends hunspell hunspell-pt-br
+        timeout-minutes: 15
+        run: |
+          if [ "${{ steps.hunspellcache.outputs.cache-hit }}" = "true" ] && ls ~/apt-archives/*.deb > /dev/null 2>&1 \
+            && sudo apt-get install -y --no-download --no-install-recommends ~/apt-archives/*.deb; then
+            exit 0
+          fi
+          echo "Cache de pacotes indisponível ou incompatível: instalando pela rede."
+          mkdir -p ~/apt-archives/partial
+          printf 'Dir::Cache::Archives "%s/apt-archives/";\nAPT::Keep-Downloaded-Packages "true";\n' "$HOME" \
+            | sudo tee /etc/apt/apt.conf.d/zz-ci-archive-cache > /dev/null
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends hunspell hunspell-pt-br
+          # O apt grava como root; o cache só salva o que o runner consegue ler.
+          sudo rm -rf ~/apt-archives/partial ~/apt-archives/lock
+          sudo chown -R "$(id -u):$(id -g)" ~/apt-archives
 
       - name: Run Data Book generator tests
         working-directory: backend/databook
@@ -550,10 +571,11 @@ jobs:
         id: playwright
         run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
 
-      # O espelho do apt da Ubuntu às vezes leva minutos por pacote. O navegador
-      # e os .deb das dependências ficam em cache por versão do Playwright; numa
-      # execução com cache o apt só baixa o índice e pacotes que mudaram.
+      # O espelho do apt da Ubuntu às vezes trava (pacotes ou o próprio índice).
+      # O navegador e os .deb das dependências ficam em cache por versão do
+      # Playwright; com cache, nada é baixado do espelho.
       - name: Restore Playwright Chromium and its Ubuntu packages
+        id: pwcache
         uses: actions/cache@v6
         with:
           path: |
@@ -564,6 +586,15 @@ jobs:
       - name: Install Chromium for notification and equipment regressions
         timeout-minutes: 15
         run: |
+          # Com cache: instala os .deb guardados sem `apt-get update` (o índice do
+          # espelho é o que mais trava) e só copia o navegador do cache. Se o
+          # runner tiver versões mais novas ou faltar algo, cai para a rede.
+          if [ "${{ steps.pwcache.outputs.cache-hit }}" = "true" ] && ls ~/apt-archives/*.deb > /dev/null 2>&1 \
+            && sudo apt-get install -y --no-download --no-install-recommends ~/apt-archives/*.deb; then
+            npx playwright install chromium
+            exit 0
+          fi
+          echo "Cache de pacotes indisponível ou incompatível: instalando pela rede."
           mkdir -p ~/apt-archives/partial
           printf 'Dir::Cache::Archives "%s/apt-archives/";\nAPT::Keep-Downloaded-Packages "true";\n' "$HOME" \
             | sudo tee /etc/apt/apt.conf.d/zz-ci-archive-cache > /dev/null
