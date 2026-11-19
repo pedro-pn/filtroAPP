@@ -9,7 +9,9 @@ import { defineConfig, devices } from '@playwright/test';
 // Pré-requisitos (o job "E2E (real stack)" do CI e `npm run test:e2e:real`
 // cuidam disso): banco descartável terminado em `_e2e` em E2E_DATABASE_URL com
 // as migrations aplicadas e `backend/prisma/e2e-seed.js` rodado; Mailpit em
-// E2E_SMTP_PORT/E2E_MAILPIT_URL; `npm run build` já feito (pasta dist).
+// E2E_SMTP_PORT/E2E_MAILPIT_URL; `npm run build` já feito (pasta dist). Para o
+// PDF do RDO o backend precisa do LibreOffice (`soffice` no PATH ou
+// LIBREOFFICE_BINARY); no CI ele vem da imagem de produção (E2E_BACKEND_EXTERNAL=1).
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..');
@@ -30,6 +32,9 @@ if (!databaseName.endsWith('_e2e')) {
 const backendPort = Number(process.env.E2E_BACKEND_PORT ?? 4100);
 const frontendPort = Number(process.env.E2E_FRONTEND_PORT ?? 4194);
 const backendURL = `http://127.0.0.1:${backendPort}`;
+// No CI o backend roda da imagem de produção (backend/Dockerfile, com o
+// LibreOffice que gera o PDF do RDO) e já está no ar quando o Playwright começa.
+const externalBackend = process.env.E2E_BACKEND_EXTERNAL === '1';
 const baseURL = `http://127.0.0.1:${frontendPort}`;
 
 export default defineConfig({
@@ -58,10 +63,12 @@ export default defineConfig({
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: [
     {
-      command: 'node src/server.js',
+      command: externalBackend
+        ? `echo "backend externo não respondeu em ${backendURL}/health" >&2; exit 1`
+        : 'node src/server.js',
       cwd: path.join(repoRoot, 'backend'),
       url: `${backendURL}/health`,
-      reuseExistingServer: false,
+      reuseExistingServer: externalBackend,
       timeout: 120_000,
       stdout: 'pipe',
       stderr: 'pipe',

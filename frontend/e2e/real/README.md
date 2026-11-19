@@ -24,6 +24,11 @@ export E2E_SEED_OUTPUT="$PWD/output/e2e-real/seed.json"
 (cd frontend && npm run build && npm run test:e2e:real)
 ```
 
+A jornada do PDF precisa do LibreOffice no backend (`soffice` no PATH ou
+`LIBREOFFICE_BINARY`). No CI o backend roda da imagem de produção
+(`backend/Dockerfile`), que já o traz, e o Playwright só sobe o `vite preview`
+(`E2E_BACKEND_EXTERNAL=1`).
+
 O seed (`backend/prisma/e2e-seed.js`) só cria dados fictícios e recusa bancos que não
 terminem em `_e2e`. O relatório e os traces ficam em `output/e2e-real/`.
 

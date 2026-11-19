@@ -804,17 +804,53 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Install backend dependencies
-        working-directory: backend
-        run: npm ci && npm run prisma:generate
+      # O backend roda da imagem de produção (backend/Dockerfile): mesmo Node,
+      # LibreOffice (PDF do RDO) e dependências que vão ao ar. Cache de camadas
+      # do GitHub Actions: o apt/pip/npm da imagem só roda quando mudam.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build production backend image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: backend/Dockerfile
+          load: true
+          tags: filtrovali-backend:e2e
+          build-args: APP_GIT_SHA=${{ github.sha }}
+          cache-from: type=gha,scope=backend-e2e
+          cache-to: type=gha,mode=max,scope=backend-e2e
 
       - name: Apply migrations and seed the disposable database
-        working-directory: backend
-        env:
-          DATABASE_URL: ${{ env.E2E_DATABASE_URL }}
         run: |
-          npm run prisma:deploy
-          npm run e2e:seed
+          mkdir -p output/e2e-real
+          docker run --rm --network host \
+            -e NODE_ENV=test -e TRUST_PROXY=false \
+            -e DATABASE_URL="$E2E_DATABASE_URL" \
+            -e E2E_SEED_OUTPUT=/out/seed.json \
+            -v "$PWD/output/e2e-real:/out" \
+            filtrovali-backend:e2e \
+            sh -c "npx prisma migrate deploy && node prisma/e2e-seed.js"
+
+      - name: Start the backend
+        run: |
+          mkdir -p output/e2e-real/storage
+          docker run -d --name e2e-backend --network host \
+            -e NODE_ENV=test -e TZ=America/Sao_Paulo -e PORT=4100 \
+            -e DATABASE_URL="$E2E_DATABASE_URL" -e TRUST_PROXY=false \
+            -e BACKGROUND_JOBS_IN_API=false -e TWO_FACTOR_ENFORCEMENT=on -e SEND_CLIENT_EMAILS=true \
+            -e SMTP_HOST=127.0.0.1 -e SMTP_PORT="$E2E_SMTP_PORT" -e SMTP_SECURE=false \
+            -e SMTP_AUTH_MODE=password -e SMTP_USER=e2e -e SMTP_PASS=e2e \
+            -e SMTP_FROM="Filtrovali E2E <no-reply@e2e.test>" -e APP_URL=http://127.0.0.1:4194 \
+            -e REPORTS_DIR=/data/relatorios -v "$PWD/output/e2e-real/storage:/data/relatorios" \
+            -e SIGNATURE_TOKEN_SECRET=e2e-signature-token-secret -e SURVEY_TOKEN_SECRET=e2e-survey-token-secret \
+            filtrovali-backend:e2e node src/server.js
+          for _ in $(seq 1 60); do
+            curl --fail --silent --max-time 2 http://127.0.0.1:4100/health && exit 0
+            sleep 1
+          done
+          docker logs e2e-backend >&2
+          exit 1
 
       - name: Download production bundle
         uses: actions/download-artifact@v7
@@ -863,12 +899,15 @@ jobs:
 
       - name: Run real end-to-end journeys
         working-directory: frontend
+        env:
+          E2E_BACKEND_EXTERNAL: "1"
         run: npm run test:e2e:real
 
-      - name: Dump captured e-mails
+      - name: Collect backend log and captured e-mails
         if: failure()
         run: |
           mkdir -p output/e2e-real
+          docker logs e2e-backend > output/e2e-real/backend.log 2>&1 || true
           curl --silent --max-time 5 "$E2E_MAILPIT_URL/api/v1/messages?limit=50" > output/e2e-real/mailpit-messages.json || true
 
       - name: Upload real e2e report
