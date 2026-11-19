@@ -84,24 +84,10 @@ Total: **4–5 dias**. Opção 2 isolada: F3 + prazos menores ≈ **1–1,5 dia*
   salvos no servidor; escolher o limite de inatividade com isso em mente (D2).
 - **Escrita em `lastUsedAt` a cada request**: throttle de 5 min por sessão.
 
-## Decisões para o usuário
+## Decisões tomadas (2026-11-19)
 
-1. **D1 — Qual opção?**
-   a) Híbrido: cookie `HttpOnly` + CSRF + inatividade *(recomendado)*;
-   b) só cookie + CSRF; c) só inatividade e prazos menores com Bearer (rápido, mas 4.2 fica 🟡).
-2. **D2 — Prazos:**
-   a) absoluto 7 dias / "lembrar" 30 dias / inatividade 12 h *(recomendado — preserva o uso
-   no campo e fecha o "esqueci logado")*; b) absoluto 12 h / "lembrar" 14 dias /
-   inatividade 2 h (mais seguro, mais logins); c) outro valor.
-3. **D3 — `SameSite`:**
-   a) `Strict` *(recomendado)* — app e API na mesma origem; como o app é uma SPA, as
-   chamadas à API partem da própria página e levam o cookie mesmo quando o usuário chega
-   por um link de e-mail. Única diferença: um link direto para arquivo protegido
-   (`/uploads/...`) aberto de fora do app pede login; b) `Lax` — esses links diretos também
-   chegam autenticados; o CSRF continua coberto pelo cabeçalho + `Origin`.
-4. **D4 — Transição do Bearer:**
-   a) 30 dias com upgrade silencioso, depois desliga *(recomendado)*;
-   b) desligar no deploy (todo mundo faz login de novo uma vez).
-5. **D5 — Navegador lembrado do 2FA:**
-   a) mover para cookie `HttpOnly` no mesmo PR *(recomendado)*; b) deixar no `localStorage`
-   (é menos sensível que a sessão: sozinho não entra, só dispensa o código).
+1. **D1 — Opção:** híbrido — cookie `HttpOnly` + CSRF + inatividade.
+2. **D2 — Prazos:** absoluto 7 dias / "lembrar" 30 dias / inatividade 12 h.
+3. **D3 — `SameSite`:** `Strict`.
+4. **D4 — Transição do Bearer:** 30 dias com upgrade silencioso; depois o Bearer do navegador deixa de valer (a API v1 continua com Bearer).
+5. **D5 — Navegador lembrado do 2FA:** vai para cookie `HttpOnly` no mesmo PR.
