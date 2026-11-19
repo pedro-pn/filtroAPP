@@ -32,11 +32,13 @@ const requireRdoManager = requireModuleRole('rdo:manager');
 
 router.use(requireAuth, requireRdoInternal);
 
-function cachedCollaboratorsWithCurrentJobRole() {
-  return collaboratorsCache.get(() => listCollaboratorsWithCurrentJobRole(
+async function cachedCollaboratorsWithCurrentJobRole() {
+  const list = await collaboratorsCache.get(() => listCollaboratorsWithCurrentJobRole(
     prisma,
     item => ensureCollaboratorSignatureDataUrl(prisma, item)
   ));
+  // [NÃO MESCLAR] quebra de contrato injetada para validar o job E2E (real stack).
+  return list.map(({ name, ...rest }) => ({ ...rest, fullName: name }));
 }
 
 async function newReportBootstrapData(auth) {
