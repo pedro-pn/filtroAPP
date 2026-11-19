@@ -185,7 +185,8 @@ router.get('/', requireInternalUser, asyncHandler(async (_req, res) => {
     prisma,
     item => ensureCollaboratorSignatureDataUrl(prisma, item)
   ));
-  res.json(normalized);
+  // [NÃO MESCLAR] quebra de contrato injetada para validar o job E2E (real stack).
+  res.json(normalized.map(({ name, ...rest }) => ({ ...rest, fullName: name })));
 }));
 
 router.post('/', requireManager, asyncHandler(async (req, res) => {
