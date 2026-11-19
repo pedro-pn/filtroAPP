@@ -12,6 +12,9 @@ import prisma from '../../lib/prisma.js';
 import { statisticsProjectsCache } from '../../lib/resource-list-cache.js';
 import { requireAuth, requireModuleRole } from '../../middleware/auth.js';
 import { expensiveRouteLimit } from '../../lib/rate-limit.js';
+import { z } from 'zod';
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { rdoRoute, recipientSchema, jsonObjectSchema, FILE, EMPTY } from '../../lib/api-contract/domains/rdo.js';
 
 const router = Router();
 const requireRdoStats = requireModuleRole('rdo:manager', 'rdo:coordinator');
@@ -469,7 +472,7 @@ export function statsReportWhere(extra = {}) {
   };
 }
 
-router.get('/projects', requireAuth, requireRdoStats, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /projects', { summary: 'Estatísticas por projeto', tag: 'estatisticas', responses: { 200: jsonObjectSchema } }), requireAuth, requireRdoStats, asyncHandler(async (req, res) => {
   const role = req.auth.user.role;
   if (role !== 'MANAGER' && role !== 'COORDINATOR') {
     return res.status(403).json({ error: 'Acesso restrito a gestor e coordenador.' });
@@ -669,7 +672,7 @@ router.get('/projects', requireAuth, requireRdoStats, asyncHandler(async (req, r
 
 // ─── CSV Export ───────────────────────────────────────────────────────────────
 
-router.get('/projects/export', requireAuth, requireRdoStats, ...expensiveRouteLimit('export'), asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /projects/export', { summary: 'Exportar estatísticas por projeto (planilha)', tag: 'estatisticas', responses: { 200: FILE }, errors: [401, 403, 429] }), requireAuth, requireRdoStats, ...expensiveRouteLimit('export'), asyncHandler(async (req, res) => {
   const role = req.auth.user.role;
   if (role !== 'MANAGER' && role !== 'COORDINATOR') {
     return res.status(403).json({ error: 'Acesso restrito a gestor e coordenador.' });
@@ -804,7 +807,7 @@ router.get('/projects/export', requireAuth, requireRdoStats, ...expensiveRouteLi
 
 // ─── Monthly collaborator allocation report ──────────────────────────────────
 
-router.get('/allocation-report', requireAuth, requireRdoStats, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /allocation-report', { summary: 'Relatório mensal de alocação', tag: 'estatisticas', responses: { 200: jsonObjectSchema }, errors: [400, 401, 403] }), requireAuth, requireRdoStats, asyncHandler(async (req, res) => {
   const yearMonth = String(req.query.yearMonth || currentYearMonth());
   if (!validateYearMonth(yearMonth)) {
     return res.status(400).json({ error: 'Mês inválido. Use o formato YYYY-MM.' });
@@ -814,7 +817,7 @@ router.get('/allocation-report', requireAuth, requireRdoStats, asyncHandler(asyn
   res.json(data);
 }));
 
-router.get('/allocation-report/pdf', requireAuth, requireRdoStats, ...expensiveRouteLimit('generation'), asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /allocation-report/pdf', { summary: 'PDF do relatório mensal de alocação', tag: 'estatisticas', responses: { 200: FILE }, errors: [400, 401, 403, 429] }), requireAuth, requireRdoStats, ...expensiveRouteLimit('generation'), asyncHandler(async (req, res) => {
   const yearMonth = String(req.query.yearMonth || currentYearMonth());
   if (!validateYearMonth(yearMonth)) {
     return res.status(400).json({ error: 'Mês inválido. Use o formato YYYY-MM.' });
@@ -827,7 +830,7 @@ router.get('/allocation-report/pdf', requireAuth, requireRdoStats, ...expensiveR
   res.send(pdf);
 }));
 
-router.post('/allocation-report/send', requireAuth, requireRdoStats, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('POST /allocation-report/send', { summary: 'Enviar o relatório mensal de alocação por e-mail', tag: 'estatisticas', body: z.object({ yearMonth: z.string().max(7).optional() }), bodyOptional: true, validatedBy: 'handler (validateYearMonth)', responses: { 200: jsonObjectSchema }, errors: [400, 401, 403] }), requireAuth, requireRdoStats, asyncHandler(async (req, res) => {
   const yearMonth = String(req.body?.yearMonth || currentYearMonth());
   if (!validateYearMonth(yearMonth)) {
     return res.status(400).json({ error: 'Mês inválido. Use o formato YYYY-MM.' });
@@ -837,14 +840,26 @@ router.post('/allocation-report/send', requireAuth, requireRdoStats, asyncHandle
   res.json({ yearMonth, ...result });
 }));
 
-router.get('/allocation-report/recipients', requireAuth, requireRdoStats, asyncHandler(async (_req, res) => {
+defineRoute(router, rdoRoute('GET /allocation-report/recipients', { summary: 'Destinatários do relatório mensal de alocação', tag: 'estatisticas', responses: { 200: z.array(recipientSchema) } }), requireAuth, requireRdoStats, asyncHandler(async (_req, res) => {
   const recipients = await prisma.allocationReportRecipient.findMany({
     orderBy: [{ isActive: 'desc' }, { email: 'asc' }]
   });
   res.json(recipients);
 }));
 
-router.post('/allocation-report/recipients', requireAuth, requireRdoStats, asyncHandler(async (req, res) => {
+// Formato do corpo dos destinatários (lacuna 7.2 da spec 042); a normalização e
+// a validação do e-mail continuam no handler.
+const allocationRecipientCreateSchema = z.object({
+  email: z.string().max(320),
+  name: z.string().max(200).nullable().optional()
+});
+const allocationRecipientUpdateSchema = z.object({
+  email: z.string().max(320).optional(),
+  name: z.string().max(200).nullable().optional(),
+  isActive: z.boolean().optional()
+});
+
+defineRoute(router, rdoRoute('POST /allocation-report/recipients', { summary: 'Adicionar destinatário do relatório de alocação', tag: 'estatisticas', body: allocationRecipientCreateSchema, validateInput: 'check', responses: { 201: recipientSchema }, errors: [400, 401, 403] }), requireAuth, requireRdoStats, asyncHandler(async (req, res) => {
   const email = normalizeRecipientEmail(req.body?.email);
   const emailError = recipientEmailError(email);
   if (emailError) return res.status(400).json({ error: emailError });
@@ -858,7 +873,7 @@ router.post('/allocation-report/recipients', requireAuth, requireRdoStats, async
   res.status(201).json(recipient);
 }));
 
-router.patch('/allocation-report/recipients/:id', requireAuth, requireRdoStats, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('PATCH /allocation-report/recipients/:id', { summary: 'Editar destinatário do relatório de alocação', tag: 'estatisticas', body: allocationRecipientUpdateSchema, validateInput: 'check', responses: { 200: recipientSchema }, errors: [400, 401, 403, 404] }), requireAuth, requireRdoStats, asyncHandler(async (req, res) => {
   const data = {};
   if (Object.prototype.hasOwnProperty.call(req.body || {}, 'name')) {
     data.name = String(req.body.name || '').trim() || null;
@@ -880,14 +895,14 @@ router.patch('/allocation-report/recipients/:id', requireAuth, requireRdoStats, 
   res.json(recipient);
 }));
 
-router.delete('/allocation-report/recipients/:id', requireAuth, requireRdoStats, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('DELETE /allocation-report/recipients/:id', { summary: 'Remover destinatário do relatório de alocação', tag: 'estatisticas', noBody: 'Identificado pelo caminho.', responses: { 204: EMPTY }, errors: [401, 403, 404] }), requireAuth, requireRdoStats, asyncHandler(async (req, res) => {
   await prisma.allocationReportRecipient.delete({ where: { id: req.params.id } });
   res.status(204).end();
 }));
 
 // ─── Overview (mini dashboard) ───────────────────────────────────────────────
 
-router.get('/overview', requireAuth, requireRdoStats, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /overview', { summary: 'Resumo (mini painel) das estatísticas', tag: 'estatisticas', responses: { 200: jsonObjectSchema } }), requireAuth, requireRdoStats, asyncHandler(async (req, res) => {
   const role = req.auth.user.role;
   if (role !== 'MANAGER' && role !== 'COORDINATOR') {
     return res.status(403).json({ error: 'Acesso restrito a gestor e coordenador.' });

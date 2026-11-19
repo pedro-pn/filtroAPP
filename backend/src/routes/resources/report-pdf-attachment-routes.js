@@ -12,6 +12,9 @@ import {
   reportPdfAttachmentSelect, validateReportPdfAttachment
 } from '../../lib/reports/pdf-attachments.js';
 import { expensiveRouteLimit } from '../../lib/rate-limit.js';
+import { z } from 'zod';
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { rdoRoute, pdfAttachmentSchema, jsonObjectSchema, FILE, EMPTY } from '../../lib/api-contract/domains/rdo.js';
 
 export function registerReportPdfAttachmentRoutes(router, { database, uploadDir, isUnavailable, sendDownloadBuffer }) {
   const access = [requireAuth, requireModuleRole(...RDO_ACCESS_ROLES), requireRdoReviewer];
@@ -36,7 +39,7 @@ export function registerReportPdfAttachmentRoutes(router, { database, uploadDir,
     });
   }
 
-  router.get('/:id/pdf-attachments', ...access, asyncHandler(async (req, res) => {
+  defineRoute(router, rdoRoute('GET /:id/pdf-attachments', { summary: 'Listar os PDFs anexados ao relatório', responses: { 200: z.array(pdfAttachmentSchema) }, errors: [401, 403, 404] }), ...access, asyncHandler(async (req, res) => {
     if (!await accessibleReport(database, req, res)) return;
     res.setHeader('Cache-Control', 'no-store');
     res.json(await database.reportPdfAttachment.findMany({
@@ -44,7 +47,7 @@ export function registerReportPdfAttachmentRoutes(router, { database, uploadDir,
     }));
   }));
 
-  router.post('/:id/pdf-attachments', ...access, ...expensiveRouteLimit('upload'), asyncHandler(async (req, res) => {
+  defineRoute(router, rdoRoute('POST /:id/pdf-attachments', { summary: 'Anexar um PDF ao relatório', responses: { 201: pdfAttachmentSchema }, errors: [400, 401, 403, 404, 409, 413, 429], body: reportPdfAttachmentSchema }), ...access, ...expensiveRouteLimit('upload'), asyncHandler(async (req, res) => {
     if (!await accessibleReport(database, req, res)) return;
     const data = reportPdfAttachmentSchema.parse(req.body);
     const { bytes, pageCount } = await validateReportPdfAttachment(data.pdfDataUrl);
@@ -83,7 +86,7 @@ export function registerReportPdfAttachmentRoutes(router, { database, uploadDir,
     }
   }));
 
-  router.patch('/:id/pdf-attachments/order', ...access, asyncHandler(async (req, res) => {
+  defineRoute(router, rdoRoute('PATCH /:id/pdf-attachments/order', { summary: 'Reordenar os PDFs anexados', responses: { 200: z.array(pdfAttachmentSchema) }, errors: [400, 401, 403, 404, 409], body: reportPdfAttachmentOrderSchema }), ...access, asyncHandler(async (req, res) => {
     const data = reportPdfAttachmentOrderSchema.parse(req.body);
     const ordered = await database.$transaction(async tx => {
       await tx.$queryRaw`SELECT "id" FROM "Report" WHERE "id" = ${req.params.id} FOR UPDATE`;
@@ -102,7 +105,7 @@ export function registerReportPdfAttachmentRoutes(router, { database, uploadDir,
     if (ordered) res.json(ordered);
   }));
 
-  router.get('/:id/pdf-attachments/:attachmentId/pdf', ...access, ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
+  defineRoute(router, rdoRoute('GET /:id/pdf-attachments/:attachmentId/pdf', { summary: 'Baixar um PDF anexado', responses: { 200: FILE }, errors: [401, 403, 404, 429] }), ...access, ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
     if (!await accessibleReport(database, req, res)) return;
     const attachment = await database.reportPdfAttachment.findFirst({
       where: { id: req.params.attachmentId, reportId: req.params.id }
@@ -115,7 +118,7 @@ export function registerReportPdfAttachmentRoutes(router, { database, uploadDir,
     sendDownloadBuffer(res, { contentType: 'application/pdf', fileName: attachment.fileName, buffer });
   }));
 
-  router.delete('/:id/pdf-attachments/:attachmentId', ...access, asyncHandler(async (req, res) => {
+  defineRoute(router, rdoRoute('DELETE /:id/pdf-attachments/:attachmentId', { summary: 'Remover um PDF anexado', noBody: 'Identificado pelo caminho.', responses: { 200: jsonObjectSchema, 204: EMPTY }, errors: [401, 403, 404, 409] }), ...access, asyncHandler(async (req, res) => {
     const removed = await database.$transaction(async tx => {
       await tx.$queryRaw`SELECT "id" FROM "Report" WHERE "id" = ${req.params.id} FOR UPDATE`;
       if (!await accessibleReport(tx, req, res)) return null;

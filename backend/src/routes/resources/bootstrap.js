@@ -25,6 +25,8 @@ import { RDO_INTERNAL_ROLES, requireAuth, requireModuleRole } from '../../middle
 import { rdoDraftItems } from './drafts.js';
 import { projectListInclude, projectListWhereForAuth } from './projects.js';
 import { activeSurveyQuestions, safeQuestion } from './surveys.js';
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { rdoRoute, jsonObjectSchema } from '../../lib/api-contract/domains/rdo.js';
 
 const router = Router();
 const requireRdoInternal = requireModuleRole(...RDO_INTERNAL_ROLES);
@@ -101,11 +103,11 @@ async function newReportBootstrapData(auth) {
   };
 }
 
-router.get('/new-report', asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /new-report', { summary: 'Dados para abrir o formulário de novo RDO', tag: 'rdo-bootstrap', responses: { 200: jsonObjectSchema } }), asyncHandler(async (req, res) => {
   res.json(await newReportBootstrapData(req.auth));
 }));
 
-router.get('/report-detail/:reportId', asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /report-detail/:reportId', { summary: 'Dados para a tela de detalhe do relatório', tag: 'rdo-bootstrap', responses: { 200: jsonObjectSchema }, errors: [401, 403, 404] }), asyncHandler(async (req, res) => {
   const reportProjectWhere = await projectListWhereForAuth(req.auth, undefined, prisma, { includeRegistrationPending: false });
   const [data, equipment, sequenceReports] = await Promise.all([
     newReportBootstrapData(req.auth),
@@ -194,7 +196,7 @@ export async function gestorBootstrapData(auth, section) {
   };
 }
 
-router.get('/gestor', requireRdoManager, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /gestor', { summary: 'Dados do painel do gestor (por seção)', tag: 'rdo-bootstrap', responses: { 200: jsonObjectSchema }, errors: [400, 401, 403], query: gestorBootstrapQuery }), requireRdoManager, asyncHandler(async (req, res) => {
   const { section } = gestorBootstrapQuery.parse(req.query);
   res.json(await gestorBootstrapData(req.auth, section));
 }));

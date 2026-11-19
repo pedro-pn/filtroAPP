@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -112,6 +111,7 @@ import {
   updateManualReportOperationalData
 } from '../../lib/reports/manual-operational-data.js';
 import { MAX_MANUAL_REPORT_PDF_DATA_URL_LENGTH, decodeManualReportPdfDataUrl, extractManualReportPdfFields } from '../../lib/reports/manual-pdf-extraction.js';
+import { hasManualReportPdf, manualPdfMultipart, manualReportPdfBytes, missingManualPdf, saveManualReportPdf } from '../../lib/reports/manual-pdf-upload.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
 import { EFETIVO_ACCESS_ROLES } from '../../lib/efetivo/access.js';
 import { createReportPdfAccessChecker, reportDateFromWhere, reportListUsesSummarySelect } from '../../lib/reports/report-route-helpers.js';
@@ -133,6 +133,8 @@ import { createReportPdfAttachmentAppender, withReportPdfAttachmentCount } from 
 import { canCreateServiceOnlyRdoReports, canReviewRdoReports } from '../../../../shared/modules/rdo-permissions.js';
 import { isValidReportDate, REPORT_DATE_ERROR } from '../../../../shared/modules/report-date.js';
 import { assertReviewerReachesReport, requireRdoReviewer } from '../../lib/reports/review-access.js';
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { rdoRoute, reportSummarySchema, reportListSchema, jsonObjectSchema, jsonArraySchema, FILE, EMPTY } from '../../lib/api-contract/domains/rdo.js';
 
 const router = Router();
 const requireRdoAccess = requireModuleRole(...RDO_ACCESS_ROLES);
@@ -2003,11 +2005,6 @@ function storedReportPdfDownloadName(report, storedPath) {
     : path.basename(storedPath);
 }
 
-function manualReportOriginalFileName(value) {
-  const normalized = safePath(String(value || '').trim().replace(/\.pdf$/i, ''));
-  return normalized || 'relatorio-antigo';
-}
-
 function manualReportServiceData(reportType, data, current = {}) {
   if (reportType === ReportType.RDO) return {};
   const serviceData = { ...plainObject(current) };
@@ -2026,40 +2023,6 @@ function manualReportServiceData(reportType, data, current = {}) {
   }
   if (touchesEquipment || touchesSystem) return { serviceData };
   return Object.keys(serviceData).length ? { serviceData } : {};
-}
-
-async function saveManualReportPdf({ project, reportType, sequenceNumber, reportDate, fileName, pdfDataUrl, folder = 'uploads-manuais' }) {
-  const pdfBytes = decodeManualReportPdfDataUrl(pdfDataUrl);
-  const projectFolderName = safePath(`Missão ${project.code} - ${project.name}`) || safePath(project.id);
-  const targetDir = path.join(env.uploadDir, projectFolderName, reportType, folder);
-  const sequencePart = Number.isInteger(sequenceNumber) ? String(sequenceNumber).padStart(4, '0') : 'sem-numero';
-  const dayPart = reportDateKey(reportDate) || new Date().toISOString().slice(0, 10);
-  const baseName = manualReportOriginalFileName(fileName);
-  const targetFileName = `${dayPart}-${sequencePart}-${Date.now()}-${randomUUID()}-${baseName}.pdf`;
-  const targetPath = path.join(targetDir, targetFileName);
-  const tempPath = `${targetPath}.tmp`;
-
-  await fs.mkdir(targetDir, { recursive: true });
-  try {
-    await fs.writeFile(tempPath, pdfBytes);
-    if (!(await isLikelyCompletePdf(tempPath))) {
-      const error = new Error('PDF enviado está incompleto ou corrompido.');
-      error.statusCode = 400;
-      throw error;
-    }
-    await fs.rename(tempPath, targetPath);
-  } catch (error) {
-    await fs.unlink(tempPath).catch(() => undefined);
-    throw error;
-  }
-
-  return {
-    fileName: targetFileName,
-    originalFileName: String(fileName || '').trim() || targetFileName,
-    targetPath,
-    publicUrl: path.relative(env.uploadDir, targetPath).split(path.sep).join('/'),
-    sourceDocumentHash: sha256Hex(pdfBytes)
-  };
 }
 
 async function supersedeActiveReportVersions(tx, reportId, { userId = null, evidence = {}, description = 'Versao substituida por novo upload manual.' } = {}) {
@@ -3236,10 +3199,11 @@ const manualReportUploadSchema = z.object({
   fileName: z.string().trim().max(240).optional(),
   serviceEquipment: z.string().trim().max(180).optional(),
   serviceSystem: z.string().trim().max(180).optional(),
-  pdfDataUrl: z.string().trim().min(1).max(MAX_MANUAL_REPORT_PDF_DATA_URL_LENGTH),
+  pdfDataUrl: z.string().trim().min(1).max(MAX_MANUAL_REPORT_PDF_DATA_URL_LENGTH).optional(),
   signatureMode: manualReportSignatureModeSchema.default('APPROVED'),
   operationalData: manualReportOperationalDataSchema.optional()
 });
+
 const manualReportPdfReplaceSchema = z.object({
   projectId: z.string().min(1).optional(),
   fileName: z.string().trim().max(240).optional(),
@@ -5391,12 +5355,12 @@ async function buildReportListWhere(auth, query) {
 router.use('/historical-services', historicalServicesRouter);
 
 router.use('/project-systems', createProjectSystemsRouter(prisma, collaboratorCanAccessProject));
-router.get('/planning-context', requireAuth, requireRdoAccess, asyncHandler(reportPlanningContextHandler));
-router.get('/collaborator-prefill', requireAuth, requireRdoAccess, asyncHandler(reportCollaboratorPrefillHandler));
+defineRoute(router, rdoRoute('GET /planning-context', { summary: 'Contexto de planejamento para o formulário do RDO', responses: { 200: jsonObjectSchema } }), requireAuth, requireRdoAccess, asyncHandler(reportPlanningContextHandler));
+defineRoute(router, rdoRoute('GET /collaborator-prefill', { summary: 'Sugestão de colaboradores para o RDO', responses: { 200: jsonObjectSchema } }), requireAuth, requireRdoAccess, asyncHandler(reportCollaboratorPrefillHandler));
 
-router.get('/client-tabs', requireAuth, requireRdoAccess, asyncHandler(createClientReportTabsHandler({ prisma, buildReportListWhere, canClientSeeReport })));
+defineRoute(router, rdoRoute('GET /client-tabs', { summary: 'Abas e contagens do portal do cliente', responses: { 200: jsonObjectSchema } }), requireAuth, requireRdoAccess, asyncHandler(createClientReportTabsHandler({ prisma, buildReportListWhere, canClientSeeReport })));
 
-router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /', { summary: 'Listar relatórios (paginado quando pedido)', responses: { 200: reportListSchema } }), requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   const pagination = parseReportListPagination(req.query);
   const useSummarySelect = reportListUsesSummarySelect(req.query);
   const reportSortDirection = parseReportSortDirection(req.query);
@@ -5501,7 +5465,7 @@ const reportCountsSchema = z.object({
   queries: z.array(z.record(z.any())).min(1).max(8)
 });
 
-router.post('/counts', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('POST /counts', { summary: 'Contar relatórios por filtro', responses: { 200: z.looseObject({ totals: z.unknown() }) }, errors: [400, 401, 403], body: reportCountsSchema }), requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   const { queries } = reportCountsSchema.parse(req.body);
   // Para CLIENT a visibilidade depende de pós-filtro em memória (canClientSeeReport), que não é
   // expressável só em `count` do banco. A UI do cliente não usa esses badges, então recusamos.
@@ -5517,7 +5481,7 @@ router.post('/counts', requireAuth, requireRdoAccess, asyncHandler(async (req, r
   res.json({ totals });
 }));
 
-router.post('/batch-download', requireAuth, requireRdoAccess, ...expensiveRouteLimit('generation'), asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('POST /batch-download', { summary: 'Baixar relatórios em lote (ZIP)', responses: { 200: FILE }, errors: [400, 401, 403, 404, 429], body: batchDownloadSchema }), requireAuth, requireRdoAccess, ...expensiveRouteLimit('generation'), asyncHandler(async (req, res) => {
   const data = batchDownloadSchema.parse(req.body);
   if (data.format === 'docx' && !canReviewRdoReports(req.auth.user)) {
     return res.status(403).json({ error: 'Apenas quem revisa relatórios pode baixar DOCX em lote.' });
@@ -5547,13 +5511,16 @@ router.post('/batch-download', requireAuth, requireRdoAccess, ...expensiveRouteL
   });
 }));
 
-router.post('/manual-extract', requireAuth, requireRdoManager, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('POST /manual-extract', { summary: 'Ler os campos de um PDF de RDO enviado manualmente', bodyContentType: 'multipart/form-data', bodyFiles: { pdf: 'PDF do RDO (até 50 MB)' }, body: z.object({ payload: z.string().optional().describe('JSON vazio ({}); só o arquivo importa') }), responses: { 200: jsonObjectSchema }, errors: [400, 401, 403, 413] }), requireAuth, requireRdoManager, manualPdfMultipart, asyncHandler(async (req, res) => {
   const data = manualReportUploadSchema.pick({ pdfDataUrl: true }).parse(req.body || {});
-  return res.json(await extractManualReportPdfFields(decodeManualReportPdfDataUrl(data.pdfDataUrl)));
+  const pdfBytes = manualReportPdfBytes(req, data.pdfDataUrl);
+  if (!pdfBytes) return missingManualPdf(res);
+  return res.json(await extractManualReportPdfFields(pdfBytes));
 }));
 
-router.post('/manual-upload', requireAuth, requireRdoManager, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('POST /manual-upload', { summary: 'Enviar um RDO em PDF (upload manual)', bodyContentType: 'multipart/form-data', bodyFiles: { pdf: 'PDF do RDO (até 50 MB)' }, body: z.object({ payload: manualReportUploadSchema.omit({ pdfDataUrl: true }).describe('Parte JSON com os campos do relatório') }), responses: { 201: reportSummarySchema }, errors: [400, 401, 403, 404, 409, 413] }), requireAuth, requireRdoManager, manualPdfMultipart, asyncHandler(async (req, res) => {
   const data = manualReportUploadSchema.parse(req.body || {});
+  if (!hasManualReportPdf(req, data.pdfDataUrl)) return missingManualPdf(res);
   assertStandardReportType(data.reportType);
   const signed = data.signatureMode === 'SIGNED';
   const requiresSignature = data.signatureMode === 'REQUIRES_SIGNATURE';
@@ -5597,8 +5564,8 @@ router.post('/manual-upload', requireAuth, requireRdoManager, asyncHandler(async
     reportType: data.reportType,
     sequenceNumber: data.sequenceNumber || null,
     reportDate,
-    fileName: data.fileName,
-    pdfDataUrl: data.pdfDataUrl
+    fileName: data.fileName || req.uploadedFile?.fileName,
+    pdfBytes: manualReportPdfBytes(req, data.pdfDataUrl)
   });
 
   let item;
@@ -5678,7 +5645,7 @@ router.post('/manual-upload', requireAuth, requireRdoManager, asyncHandler(async
   res.status(201).json(reportWithSignatureEmailDelivery(item, signaturePreparation));
 }));
 
-router.put('/:id/manual-data', requireAuth, requireRdoManager, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('PUT /:id/manual-data', { summary: 'Atualizar os dados operacionais de um RDO enviado manualmente', body: jsonObjectSchema, validatedBy: 'lib/reports/manual-operational-data.js', responses: { 200: reportSummarySchema }, errors: [400, 401, 403, 404, 409] }), requireAuth, requireRdoManager, asyncHandler(async (req, res) => {
   const result = await updateManualReportOperationalData({
     prisma,
     reportId: req.params.id,
@@ -5695,9 +5662,9 @@ router.put('/:id/manual-data', requireAuth, requireRdoManager, asyncHandler(asyn
   res.json(result.item);
 }));
 
-router.put('/:id/manual-pdf', requireAuth, requireRdoManager, ...expensiveRouteLimit('upload'), asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('PUT /:id/manual-pdf', { summary: 'Substituir o PDF ou os metadados de um RDO enviado manualmente', bodyContentType: 'multipart/form-data', bodyFiles: { pdf: 'Novo PDF (opcional, até 50 MB)' }, body: z.object({ payload: manualReportPdfReplaceSchema.omit({ pdfDataUrl: true }).describe('Parte JSON com os campos') }), responses: { 200: reportSummarySchema }, errors: [400, 401, 403, 404, 409, 413, 429] }), requireAuth, requireRdoManager, ...expensiveRouteLimit('upload'), manualPdfMultipart, asyncHandler(async (req, res) => {
   const data = manualReportPdfReplaceSchema.parse(req.body || {});
-  const hasNewPdf = Boolean(data.pdfDataUrl);
+  const hasNewPdf = hasManualReportPdf(req, data.pdfDataUrl);
   const signed = data.signatureMode === 'SIGNED';
   const requiresSignature = data.signatureMode === 'REQUIRES_SIGNATURE';
   const allowsOptionalSignature = data.signatureMode === 'APPROVED';
@@ -5752,7 +5719,7 @@ router.put('/:id/manual-pdf', requireAuth, requireRdoManager, ...expensiveRouteL
   const savedPdf = hasNewPdf ? await saveManualReportPdf({
     project: targetProject, reportType: existing.reportType,
     sequenceNumber: existing.sequenceNumber || null, reportDate: existing.reportDate,
-    fileName: data.fileName, pdfDataUrl: data.pdfDataUrl
+    fileName: data.fileName || req.uploadedFile?.fileName, pdfBytes: manualReportPdfBytes(req, data.pdfDataUrl)
   }) : null;
 
   let item;
@@ -5812,7 +5779,9 @@ router.put('/:id/manual-pdf', requireAuth, requireRdoManager, ...expensiveRouteL
 registerReportReleaseRoutes(router, {
   requireRdoManager, include, isReportUnavailable, hasActiveClientRejection,
   projectReportsForClientVisibility, previousRdosSignedForServiceReport,
-  saveManualReportPdf, supersedeActiveReportVersions, createManualReportVersion,
+  // Assinatura física segue em base64: decodifica para o gravador (bytes, spec 042 D3).
+  saveManualReportPdf: ({ pdfDataUrl, ...rest }) => saveManualReportPdf({ ...rest, pdfBytes: decodeManualReportPdfDataUrl(pdfDataUrl) }),
+  supersedeActiveReportVersions, createManualReportVersion,
   releasedServiceReportsAfterRdoSignature
 });
 
@@ -5821,7 +5790,7 @@ registerReportPublicViewRoutes(router, {
   getReportPdfDownload, sendDownloadBuffer, projectEmailRecipients, hasActiveClientRejection
 });
 
-router.get('/public-sign/:token', publicSignatureLimiter, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /public-sign/:token', { summary: 'Abrir o pedido de assinatura do cliente', auth: 'publicToken', responses: { 200: jsonObjectSchema }, errors: [404, 410, 429] }), publicSignatureLimiter, asyncHandler(async (req, res) => {
   let signature = await publicSignatureFromToken(req.params.token);
   let status = publicSignatureStatus(signature);
 
@@ -5873,12 +5842,12 @@ const publicSignatureFiles = createPublicSignatureFiles({
   getPdfDownload: async signature => appendReportPdfAttachments(signature.report, await publicSignaturePdfDownload(signature))
 });
 
-router.get('/public-sign/:token/pdf', publicSignatureLimiter, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /public-sign/:token/pdf', { summary: 'PDF do relatório a assinar', auth: 'publicToken', responses: { 200: FILE }, errors: [404, 410, 429] }), publicSignatureLimiter, asyncHandler(async (req, res) => {
   const signatureId = String(req.query.signatureId || '').trim() || null;
   sendDownloadBuffer(res, await publicSignatureFiles.download(req.params.token, signatureId));
 }));
 
-router.get('/public-sign/:token/zip', publicSignatureLimiter, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /public-sign/:token/zip', { summary: 'ZIP dos relatórios a assinar', auth: 'publicToken', responses: { 200: FILE }, errors: [404, 410, 429] }), publicSignatureLimiter, asyncHandler(async (req, res) => {
   const anchor = await publicSignatureForTokenScopeOrThrow(req.params.token, null, prisma, { allowSigned: true });
   const related = await publicProjectSignatures(anchor);
   const signed = [anchor, ...related].filter(signature => publicSignatureStatus(signature) === 'SIGNED');
@@ -5943,7 +5912,7 @@ async function confirmPublicReportSignature(token, data, evidence) {
   return { success: true, completed, signatureId: signatureResult.signedSignature.id, report: withInternalSignatureProgress(item) };
 }
 
-router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('POST /public-sign/:token/confirm', { summary: 'Assinar o relatório pelo link público', auth: 'publicToken', responses: { 200: jsonObjectSchema }, errors: [400, 404, 409, 410, 429], body: publicSignatureConfirmSchema }), publicSignatureLimiter, asyncHandler(async (req, res) => {
   const data = publicSignatureConfirmSchema.parse(req.body || {});
   await assertRenderableReportSignatureImageDataUrl(data.signatureImageDataUrl);
   const result = await confirmPublicReportSignature(req.params.token, data, signatureEvidenceFromRequest(req));
@@ -5951,7 +5920,7 @@ router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(
   res.json({ ...result, emailDelivery });
 }));
 
-router.post('/public-sign/:token/confirm-batch', publicSignatureLimiter, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('POST /public-sign/:token/confirm-batch', { summary: 'Assinar vários relatórios pelo link público', auth: 'publicToken', responses: { 200: z.looseObject({ results: z.array(z.unknown()) }) }, errors: [400, 404, 409, 410, 429], body: publicSignatureBatchConfirmSchema }), publicSignatureLimiter, asyncHandler(async (req, res) => {
   const data = publicSignatureBatchConfirmSchema.parse(req.body || {});
   await assertRenderableReportSignatureImageDataUrl(data.signatureImageDataUrl);
   // Authorize the entire requested set before recording the first signature.
@@ -5973,7 +5942,7 @@ router.post('/public-sign/:token/confirm-batch', publicSignatureLimiter, asyncHa
   res.json({ results, emailDelivery });
 }));
 
-router.post('/public-sign/:token/reject', publicSignatureLimiter, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('POST /public-sign/:token/reject', { summary: 'Recusar a assinatura pelo link público', auth: 'publicToken', responses: { 200: z.looseObject({ success: z.boolean(), report: reportSummarySchema }) }, errors: [400, 404, 409, 410, 429], body: publicSignatureRejectSchema }), publicSignatureLimiter, asyncHandler(async (req, res) => {
   const data = publicSignatureRejectSchema.parse(req.body || {});
   const evidence = signatureEvidenceFromRequest(req);
   const item = await rejectPublicInternalSignature({
@@ -5987,7 +5956,7 @@ router.post('/public-sign/:token/reject', publicSignatureLimiter, asyncHandler(a
   res.json({ success: true, report: item });
 }));
 
-router.get('/validate-signature/:validationCode', publicSignatureLimiter, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /validate-signature/:validationCode', { summary: 'Validar a autenticidade de um relatório assinado', auth: 'publicToken', responses: { 200: jsonObjectSchema }, errors: [404, 429] }), publicSignatureLimiter, asyncHandler(async (req, res) => {
   const validationCode = String(req.params.validationCode || '').trim();
   const version = validationCode
     ? await prisma.reportVersion.findUnique({
@@ -6008,7 +5977,7 @@ router.get('/validate-signature/:validationCode', publicSignatureLimiter, asyncH
   res.json(publicValidationPayload(version));
 }));
 
-router.get('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /:id', { summary: 'Detalhe do relatório', responses: { 200: reportSummarySchema }, errors: [401, 403, 404] }), requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   let item = await prisma.report.findUniqueOrThrow({
     where: { id: req.params.id },
     include
@@ -6038,7 +6007,7 @@ registerReportRegenerationRoutes(router, { database: prisma, include,
   notifySignatureRound: ({ report, tokens }) => deliverIssuedSignatureRequestEmails(report, tokens)
 });
 
-router.get('/:id/pdf', requireAuth, requireModuleRole(...RDO_ACCESS_ROLES, ...EFETIVO_ACCESS_ROLES), ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /:id/pdf', { summary: 'PDF do relatório', responses: { 200: FILE }, errors: [401, 403, 404, 429] }), requireAuth, requireModuleRole(...RDO_ACCESS_ROLES, ...EFETIVO_ACCESS_ROLES), ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
   const abortController = new AbortController();
   res.on('close', () => {
     if (!res.writableEnded) abortController.abort();
@@ -6069,7 +6038,7 @@ router.get('/:id/pdf', requireAuth, requireModuleRole(...RDO_ACCESS_ROLES, ...EF
   });
 }));
 
-router.get('/:id/docx', requireAuth, requireRdoAccess, ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /:id/docx', { summary: 'DOCX do relatório', responses: { 200: FILE }, errors: [401, 403, 404, 429] }), requireAuth, requireRdoAccess, ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
   let item = await prisma.report.findUniqueOrThrow({
     where: { id: req.params.id },
     include
@@ -6093,7 +6062,7 @@ router.get('/:id/docx', requireAuth, requireRdoAccess, ...expensiveRouteLimit('d
   });
 }));
 
-router.delete('/:id/services/:serviceId', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('DELETE /:id/services/:serviceId', { summary: 'Remover um serviço do relatório', noBody: 'Identificados pelo caminho.', responses: { 200: reportSummarySchema }, errors: [401, 403, 404, 409] }), requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role === 'CLIENT' || req.auth.user.role === 'COORDINATOR') {
     return res.status(403).json({ error: `A conta ${req.auth.user.role} não pode editar relatórios.` });
   }
@@ -6133,7 +6102,7 @@ router.delete('/:id/services/:serviceId', requireAuth, requireRdoAccess, asyncHa
   res.json(item);
 }));
 
-router.post('/service-only', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('POST /service-only', { summary: 'Criar relatórios somente de serviço', responses: { 201: z.array(reportSummarySchema) }, errors: [400, 401, 403, 404, 409], body: serviceOnlySchema }), requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (!canCreateServiceOnlyRdoReports(req.auth.user)) {
     return res.status(403).json({ error: 'Sua conta não tem permissão para criar relatórios somente de serviço.' });
   }
@@ -6174,7 +6143,7 @@ router.post('/service-only', requireAuth, requireRdoAccess, asyncHandler(async (
   res.status(201).json(createdReports);
 }));
 
-router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('POST /', { summary: 'Criar um RDO', responses: { 201: reportSummarySchema }, errors: [400, 401, 403, 404, 409], body: schema }), requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role === 'CLIENT') {
     return res.status(403).json({ error: `A conta ${req.auth.user.role} não pode criar relatórios.` });
   }
@@ -6320,7 +6289,7 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
   res.status(201).json(reportWithSignatureEmailDelivery(organizedItem, signaturePreparation));
 }));
 
-router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('PUT /:id', { summary: 'Editar um relatório', responses: { 200: reportSummarySchema }, errors: [400, 401, 403, 404, 409], body: updateSchema }), requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role === 'CLIENT') {
     return res.status(403).json({ error: `A conta ${req.auth.user.role} não pode editar relatórios.` });
   }
@@ -6621,7 +6590,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   res.json(await withDerivedServiceReportParentMeta(reportWithSignatureEmailDelivery(organizedItem, signaturePreparation)));
 }));
 
-router.patch('/:id/sequence', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('PATCH /:id/sequence', { summary: 'Alterar a numeração do relatório', responses: { 200: reportSummarySchema }, errors: [400, 401, 403, 404, 409], body: sequenceSchema }), requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (!canReviewRdoReports(req.auth.user)) {
     return res.status(403).json({ error: 'Apenas quem revisa relatórios pode alterar a numeração dos relatórios.' });
   }
@@ -6653,7 +6622,7 @@ router.patch('/:id/sequence', requireAuth, requireRdoAccess, asyncHandler(async 
   res.json(item);
 }));
 
-router.post('/:id/cancel-edit', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('POST /:id/cancel-edit', { summary: 'Desfazer a própria edição pendente', noBody: 'Ação sobre o relatório do caminho.', responses: { 200: reportSummarySchema }, errors: [401, 403, 404, 409] }), requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role === 'CLIENT' || req.auth.user.role === 'COORDINATOR') {
     return res.status(403).json({ error: `A conta ${req.auth.user.role} não pode desfazer edições de relatórios.` });
   }
@@ -6697,7 +6666,7 @@ router.post('/:id/cancel-edit', requireAuth, requireRdoAccess, asyncHandler(asyn
   res.json(item);
 }));
 
-router.post('/:id/discard-edit', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('POST /:id/discard-edit', { summary: 'Descartar a edição pendente (revisor)', noBody: 'Ação sobre o relatório do caminho.', responses: { 200: reportSummarySchema }, errors: [401, 403, 404, 409] }), requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (!canReviewRdoReports(req.auth.user)) {
     return res.status(403).json({ error: 'Apenas quem revisa relatórios pode descartar uma edição pendente.' });
   }
@@ -6732,7 +6701,7 @@ router.post('/:id/discard-edit', requireAuth, requireRdoAccess, asyncHandler(asy
   res.json(item);
 }));
 
-router.delete('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('DELETE /:id', { summary: 'Excluir um relatório', noBody: 'Identificado pelo caminho.', responses: { 204: EMPTY }, errors: [401, 403, 404, 409] }), requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role !== 'MANAGER') {
     return res.status(403).json({ error: 'Apenas o gestor pode excluir relatórios.' });
   }
@@ -6793,7 +6762,7 @@ router.delete('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, re
   res.status(204).end();
 }));
 
-router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('PATCH /:id/status', { summary: 'Aprovar, devolver ou mudar o status do relatório', responses: { 200: reportSummarySchema }, errors: [400, 401, 403, 404, 409], body: statusSchema }), requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (!canReviewRdoReports(req.auth.user)) {
     return res.status(403).json({ error: 'Apenas quem revisa relatórios pode revisar relatórios.' });
   }
@@ -6889,7 +6858,7 @@ router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (r
   res.json(reportWithSignatureEmailDelivery(item, null));
 }));
 
-router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('POST /:id/request-signature', { summary: 'Cliente assina ou pede assinatura digital do relatório', responses: { 200: jsonObjectSchema }, errors: [400, 401, 403, 404, 409], body: requestSignatureSchema }), requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role !== 'CLIENT') {
     return res.status(403).json({ error: 'Apenas o cliente pode solicitar a assinatura digital.' });
   }
@@ -7076,7 +7045,7 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
   });
 }));
 
-router.get('/:id/signatures', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /:id/signatures', { summary: 'Assinaturas do relatório', responses: { 200: jsonArraySchema }, errors: [401, 403, 404] }), requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   const item = await prisma.report.findUniqueOrThrow({
     where: { id: req.params.id },
     include
@@ -7088,7 +7057,7 @@ router.get('/:id/signatures', requireAuth, requireRdoAccess, asyncHandler(async 
   res.json(item.reportSignatures || []);
 }));
 
-router.get('/:id/audit', requireAuth, requireRdoReviewer, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /:id/audit', { summary: 'Trilha de auditoria do relatório', responses: { 200: jsonArraySchema }, errors: [401, 403, 404] }), requireAuth, requireRdoReviewer, asyncHandler(async (req, res) => {
   const auditReport = await prisma.report.findUniqueOrThrow({
     where: { id: req.params.id },
     select: { id: true, deletedAt: true, project: { select: { deletedAt: true, managerOnly: true } } }
@@ -7123,7 +7092,7 @@ router.get('/:id/audit', requireAuth, requireRdoReviewer, asyncHandler(async (re
   res.json(logs);
 }));
 
-router.post('/:id/client-review', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('POST /:id/client-review', { summary: 'Registrar a revisão do cliente', responses: { 200: jsonObjectSchema }, errors: [400, 401, 403, 404, 409], body: clientReviewSchema }), requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role !== 'CLIENT') {
     return res.status(403).json({ error: 'Apenas o cliente pode registrar esta ação.' });
   }

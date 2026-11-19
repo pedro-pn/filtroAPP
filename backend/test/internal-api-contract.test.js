@@ -12,7 +12,7 @@ import { defineRoute, isWriteMethod } from '../src/lib/api-contract/registry.js'
 // Contrato da API interna (spec 042). As rotas reais do Express precisam estar
 // no registro (defineRoute) ou na lista de rotas ainda não migradas, que só
 // pode diminuir: ao migrar um domínio, remova as linhas dele e baixe o número.
-const UNMIGRATED_ROUTES_BASELINE = 761;
+const UNMIGRATED_ROUTES_BASELINE = 571;
 
 const allowlistFile = new URL('../src/lib/api-contract/unmigrated-routes.json', import.meta.url);
 const openApiFile = new URL('../../docs/api/openapi.internal.json', import.meta.url);
@@ -38,6 +38,29 @@ test('auth routes are fully migrated (phase 1)', () => {
   const authRoutes = routes.filter(route => route.path.startsWith('/api/auth/'));
   assert.ok(authRoutes.length >= 20, 'esperava as rotas de auth no inventário');
   assert.deepEqual(authRoutes.filter(route => !route.contract).map(routeKey), []);
+});
+
+test('RDO and reports routes are fully migrated (phase 2)', () => {
+  const rdoDomain = /^\/api(?:\/rdo)?\/(?:reports|operational-reports|bootstrap|drafts|uploads|databook|statistics)(?:\/|$)/;
+  const domainRoutes = routes.filter(route => rdoDomain.test(route.path));
+  assert.ok(domainRoutes.length >= 180, `esperava as rotas do RDO nos dois caminhos (achei ${domainRoutes.length})`);
+  assert.deepEqual(domainRoutes.filter(route => !route.contract).map(routeKey), []);
+});
+
+test('manual RDO upload is documented as multipart with the PDF as a binary part', () => {
+  const document = buildInternalOpenApi(routes);
+  for (const [path, method] of [['/api/rdo/reports/manual-upload', 'post'], ['/api/rdo/reports/manual-extract', 'post'], ['/api/rdo/reports/{id}/manual-pdf', 'put']]) {
+    const multipart = document.paths[path][method].requestBody.content['multipart/form-data'];
+    assert.ok(multipart, `${method} ${path} deve aceitar multipart`);
+    assert.deepEqual(multipart.schema.properties.pdf, { type: 'string', format: 'binary', description: multipart.schema.properties.pdf.description });
+  }
+});
+
+test('handler-validated contracts say where the input is validated', () => {
+  const offenders = routes
+    .filter(route => route.contract?.validateInput === 'handler' && !route.contract.validatedBy)
+    .map(routeKey);
+  assert.deepEqual(offenders, []);
 });
 
 test('every contracted write declares its body or the reason it has none', () => {
@@ -69,6 +92,27 @@ test('the contract build script works without a database', () => {
     timeout: 60_000
   });
   assert.equal(result.status, 0, result.stderr || result.stdout);
+});
+
+test('validateInput check keeps the raw body; handler mode skips validation', async () => {
+  const { Router } = await import('express');
+  const router = Router();
+  const body = z.object({ n: z.number() });
+  let seen;
+  defineRoute(router, { method: 'post', path: '/check', summary: 'x', auth: 'public', body, validateInput: 'check', responses: { 200: null } }, req => { seen = req.body; });
+  defineRoute(router, { method: 'post', path: '/handler', summary: 'x', auth: 'public', body, validateInput: 'handler', validatedBy: 'teste', responses: { 200: null } }, req => { seen = req.body; });
+  const run = (path, input) => {
+    const layer = router.stack.find(item => item.route?.path === path);
+    const [validate, handler] = layer.route.stack.map(item => item.handle);
+    const req = { body: input, params: {}, query: {} };
+    validate(req, {}, () => handler(req));
+  };
+  run('/check', { n: 1, extra: 'mantido' });
+  assert.deepEqual(seen, { n: 1, extra: 'mantido' });
+  assert.throws(() => run('/check', { n: 'x' }), { name: 'ZodError' });
+  run('/handler', { n: 'x' });
+  assert.deepEqual(seen, { n: 'x' });
+  assert.throws(() => defineRoute(router, { method: 'post', path: '/y', summary: 'x', auth: 'public', body, validateInput: 'handler', responses: { 200: null } }, () => {}), /validatedBy/);
 });
 
 test('defineRoute refuses incomplete contracts and validates input before the final handler', async () => {
