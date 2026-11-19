@@ -87,7 +87,9 @@ export function backendTestSteps(workflow, allFiles = backendTestFiles()) {
       if (directory !== 'backend') continue;
       const env = { ...(workflow.env || {}), ...(job.env || {}), ...(step.env || {}) };
       let files = [];
-      if (/\bnpm (?:run )?test\b/.test(step.run)) files = allFiles;
+      // `npm test` e as fatias do job backend-tests (scripts/run-test-shard.js) rodam
+      // todos os arquivos; test-shards.test.js garante que as fatias somam o conjunto.
+      if (/\bnpm (?:run )?test\b/.test(step.run) || /\bscripts\/run-test-shard\.js\b/.test(step.run)) files = allFiles;
       else if (/\bnode\b[^\n]*--test\b/.test(step.run)) {
         files = [...step.run.matchAll(/\btest\/([\w.-]+\.test\.js)\b/g)].map(match => match[1]);
       }
@@ -160,14 +162,16 @@ test('o detector de passos lê npm test, listas explícitas e env por passo', ()
     jobs: {
       a: { name: 'A', defaults: { run: { 'working-directory': 'backend' } }, env: { X: '1' }, steps: [
         { run: 'npm test' },
+        { name: 'shard', run: 'node scripts/run-test-shard.js --shard=2 --of=3' },
         { name: 'extra', env: { Y: '2' }, run: 'node --test --test-concurrency=1 test/one.test.js\n  test/two.test.js' }
       ] },
       b: { name: 'Frontend', defaults: { run: { 'working-directory': 'frontend' } }, steps: [{ run: 'npm test' }] }
     }
   };
   const steps = backendTestSteps(workflow, ['one.test.js', 'two.test.js', 'three.test.js']);
-  assert.equal(steps.length, 2);
+  assert.equal(steps.length, 3);
   assert.deepEqual(steps[0].files, ['one.test.js', 'two.test.js', 'three.test.js']);
-  assert.deepEqual(steps[1].files, ['one.test.js', 'two.test.js']);
-  assert.deepEqual(steps[1].env, { X: '1', Y: '2' });
+  assert.deepEqual(steps[1].files, ['one.test.js', 'two.test.js', 'three.test.js']);
+  assert.deepEqual(steps[2].files, ['one.test.js', 'two.test.js']);
+  assert.deepEqual(steps[2].env, { X: '1', Y: '2' });
 });
