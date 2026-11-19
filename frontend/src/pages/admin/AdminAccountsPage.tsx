@@ -134,6 +134,12 @@ function accountAccess(user: InternalUserSummary) {
   </div>;
 }
 
+function twoFactorLabel(user: InternalUserSummary) {
+  if (user.accountType === 'CLIENT') return 'Não se aplica';
+  if (user.twoFactor?.required) return 'Obrigatória';
+  return user.twoFactor?.enabled ? 'Ativa' : 'Desligada';
+}
+
 function absolutePasswordSetupUrl(url: string) {
   return new URL(url, window.location.origin).href;
 }
@@ -250,6 +256,11 @@ export function AdminAccountsPage() {
       return;
     }
 
+    if (form.accountType === 'ADMIN' && !form.email.trim()) {
+      setError('Contas de administrador precisam de e-mail: o código da verificação em duas etapas é enviado para ele.');
+      return;
+    }
+
     const payload: Partial<UserPayload> = isEditingClient
       ? {
           name: form.name.trim(),
@@ -348,7 +359,7 @@ export function AdminAccountsPage() {
           <Field id="account-name" label="Nome" required>
             <Input value={form.name} onChange={event => setForm(current => ({ ...current, name: event.target.value }))} required />
           </Field>
-          <Field id="account-email" label="E-mail">
+          <Field id="account-email" label="E-mail" required={form.accountType === 'ADMIN'} helperText={form.accountType === 'ADMIN' ? 'Obrigatório para administradores: recebe o código da verificação em duas etapas.' : undefined}>
             <Input
               type="email"
               value={form.email}
@@ -616,6 +627,7 @@ export function AdminAccountsPage() {
         <Badge tone={user.isActive ? 'success' : 'neutral'} dot>{user.isActive ? 'Ativo' : 'Inativo'}</Badge>
       </div>
     },
+    { key: 'twoFactor', header: '2 etapas', render: user => <Badge tone={user.twoFactor?.enabled ? 'success' : 'neutral'}>{twoFactorLabel(user)}</Badge> },
     { key: 'access', header: 'Acessos e vínculos', render: accountAccess }
   ];
 
@@ -695,6 +707,7 @@ export function AdminAccountsPage() {
                   status: <Badge tone={user.isActive ? 'success' : 'neutral'} dot>{user.isActive ? 'Ativo' : 'Inativo'}</Badge>,
                   metadata: [
                     { label: 'Tipo', value: accountTypeLabel(user.accountType) },
+                    { label: 'Verificação em 2 etapas', value: twoFactorLabel(user) },
                     ...(user.email ? [{ label: 'E-mail', value: user.email }] : [])
                   ],
                   value: accountAccess(user),

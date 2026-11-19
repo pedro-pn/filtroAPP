@@ -5,6 +5,7 @@ import { accountTypeForLegacyRole, serializeModuleRoles } from './module-roles.j
 import { notificationPreferences } from './notification-preferences.js';
 import { CLIENT_PRIVACY_NOTICE_VERSION, clientPrivacyConsentRequired } from './privacy-consent.js';
 import { serializeReportEmissionPermissions } from './operational-reports/permissions.js';
+import { twoFactorRequirement, TwoFactorRequirement } from './accounts/two-factor.js';
 import { normalizeAcompanhamentoExtraPermissions } from '../../../shared/modules/acompanhamento-permissions.js';
 import { normalizeRdoExtraPermissions } from '../../../shared/modules/rdo-permissions.js';
 
@@ -99,6 +100,13 @@ export function publicUser(user) {
     notificationPreferences: notificationPreferences(user),
     privacyPolicyRequired: clientPrivacyConsentRequired(user),
     requiredPrivacyPolicyVersion: CLIENT_PRIVACY_NOTICE_VERSION,
+    twoFactor: (() => {
+      const requirement = twoFactorRequirement({ ...user, accountType: user.accountType || accountTypeForLegacyRole(user.role) });
+      return {
+        required: requirement === TwoFactorRequirement.REQUIRED,
+        enabled: requirement === TwoFactorRequirement.REQUIRED || requirement === TwoFactorRequirement.ENABLED
+      };
+    })(),
     collaboratorId: user.collaboratorId || null,
     collaborator: user.collaborator
       ? {

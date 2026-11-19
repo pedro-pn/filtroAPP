@@ -124,7 +124,7 @@ export const API_DATA_DOMAINS = Object.freeze([
   }),
   domain({
     code: 'authentication', label: 'Autenticação e tokens internos',
-    models: modelEntries(['NotificationPreferenceToken', 'PasswordResetToken', 'EmailChangeToken', 'UserSession', 'ReportClientAccess'], 'PROHIBITED'),
+    models: modelEntries(['NotificationPreferenceToken', 'PasswordResetToken', 'EmailChangeToken', 'UserSession', 'ReportClientAccess', 'TwoFactorChallenge', 'TrustedDevice', 'AuthSecurityEvent'], 'PROHIBITED'),
     candidateScopes: [], candidateAvailability: 'PROHIBITED', endpointFamilies: [], includedFields: [],
     excludedFields: ['todos os campos, hashes, seletores, validade, sessão, e-mail pendente e metadados']
   }),

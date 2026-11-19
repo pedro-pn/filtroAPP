@@ -2967,6 +2967,8 @@ model User {
   notifySignatureRemindersByEmail      Boolean                             @default(true)
   notifySurveyRemindersByEmail         Boolean                             @default(true)
   notifyCalibrationRemindersByEmail    Boolean                             @default(true)
+  twoFactorEnabled                     Boolean                             @default(false)
+  twoFactorBypassUntil                 DateTime?
   collaboratorId                       String?                             @unique
   createdAt                            DateTime                            @default(now())
   updatedAt                            DateTime                            @updatedAt
@@ -2975,6 +2977,9 @@ model User {
   sessions                             UserSession[]
   passwordResetTokens                  PasswordResetToken[]
   emailChangeTokens                    EmailChangeToken[]
+  twoFactorChallenges                  TwoFactorChallenge[]
+  trustedDevices                       TrustedDevice[]
+  authSecurityEvents                   AuthSecurityEvent[]
   drafts                               ReportDraft[]
   authorizedProjects                   ProjectAuthorizedUser[]
   defaultReportProjects                Project[]                           @relation("ProjectDefaultReportResponsible")
@@ -3647,6 +3652,74 @@ model DataRetentionRun {
 
 // Exceções (legal hold) da retenção LGPD: o job nunca toca o alvo listado aqui.
 // Tabela própria para o motivo não sair em respostas genéricas de projeto/colaborador.
+enum TwoFactorChallengePurpose {
+  LOGIN
+  ENABLE
+}
+
+enum AuthSecurityEventType {
+  TWO_FACTOR_CHALLENGE_SENT
+  TWO_FACTOR_VERIFIED
+  TWO_FACTOR_FAILED
+  TWO_FACTOR_ENABLED
+  TWO_FACTOR_DISABLED
+  TRUSTED_DEVICE_ADDED
+  TRUSTED_DEVICES_REVOKED
+  TWO_FACTOR_BREAK_GLASS
+  TWO_FACTOR_BYPASS_USED
+}
+
+// Verificação em duas etapas por e-mail (spec 039). O código e o token do desafio
+// ficam só como hash; o desafio vale 10 min, aceita 5 tentativas e é de uso único.
+model TwoFactorChallenge {
+  id              String                    @id @default(cuid())
+  userId          String
+  purpose         TwoFactorChallengePurpose @default(LOGIN)
+  tokenHash       String                    @unique
+  codeHash        String
+  rememberSession Boolean                   @default(false)
+  attempts        Int                       @default(0)
+  sendCount       Int                       @default(1)
+  lastSentAt      DateTime                  @default(now())
+  expiresAt       DateTime
+  consumedAt      DateTime?
+  createdAt       DateTime                  @default(now())
+  user            User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// Navegador lembrado por 30 dias depois de um código válido. Só o hash do token fica no banco.
+model TrustedDevice {
+  id         String   @id @default(cuid())
+  userId     String
+  tokenHash  String   @unique
+  label      String?
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+  expiresAt  DateTime
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// Trilha de eventos de autenticação sensíveis (2FA, dispositivos, acesso de emergência).
+model AuthSecurityEvent {
+  id        String                @id @default(cuid())
+  userId    String?
+  type      AuthSecurityEventType
+  ipAddress String?
+  userAgent String?
+  metadata  Json?
+  createdAt DateTime              @default(now())
+  user      User?                 @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
 model DataRetentionHold {
   id          String   @id @default(cuid())
   kind        String // COLLABORATOR | PROJECT

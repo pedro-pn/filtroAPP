@@ -10,7 +10,9 @@ const caches = new Set();
 export const UNTRACKED_READ_CACHE_MODELS = Object.freeze([
   'PerformanceReadRevision', 'JobRun', 'JobLock', 'UserSession', 'ApiRequestLog',
   'ApiUsageBucket', 'DataRetentionRun', 'NotificationRead', 'NotificationPreferenceToken',
-  'ConectaRhReceipt', 'ConectaRhSyncState'
+  'ConectaRhReceipt', 'ConectaRhSyncState',
+  // 2FA (spec 039): escritos a cada login, como as sessões.
+  'TwoFactorChallenge', 'TrustedDevice', 'AuthSecurityEvent'
 ]);
 
 export const currentDerivedReadVersion = () => versions.getStore() ?? null;

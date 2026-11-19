@@ -144,6 +144,10 @@ const rawEnvSchema = z.object({
   MICROSOFT_CLIENT_ID: stringWithDefault(''),
   MICROSOFT_CLIENT_SECRET: stringWithDefault(''),
   SEND_CLIENT_EMAILS: booleanWithDefault('SEND_CLIENT_EMAILS', true),
+  TWO_FACTOR_ENFORCEMENT: z.preprocess(
+    value => { const v = emptyToUndefined(value); return v === undefined ? undefined : String(v).trim().toLowerCase(); },
+    z.enum(['on', 'off'], { errorMap: () => ({ message: 'TWO_FACTOR_ENFORCEMENT deve ser on ou off.' }) }).optional()
+  ),
   PRIVACY_NOTIFICATION_EMAIL: stringWithDefault(''),
   LGPD_NOTIFICATION_EMAIL: stringWithDefault(''),
   ZAPSIGN_API_TOKEN: stringWithDefault(''),
@@ -327,6 +331,8 @@ export function loadEnv(source = process.env) {
     microsoftClientId: raw.MICROSOFT_CLIENT_ID,
     microsoftClientSecret: raw.MICROSOFT_CLIENT_SECRET,
     sendClientEmails: raw.SEND_CLIENT_EMAILS,
+    // 2FA por e-mail: ligado por padrão só em produção (dev/test sem SMTP não travam o login).
+    twoFactorEnforcement: raw.TWO_FACTOR_ENFORCEMENT || (raw.NODE_ENV === 'production' ? 'on' : 'off'),
     privacyNotificationEmail: raw.PRIVACY_NOTIFICATION_EMAIL || raw.LGPD_NOTIFICATION_EMAIL,
     zapsignApiToken: raw.ZAPSIGN_API_TOKEN,
     zapsignRefreshToken: raw.ZAPSIGN_REFRESH_TOKEN || raw.APSIGN_REFRESH_TOKEN,

@@ -1,14 +1,38 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { login as loginRequest, logout as logoutRequest, me as meRequest } from '../api/auth';
+import { isTwoFactorChallenge, login as loginRequest, logout as logoutRequest, me as meRequest, verifyTwoFactor, type LoginResponse } from '../api/auth';
 import { ApiClientError, TOKEN_STORAGE_KEY, UNAUTHORIZED_EVENT } from '../api/client';
 import { subscribeToDataUpdates } from '../api/dataUpdates';
-import type { AuthUser, LoginPayload } from '../types/auth';
+import type { AuthUser, LoginOutcome, LoginPayload } from '../types/auth';
 import { AuthContext, type AuthContextValue } from './AuthContext';
 
 function getStoredToken() {
   return localStorage.getItem(TOKEN_STORAGE_KEY);
+}
+
+// Navegador lembrado para o 2FA (30 dias), por conta: um navegador compartilhado
+// não reaproveita o token de outra pessoa.
+const TRUSTED_DEVICE_STORAGE_PREFIX = 'filtrovali-trusted-device:';
+
+function trustedDeviceKey(username: string) {
+  return `${TRUSTED_DEVICE_STORAGE_PREFIX}${username.trim().toLowerCase()}`;
+}
+
+function readTrustedDeviceToken(username: string) {
+  try {
+    return localStorage.getItem(trustedDeviceKey(username)) || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function storeTrustedDeviceToken(username: string, token: string | undefined) {
+  try {
+    if (token) localStorage.setItem(trustedDeviceKey(username), token);
+  } catch {
+    // Sem armazenamento local, o código volta a ser pedido no próximo login.
+  }
 }
 
 function isUnauthorizedError(error: unknown) {
@@ -40,13 +64,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(currentUser);
   }, [clearSession]);
 
-  const login = useCallback(async (payload: LoginPayload) => {
-    const data = await loginRequest(payload);
+  const startSession = useCallback((data: LoginResponse) => {
     queryClient.clear();
     localStorage.setItem(TOKEN_STORAGE_KEY, data.token);
     setToken(data.token);
     setUser(data.user);
   }, [queryClient]);
+
+  const login = useCallback(async (payload: LoginPayload): Promise<LoginOutcome> => {
+    const data = await loginRequest({ ...payload, trustedDeviceToken: payload.trustedDeviceToken ?? readTrustedDeviceToken(payload.username) });
+    if (isTwoFactorChallenge(data)) {
+      return {
+        status: 'two-factor',
+        challenge: {
+          challengeToken: data.challengeToken,
+          emailHint: data.emailHint,
+          expiresAt: data.expiresAt,
+          trustedDeviceDays: data.trustedDeviceDays
+        }
+      };
+    }
+    startSession(data);
+    return { status: 'authenticated' };
+  }, [startSession]);
+
+  const completeTwoFactor = useCallback(async (payload: { username: string; challengeToken: string; code: string; rememberDevice?: boolean }) => {
+    const data = await verifyTwoFactor({ challengeToken: payload.challengeToken, code: payload.code, rememberDevice: payload.rememberDevice });
+    if (payload.rememberDevice) storeTrustedDeviceToken(payload.username, data.trustedDeviceToken);
+    startSession(data);
+  }, [startSession]);
 
   const logout = useCallback(async () => {
     try {
@@ -151,11 +197,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isBootstrapping,
       isAuthenticated: !!user && !!token,
       login,
+      completeTwoFactor,
       logout,
       refreshUser,
       replaceUser: setUser
     }),
-    [isBootstrapping, login, logout, refreshUser, token, user]
+    [completeTwoFactor, isBootstrapping, login, logout, refreshUser, token, user]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

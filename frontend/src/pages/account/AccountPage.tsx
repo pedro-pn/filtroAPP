@@ -16,6 +16,7 @@ import { PageHeader } from '../../layout/PageHeader';
 import { hubModulesForUser } from '../hubModules';
 import { downloadBlob } from '../../utils/download';
 import { PASSWORD_MIN_LENGTH } from '../../../../shared/modules/password-policy.js';
+import { TwoFactorCard } from './TwoFactorCard';
 import './AccountPage.css';
 
 export function AccountPage() {
@@ -267,6 +268,8 @@ export function AccountPage() {
             </div>
           </form>
         </Card>
+
+        {user?.accountType !== 'CLIENT' ? <TwoFactorCard /> : null}
 
         <Card className="account-card" padding="md" title="Notificações por e-mail">
           <form className="account-form" onSubmit={handleNotificationSubmit}>

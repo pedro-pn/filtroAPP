@@ -639,6 +639,33 @@ Os scripts `deploy/backup-prod.sh`, `deploy/restore-prod.sh` e
 `/ops-status:ro`; a tarefa manual é criar esse diretório no host e preencher as
 variáveis no env-file de produção.
 
+## Verificação em duas etapas (2FA)
+
+Contas ADMIN passam a confirmar o login com um código enviado por e-mail (spec
+039); contas internas podem ativar em **Minha conta**. Antes do primeiro deploy
+com o 2FA, **rode no servidor** e confira que nenhum admin ativo está sem e-mail
+(sem e-mail ele não consegue terminar o login):
+
+```bash
+docker compose --env-file backend/.env.production -f docker-compose.prod.yml exec -T postgres \
+  psql -U postgres -d filtrovali -c "SELECT username, name FROM \"User\" WHERE \"accountType\" = 'ADMIN' AND \"isActive\" AND coalesce(trim(email), '') = ''"
+```
+
+Cadastre o e-mail de quem aparecer (em **Gestão de contas** ou pedindo à pessoa)
+e só então publique (`deploy/deploy-prod.sh`; a migration é só de acréscimos).
+Depois do deploy, entre com uma conta admin: o login pede o código, que chega no
+e-mail; marque "Lembrar este navegador" para não pedir de novo por 30 dias.
+
+- O envio depende do SMTP de produção (`SEND_CLIENT_EMAILS` não pode estar `false`).
+- Emergência (SMTP fora do ar): `scripts/disable-2fa.js --username <conta>` libera
+  um login sem código; `TWO_FACTOR_ENFORCEMENT=off` desliga para todos. Passo a
+  passo em `docs/RUNBOOK_INCIDENTES.md`, "E-mail fora do ar".
+- Na homologação o compose força `TWO_FACTOR_ENFORCEMENT=off` (ela não envia
+  e-mails); para testar lá, use `STAGING_TWO_FACTOR_ENFORCEMENT=on` com um SMTP de teste.
+- Os desafios e navegadores lembrados vencidos são apagados pela rotina de
+  retenção (`DATA_RETENTION_JOB_ENABLED`); IP/navegador da trilha
+  `AuthSecurityEvent` são anonimizados após 2 anos.
+
 ## Retenção LGPD
 
 O worker roda um job diário de retenção quando `DATA_RETENTION_JOB_ENABLED=true`. A rotina base só apaga sessões e

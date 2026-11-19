@@ -122,6 +122,12 @@ function mockPrisma(t) {
         calls.push(['tx.userSession.deleteMany', args]);
         return { count: 2 };
       }
+    },
+    trustedDevice: {
+      deleteMany: async args => {
+        calls.push(['tx.trustedDevice.deleteMany', args]);
+        return { count: 1 };
+      }
     }
   });
   t.after(() => {
@@ -145,6 +151,8 @@ test('PUT /admin/accounts/:id with a new password revokes every session of the t
   assert.ok(update?.data.passwordHash, 'password hash must be written inside the transaction');
   const revoke = calls.find(([name]) => name === 'tx.userSession.deleteMany')?.[1];
   assert.deepEqual(revoke?.where, { userId: 'user-target' });
+  const devices = calls.find(([name]) => name === 'tx.trustedDevice.deleteMany')?.[1];
+  assert.deepEqual(devices?.where, { userId: 'user-target' }, 'trusted 2FA devices are revoked too');
 });
 
 test('PUT /admin/accounts/:id deactivating the account revokes its sessions', async t => {

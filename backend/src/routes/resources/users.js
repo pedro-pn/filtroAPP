@@ -133,6 +133,16 @@ async function assertAccountEmailAvailable(email, currentUserId = null) {
   }
 }
 
+// Contas ADMIN recebem o código do 2FA por e-mail: sem e-mail, não conseguiriam entrar.
+export function assertAdminHasEmail(accountType, email) {
+  if (accountType === AccountType.ADMIN && !String(email || '').trim()) {
+    const error = new Error('Contas de administrador precisam de e-mail: o código da verificação em duas etapas é enviado para ele.');
+    error.status = 400;
+    error.code = 'ADMIN_EMAIL_REQUIRED';
+    throw error;
+  }
+}
+
 export function resolveAccountPayload(data, existingUser = null) {
   if (data.accountType === AccountType.ADMIN && data.role !== undefined && data.role !== UserRole.MANAGER) {
     const error = new Error('Contas ADMIN devem usar role legado MANAGER.');
@@ -375,6 +385,7 @@ router.post(
     const data = schema.parse(req.body);
 
     const accountPayload = resolveAccountPayload(data);
+    assertAdminHasEmail(accountPayload.accountType, data.email);
     await assertAccountEmailAvailable(data.email);
     await assertAccountEmailAvailable(data.username);
     const passwordHash = await createPendingPasswordHash();
@@ -456,6 +467,7 @@ router.put(
       include: { moduleRoles: true }
     });
     const accountPayload = resolveAccountPayload(data, currentUser);
+    assertAdminHasEmail(accountPayload.accountType, data.email !== undefined ? data.email : currentUser.email);
     if (data.email !== undefined) {
       await assertAccountEmailAvailable(data.email, req.params.id);
     }
@@ -505,6 +517,8 @@ router.put(
       ? await prisma.$transaction(async tx => {
           const updated = await tx.user.update(updateArgs);
           await tx.userSession.deleteMany({ where: sessionRevocationWhere(req.params.id, req.auth) });
+          // Navegadores lembrados para o 2FA também caem (spec 039).
+          await tx.trustedDevice.deleteMany({ where: { userId: req.params.id } });
           return updated;
         })
       : await prisma.user.update(updateArgs);

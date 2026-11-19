@@ -28,6 +28,24 @@ import { hashPassword, PASSWORD_MIN_LENGTH, PASSWORD_MIN_LENGTH_MESSAGE, verifyP
 import { CLIENT_PRIVACY_NOTICE_VERSION } from '../../lib/privacy-consent.js';
 import prisma from '../../lib/prisma.js';
 import { requireAuth } from '../../middleware/auth.js';
+import {
+  consumeTwoFactorBypass,
+  createTwoFactorChallenge,
+  deliverTwoFactorCode,
+  findOpenChallenge,
+  issueTrustedDevice,
+  logAuthSecurityEvent,
+  maskEmail,
+  refreshTwoFactorChallenge,
+  revokeTrustedDevices,
+  TRUSTED_DEVICE_DAYS,
+  TwoFactorRequirement,
+  twoFactorChallengeNeeded,
+  twoFactorRequirement,
+  twoFactorStatusForUser,
+  validateTrustedDevice,
+  verifyTwoFactorChallenge
+} from '../../lib/accounts/two-factor.js';
 
 const router = Router();
 const EMAIL_CHANGE_TOKEN_MAX_AGE_MS = 60 * 60 * 1000;
@@ -41,7 +59,23 @@ const dummyPasswordHashPromise = hashPassword('constant-time-login-guard');
 const loginSchema = z.object({
   username: z.string().min(1, 'Informe o usuário.'),
   password: z.string().min(1, 'Informe a senha.'),
-  rememberMe: z.boolean().optional()
+  rememberMe: z.boolean().optional(),
+  trustedDeviceToken: z.string().max(200).optional()
+});
+const twoFactorVerifySchema = z.object({
+  challengeToken: z.string().min(1, 'Desafio inválido.').max(200),
+  code: z.string().min(1, 'Informe o código.').max(20),
+  rememberDevice: z.boolean().optional()
+});
+const twoFactorChallengeSchema = z.object({
+  challengeToken: z.string().min(1, 'Desafio inválido.').max(200)
+});
+const twoFactorEnableConfirmSchema = z.object({
+  challengeToken: z.string().min(1, 'Desafio inválido.').max(200),
+  code: z.string().min(1, 'Informe o código.').max(20)
+});
+const twoFactorDisableSchema = z.object({
+  currentPassword: z.string().min(1, 'Informe a senha atual.')
 });
 const forgotPasswordSchema = z.object({
   identifier: z.string().min(1, 'Informe o usuário, e-mail ou CNPJ.')
@@ -181,6 +215,63 @@ const resendPasswordSetupRateLimit = createMemoryRateLimit({
   message: 'Muitas solicitações de novo link. Tente novamente mais tarde.',
   keyGenerator: req => `${authRateLimitIp(req)}:resend-password-setup:${hashToken(String(req.body?.token || '').trim())}`
 });
+
+const TWO_FACTOR_RATE_LIMIT_MESSAGE = 'Muitas tentativas de verificação. Tente novamente mais tarde.';
+const twoFactorVerifyRateLimit = createMemoryRateLimit({
+  windowMs: AUTH_RATE_LIMIT_WINDOW_MS,
+  max: 30,
+  message: TWO_FACTOR_RATE_LIMIT_MESSAGE,
+  maxKeys: 10_000,
+  keyGenerator: req => `two-factor-verify:${authRateLimitIp(req)}`
+});
+const twoFactorResendRateLimit = createMemoryRateLimit({
+  windowMs: AUTH_RATE_LIMIT_WINDOW_MS,
+  max: 10,
+  message: 'Muitos pedidos de novo código. Tente novamente mais tarde.',
+  maxKeys: 10_000,
+  keyGenerator: req => `two-factor-resend:${authRateLimitIp(req)}`
+});
+const twoFactorEnableRateLimit = createMemoryRateLimit({
+  windowMs: AUTH_RATE_LIMIT_WINDOW_MS,
+  max: 10,
+  message: TWO_FACTOR_RATE_LIMIT_MESSAGE,
+  keyGenerator: req => `two-factor-enable:${req.auth?.user?.id || authRateLimitIp(req)}`
+});
+
+const LOGIN_USER_INCLUDE = { collaborator: { include: { jobRole: true } }, moduleRoles: true };
+
+const TWO_FACTOR_FAILURE_MESSAGES = {
+  INVALID: 'Código inválido ou expirado.',
+  EXPIRED: 'O código expirou. Peça um novo código ou entre de novo.',
+  LOCKED: 'Muitas tentativas com este código. Peça um novo código ou entre de novo.'
+};
+
+function twoFactorChallengeResponse(res, { challengeToken, challenge, user }) {
+  return res.json({
+    twoFactorRequired: true,
+    challengeToken,
+    emailHint: maskEmail(user.email),
+    expiresAt: challenge.expiresAt,
+    trustedDeviceDays: TRUSTED_DEVICE_DAYS
+  });
+}
+
+function twoFactorDeliveryFailed(res) {
+  return res.status(503).json({
+    error: 'Não foi possível enviar o código de verificação agora. Tente de novo em alguns minutos ou fale com o administrador.',
+    code: 'TWO_FACTOR_DELIVERY_FAILED'
+  });
+}
+
+async function sessionResponse(res, user, { rememberMe = false, extra = {} } = {}) {
+  const session = await createSession(user.id, { rememberMe });
+  return res.json({
+    token: session.token,
+    expiresAt: session.expiresAt,
+    user: publicUser(user),
+    ...extra
+  });
+}
 
 async function findPasswordResetToken(token) {
   const tokenHash = hashToken(token);
@@ -564,13 +655,182 @@ router.post('/login', loginRateLimit, loginIpRateLimit, loginUsernameRateLimit, 
     return res.status(401).json({ error: 'Usuário ou senha inválidos.' });
   }
 
-  const session = await createSession(user.id, { rememberMe: !!data.rememberMe });
+  if (twoFactorChallengeNeeded(user)) {
+    if (await consumeTwoFactorBypass(prisma, user)) {
+      await logAuthSecurityEvent(prisma, { userId: user.id, type: 'TWO_FACTOR_BYPASS_USED', req });
+      return sessionResponse(res, user, { rememberMe: !!data.rememberMe });
+    }
+    if (await validateTrustedDevice(prisma, { userId: user.id, token: data.trustedDeviceToken })) {
+      return sessionResponse(res, user, { rememberMe: !!data.rememberMe });
+    }
+    if (!user.email) {
+      return res.status(403).json({
+        error: 'Esta conta exige verificação em duas etapas, mas não tem e-mail cadastrado. Peça a outro administrador para cadastrar o seu e-mail.',
+        code: 'TWO_FACTOR_EMAIL_MISSING'
+      });
+    }
+    const { challengeToken, code, challenge } = await createTwoFactorChallenge(prisma, {
+      userId: user.id,
+      purpose: 'LOGIN',
+      rememberSession: !!data.rememberMe
+    });
+    const delivery = await deliverTwoFactorCode({ user, code, purpose: 'LOGIN' });
+    if (!delivery.delivered) {
+      await prisma.twoFactorChallenge.deleteMany({ where: { id: challenge.id } });
+      return twoFactorDeliveryFailed(res);
+    }
+    await logAuthSecurityEvent(prisma, { userId: user.id, type: 'TWO_FACTOR_CHALLENGE_SENT', req, metadata: { purpose: 'LOGIN' } });
+    return twoFactorChallengeResponse(res, { challengeToken, challenge, user });
+  }
 
-  res.json({
-    token: session.token,
-    expiresAt: session.expiresAt,
-    user: publicUser(user)
+  return sessionResponse(res, user, { rememberMe: !!data.rememberMe });
+}));
+
+// Segunda etapa do login: o código enviado por e-mail troca o desafio por uma sessão.
+router.post('/2fa/verify', twoFactorVerifyRateLimit, asyncHandler(async (req, res) => {
+  const data = twoFactorVerifySchema.parse(req.body);
+  const result = await verifyTwoFactorChallenge(prisma, { challengeToken: data.challengeToken, code: data.code, purpose: 'LOGIN' });
+  if (!result.ok) {
+    if (result.challenge) {
+      await logAuthSecurityEvent(prisma, {
+        userId: result.challenge.userId,
+        type: 'TWO_FACTOR_FAILED',
+        req,
+        metadata: { reason: result.reason }
+      });
+    }
+    return res.status(401).json({
+      error: TWO_FACTOR_FAILURE_MESSAGES[result.reason] || TWO_FACTOR_FAILURE_MESSAGES.INVALID,
+      code: `TWO_FACTOR_${result.reason || 'INVALID'}`,
+      ...(result.remainingAttempts !== undefined ? { remainingAttempts: result.remainingAttempts } : {})
+    });
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: result.challenge.userId }, include: LOGIN_USER_INCLUDE });
+  if (!user?.isActive) {
+    return res.status(401).json({ error: TWO_FACTOR_FAILURE_MESSAGES.INVALID, code: 'TWO_FACTOR_INVALID' });
+  }
+  await logAuthSecurityEvent(prisma, { userId: user.id, type: 'TWO_FACTOR_VERIFIED', req });
+
+  let trustedDeviceToken;
+  if (data.rememberDevice) {
+    const issued = await issueTrustedDevice(prisma, { userId: user.id, userAgent: req.get('user-agent') });
+    trustedDeviceToken = issued.token;
+    await logAuthSecurityEvent(prisma, { userId: user.id, type: 'TRUSTED_DEVICE_ADDED', req, metadata: { deviceId: issued.device.id } });
+  }
+  return sessionResponse(res, user, {
+    rememberMe: result.challenge.rememberSession,
+    extra: trustedDeviceToken ? { trustedDeviceToken, trustedDeviceExpiresAt: new Date(Date.now() + TRUSTED_DEVICE_DAYS * 86_400_000) } : {}
   });
+}));
+
+router.post('/2fa/resend', twoFactorResendRateLimit, asyncHandler(async (req, res) => {
+  const data = twoFactorChallengeSchema.parse(req.body);
+  const result = await refreshTwoFactorChallenge(prisma, { challengeToken: data.challengeToken });
+  if (!result.ok) {
+    const messages = {
+      SEND_LIMIT: 'Limite de reenvios atingido. Entre de novo para receber outro código.',
+      COOLDOWN: 'Aguarde alguns segundos antes de pedir outro código.'
+    };
+    return res.status(result.reason === 'INVALID' ? 401 : 429).json({
+      error: messages[result.reason] || TWO_FACTOR_FAILURE_MESSAGES.INVALID,
+      code: `TWO_FACTOR_${result.reason}`
+    });
+  }
+  const user = await prisma.user.findUnique({ where: { id: result.challenge.userId } });
+  if (!user?.isActive || !user.email) {
+    return res.status(401).json({ error: TWO_FACTOR_FAILURE_MESSAGES.INVALID, code: 'TWO_FACTOR_INVALID' });
+  }
+  const delivery = await deliverTwoFactorCode({ user, code: result.code, purpose: result.challenge.purpose });
+  if (!delivery.delivered) return twoFactorDeliveryFailed(res);
+  await logAuthSecurityEvent(prisma, { userId: user.id, type: 'TWO_FACTOR_CHALLENGE_SENT', req, metadata: { purpose: result.challenge.purpose, resend: true } });
+  res.json({ ok: true, emailHint: maskEmail(user.email) });
+}));
+
+async function twoFactorStatusResponse(res, userId) {
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+  const devices = await prisma.trustedDevice.findMany({
+    where: { userId, expiresAt: { gt: new Date() } },
+    orderBy: { lastUsedAt: 'desc' }
+  });
+  return res.json(twoFactorStatusForUser(user, devices));
+}
+
+router.get('/2fa', requireAuth, asyncHandler(async (req, res) => twoFactorStatusResponse(res, req.auth.user.id)));
+
+// Ativação opcional (contas internas): confirma com um código antes de ligar.
+router.post('/2fa/enable', requireAuth, twoFactorEnableRateLimit, asyncHandler(async (req, res) => {
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: req.auth.user.id } });
+  const requirement = twoFactorRequirement(user);
+  if (requirement === TwoFactorRequirement.REQUIRED || requirement === TwoFactorRequirement.ENABLED) {
+    return res.status(409).json({ error: 'A verificação em duas etapas já está ativa nesta conta.' });
+  }
+  if (requirement !== TwoFactorRequirement.AVAILABLE) {
+    return res.status(403).json({ error: 'A verificação em duas etapas não está disponível para esta conta.' });
+  }
+  if (!user.email) {
+    return res.status(400).json({ error: 'Cadastre um e-mail na conta antes de ativar a verificação em duas etapas.', code: 'TWO_FACTOR_EMAIL_MISSING' });
+  }
+  const { challengeToken, code, challenge } = await createTwoFactorChallenge(prisma, { userId: user.id, purpose: 'ENABLE' });
+  const delivery = await deliverTwoFactorCode({ user, code, purpose: 'ENABLE' });
+  if (!delivery.delivered) {
+    await prisma.twoFactorChallenge.deleteMany({ where: { id: challenge.id } });
+    return twoFactorDeliveryFailed(res);
+  }
+  await logAuthSecurityEvent(prisma, { userId: user.id, type: 'TWO_FACTOR_CHALLENGE_SENT', req, metadata: { purpose: 'ENABLE' } });
+  res.json({ challengeToken, emailHint: maskEmail(user.email), expiresAt: challenge.expiresAt });
+}));
+
+router.post('/2fa/enable/confirm', requireAuth, twoFactorEnableRateLimit, asyncHandler(async (req, res) => {
+  const data = twoFactorEnableConfirmSchema.parse(req.body);
+  const open = await findOpenChallenge(prisma, data.challengeToken, { purpose: 'ENABLE' });
+  if (!open || open.userId !== req.auth.user.id) {
+    return res.status(401).json({ error: TWO_FACTOR_FAILURE_MESSAGES.INVALID, code: 'TWO_FACTOR_INVALID' });
+  }
+  const result = await verifyTwoFactorChallenge(prisma, { challengeToken: data.challengeToken, code: data.code, purpose: 'ENABLE' });
+  if (!result.ok) {
+    await logAuthSecurityEvent(prisma, { userId: req.auth.user.id, type: 'TWO_FACTOR_FAILED', req, metadata: { purpose: 'ENABLE', reason: result.reason } });
+    return res.status(401).json({
+      error: TWO_FACTOR_FAILURE_MESSAGES[result.reason] || TWO_FACTOR_FAILURE_MESSAGES.INVALID,
+      code: `TWO_FACTOR_${result.reason || 'INVALID'}`
+    });
+  }
+  await prisma.user.update({ where: { id: req.auth.user.id }, data: { twoFactorEnabled: true } });
+  await logAuthSecurityEvent(prisma, { userId: req.auth.user.id, type: 'TWO_FACTOR_ENABLED', req });
+  return twoFactorStatusResponse(res, req.auth.user.id);
+}));
+
+router.post('/2fa/disable', requireAuth, twoFactorEnableRateLimit, asyncHandler(async (req, res) => {
+  const data = twoFactorDisableSchema.parse(req.body);
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: req.auth.user.id } });
+  if (twoFactorRequirement(user) === TwoFactorRequirement.REQUIRED) {
+    return res.status(403).json({ error: 'A verificação em duas etapas é obrigatória para contas de administrador.' });
+  }
+  if (!(await verifyPassword(data.currentPassword, user.passwordHash))) {
+    return res.status(400).json({ error: 'Senha atual inválida.' });
+  }
+  await prisma.$transaction(async tx => {
+    await tx.user.update({ where: { id: user.id }, data: { twoFactorEnabled: false } });
+    await revokeTrustedDevices(tx, user.id);
+  });
+  await logAuthSecurityEvent(prisma, { userId: user.id, type: 'TWO_FACTOR_DISABLED', req });
+  return twoFactorStatusResponse(res, user.id);
+}));
+
+router.delete('/2fa/devices/:id', requireAuth, asyncHandler(async (req, res) => {
+  const result = await revokeTrustedDevices(prisma, req.auth.user.id, { deviceId: String(req.params.id) });
+  if (result.count) {
+    await logAuthSecurityEvent(prisma, { userId: req.auth.user.id, type: 'TRUSTED_DEVICES_REVOKED', req, metadata: { deviceId: String(req.params.id) } });
+  }
+  return twoFactorStatusResponse(res, req.auth.user.id);
+}));
+
+router.delete('/2fa/devices', requireAuth, asyncHandler(async (req, res) => {
+  const result = await revokeTrustedDevices(prisma, req.auth.user.id);
+  if (result.count) {
+    await logAuthSecurityEvent(prisma, { userId: req.auth.user.id, type: 'TRUSTED_DEVICES_REVOKED', req, metadata: { count: result.count } });
+  }
+  return twoFactorStatusResponse(res, req.auth.user.id);
 }));
 
 router.post('/forgot-password', forgotPasswordRateLimit, asyncHandler(async (req, res) => {
@@ -693,6 +953,7 @@ router.post('/reset-password', resetPasswordRateLimit, asyncHandler(async (req, 
     await tx.userSession.deleteMany({
       where: { userId: tokenRow.userId }
     });
+    await revokeTrustedDevices(tx, tokenRow.userId);
   });
 
   res.json({ ok: true });
@@ -720,6 +981,8 @@ router.post('/change-password', requireAuth, asyncHandler(async (req, res) => {
         id: { not: req.auth.sessionId }
       }
     });
+    // Navegadores lembrados para o 2FA também deixam de valer.
+    await revokeTrustedDevices(tx, currentUser.id);
   });
 
   res.json({ ok: true });

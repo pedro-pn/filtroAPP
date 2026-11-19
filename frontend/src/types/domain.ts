@@ -202,6 +202,7 @@ export interface InternalUserSummary {
   collaborator?: Collaborator | null;
   linkedProjects?: LinkedClientProject[];
   clientCnpj?: string | null;
+  twoFactor?: { required: boolean; enabled: boolean };
 }
 
 export interface ReportSummary {

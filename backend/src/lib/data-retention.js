@@ -48,7 +48,14 @@ export function retentionTargets(cutoffs) {
     },
     abandonedDrafts: { updatedAt: { lt: cutoffs.abandonedDraftDeleteBefore } },
     apiRequestLogs: { createdAt: { lt: cutoffs.apiTokenUsageDeleteBefore } },
-    apiUsageBuckets: { updatedAt: { lt: cutoffs.apiTokenUsageDeleteBefore } }
+    apiUsageBuckets: { updatedAt: { lt: cutoffs.apiTokenUsageDeleteBefore } },
+    // 2FA (spec 039): desafios e navegadores lembrados vencidos; IP/UA da trilha após 2 anos.
+    expiredTwoFactorChallenges: { expiresAt: { lt: cutoffs.now } },
+    expiredTrustedDevices: { expiresAt: { lt: cutoffs.now } },
+    authSecurityEvents: {
+      createdAt: { lt: cutoffs.auditLogAnonymizeBefore },
+      OR: [{ ipAddress: { not: null } }, { userAgent: { not: null } }]
+    }
   };
 }
 
@@ -87,6 +94,38 @@ export function abandonedDraftExplicitDeleteWhere(targets, draftIds) {
       { id: { in: ids } }
     ]
   };
+}
+
+// Modelos do 2FA são opcionais nos clientes falsos dos testes: só entram se existirem.
+async function previewTwoFactorRetention(prismaClient, targets) {
+  return {
+    ...(prismaClient.twoFactorChallenge?.count ? { expiredTwoFactorChallengesToDelete: await prismaClient.twoFactorChallenge.count({ where: targets.expiredTwoFactorChallenges }) } : {}),
+    ...(prismaClient.trustedDevice?.count ? { expiredTrustedDevicesToDelete: await prismaClient.trustedDevice.count({ where: targets.expiredTrustedDevices }) } : {}),
+    ...(prismaClient.authSecurityEvent?.count ? { authSecurityEventsToAnonymize: await prismaClient.authSecurityEvent.count({ where: targets.authSecurityEvents }) } : {})
+  };
+}
+
+async function runTwoFactorRetention({ prismaClient, targets, batchSize, maxBatchesPerTarget }) {
+  const runs = {};
+  if (prismaClient.twoFactorChallenge?.findMany) {
+    runs.expiredTwoFactorChallengesDeleted = await processRetentionBatches({
+      prismaClient, modelName: 'twoFactorChallenge', where: targets.expiredTwoFactorChallenges,
+      orderBy: { expiresAt: 'asc' }, action: 'delete', batchSize, maxBatchesPerTarget
+    });
+  }
+  if (prismaClient.trustedDevice?.findMany) {
+    runs.expiredTrustedDevicesDeleted = await processRetentionBatches({
+      prismaClient, modelName: 'trustedDevice', where: targets.expiredTrustedDevices,
+      orderBy: { expiresAt: 'asc' }, action: 'delete', batchSize, maxBatchesPerTarget
+    });
+  }
+  if (prismaClient.authSecurityEvent?.findMany) {
+    runs.authSecurityEventsAnonymized = await processRetentionBatches({
+      prismaClient, modelName: 'authSecurityEvent', where: targets.authSecurityEvents,
+      orderBy: { createdAt: 'asc' }, action: 'update', data: { ipAddress: null, userAgent: null }, batchSize, maxBatchesPerTarget
+    });
+  }
+  return runs;
 }
 
 export async function previewDataRetention({ prismaClient = prisma, now = new Date(), abandonedDraftPreviewLimit = 100, apiTokenLogRetentionDays = 365, jobRunRetentionDays = null, lgpdTargets = false, lgpdFlags = null } = {}) {
@@ -128,6 +167,7 @@ export async function previewDataRetention({ prismaClient = prisma, now = new Da
 
   const apiRequestLogs = prismaClient.apiRequestLog?.count ? await prismaClient.apiRequestLog.count({ where: targets.apiRequestLogs }) : null;
   const apiUsageBuckets = prismaClient.apiUsageBucket?.count ? await prismaClient.apiUsageBucket.count({ where: targets.apiUsageBuckets }) : null;
+  const twoFactor = await previewTwoFactorRetention(prismaClient, targets);
 
   const jobRunsWhere = await jobRunRetentionWhere(prismaClient, cutoffs);
   const jobRunsToDelete = jobRunsWhere ? await prismaClient.jobRun.count({ where: jobRunsWhere }) : null;
@@ -158,6 +198,7 @@ export async function previewDataRetention({ prismaClient = prisma, now = new Da
     abandonedDraftsToReviewSample: abandonedDraftsToReview,
     ...(apiRequestLogs === null ? {} : { apiRequestLogsToDelete: apiRequestLogs }),
     ...(apiUsageBuckets === null ? {} : { apiUsageBucketsToDelete: apiUsageBuckets }),
+    ...twoFactor,
     ...(lgpd ? { lgpd } : {})
   };
 }
@@ -332,6 +373,7 @@ async function executeRetentionMutations(prismaClient, targets, {
       maxBatchesPerTarget
     })
     : null;
+  const twoFactorRuns = await runTwoFactorRetention({ prismaClient, targets, batchSize, maxBatchesPerTarget });
   const explicitDraftDeleteWhere = deleteAbandonedDrafts
     ? abandonedDraftExplicitDeleteWhere(targets, abandonedDraftIds)
     : null;
@@ -366,6 +408,7 @@ async function executeRetentionMutations(prismaClient, targets, {
     satisfactionSurveysAnonymized: satisfactionSurveys.count,
     ...(apiRequestLogs ? { apiRequestLogsDeleted: apiRequestLogs.count } : {}),
     ...(apiUsageBuckets ? { apiUsageBucketsDeleted: apiUsageBuckets.count } : {}),
+    ...Object.fromEntries(Object.entries(twoFactorRuns).map(([key, result]) => [key, result.count])),
     abandonedDraftsDeleted: abandonedDrafts.count,
     abandonedDraftIdsDeleted,
     abandonedDraftDeletionRequiresExplicitIds: deleteAbandonedDrafts && !explicitDraftDeleteWhere,
@@ -379,6 +422,7 @@ async function executeRetentionMutations(prismaClient, targets, {
       satisfactionSurveys: satisfactionSurveys.batches,
       ...(apiRequestLogs ? { apiRequestLogs: apiRequestLogs.batches } : {}),
       ...(apiUsageBuckets ? { apiUsageBuckets: apiUsageBuckets.batches } : {}),
+      ...Object.fromEntries(Object.entries(twoFactorRuns).map(([key, result]) => [key, result.batches])),
       abandonedDrafts: abandonedDraftIdsDeleted.length ? 1 : 0
     },
     batchSize,
