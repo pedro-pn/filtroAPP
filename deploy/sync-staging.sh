@@ -271,6 +271,8 @@ sanitize_staging_database() {
   docker compose -f "$STAGING_COMPOSE_FILE" exec -T postgres \
     psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<SQL
 BEGIN;
+-- Banco de homologação: libera a guarda das fichas de EPI assinadas só nesta transação.
+SET LOCAL filtrovali.epi_history_override = 'sanitizacao-homologacao';
 
 DELETE FROM "UserSession";
 DELETE FROM "PasswordResetToken";

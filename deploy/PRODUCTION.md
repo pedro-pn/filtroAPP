@@ -743,6 +743,41 @@ docker compose --env-file backend/.env.production -f docker-compose.prod.yml exe
 Depois de editar o `.env.production`, recrie backend e worker
 (`docker compose --env-file backend/.env.production -f docker-compose.prod.yml up -d backend worker`).
 
+## Guarda das fichas de EPI
+
+Fichas de entrega de EPI assinadas (`EpiRecord` com assinatura) e as solicitações
+de assinatura assinadas (`EpiSignatureRequest`, com PDF e hashes) são guardadas por
+**20 anos** a partir da entrega/assinatura (NR-6, item 6.6.1 "h"; NR-1/PGR;
+`LGPD_COMPLIANCE.md` — interpretação a revisar com o jurídico).
+
+- A API recusa excluir ou alterar EPI assinado (409, `EPI_SIGNED_HISTORY_LOCKED`);
+  o caminho é **arquivar**. EPI não assinado continua podendo ser removido.
+- A migration `20261119150000_epi_signed_history_guard` repete a regra no banco:
+  `DELETE`, `TRUNCATE` e `UPDATE` que apague ou troque a evidência (data, imagem,
+  PDF e hashes da assinatura) falham com `EPI_SIGNED_HISTORY_LOCKED`. Vale também
+  para o papel `postgres` e para scripts.
+- A rotina de retenção LGPD não apaga fichas de EPI (o teste
+  `backend/test/epi-signed-history-guard.test.js` verifica).
+
+**Exceção** (ordem judicial, correção de um registro criado por engano e
+documentada, ou registros com mais de 20 anos que não saem sozinhos): só com
+registro do motivo e dentro de uma transação, como dono do banco. **Rode no
+servidor**, depois do backup:
+
+```bash
+docker compose --env-file backend/.env.production -f docker-compose.prod.yml exec -T postgres \
+  psql -v ON_ERROR_STOP=1 -U postgres -d filtrovali <<'SQL'
+BEGIN;
+SET LOCAL filtrovali.epi_history_override = '<motivo e referência do pedido>';
+-- comando revisado aqui, ex.: DELETE FROM "EpiRecord" WHERE id = '<id>';
+COMMIT;
+SQL
+```
+
+Registre o motivo e o que foi alterado em `docs/incidentes/`. A anonimização da
+homologação (`deploy/db/anonymize-staging.sql`, `deploy/sync-staging.sh`) usa a
+mesma exceção, só na cópia descartável.
+
 ## Certificado
 
 O `nginx` já está preparado para servir o domínio principal

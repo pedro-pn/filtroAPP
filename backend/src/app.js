@@ -253,6 +253,16 @@ app.use((err, req, res, _next) => {
     });
   }
 
+  // Guarda das fichas de EPI assinadas no banco (migration
+  // 20261119150000_epi_signed_history_guard): a API já barra antes; isto cobre
+  // um caminho que escape dela.
+  if (/EPI_SIGNED_HISTORY_LOCKED/.test(String(err?.message || ''))) {
+    return res.status(409).json({
+      error: 'EPI assinado não pode ser removido nem ter a assinatura alterada: a ficha é guardada por 20 anos (NR-6).',
+      code: 'EPI_SIGNED_HISTORY_LOCKED'
+    });
+  }
+
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
     if (err.code === 'P2002') {
       const target = Array.isArray(err.meta?.target) ? err.meta.target.join(', ') : err.meta?.target;

@@ -547,7 +547,8 @@ export function assertCanDeleteEpiRecord(record) {
   if (!record?.signedAt && !record?.signatureImageDataUrl
     && record?.signatureRequest?.status !== 'SIGNED'
     && !record?.signatureRequest?.signedAt && !record?.signatureRequest?.signatureImageDataUrl) return;
-  const error = new Error('EPI assinado não pode ser removido. Arquive o registro para preservá-lo.');
+  const error = new Error('EPI assinado não pode ser removido: a ficha de entrega é guardada por 20 anos (NR-6). Arquive o registro para preservá-lo.');
+  error.code = 'EPI_SIGNED_HISTORY_LOCKED';
   error.status = 409;
   error.statusCode = 409;
   throw error;
@@ -557,7 +558,8 @@ export function assertCanUpdateEpiRecord(record) {
   assertNotPendingReturnRevision(record);
   assertNoActivePendingEpiSignatureRequest(record);
   if (!record?.signedAt && !record?.signatureImageDataUrl) return;
-  const error = new Error('EPI assinado não pode ser alterado. Arquive o registro para preservar a evidência assinada.');
+  const error = new Error('EPI assinado não pode ser alterado: a evidência assinada é guardada por 20 anos (NR-6). Arquive o registro para preservá-la.');
+  error.code = 'EPI_SIGNED_HISTORY_LOCKED';
   error.status = 409;
   error.statusCode = 409;
   throw error;
