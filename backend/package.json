@@ -42,7 +42,10 @@
     "download:legacy-maintenance-assets": "node scripts/download-legacy-maintenance-assets.js",
     "import:legacy-maintenance": "node scripts/import-legacy-maintenance-history.js",
     "openai:check": "node scripts/check-openai-model.js",
-    "openai:avaliar": "node scripts/avaliar-adequacao.js"
+    "openai:avaliar": "node scripts/avaliar-adequacao.js",
+    "contract:build": "node scripts/build-internal-openapi.js",
+    "contract:allowlist": "node scripts/build-internal-openapi.js --allowlist",
+    "contract:view": "node scripts/view-internal-openapi.js"
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.1.0",
