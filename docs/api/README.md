@@ -36,6 +36,26 @@ do handler final. Depois de migrar: rode `npm run contract:build`, tire as linha
 `unmigrated-routes.json` e baixe `UNMIGRATED_ROUTES_BASELINE` em
 `backend/test/internal-api-contract.test.js` — a lista só pode diminuir.
 
+### Onde a entrada é validada (`validateInput`)
+
+| Modo | O contrato | O handler recebe | Quando usar |
+|---|---|---|---|
+| `replace` (padrão) | valida | o valor validado (com defaults do zod) | rotas novas |
+| `check` | valida | o corpo original | rotas antigas que normalizam o corpo à mão depois (ex.: Data Book, destinatários de estatísticas) |
+| `handler` | só documenta | o corpo original; o handler valida com o mesmo schema (`validatedBy` diz onde) | domínios migrados sem mudar a ordem das respostas (ex.: 403 de papel antes do 400 de dados) |
+
+Os domínios antigos (RDO na fase 2) usam `rdoRoute('MÉTODO caminho', { ... })` de
+`backend/src/lib/api-contract/domains/rdo.js`, que aplica os padrões (`auth: 'session'`,
+`validateInput: 'handler'`, parâmetros de caminho a partir do próprio caminho).
+
+### Multipart
+
+`bodyContentType: 'multipart/form-data'` com `bodyFiles: { campo: 'descrição' }` documenta
+envios de arquivo. O upload manual de RDO (`manual-upload`, `manual-extract`,
+`:id/manual-pdf`) manda o PDF na parte `pdf` e os demais campos como JSON na parte
+`payload` (`backend/src/lib/http/multipart-form.js`, sem dependência nova). O envio JSON
+antigo, com o PDF em base64, só passa até o limite padrão de 1 MB.
+
 ## Formato de erro
 
 Toda resposta de erro da API interna tem `{ error, code, requestId, details? }`:
@@ -52,7 +72,7 @@ Handlers novos usam `sendError(res, status, code, message, details)` de
 ## Fases (spec 042)
 
 1. **auth** ✅ (22 rotas)
-2. RDO e relatórios (inclui o upload manual em multipart)
+2. **RDO e relatórios** ✅ (95 rotas, nos caminhos `/api/rdo/...` e na raiz; upload manual em multipart)
 3. Efetivo, workforce e conferência de alocação
 4. Equipamentos, EPI, estoque, qualidade, romaneio e logística
 5. Acompanhamento, operações, privacidade, admin, notificações, assinaturas e webhooks
