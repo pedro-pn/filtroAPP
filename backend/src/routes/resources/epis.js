@@ -6,6 +6,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
+import { defineRoute } from '../../lib/api-contract/registry.js';
 import { AUDIT_ENTITY_TYPES, AUDIT_MODULES, recordAuditEvent } from '../../lib/audit/events.js';
 import {
   effectiveEpiRole,
@@ -114,6 +115,11 @@ const createRecordSchema = recordSchema.extend({
 const signatureRequestSchema = z.object({
   recordIds: commonSchemas.stringIdList({ min: 1, max: 100 })
 });
+
+const returnRecordSchema = z.object({
+  quantity: z.coerce.number().int('Quantidade deve ser um número inteiro.').positive('Quantidade deve ser maior que zero.').max(999),
+  devolutionDate: z.string().trim().min(1, 'Informe a data de devolução.')
+}).strict();
 
 const archiveRecordsSchema = z.object({
   recordIds: commonSchemas.stringIdList({ min: 1, max: 100 }),
@@ -320,8 +326,24 @@ function selectedCollaboratorFields() {
 
 function epiCollaboratorDto(collaborator) {
   const effectiveRole = effectiveEpiRoleData(collaborator);
+  const returns = new Map();
+  for (const record of collaborator.epiRecords || []) {
+    if (!record.returnSourceRecordId) continue;
+    const balance = returns.get(record.returnSourceRecordId) || { returnedQuantity: 0, pendingReturnQuantity: 0 };
+    if (record.pendingReturn && !record.archivedAt) balance.pendingReturnQuantity += record.quantity;
+    else if (!record.pendingReturn && (record.signedAt || record.signatureImageDataUrl)) balance.returnedQuantity += record.quantity;
+    returns.set(record.returnSourceRecordId, balance);
+  }
   return {
     ...collaborator,
+    epiRecords: (collaborator.epiRecords || []).map(record => {
+      const balance = returns.get(record.id) || { returnedQuantity: 0, pendingReturnQuantity: 0 };
+      return {
+        ...record,
+        ...balance,
+        remainingQuantity: record.devolutionDate ? 0 : Math.max(0, record.quantity - balance.returnedQuantity)
+      };
+    }),
     currentJobRole: collaborator.jobRole,
     roleOverrideJobRole: collaborator.epiProfile?.roleOverrideJobRole || null,
     effectiveRole,
@@ -576,14 +598,14 @@ export function isSignedEpiReturnUpdate(record, data) {
     && !record.devolutionDate;
 }
 
-function signedEpiReturnRevisionData(record, devolutionDate, userId) {
+function signedEpiReturnRevisionData(record, devolutionDate, userId, quantity) {
   return {
     collaboratorId: record.collaboratorId,
     catalogItemId: record.catalogItemId || null,
     epiName: record.epiName,
     ca: record.ca,
     size: record.size ?? null,
-    quantity: record.quantity,
+    quantity,
     lendDate: record.lendDate,
     devolutionDate,
     pendingReturn: true,
@@ -646,8 +668,53 @@ export function assertCanUnarchiveEpiRecords(records, activeSuccessors = []) {
   throw error;
 }
 
-async function createPendingReturnSignatureRequest(tx, { current, returnedAt, userId, collaboratorId }) {
+async function lockEpiRecord(tx, recordId) {
+  await tx.$queryRaw`SELECT id FROM "EpiRecord" WHERE id = ${recordId} FOR UPDATE`;
+}
+
+async function confirmedEpiReturnQuantity(tx, recordId) {
+  // Arquivar uma devolução assinada não desfaz a baixa de suas unidades.
+  const records = await tx.epiRecord.findMany({
+    where: {
+      returnSourceRecordId: recordId,
+      pendingReturn: false,
+      OR: [{ signedAt: { not: null } }, { signatureImageDataUrl: { not: null } }]
+    },
+    select: { quantity: true }
+  });
+  return records.reduce((total, record) => total + record.quantity, 0);
+}
+
+async function assertNoEpiReturnHistory(tx, recordId) {
+  const linked = await tx.epiRecord.findFirst({
+    where: {
+      returnSourceRecordId: recordId,
+      OR: [
+        { pendingReturn: true, archivedAt: null },
+        { pendingReturn: false, signedAt: { not: null } },
+        { pendingReturn: false, signatureImageDataUrl: { not: null } }
+      ]
+    },
+    select: { id: true }
+  });
+  if (linked) throw epiReturnConflictError();
+}
+
+async function createPendingReturnSignatureRequest(tx, { current, returnedAt, quantity, userId, collaboratorId }) {
+  if (current.archivedAt || current.devolutionDate || current.pendingReturn || current.returnSourceRecordId) {
+    throw epiReturnConflictError();
+  }
+  assertNoActivePendingEpiSignatureRequest(current);
   assertEpiDateOrder(current.lendDate, returnedAt);
+  const remainingQuantity = current.quantity - await confirmedEpiReturnQuantity(tx, current.id);
+  const returnQuantity = quantity ?? remainingQuantity;
+  if (returnQuantity <= 0 || returnQuantity > remainingQuantity) {
+    throw new z.ZodError([{
+      code: z.ZodIssueCode.custom,
+      path: ['quantity'],
+      message: `A quantidade deve ser maior que zero e não pode exceder o saldo disponível (${remainingQuantity}).`
+    }]);
+  }
   const pending = await tx.epiRecord.findFirst({
     where: {
       returnSourceRecordId: current.id,
@@ -687,6 +754,7 @@ async function createPendingReturnSignatureRequest(tx, { current, returnedAt, us
       where: { id: pending.id },
       data: {
         devolutionDate: returnedAt,
+        quantity: returnQuantity,
         signatureRequestId: created.id
       },
       include: { catalogItem: true, signatureRequest: true }
@@ -708,7 +776,7 @@ async function createPendingReturnSignatureRequest(tx, { current, returnedAt, us
   try {
     record = await tx.epiRecord.create({
       data: {
-        ...signedEpiReturnRevisionData(current, returnedAt, userId),
+        ...signedEpiReturnRevisionData(current, returnedAt, userId, returnQuantity),
         signatureRequestId: created.id
       },
       include: { catalogItem: true, signatureRequest: true }
@@ -1023,6 +1091,10 @@ export async function confirmPublicEpiSignatureRequest({
       throw error;
     }
 
+    const pendingReturnRecords = request.records.filter(record => record.pendingReturn && record.returnSourceRecordId);
+    const sourceIds = Array.from(new Set(pendingReturnRecords.map(record => record.returnSourceRecordId))).sort();
+    for (const id of sourceIds) await lockEpiRecord(tx, id);
+
     const result = await tx.epiRecord.updateMany({
       where: { signatureRequestId: request.id, signedAt: null, archivedAt: null },
       data: {
@@ -1036,22 +1108,26 @@ export async function confirmPublicEpiSignatureRequest({
       error.statusCode = 409;
       throw error;
     }
-    const pendingReturnRecords = request.records.filter(record => record.pendingReturn && record.returnSourceRecordId);
     if (pendingReturnRecords.length) {
-      const sourceIds = Array.from(new Set(pendingReturnRecords.map(record => record.returnSourceRecordId).filter(Boolean)));
-      const archivedSources = await tx.epiRecord.updateMany({
-        where: {
-          id: { in: sourceIds },
-          signedAt: { not: null },
-          archivedAt: null
-        },
-        data: { archivedAt: signedAt }
-      });
-      if (archivedSources.count !== sourceIds.length) {
-        const error = new Error('Solicitação de devolução não corresponde mais ao EPI assinado original.');
-        error.status = 409;
-        error.statusCode = 409;
-        throw error;
+      for (const id of sourceIds) {
+        const source = await tx.epiRecord.findUnique({ where: { id } });
+        const returnedQuantity = pendingReturnRecords.filter(record => record.returnSourceRecordId === id)
+          .reduce((total, record) => total + record.quantity, 0);
+        const confirmedQuantity = await confirmedEpiReturnQuantity(tx, id);
+        if (!source || source.archivedAt || source.devolutionDate || source.returnSourceRecordId
+          || returnedQuantity + confirmedQuantity > source.quantity) {
+          const error = new Error('Solicitação de devolução não corresponde mais ao EPI assinado original ou ao saldo disponível.');
+          error.status = 409;
+          error.statusCode = 409;
+          throw error;
+        }
+        // A entrega original permanece intacta e ativa enquanto houver saldo.
+        if (returnedQuantity + confirmedQuantity === source.quantity) {
+          await tx.epiRecord.updateMany({
+            where: { id: { in: [id] }, archivedAt: null },
+            data: { archivedAt: signedAt }
+          });
+        }
       }
       const promotedReturns = await tx.epiRecord.updateMany({
         where: {
@@ -1207,6 +1283,7 @@ router.post('/collaborators/:id/records', requireEpiTechnician, asyncHandler(asy
 router.put('/records/:id', requireEpiTechnician, asyncHandler(async (req, res) => {
   const data = recordSchema.partial().parse(req.body || {});
   const item = await prisma.$transaction(async tx => {
+    await lockEpiRecord(tx, req.params.id);
     const current = await tx.epiRecord.findUniqueOrThrow({
       where: { id: req.params.id },
       include: { signatureRequest: true, catalogItem: true }
@@ -1222,6 +1299,7 @@ router.put('/records/:id', requireEpiTechnician, asyncHandler(async (req, res) =
       });
     }
     assertCanUpdateEpiRecord(current);
+    await assertNoEpiReturnHistory(tx, current.id);
     const shouldResolveCatalog = data.catalogItemId !== undefined || data.epiName !== undefined || data.ca !== undefined;
     const catalogItem = shouldResolveCatalog ? await ensureCatalogForRecord({
       catalogItemId: data.catalogItemId,
@@ -1252,6 +1330,52 @@ router.put('/records/:id', requireEpiTechnician, asyncHandler(async (req, res) =
     });
   });
   res.json(item);
+}));
+
+defineRoute(router, {
+  method: 'post',
+  path: '/records/:id/returns',
+  summary: 'Solicitar assinatura de devolução total ou parcial de EPI (técnico)',
+  tags: ['epi'],
+  auth: 'session',
+  params: z.object({ id: z.string().trim().min(1) }),
+  body: returnRecordSchema,
+  responses: {
+    201: z.object({
+      record: z.looseObject({
+        id: z.string(),
+        collaboratorId: z.string(),
+        epiName: z.string(),
+        ca: z.string(),
+        size: z.string().nullable(),
+        quantity: z.number().int().positive(),
+        lendDate: z.string(),
+        devolutionDate: z.string(),
+        pendingReturn: z.literal(true),
+        returnSourceRecordId: z.string()
+      }),
+      token: z.string(),
+      signUrl: z.string()
+    })
+  },
+  errors: [400, 401, 403, 404, 409]
+}, requireEpiTechnician, asyncHandler(async (req, res) => {
+  const data = returnRecordSchema.parse(req.body || {});
+  const item = await prisma.$transaction(async tx => {
+    await lockEpiRecord(tx, req.params.id);
+    const current = await tx.epiRecord.findUniqueOrThrow({
+      where: { id: req.params.id },
+      include: { signatureRequest: true, catalogItem: true }
+    });
+    return createPendingReturnSignatureRequest(tx, {
+      current,
+      quantity: data.quantity,
+      returnedAt: parseDateOnly(data.devolutionDate, 'devolutionDate'),
+      userId: req.auth.user.id,
+      collaboratorId: current.collaboratorId
+    });
+  });
+  res.status(201).json(item);
 }));
 
 router.post('/collaborators/:id/records/archive', requireEpiTechnician, asyncHandler(async (req, res) => {
@@ -1295,11 +1419,13 @@ router.post('/collaborators/:id/records/archive', requireEpiTechnician, asyncHan
 
 export async function removeUnsignedEpiRecord({ recordId, evidence = {}, client = prisma }) {
   await client.$transaction(async tx => {
+    await lockEpiRecord(tx, recordId);
     const record = await tx.epiRecord.findUniqueOrThrow({
       where: { id: recordId },
       include: { signatureRequest: true }
     });
     assertCanDeleteEpiRecord(record);
+    await assertNoEpiReturnHistory(tx, recordId);
     // Match the unsigned state again so a concurrent signature or new request wins safely.
     const removed = await tx.epiRecord.deleteMany({
       where: {

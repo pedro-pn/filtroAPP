@@ -566,6 +566,7 @@ test('public EPI confirmation promotes signed pending return revisions', async (
       findUnique: async () => request
     },
     $transaction: async callback => callback({
+      $queryRaw: async () => [],
       epiSignatureRequest: {
         findUnique: async () => request,
         update: async args => signatureRequest({
@@ -578,6 +579,8 @@ test('public EPI confirmation promotes signed pending return revisions', async (
         })
       },
       epiRecord: {
+        findUnique: async () => ({ id: 'record-1', quantity: 1, signedAt: new Date() }),
+        findMany: async () => [],
         updateMany: async args => {
           recordUpdates.push(args);
           return { count: args.data.signedAt ? request.records.length : 1 };
@@ -604,7 +607,6 @@ test('public EPI confirmation promotes signed pending return revisions', async (
   assert.deepEqual(recordUpdates[0].where, { signatureRequestId: request.id, signedAt: null, archivedAt: null });
   assert.equal(recordUpdates[0].data.signedAt instanceof Date, true);
   assert.deepEqual(recordUpdates[1].where.id, { in: ['record-1'] });
-  assert.deepEqual(recordUpdates[1].where.signedAt, { not: null });
   assert.equal(recordUpdates[1].data.archivedAt instanceof Date, true);
   assert.deepEqual(recordUpdates[2].where.id, { in: ['return-record-1'] });
   assert.equal(recordUpdates[2].data.pendingReturn, false);
@@ -628,6 +630,7 @@ test('public EPI confirmation rejects stale pending return revisions when source
       findUnique: async () => request
     },
     $transaction: async callback => callback({
+      $queryRaw: async () => [],
       epiSignatureRequest: {
         findUnique: async () => request,
         update: async args => signatureRequest({
@@ -638,6 +641,8 @@ test('public EPI confirmation rejects stale pending return revisions when source
         })
       },
       epiRecord: {
+        findUnique: async () => ({ id: 'record-1', quantity: 1, signedAt: new Date(), archivedAt: new Date() }),
+        findMany: async () => [],
         updateMany: async args => {
           if (args.where?.id?.in?.includes('record-1')) return { count: 0 };
           return { count: request.records.length };

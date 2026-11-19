@@ -145,7 +145,9 @@ test('a concurrent signature or replacement request prevents EPI deletion', asyn
   let revoked = false;
   const client = {
     $transaction: callback => callback({
+      $queryRaw: async () => [],
       epiRecord: {
+        findFirst: async () => null,
         findUniqueOrThrow: async () => ({ id: 'record', signedAt: null, signatureImageDataUrl: null, signatureRequestId: 'request' }),
         deleteMany: async ({ where }) => {
           assert.deepEqual(where, { id: 'record', signedAt: null, signatureImageDataUrl: null, signatureRequestId: 'request', pendingReturn: false });
