@@ -4406,6 +4406,191 @@
         }
       }
     },
+    "/api/epi/records/{id}/returns": {
+      "post": {
+        "operationId": "postApiEpiRecordsIdReturns",
+        "summary": "Solicitar assinatura de devolução total ou parcial de EPI (técnico)",
+        "tags": [
+          "epi"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "x-auth": "session",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "quantity": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 999
+                  },
+                  "devolutionDate": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "quantity",
+                  "devolutionDate"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Criado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "record": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "collaboratorId": {
+                          "type": "string"
+                        },
+                        "epiName": {
+                          "type": "string"
+                        },
+                        "ca": {
+                          "type": "string"
+                        },
+                        "size": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "quantity": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "lendDate": {
+                          "type": "string"
+                        },
+                        "devolutionDate": {
+                          "type": "string"
+                        },
+                        "pendingReturn": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "returnSourceRecordId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "collaboratorId",
+                        "epiName",
+                        "ca",
+                        "size",
+                        "quantity",
+                        "lendDate",
+                        "devolutionDate",
+                        "pendingReturn",
+                        "returnSourceRecordId"
+                      ],
+                      "additionalProperties": {}
+                    },
+                    "token": {
+                      "type": "string"
+                    },
+                    "signUrl": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "record",
+                    "token",
+                    "signUrl"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem permissão",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/operational-reports": {
       "get": {
         "operationId": "getApiOperationalReports",

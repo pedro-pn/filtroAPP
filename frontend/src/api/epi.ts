@@ -27,6 +27,9 @@ export interface EpiRecord {
   ca: string;
   size?: string | null;
   quantity: number;
+  returnedQuantity?: number;
+  remainingQuantity?: number;
+  pendingReturnQuantity?: number;
   lendDate: string;
   devolutionDate?: string | null;
   signatureRequestId?: string | null;
@@ -137,6 +140,13 @@ export async function createEpiRecord(collaboratorId: string, payload: CreateEpi
 
 export async function updateEpiRecord(id: string, payload: Partial<EpiRecordPayload>) {
   const { data } = await apiClient.put<EpiRecord | { record: EpiRecord; token: string; signUrl: string }>(epiApiPath(`/records/${id}`), payload);
+  return data;
+}
+
+export async function returnEpiRecord(id: string, payload: { quantity: number; devolutionDate: string }) {
+  const { data } = await apiClient.post<{ record: EpiRecord; token: string; signUrl: string }>(
+    epiApiPath(`/records/${id}/returns`), payload
+  );
   return data;
 }
 

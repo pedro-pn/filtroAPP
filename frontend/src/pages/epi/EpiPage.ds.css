@@ -8,6 +8,11 @@
   color: var(--ink);
 }
 
+.epi-return-form {
+  display: grid;
+  gap: var(--space-4);
+}
+
 .epi-page-v2 .epi-panel,
 .epi-page-v2 .epi-collaborator-card {
   width: 100%;

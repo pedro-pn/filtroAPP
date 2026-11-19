@@ -17,9 +17,9 @@ import {
   removeEpiCatalogItem,
   removeEpiRecord,
   requestEpiSignature,
+  returnEpiRecord,
   updateEpiCatalogItem,
   updateEpiCollaboratorProfile,
-  updateEpiRecord,
   type CreateEpiRecordPayload,
   type EpiCatalogItem,
   type EpiCollaborator,
@@ -249,6 +249,7 @@ export function EpiPage() {
   const [editingCatalogId, setEditingCatalogId] = useState<string | null>(null);
   const [editCatalogForm, setEditCatalogForm] = useState<CatalogForm>(emptyCatalogForm);
   const [removeDialog, setRemoveDialog] = useState<RemoveDialogState | null>(null);
+  const [returnDialog, setReturnDialog] = useState<{ record: EpiRecord; quantity: string; devolutionDate: string } | null>(null);
 
   const collaboratorsQuery = useQuery({ queryKey: ['epi-collaborators'], queryFn: listEpiCollaborators });
   const catalogQuery = useQuery({ queryKey: ['epi-catalog'], queryFn: listEpiCatalog });
@@ -310,16 +311,14 @@ export function EpiPage() {
   });
 
   const returnRecordMutation = useMutation({
-    mutationFn: async ({ id }: { collaboratorId: string; id: string }) => {
-      const result = await updateEpiRecord(id, { devolutionDate: inputDateToPtBr(todayInputDate()) });
-      if ('signUrl' in result) return result;
-      return requestEpiSignature(result.collaboratorId, [result.id]);
-    },
+    mutationFn: ({ id, quantity, devolutionDate }: { id: string; quantity: number; devolutionDate: string }) =>
+      returnEpiRecord(id, { quantity, devolutionDate }),
     onSuccess: data => {
       invalidate();
+      setReturnDialog(null);
       setSelectedRecordIds(new Set());
       setLastSignUrl(data.signUrl);
-      showToast('Devolução registrada. Link de assinatura gerado.', 'success');
+      showToast('Devolução aguardando assinatura. Link gerado.', 'success');
     },
     onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível registrar a devolução.', 'error')
   });
@@ -850,21 +849,23 @@ export function EpiPage() {
                             <div>
                               <strong>{record.epiName}</strong>
                               <small>{caLabel(record.ca)}{record.size ? ` · Tam. ${record.size}` : ''} · Qtd. {record.quantity} · Forn. {formatDate(record.lendDate)} · Dev. {formatDate(record.devolutionDate)}{record.archivedAt ? ` · Arq. ${formatDate(record.archivedAt)}` : ''}</small>
+                              {record.returnedQuantity && !record.returnSourceRecordId ? <small>Devolvido: {record.returnedQuantity} · Saldo com o colaborador: {record.remainingQuantity}</small> : null}
+                              {record.pendingReturnQuantity ? <small>Devolução de {record.pendingReturnQuantity} unidade(s) aguardando assinatura.</small> : null}
                             </div>
                             <Badge tone={record.signedAt ? 'success' : record.signatureRequest?.status === 'PENDING' ? 'warning' : 'neutral'}>{signedLabel(record)}</Badge>
                             {isTechnician ? (
                               <div className="epi-row-buttons">
-                                {recordTab === 'active' && !record.devolutionDate ? (
+                                {recordTab === 'active' && !record.devolutionDate && !record.returnSourceRecordId && (record.remainingQuantity ?? record.quantity) > 0 ? (
                                   <Button
                                     variant="secondary"
                                     size="sm"
                                     disabled={returnRecordMutation.isPending}
-                                    onClick={() => returnRecordMutation.mutate({ collaboratorId: collaborator.id, id: record.id })}
+                                    onClick={() => setReturnDialog({ record, quantity: String(record.remainingQuantity ?? record.quantity), devolutionDate: todayInputDate() })}
                                   >
                                     Devolver
                                   </Button>
                                 ) : null}
-                                {!hasSignatureEvidence(record) ? (
+                                {!hasSignatureEvidence(record) && !record.returnedQuantity && !record.pendingReturnQuantity ? (
                                   <RemoveIconButton label={`Remover EPI ${record.epiName}`} disabled={removeRecordMutation.isPending} onClick={() => confirmRemoveRecord(record)} />
                                 ) : null}
                               </div>
@@ -939,6 +940,55 @@ export function EpiPage() {
           </section>
         )}
       </main>
+      <Modal
+        open={!!returnDialog}
+        onClose={() => { if (!returnRecordMutation.isPending) setReturnDialog(null); }}
+        appearance="design-system"
+        size="sm"
+        title="Devolver EPI"
+        ariaDescribedBy="epi-return-description"
+      >
+        {returnDialog ? (
+          <form className="epi-return-form" onSubmit={event => {
+            event.preventDefault();
+            if (returnRecordMutation.isPending) return;
+            const quantity = Number(returnDialog.quantity);
+            const available = returnDialog.record.remainingQuantity ?? returnDialog.record.quantity;
+            if (!Number.isInteger(quantity) || quantity < 1 || quantity > available) return;
+            returnRecordMutation.mutate({
+              id: returnDialog.record.id,
+              quantity,
+              devolutionDate: inputDateToPtBr(returnDialog.devolutionDate) || ''
+            });
+          }}>
+            <p id="epi-return-description" className="placeholder-copy">
+              <strong>{returnDialog.record.epiName}{returnDialog.record.size ? ` · Tam. ${returnDialog.record.size}` : ''}</strong>
+              <br />Saldo com o colaborador: {returnDialog.record.remainingQuantity ?? returnDialog.record.quantity} unidade(s).
+            </p>
+            <div className="field-group">
+              <label htmlFor="epi-return-quantity">Quantidade a devolver</label>
+              <Input id="epi-return-quantity" type="number" min="1" max={returnDialog.record.remainingQuantity ?? returnDialog.record.quantity} step="1" required
+                value={returnDialog.quantity} disabled={returnRecordMutation.isPending}
+                onChange={event => setReturnDialog(current => current && ({ ...current, quantity: event.target.value }))} />
+            </div>
+            <div className="field-group">
+              <label htmlFor="epi-return-date">Data da devolução</label>
+              <Input id="epi-return-date" type="date" min={dateInput(returnDialog.record.lendDate)} required
+                value={returnDialog.devolutionDate} disabled={returnRecordMutation.isPending}
+                onChange={event => setReturnDialog(current => current && ({ ...current, devolutionDate: event.target.value }))} />
+            </div>
+            <p className="placeholder-copy">
+              A devolução será concluída após a assinatura.
+              {Number.isInteger(Number(returnDialog.quantity)) && Number(returnDialog.quantity) > 0 && Number(returnDialog.quantity) <= (returnDialog.record.remainingQuantity ?? returnDialog.record.quantity)
+                ? ` Saldo após esta devolução: ${(returnDialog.record.remainingQuantity ?? returnDialog.record.quantity) - Number(returnDialog.quantity)} unidade(s).` : ''}
+            </p>
+            <div className="admin-form-actions">
+              <Button variant="secondary" disabled={returnRecordMutation.isPending} onClick={() => setReturnDialog(null)}>Cancelar</Button>
+              <Button variant="primary" type="submit" loading={returnRecordMutation.isPending}>Registrar devolução</Button>
+            </div>
+          </form>
+        ) : null}
+      </Modal>
       <Modal
         open={!!removeDialog}
         onClose={() => setRemoveDialog(null)}
