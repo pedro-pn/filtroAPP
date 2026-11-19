@@ -124,20 +124,13 @@ fecha os gaps de validação do domínio (US2), reduz a allowlist e acrescenta
 - 7.5: nova tentativa com espera crescente e jitter + alerta por falha persistente.
 - 7.6: webhook versionado e política de versão escrita.
 
-## Decisões para o usuário
+## Decisões tomadas (2026-11-19)
 
-- **D1 — Como gerar o contrato.** (a) Do zod, com registro de rotas *(recomendado)*;
-  (b) OpenAPI à mão como na v1; (c) biblioteca `zod-to-openapi`.
-- **D2 — Onde publicar a documentação.** (a) Arquivo gerado no repositório + viewer só em dev
-  *(recomendado)*; (b) também uma página em produção atrás de login de admin; (c) só o arquivo.
-- **D3 — Upload manual de PDF (70 MB de JSON em memória).** (a) Trocar por multipart em streaming
-  no mesmo PR da fase de RDO *(recomendado)*; (b) manter base64 e só reduzir o limite;
-  (c) deixar como está.
-- **D4 — Ordem das fases.** (a) auth → RDO → Efetivo → equipamentos/EPI/estoque/qualidade → resto
-  *(recomendado)*; (b) começar pelos gaps de validação conhecidos (databook, estatísticas) e
-  depois o contrato; (c) outra ordem.
-- **D5 — Prazo para desligar o caminho antigo do webhook.** (a) 60 dias após o ComercialAPP migrar,
-  confirmado pelo contador *(recomendado)*; (b) 30 dias; (c) manter os dois caminhos sem prazo.
-- **D6 — Formato de erro.** (a) `{ error: string, code, requestId, details? }` mantendo
-  compatibilidade com o frontend *(recomendado)*; (b) adotar o formato da v1
-  (`{ error: { code, message }, requestId }`), mudando o frontend junto.
+Todas as recomendações foram aceitas pelo usuário:
+
+- **D1 — Como gerar o contrato:** a partir dos schemas zod, com registro de rotas (`defineRoute`) e `z.toJSONSchema` nativo do zod 4, sem dependência nova.
+- **D2 — Onde publicar:** arquivo gerado no repositório (`docs/api/openapi.internal.json`), com visualizador só em desenvolvimento.
+- **D3 — Upload manual de PDF:** trocar o JSON em base64 por multipart em streaming, no PR da fase de RDO.
+- **D4 — Ordem das fases:** auth → RDO → Efetivo → equipamentos/EPI/estoque/qualidade → resto.
+- **D5 — Caminho antigo do webhook:** desligado 60 dias depois que o ComercialAPP migrar, confirmado pelo contador de uso.
+- **D6 — Formato de erro:** `{ error: string, code, requestId, details? }`, compatível com o frontend atual.
