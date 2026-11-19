@@ -56,6 +56,14 @@ test('manual RDO upload is documented as multipart with the PDF as a binary part
   }
 });
 
+test('Data Book review, preview and generation accept a request without body, as before the contract', () => {
+  const document = buildInternalOpenApi(routes);
+  for (const action of ['revisao', 'previa', 'gerar']) {
+    const operation = document.paths[`/api/rdo/databook/projects/{projectId}/${action}`].post;
+    assert.equal(operation.requestBody.required, false, action);
+  }
+});
+
 test('handler-validated contracts say where the input is validated', () => {
   const offenders = routes
     .filter(route => route.contract?.validateInput === 'handler' && !route.contract.validatedBy)

@@ -67,11 +67,11 @@ export function createDatabookRouter({ authenticate = requireAuth, servicos = se
     res.json(await s.resumoDoDialogo(req.params.projectId, { inicio: inicio || undefined, fim: fim || undefined, ...(contributionKey != null ? { contributionKey } : {}) }));
   }));
 
-  defineRoute(router, rdoRoute('POST /projects/:projectId/revisao', { summary: 'Preparar a revisão do Data Book', tag: 'databook', body: databookIntervalSchema, validateInput: 'check', responses: { 200: jsonObjectSchema }, errors: [400, 401, 403, 404] }), asyncHandler(async (req, res) => {
+  defineRoute(router, rdoRoute('POST /projects/:projectId/revisao', { summary: 'Preparar a revisão do Data Book', tag: 'databook', body: databookIntervalSchema, bodyOptional: true, validateInput: 'check', responses: { 200: jsonObjectSchema }, errors: [400, 401, 403, 404] }), asyncHandler(async (req, res) => {
     res.json(await s.prepararRevisao(req.params.projectId, intervalo(req.body)));
   }));
 
-  defineRoute(router, rdoRoute('POST /projects/:projectId/previa', { summary: 'Gerar a prévia do Data Book com as edições', tag: 'databook', body: databookPreviewSchema, validateInput: 'check', responses: { 200: jsonObjectSchema }, errors: [400, 401, 403, 404, 409] }), asyncHandler(async (req, res) => {
+  defineRoute(router, rdoRoute('POST /projects/:projectId/previa', { summary: 'Gerar a prévia do Data Book com as edições', tag: 'databook', body: databookPreviewSchema, bodyOptional: true, validateInput: 'check', responses: { 200: jsonObjectSchema }, errors: [400, 401, 403, 404, 409] }), asyncHandler(async (req, res) => {
     res.json(await s.criarPrevia(req.params.projectId, {
       ...intervalo(req.body), edicoes: req.body?.edicoes, descricao: req.body?.descricao,
       origemRevisaoId: req.body?.origemRevisaoId
@@ -85,7 +85,7 @@ export function createDatabookRouter({ authenticate = requireAuth, servicos = se
     res.type('pdf').sendFile(arquivo, { dotfiles: 'allow' });
   }));
 
-  defineRoute(router, rdoRoute('POST /projects/:projectId/gerar', { summary: 'Gerar o Data Book (fila)', tag: 'databook', body: databookGenerateSchema, validateInput: 'check', responses: { 202: jsonObjectSchema }, errors: [400, 401, 403, 404, 409, 429] }), ...expensiveRouteLimit('generation'), asyncHandler(async (req, res) => {
+  defineRoute(router, rdoRoute('POST /projects/:projectId/gerar', { summary: 'Gerar o Data Book (fila)', tag: 'databook', body: databookGenerateSchema, bodyOptional: true, validateInput: 'check', responses: { 202: jsonObjectSchema }, errors: [400, 401, 403, 404, 409, 429] }), ...expensiveRouteLimit('generation'), asyncHandler(async (req, res) => {
     const revisao = await s.solicitarGeracao(req.params.projectId, {
       ...intervalo(req.body),
       edicoes: req.body?.edicoes,
