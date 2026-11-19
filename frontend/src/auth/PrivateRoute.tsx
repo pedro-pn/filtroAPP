@@ -6,10 +6,10 @@ import { ClientPrivacyConsentPage } from '../pages/client/ClientPrivacyConsentPa
 import { BrandLoading } from '../components/brand/BrandLoading';
 
 export function PrivateRoute() {
-  const { isAuthenticated, isBootstrapping, token, user } = useAuth();
+  const { isAuthenticated, isBootstrapping, user } = useAuth();
   const location = useLocation();
 
-  if (isBootstrapping || (token && !user)) return <BrandLoading fullscreen />;
+  if (isBootstrapping) return <BrandLoading fullscreen />;
   if (!isAuthenticated) {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }

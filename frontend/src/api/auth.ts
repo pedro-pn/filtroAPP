@@ -2,10 +2,8 @@ import { apiClient } from './client';
 import type { AuthUser, LoginPayload, TwoFactorChallenge, TwoFactorStatus } from '../types/auth';
 
 export interface LoginResponse {
-  token: string;
   expiresAt: string;
   user: AuthUser;
-  trustedDeviceToken?: string;
 }
 
 export type LoginResult = LoginResponse | (TwoFactorChallenge & { twoFactorRequired: true });
@@ -67,8 +65,10 @@ export async function logout() {
   await apiClient.post('/auth/logout');
 }
 
-export async function me() {
-  const response = await apiClient.get<MeResponse>('/auth/me');
+// `legacyToken`: só no primeiro boot depois da troca para cookie; o backend
+// responde com o cookie e o app apaga o token antigo do localStorage.
+export async function me(legacyToken?: string) {
+  const response = await apiClient.get<MeResponse>('/auth/me', legacyToken ? { headers: { Authorization: `Bearer ${legacyToken}` } } : undefined);
   return response.data.user;
 }
 

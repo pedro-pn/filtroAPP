@@ -23,7 +23,9 @@ test('PostgreSQL: authenticated pages skip two empty reads and reload changed co
     await db.$disconnect();
   });
   await db.user.create({ data: { id: prefix, username: prefix, name: 'Pessoa sintética', passwordHash: 'synthetic', accountType: 'ADMIN', role: 'MANAGER' } });
-  await db.userSession.create({ data: { userId: prefix, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + 60000) } });
+  // Sessões nascem com lastUsedAt (spec 041); a escrita de atividade só ocorre a cada 5 min
+  // e não entra no custo de uma página autenticada em regime.
+  await db.userSession.create({ data: { userId: prefix, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + 60000), lastUsedAt: new Date() } });
   server = await new Promise(resolve => { const instance = app.listen(0, '127.0.0.1', () => resolve(instance)); });
   const request = async () => { const response = await fetch('http://127.0.0.1:' + server.address().port + '/me', { headers: { authorization: 'Bearer ' + token } }); assert.equal(response.status, 200); return response.json(); };
   const capture = captureLaborQueries();

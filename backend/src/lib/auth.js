@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 
+import env from '../config/env.js';
 import prisma from './prisma.js';
 import { accountTypeForLegacyRole, serializeModuleRoles } from './module-roles.js';
 import { notificationPreferences } from './notification-preferences.js';
@@ -9,8 +10,7 @@ import { twoFactorRequirement, TwoFactorRequirement } from './accounts/two-facto
 import { normalizeAcompanhamentoExtraPermissions } from '../../../shared/modules/acompanhamento-permissions.js';
 import { normalizeRdoExtraPermissions } from '../../../shared/modules/rdo-permissions.js';
 
-const SESSION_DAYS = 7;
-const REMEMBER_SESSION_DAYS = 30;
+const HOUR_MS = 60 * 60 * 1000;
 const PASSWORD_RESET_HOURS = 1;
 const EMAIL_CHANGE_HOURS = 1;
 
@@ -22,14 +22,15 @@ export async function createSession(userId, options = {}) {
   const rememberMe = !!options.rememberMe;
   const token = randomBytes(32).toString('hex');
   const tokenHash = hashToken(token);
-  const durationDays = rememberMe ? REMEMBER_SESSION_DAYS : SESSION_DAYS;
-  const expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
+  const durationMs = rememberMe ? env.sessionRememberDays * 24 * HOUR_MS : env.sessionAbsoluteHours * HOUR_MS;
+  const expiresAt = new Date(Date.now() + durationMs);
 
   await prisma.userSession.create({
     data: {
       tokenHash,
       userId,
-      expiresAt
+      expiresAt,
+      lastUsedAt: new Date()
     }
   });
 

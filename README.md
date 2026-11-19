@@ -695,6 +695,9 @@ Onde ficam: em produção, todas as variáveis abaixo vão em `backend/.env.prod
 | `MICROSOFT_CLIENT_ID` | No modo `oauth2` | ID da aplicação (client) registrada no Microsoft Entra |
 | `MICROSOFT_CLIENT_SECRET` | No modo `oauth2` | **Valor** do segredo da aplicação, nunca o “Secret ID” |
 | `SEND_CLIENT_EMAILS` | Não | Use `false` em homologação/testes para bloquear todos os envios operacionais |
+| `SESSION_ABSOLUTE_HOURS` / `SESSION_REMEMBER_DAYS` / `SESSION_IDLE_HOURS` | Não | Prazos da sessão do navegador: 168 h, 30 dias com "lembrar", 12 h de inatividade (0 desliga) |
+| `SESSION_COOKIE_SECURE` | Não | Atributo `Secure` dos cookies de sessão; padrão `true` em produção |
+| `SESSION_BEARER_BROWSER_UNTIL` | Não | Fim da transição Bearer→cookie da sessão (data ISO ou `never`); padrão 2026-12-20 em produção |
 | `SMTP_TEST_DEST` | Não | E-mail destino do script `test-email.js` |
 | `ASSETS_DIR` | Não | Diretório de assets estáticos |
 | `REPORTS_DIR` | Não | Diretório de relatórios gerados |
@@ -925,6 +928,21 @@ fator cai junto. Emergência: `scripts/disable-2fa.js` libera um login sem códi
 para uma conta, e `TWO_FACTOR_ENFORCEMENT=off` desliga o 2FA de todos (veja
 `docs/RUNBOOK_INCIDENTES.md`). Fora de produção o padrão é `off`; na homologação
 o compose força `off`, porque ela não envia e-mails.
+
+**Sessão do navegador (spec 041).** O login entrega a sessão num cookie
+`fv_session` com `HttpOnly`, `Secure` (em produção) e `SameSite=Strict`: o token
+nunca fica acessível ao JavaScript da página nem no `localStorage`. Toda escrita
+autenticada por cookie exige o cabeçalho `X-Filtrovali-Request: 1` (o app envia
+sempre) e uma origem permitida (`Origin`/`Referer` do próprio sistema ou de
+`ALLOWED_ORIGIN`); caso contrário a resposta é 403 `CSRF_*`. Prazos: 7 dias, 30 com
+"lembrar" e 12 horas de inatividade (`SESSION_ABSOLUTE_HOURS`, `SESSION_REMEMBER_DAYS`,
+`SESSION_IDLE_HOURS`); a sessão parada além do limite cai com `SESSION_IDLE` e a tela
+de login avisa. O navegador lembrado do 2FA fica no cookie `fv_trusted_device`
+(`HttpOnly`, caminho `/api/auth`). Sair numa aba desconecta as outras
+(`BroadcastChannel`). Transição: até `SESSION_BEARER_BROWSER_UNTIL` (padrão
+2026-12-20 em produção) o token antigo enviado por `Authorization: Bearer` ainda vale
+e ganha o cookie automaticamente; depois disso, só o cookie. Tokens da API de
+integração (`fva_…`, `/api/integracoes/v1`) não mudam.
 
 ---
 

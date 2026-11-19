@@ -59,6 +59,14 @@ function booleanWithDefault(name, defaultValue) {
   }, z.boolean({ invalid_type_error: `${name} deve ser booleano (true/false).` }));
 }
 
+export const DEFAULT_SESSION_BEARER_BROWSER_UNTIL = '2026-12-20T00:00:00-03:00';
+
+function bearerBrowserUntil(value, nodeEnv) {
+  if (value && value.toLowerCase() === 'never') return null;
+  if (value) return new Date(value);
+  return nodeEnv === 'production' ? new Date(DEFAULT_SESSION_BEARER_BROWSER_UNTIL) : null;
+}
+
 function parseOrigins(value) {
   return String(value || '')
     .split(',')
@@ -156,6 +164,19 @@ const rawEnvSchema = z.object({
   TWO_FACTOR_ENFORCEMENT: z.preprocess(
     value => { const v = emptyToUndefined(value); return v === undefined ? undefined : String(v).trim().toLowerCase(); },
     z.enum(['on', 'off'], { errorMap: () => ({ message: 'TWO_FACTOR_ENFORCEMENT deve ser on ou off.' }) }).optional()
+  ),
+  SESSION_ABSOLUTE_HOURS: integerWithDefault('SESSION_ABSOLUTE_HOURS', 168, { min: 1, max: 8760 }),
+  SESSION_REMEMBER_DAYS: integerWithDefault('SESSION_REMEMBER_DAYS', 30, { min: 1, max: 365 }),
+  SESSION_IDLE_HOURS: integerWithDefault('SESSION_IDLE_HOURS', 12, { min: 0, max: 720 }),
+  SESSION_COOKIE_SECURE: z.preprocess(
+    value => { const v = emptyToUndefined(value); if (v === undefined) return undefined; const l = String(v).toLowerCase(); return ['1', 'true', 'yes', 'on'].includes(l) ? true : ['0', 'false', 'no', 'off'].includes(l) ? false : v; },
+    z.boolean({ invalid_type_error: 'SESSION_COOKIE_SECURE deve ser booleano (true/false).' }).optional()
+  ),
+  SESSION_BEARER_BROWSER_UNTIL: z.preprocess(
+    value => { const v = emptyToUndefined(value); return v === undefined ? undefined : String(v).trim(); },
+    z.string().refine(v => v.toLowerCase() === 'never' || !Number.isNaN(Date.parse(v)), {
+      message: 'SESSION_BEARER_BROWSER_UNTIL deve ser uma data ISO (ex.: 2026-12-20) ou "never".'
+    }).optional()
   ),
   PRIVACY_NOTIFICATION_EMAIL: stringWithDefault(''),
   LGPD_NOTIFICATION_EMAIL: stringWithDefault(''),
@@ -358,6 +379,14 @@ export function loadEnv(source = process.env) {
     sendClientEmails: raw.SEND_CLIENT_EMAILS,
     // 2FA por e-mail: ligado por padrão só em produção (dev/test sem SMTP não travam o login).
     twoFactorEnforcement: raw.TWO_FACTOR_ENFORCEMENT || (raw.NODE_ENV === 'production' ? 'on' : 'off'),
+    // Sessão do navegador (spec 041): cookie HttpOnly, prazo absoluto, "lembrar" e inatividade.
+    sessionAbsoluteHours: raw.SESSION_ABSOLUTE_HOURS,
+    sessionRememberDays: raw.SESSION_REMEMBER_DAYS,
+    sessionIdleHours: raw.SESSION_IDLE_HOURS,
+    sessionCookieSecure: raw.SESSION_COOKIE_SECURE ?? raw.NODE_ENV === 'production',
+    // Fim da transição Bearer→cookie para o token de sessão (a API v1 não é afetada).
+    // Produção: padrão 2026-12-20 (30 dias após a implantação); fora dela, sem prazo.
+    sessionBearerBrowserUntil: bearerBrowserUntil(raw.SESSION_BEARER_BROWSER_UNTIL, raw.NODE_ENV),
     privacyNotificationEmail: raw.PRIVACY_NOTIFICATION_EMAIL || raw.LGPD_NOTIFICATION_EMAIL,
     zapsignApiToken: raw.ZAPSIGN_API_TOKEN,
     zapsignRefreshToken: raw.ZAPSIGN_REFRESH_TOKEN || raw.APSIGN_REFRESH_TOKEN,

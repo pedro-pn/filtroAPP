@@ -30,6 +30,14 @@ import { CLIENT_PRIVACY_NOTICE_VERSION } from '../../lib/privacy-consent.js';
 import prisma from '../../lib/prisma.js';
 import { requireAuth } from '../../middleware/auth.js';
 import {
+  bearerSessionAllowed,
+  clearSessionCookie,
+  requestCookie,
+  setSessionCookie,
+  setTrustedDeviceCookie,
+  TRUSTED_DEVICE_COOKIE
+} from '../../lib/accounts/session-cookie.js';
+import {
   consumeTwoFactorBypass,
   createTwoFactorChallenge,
   deliverTwoFactorCode,
@@ -267,14 +275,29 @@ function twoFactorDeliveryFailed(res) {
   });
 }
 
-async function sessionResponse(res, user, { rememberMe = false, extra = {} } = {}) {
+// A sessão vai no cookie HttpOnly `fv_session`. Durante a transição (spec 041) o
+// token ainda aparece no corpo, para o app antigo aberto em alguma aba e scripts.
+async function sessionResponse(res, user, { rememberMe = false, extra = {}, trustedDevice = null } = {}) {
   const session = await createSession(user.id, { rememberMe });
+  setSessionCookie(res, session.token, session.expiresAt);
+  const transition = bearerSessionAllowed();
+  if (trustedDevice) setTrustedDeviceCookie(res, trustedDevice.token, trustedDevice.expiresAt);
   return res.json({
-    token: session.token,
+    ...(transition ? { token: session.token } : {}),
     expiresAt: session.expiresAt,
     user: publicUser(user),
-    ...extra
+    ...extra,
+    ...(trustedDevice ? {
+      trustedDeviceExpiresAt: trustedDevice.expiresAt,
+      ...(transition ? { trustedDeviceToken: trustedDevice.token } : {})
+    } : {})
   });
+}
+
+// Navegador lembrado: cookie HttpOnly; o corpo só é aceito para migrar o valor que
+// o app antigo guardou no localStorage (o login seguinte já usa o cookie).
+function trustedDeviceTokenFrom(req, data) {
+  return requestCookie(req, TRUSTED_DEVICE_COOKIE) || data.trustedDeviceToken || '';
 }
 
 async function findPasswordResetToken(token) {
@@ -667,8 +690,14 @@ router.post('/login', loginRateLimit, loginIpRateLimit, loginUsernameRateLimit, 
       await logAuthSecurityEvent(prisma, { userId: user.id, type: 'TWO_FACTOR_BYPASS_USED', req });
       return sessionResponse(res, user, { rememberMe: !!data.rememberMe });
     }
-    if (await validateTrustedDevice(prisma, { userId: user.id, token: data.trustedDeviceToken })) {
-      return sessionResponse(res, user, { rememberMe: !!data.rememberMe });
+    const deviceToken = trustedDeviceTokenFrom(req, data);
+    const device = await validateTrustedDevice(prisma, { userId: user.id, token: deviceToken });
+    if (device) {
+      return sessionResponse(res, user, {
+        rememberMe: !!data.rememberMe,
+        // Veio do corpo (localStorage antigo): passa a morar no cookie.
+        trustedDevice: requestCookie(req, TRUSTED_DEVICE_COOKIE) ? null : { token: deviceToken, expiresAt: device.expiresAt }
+      });
     }
     if (!user.email) {
       return res.status(403).json({
@@ -719,16 +748,13 @@ router.post('/2fa/verify', twoFactorVerifyRateLimit, asyncHandler(async (req, re
   }
   await logAuthSecurityEvent(prisma, { userId: user.id, type: 'TWO_FACTOR_VERIFIED', req });
 
-  let trustedDeviceToken;
+  let trustedDevice = null;
   if (data.rememberDevice) {
     const issued = await issueTrustedDevice(prisma, { userId: user.id, userAgent: req.get('user-agent') });
-    trustedDeviceToken = issued.token;
+    trustedDevice = { token: issued.token, expiresAt: issued.device.expiresAt || new Date(Date.now() + TRUSTED_DEVICE_DAYS * 86_400_000) };
     await logAuthSecurityEvent(prisma, { userId: user.id, type: 'TRUSTED_DEVICE_ADDED', req, metadata: { deviceId: issued.device.id } });
   }
-  return sessionResponse(res, user, {
-    rememberMe: result.challenge.rememberSession,
-    extra: trustedDeviceToken ? { trustedDeviceToken, trustedDeviceExpiresAt: new Date(Date.now() + TRUSTED_DEVICE_DAYS * 86_400_000) } : {}
-  });
+  return sessionResponse(res, user, { rememberMe: result.challenge.rememberSession, trustedDevice });
 }));
 
 router.post('/2fa/resend', twoFactorResendRateLimit, asyncHandler(async (req, res) => {
@@ -1193,6 +1219,8 @@ router.post('/logout', requireAuth, asyncHandler(async (req, res) => {
     where: { id: req.auth.sessionId }
   });
 
+  // O navegador lembrado do 2FA continua: sair não é "esquecer este navegador".
+  clearSessionCookie(res);
   res.status(204).end();
 }));
 

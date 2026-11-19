@@ -1,4 +1,3 @@
-import { TOKEN_STORAGE_KEY } from '../api/client';
 
 const assetsBaseUrl = (import.meta.env.VITE_ASSETS_BASE_URL || '').replace(/\/$/, '');
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
@@ -114,14 +113,8 @@ export async function loadUploadAssetUrl(url: string) {
   }
   if (!isProtectedUploadAssetUrl(url)) return resolvedUrl;
 
-  const token = localStorage.getItem(TOKEN_STORAGE_KEY);
-  if (!token) return '';
-
-  const response = await fetch(resolvedUrl, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  });
+  // A sessão vai no cookie HttpOnly (mesma origem); nada de token no JavaScript.
+  const response = await fetch(resolvedUrl, { credentials: 'same-origin' });
 
   if (!response.ok) {
     throw new Error('Não foi possível carregar o arquivo protegido.');

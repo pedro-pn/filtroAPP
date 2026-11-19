@@ -1,78 +1,102 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { isTwoFactorChallenge, login as loginRequest, logout as logoutRequest, me as meRequest, verifyTwoFactor, type LoginResponse } from '../api/auth';
+import { isTwoFactorChallenge, login as loginRequest, logout as logoutRequest, me as meRequest, verifyTwoFactor } from '../api/auth';
 import { ApiClientError, TOKEN_STORAGE_KEY, UNAUTHORIZED_EVENT } from '../api/client';
 import { subscribeToDataUpdates } from '../api/dataUpdates';
 import type { AuthUser, LoginOutcome, LoginPayload } from '../types/auth';
-import { AuthContext, type AuthContextValue } from './AuthContext';
+import { AuthContext, type AuthContextValue, type SessionEndReason } from './AuthContext';
 
-function getStoredToken() {
-  return localStorage.getItem(TOKEN_STORAGE_KEY);
+// Sessão em cookie HttpOnly (spec 041): o app não guarda nem lê o token. O estado
+// de login vem de GET /api/auth/me. Valores antigos do localStorage são migrados
+// uma vez (sessão no boot, navegador lembrado do 2FA no próximo login) e apagados.
+const TRUSTED_DEVICE_STORAGE_PREFIX = 'filtrovali-trusted-device:';
+const AUTH_CHANNEL = 'filtrovali-auth';
+
+type AuthBroadcast = { type: 'logout' } | { type: 'login' };
+
+function safeStorage<T>(operation: () => T, fallback: T): T {
+  try {
+    return operation();
+  } catch {
+    return fallback;
+  }
 }
 
-// Navegador lembrado para o 2FA (30 dias), por conta: um navegador compartilhado
-// não reaproveita o token de outra pessoa.
-const TRUSTED_DEVICE_STORAGE_PREFIX = 'filtrovali-trusted-device:';
+function legacySessionToken() {
+  return safeStorage(() => localStorage.getItem(TOKEN_STORAGE_KEY) || '', '');
+}
 
 function trustedDeviceKey(username: string) {
   return `${TRUSTED_DEVICE_STORAGE_PREFIX}${username.trim().toLowerCase()}`;
 }
 
-function readTrustedDeviceToken(username: string) {
-  try {
-    return localStorage.getItem(trustedDeviceKey(username)) || undefined;
-  } catch {
-    return undefined;
-  }
+function legacyTrustedDeviceToken(username: string) {
+  return safeStorage(() => localStorage.getItem(trustedDeviceKey(username)) || undefined, undefined);
 }
 
-function storeTrustedDeviceToken(username: string, token: string | undefined) {
-  try {
-    if (token) localStorage.setItem(trustedDeviceKey(username), token);
-  } catch {
-    // Sem armazenamento local, o código volta a ser pedido no próximo login.
-  }
+function forgetLegacyTrustedDevices() {
+  safeStorage(() => {
+    Object.keys(localStorage)
+      .filter(key => key.startsWith(TRUSTED_DEVICE_STORAGE_PREFIX))
+      .forEach(key => localStorage.removeItem(key));
+  }, undefined);
 }
 
 function isUnauthorizedError(error: unknown) {
   return error instanceof ApiClientError && error.status === 401;
 }
 
+function endReasonFromCode(code: unknown): SessionEndReason {
+  return code === 'SESSION_IDLE' ? 'idle' : 'expired';
+}
+
+function openChannel(): BroadcastChannel | null {
+  return typeof BroadcastChannel === 'function' ? safeStorage(() => new BroadcastChannel(AUTH_CHANNEL), null) : null;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
-  const [token, setToken] = useState<string | null>(() => getStoredToken());
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [sessionEndReason, setSessionEndReason] = useState<SessionEndReason | null>(null);
+  const channelRef = useRef<BroadcastChannel | null>(null);
+  const userRef = useRef<AuthUser | null>(null);
+  userRef.current = user;
 
-  const clearSession = useCallback((expectedToken?: string | null) => {
-    if (expectedToken !== undefined && getStoredToken() !== expectedToken) return;
+  const broadcast = useCallback((message: AuthBroadcast) => {
+    safeStorage(() => channelRef.current?.postMessage(message), undefined);
+  }, []);
+
+  const clearSession = useCallback((reason: SessionEndReason | null = null) => {
     queryClient.clear();
-    localStorage.removeItem(TOKEN_STORAGE_KEY);
-    setToken(null);
+    safeStorage(() => localStorage.removeItem(TOKEN_STORAGE_KEY), undefined);
+    if (reason && userRef.current) setSessionEndReason(reason);
     setUser(null);
   }, [queryClient]);
 
   const refreshUser = useCallback(async () => {
-    const currentToken = getStoredToken();
-    if (!currentToken) {
-      clearSession();
-      return;
+    try {
+      const currentUser = await meRequest();
+      setUser(currentUser);
+    } catch (error) {
+      if (isUnauthorizedError(error)) clearSession('expired');
+      else throw error;
     }
-    const currentUser = await meRequest();
-    setToken(currentToken);
-    setUser(currentUser);
   }, [clearSession]);
 
-  const startSession = useCallback((data: LoginResponse) => {
+  const startSession = useCallback((nextUser: AuthUser) => {
     queryClient.clear();
-    localStorage.setItem(TOKEN_STORAGE_KEY, data.token);
-    setToken(data.token);
-    setUser(data.user);
-  }, [queryClient]);
+    safeStorage(() => localStorage.removeItem(TOKEN_STORAGE_KEY), undefined);
+    setSessionEndReason(null);
+    setUser(nextUser);
+    broadcast({ type: 'login' });
+  }, [broadcast, queryClient]);
 
   const login = useCallback(async (payload: LoginPayload): Promise<LoginOutcome> => {
-    const data = await loginRequest({ ...payload, trustedDeviceToken: payload.trustedDeviceToken ?? readTrustedDeviceToken(payload.username) });
+    const data = await loginRequest({ ...payload, trustedDeviceToken: payload.trustedDeviceToken ?? legacyTrustedDeviceToken(payload.username) });
+    // O navegador lembrado passa a morar no cookie (ou o código é pedido de novo).
+    forgetLegacyTrustedDevices();
     if (isTwoFactorChallenge(data)) {
       return {
         status: 'two-factor',
@@ -84,14 +108,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       };
     }
-    startSession(data);
+    startSession(data.user);
     return { status: 'authenticated' };
   }, [startSession]);
 
   const completeTwoFactor = useCallback(async (payload: { username: string; challengeToken: string; code: string; rememberDevice?: boolean }) => {
     const data = await verifyTwoFactor({ challengeToken: payload.challengeToken, code: payload.code, rememberDevice: payload.rememberDevice });
-    if (payload.rememberDevice) storeTrustedDeviceToken(payload.username, data.trustedDeviceToken);
-    startSession(data);
+    startSession(data.user);
   }, [startSession]);
 
   const logout = useCallback(async () => {
@@ -99,32 +122,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await logoutRequest();
     } finally {
       clearSession();
+      broadcast({ type: 'logout' });
     }
-  }, [clearSession]);
+  }, [broadcast, clearSession]);
 
   useEffect(() => {
     let mounted = true;
 
     async function bootstrap() {
-      const storedToken = getStoredToken();
-      if (!storedToken) {
-        if (mounted) setIsBootstrapping(false);
-        return;
-      }
-
+      const legacy = legacySessionToken();
       try {
-        const currentUser = await meRequest();
-        if (!mounted) return;
-        setToken(storedToken);
-        setUser(currentUser);
-      } catch (error) {
-        if (!mounted) return;
-        if (isUnauthorizedError(error)) {
-          clearSession(storedToken);
-        } else {
-          clearSession(storedToken);
-        }
+        // Com o token antigo, o backend converte a sessão em cookie (transição).
+        const currentUser = await meRequest(legacy || undefined);
+        if (mounted) setUser(currentUser);
+      } catch {
+        if (mounted) setUser(null);
       } finally {
+        if (legacy) safeStorage(() => localStorage.removeItem(TOKEN_STORAGE_KEY), undefined);
         if (mounted) setIsBootstrapping(false);
       }
     }
@@ -133,25 +147,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       mounted = false;
     };
-  }, [clearSession]);
+  }, []);
 
   useEffect(() => {
+    const channel = openChannel();
+    channelRef.current = channel;
+    if (!channel) return undefined;
+    channel.onmessage = (event: MessageEvent<AuthBroadcast>) => {
+      if (event.data?.type === 'logout') clearSession();
+      if (event.data?.type === 'login') void refreshUser().catch(() => {});
+    };
+    return () => {
+      channel.close();
+      channelRef.current = null;
+    };
+  }, [clearSession, refreshUser]);
+
+  useEffect(() => {
+    // Um 401 de qualquer chamada: confere a sessão antes de sair (outra aba pode ter
+    // acabado de entrar e trocado o cookie).
     function handleUnauthorized(event: Event) {
       const detail = event instanceof CustomEvent ? event.detail : undefined;
-      const unauthorizedToken = typeof detail?.token === 'string' ? detail.token : undefined;
-      clearSession(unauthorizedToken);
+      const reason = endReasonFromCode(detail?.code);
+      meRequest()
+        .then(currentUser => setUser(currentUser))
+        .catch(error => {
+          if (isUnauthorizedError(error)) clearSession(reason);
+        });
     }
     window.addEventListener(UNAUTHORIZED_EVENT, handleUnauthorized);
     return () => window.removeEventListener(UNAUTHORIZED_EVENT, handleUnauthorized);
   }, [clearSession]);
 
+  const userId = user?.id;
   useEffect(() => {
-    if (!token || isBootstrapping) return;
+    if (!userId || isBootstrapping) return;
     let stopped = false;
     let pending = false;
     let refreshQueued = false;
     const refresh = async () => {
-      if (document.visibilityState === 'hidden' || getStoredToken() !== token) return;
+      if (document.visibilityState === 'hidden') return;
       if (pending) {
         refreshQueued = true;
         return;
@@ -159,11 +194,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       pending = true;
       try {
         const currentUser = await meRequest();
-        if (!stopped && getStoredToken() === token) {
+        if (!stopped) {
           setUser(current => JSON.stringify(current) === JSON.stringify(currentUser) ? current : currentUser);
         }
       } catch (error) {
-        if (!stopped && isUnauthorizedError(error)) clearSession(token);
+        if (!stopped && error instanceof ApiClientError && error.status === 401) {
+          clearSession(endReasonFromCode(error.code));
+        }
       } finally {
         pending = false;
         if (refreshQueued && !stopped) {
@@ -188,21 +225,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener('online', onRefresh);
       document.removeEventListener('visibilitychange', onRefresh);
     };
-  }, [clearSession, isBootstrapping, token]);
+  }, [clearSession, isBootstrapping, userId]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
-      token,
       isBootstrapping,
-      isAuthenticated: !!user && !!token,
+      isAuthenticated: !!user,
+      sessionEndReason,
       login,
       completeTwoFactor,
       logout,
       refreshUser,
       replaceUser: setUser
     }),
-    [completeTwoFactor, isBootstrapping, login, logout, refreshUser, token, user]
+    [completeTwoFactor, isBootstrapping, login, logout, refreshUser, sessionEndReason, user]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

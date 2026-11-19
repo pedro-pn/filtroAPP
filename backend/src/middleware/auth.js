@@ -1,4 +1,5 @@
 import asyncHandler from '../lib/async-handler.js';
+import env from '../config/env.js';
 import { hashToken, publicUser } from '../lib/auth.js';
 import { trustedClientAccessScopeForUser } from '../lib/client-project-access.js';
 import { AccountTypes, hasModuleRole, publicModuleRolesForAccountType, publicModuleRolesForModule } from '../lib/module-roles.js';
@@ -8,6 +9,14 @@ import {
   isClientPrivacyConsentAllowedRoute
 } from '../lib/privacy-consent.js';
 import prisma from '../lib/prisma.js';
+import {
+  bearerSessionAllowed,
+  clearSessionCookie,
+  CSRF_HEADER,
+  requestCookie,
+  SESSION_COOKIE,
+  setSessionCookie
+} from '../lib/accounts/session-cookie.js';
 import { withProjectAccess } from '../lib/projects/access-scope.js';
 import { withWorkforceVisibility, workforceVisibilityRequestTarget } from '../lib/collaborators/workforce-visibility-context.js';
 import { requireOperationalRequestParticipants } from '../lib/collaborators/request-workforce-policy.js';
@@ -69,23 +78,106 @@ function bearerToken(req) {
   return header.slice(7).trim();
 }
 
+const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const LAST_USED_WRITE_INTERVAL_MS = 5 * 60 * 1000;
+
+function originOf(value) {
+  try {
+    return new URL(String(value)).origin;
+  } catch {
+    return '';
+  }
+}
+
+// CSRF para escritas autenticadas por cookie: o app sempre manda o cabeçalho
+// X-Filtrovali-Request (um formulário ou <img> de outro site não consegue), e a
+// origem (Origin, ou Referer quando ela falta) precisa ser a do próprio sistema.
+// Bearer, token da API v1 e rotas públicas por token não passam por aqui.
+export function csrfRejection(req, config = env) {
+  if (!UNSAFE_METHODS.has(req.method)) return null;
+  if (req.get(CSRF_HEADER) !== '1') return 'CSRF_HEADER_MISSING';
+  const originHeader = req.get('origin');
+  // Origin presente mas opaco ("null": iframe com sandbox, arquivo local) é recusado.
+  if (originHeader && !originOf(originHeader)) return 'CSRF_ORIGIN_REJECTED';
+  const origin = originOf(originHeader) || originOf(req.get('referer'));
+  if (!origin) return null;
+  const sameHost = `${req.protocol}://${req.get('host')}`;
+  const allowed = config.allowedOrigins || [];
+  if (origin === sameHost || allowed.includes(origin)) return null;
+  // Em dev/test sem ALLOWED_ORIGIN (proxy do Vite troca o Host), só o cabeçalho vale.
+  if (!allowed.length && config.nodeEnv !== 'production') return null;
+  return 'CSRF_ORIGIN_REJECTED';
+}
+
+function sessionIdle(session, now, config = env) {
+  const idleHours = Number(config.sessionIdleHours) || 0;
+  if (!idleHours || !session.lastUsedAt) return false;
+  return now.getTime() - new Date(session.lastUsedAt).getTime() > idleHours * 60 * 60 * 1000;
+}
+
+function touchSession(session, now) {
+  // Sessões anteriores à migration (sem lastUsedAt) ficam só com o prazo absoluto
+  // (≤ 30 dias); as criadas depois já nascem com lastUsedAt.
+  if (!session.lastUsedAt) return;
+  const lastUsedAt = new Date(session.lastUsedAt).getTime();
+  if (now.getTime() - lastUsedAt < LAST_USED_WRITE_INTERVAL_MS) return;
+  // Escrita leve e no máximo a cada 5 min por sessão; falha não derruba o pedido.
+  Promise.resolve()
+    .then(() => prisma.userSession.updateMany({
+      where: { id: session.id, lastUsedAt: { lt: new Date(now.getTime() - LAST_USED_WRITE_INTERVAL_MS) } },
+      data: { lastUsedAt: now }
+    }))
+    .catch(() => {});
+}
+
 export const requireAuth = asyncHandler(async (req, res, next) => {
-  const token = bearerToken(req);
+  const cookieToken = requestCookie(req, SESSION_COOKIE);
+  const headerToken = cookieToken ? '' : bearerToken(req);
+  const token = cookieToken || headerToken;
   if (!token) {
-    return res.status(401).json({ error: 'Sessao ausente.' });
+    return res.status(401).json({ error: 'Sessao ausente.', code: 'SESSION_MISSING' });
+  }
+  const via = cookieToken ? 'cookie' : 'bearer';
+  const now = new Date();
+
+  if (via === 'bearer' && !bearerSessionAllowed(now)) {
+    return res.status(401).json({
+      error: 'Sessão antiga: entre de novo para continuar.',
+      code: 'SESSION_BEARER_RETIRED'
+    });
+  }
+
+  if (via === 'cookie') {
+    const rejection = csrfRejection(req);
+    if (rejection) {
+      return res.status(403).json({ error: 'Pedido recusado por segurança. Recarregue a página e tente de novo.', code: rejection });
+    }
   }
 
   const session = await findSessionWithRetry(hashToken(token));
 
-  if (!session || session.expiresAt <= new Date() || !session.user.isActive) {
-    return res.status(401).json({ error: 'Sessão inválida ou expirada.' });
+  if (!session || session.expiresAt <= now || !session.user.isActive) {
+    if (via === 'cookie') clearSessionCookie(res);
+    return res.status(401).json({ error: 'Sessão inválida ou expirada.', code: 'SESSION_INVALID' });
   }
+
+  if (sessionIdle(session, now)) {
+    await prisma.userSession.deleteMany({ where: { id: session.id } }).catch(() => {});
+    if (via === 'cookie') clearSessionCookie(res);
+    return res.status(401).json({ error: 'Sua sessão expirou por inatividade. Entre de novo.', code: 'SESSION_IDLE' });
+  }
+
+  touchSession(session, now);
+  // Upgrade silencioso (transição): quem ainda manda o token antigo por Bearer
+  // recebe o cookie e segue sem precisar entrar de novo.
+  if (via === 'bearer') setSessionCookie(res, token, session.expiresAt);
 
   const user = publicUser(session.user);
   const trustedClientScope = await trustedClientAccessScopeForUser(prisma, session.user);
 
   req.auth = {
     token,
+    via,
     sessionId: session.id,
     user: trustedClientScope.emails.length || trustedClientScope.cnpjs.length
       ? { ...user, trustedClientEmails: trustedClientScope.emails, trustedClientCnpjs: trustedClientScope.cnpjs }
