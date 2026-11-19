@@ -26,6 +26,8 @@ import { serviceTypeLabels } from '../../components/reports/serviceTypes';
 import { AppIcon } from '../../components/icons/AppIcon';
 import { Modal } from '../../components/ui/Modal';
 import { UploadField } from '../../components/ui/UploadField';
+import { ReportDateWarning } from '../../components/reports/ReportDateWarning';
+import { reportDateDescribedBy } from '../../utils/reportDateWarning';
 import {
   Alert,
   Badge,
@@ -1123,9 +1125,11 @@ function SiteRdoFormPage() {
                 type="date"
                 value={reportDate}
                 invalid={invalidTarget === 'header:reportDate'}
+                aria-describedby={reportDateDescribedBy('rdo-date', reportDate)}
                 onChange={event => setHeaderField('reportDate', event.target.value)}
                 required
               />
+              <ReportDateWarning inputId="rdo-date" value={reportDate} />
               {isCheckingDuplicateReportDate ? (
                 <Alert className="rdo-inline-alert" tone="info">
                   {TEXT.duplicateReportDateChecking}

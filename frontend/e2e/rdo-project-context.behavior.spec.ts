@@ -180,6 +180,19 @@ async function fillHeader(page: Page) {
     .selectOption('colab-1');
 }
 
+test('data no futuro ou de outro ano mostra aviso, mas não bloqueia o avanço do RDO', async ({ page }) => {
+  await mockApp(page);
+  await page.goto('/rdo/relatorio/novo?tipo=obra');
+  await fillHeader(page);
+  await page.locator('#rdo-date').fill('2062-06-29');
+  const warning = page.getByText(/Atenção: a data está no futuro \(29\/06\/2062\)/);
+  await expect(warning).toBeVisible();
+  await expect(page.locator('#rdo-date')).toHaveAttribute('aria-describedby', /rdo-date-date-warning/);
+  await page.locator('#rdo-work-location').selectOption('Oficina');
+  await page.getByRole('button', { name: 'Próximo', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Adicionar serviço', exact: true })).toBeVisible();
+});
+
 for (const [type, label] of [
   ['limpeza', 'Limpeza química'],
   ['pressao', 'Teste de pressão'],

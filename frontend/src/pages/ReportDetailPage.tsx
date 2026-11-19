@@ -81,6 +81,8 @@ import { hubModulesForUser } from './hubModules';
 import './collaborator/NewReportPage.css';
 import './ReportDetailPage.css';
 import { AdequarAnotacaoButton } from '../components/anotacoes/AdequarAnotacaoButton';
+import { ReportDateWarning } from '../components/reports/ReportDateWarning';
+import { reportDateDescribedBy } from '../utils/reportDateWarning';
 
 const serviceTypeModalOptions = [
   { type: 'limpeza', icon: DS_ICONS.serviceChemical, name: 'Limpeza química' },
@@ -1042,9 +1044,11 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               type="date"
               value={form.reportDate}
               disabled={readOnly}
+              aria-describedby={readOnly ? undefined : reportDateDescribedBy('rdo-date', form.reportDate)}
               onChange={event => setField('reportDate', event.target.value)}
               required
             />
+            {readOnly ? null : <ReportDateWarning inputId="rdo-date" value={form.reportDate} />}
           </div>
           {report.reportType === 'RDO' ? <ReportWorkLocationField locations={workLocations} value={form.workLocation}
             disabled={readOnly || manualReport} invalid={invalidWorkLocation}
