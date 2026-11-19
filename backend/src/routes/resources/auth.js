@@ -1,4 +1,20 @@
 import { Router } from 'express';
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import {
+  accountUpdateResponseSchema,
+  deviceParamsSchema,
+  loginResponseSchema,
+  okMessageSchema,
+  okSchema,
+  sessionSchema,
+  tokenParamsSchema,
+  tokenQuerySchema,
+  tokenStatusSchema,
+  twoFactorEnableResponseSchema,
+  twoFactorResendResponseSchema,
+  twoFactorStatusSchema,
+  userEnvelopeSchema
+} from '../../lib/api-contract/domains/auth.js';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 
@@ -661,7 +677,7 @@ async function findLoginCandidates(identifier) {
   });
 }
 
-router.post('/login', loginRateLimit, loginIpRateLimit, loginUsernameRateLimit, asyncHandler(async (req, res) => {
+defineRoute(router, { method: 'post', path: '/login', summary: 'Entrar com usuário e senha', tags: ['auth'], auth: 'public', body: loginSchema, responses: { 200: loginResponseSchema }, errors: [400, 401, 403, 429, 503] }, loginRateLimit, loginIpRateLimit, loginUsernameRateLimit, asyncHandler(async (req, res) => {
   const data = loginSchema.parse(req.body);
   const candidates = await findLoginCandidates(data.username);
   let user = null;
@@ -723,7 +739,7 @@ router.post('/login', loginRateLimit, loginIpRateLimit, loginUsernameRateLimit, 
 }));
 
 // Segunda etapa do login: o código enviado por e-mail troca o desafio por uma sessão.
-router.post('/2fa/verify', twoFactorVerifyRateLimit, asyncHandler(async (req, res) => {
+defineRoute(router, { method: 'post', path: '/2fa/verify', summary: 'Confirmar o código do segundo fator e abrir a sessão', tags: ['auth'], auth: 'public', body: twoFactorVerifySchema, responses: { 200: sessionSchema }, errors: [400, 401, 429] }, twoFactorVerifyRateLimit, asyncHandler(async (req, res) => {
   const data = twoFactorVerifySchema.parse(req.body);
   const result = await verifyTwoFactorChallenge(prisma, { challengeToken: data.challengeToken, code: data.code, purpose: 'LOGIN' });
   if (!result.ok) {
@@ -757,7 +773,7 @@ router.post('/2fa/verify', twoFactorVerifyRateLimit, asyncHandler(async (req, re
   return sessionResponse(res, user, { rememberMe: result.challenge.rememberSession, trustedDevice });
 }));
 
-router.post('/2fa/resend', twoFactorResendRateLimit, asyncHandler(async (req, res) => {
+defineRoute(router, { method: 'post', path: '/2fa/resend', summary: 'Reenviar o código do segundo fator', tags: ['auth'], auth: 'public', body: twoFactorChallengeSchema, responses: { 200: twoFactorResendResponseSchema }, errors: [400, 401, 429, 503] }, twoFactorResendRateLimit, asyncHandler(async (req, res) => {
   const data = twoFactorChallengeSchema.parse(req.body);
   const result = await refreshTwoFactorChallenge(prisma, { challengeToken: data.challengeToken });
   if (!result.ok) {
@@ -789,10 +805,10 @@ async function twoFactorStatusResponse(res, userId) {
   return res.json(twoFactorStatusForUser(user, devices));
 }
 
-router.get('/2fa', requireAuth, asyncHandler(async (req, res) => twoFactorStatusResponse(res, req.auth.user.id)));
+defineRoute(router, { method: 'get', path: '/2fa', summary: 'Situação do segundo fator e navegadores lembrados', tags: ['auth'], auth: 'session', responses: { 200: twoFactorStatusSchema }, errors: [401] }, requireAuth, asyncHandler(async (req, res) => twoFactorStatusResponse(res, req.auth.user.id)));
 
 // Ativação opcional (contas internas): confirma com um código antes de ligar.
-router.post('/2fa/enable', requireAuth, twoFactorEnableRateLimit, asyncHandler(async (req, res) => {
+defineRoute(router, { method: 'post', path: '/2fa/enable', summary: 'Iniciar a ativação do segundo fator (envia código)', tags: ['auth'], auth: 'session', noBody: 'Ação sobre a própria conta; sem parâmetros.', responses: { 200: twoFactorEnableResponseSchema }, errors: [400, 401, 403, 409, 429, 503] }, requireAuth, twoFactorEnableRateLimit, asyncHandler(async (req, res) => {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: req.auth.user.id } });
   const requirement = twoFactorRequirement(user);
   if (requirement === TwoFactorRequirement.REQUIRED || requirement === TwoFactorRequirement.ENABLED) {
@@ -814,7 +830,7 @@ router.post('/2fa/enable', requireAuth, twoFactorEnableRateLimit, asyncHandler(a
   res.json({ challengeToken, emailHint: maskEmail(user.email), expiresAt: challenge.expiresAt });
 }));
 
-router.post('/2fa/enable/confirm', requireAuth, twoFactorEnableRateLimit, asyncHandler(async (req, res) => {
+defineRoute(router, { method: 'post', path: '/2fa/enable/confirm', summary: 'Confirmar a ativação do segundo fator', tags: ['auth'], auth: 'session', body: twoFactorEnableConfirmSchema, responses: { 200: twoFactorStatusSchema }, errors: [400, 401, 429] }, requireAuth, twoFactorEnableRateLimit, asyncHandler(async (req, res) => {
   const data = twoFactorEnableConfirmSchema.parse(req.body);
   const open = await findOpenChallenge(prisma, data.challengeToken, { purpose: 'ENABLE' });
   if (!open || open.userId !== req.auth.user.id) {
@@ -833,7 +849,7 @@ router.post('/2fa/enable/confirm', requireAuth, twoFactorEnableRateLimit, asyncH
   return twoFactorStatusResponse(res, req.auth.user.id);
 }));
 
-router.post('/2fa/disable', requireAuth, twoFactorEnableRateLimit, asyncHandler(async (req, res) => {
+defineRoute(router, { method: 'post', path: '/2fa/disable', summary: 'Desativar o segundo fator (contas onde é opcional)', tags: ['auth'], auth: 'session', body: twoFactorDisableSchema, responses: { 200: twoFactorStatusSchema }, errors: [400, 401, 403, 429] }, requireAuth, twoFactorEnableRateLimit, asyncHandler(async (req, res) => {
   const data = twoFactorDisableSchema.parse(req.body);
   const user = await prisma.user.findUniqueOrThrow({ where: { id: req.auth.user.id } });
   if (twoFactorRequirement(user) === TwoFactorRequirement.REQUIRED) {
@@ -850,7 +866,7 @@ router.post('/2fa/disable', requireAuth, twoFactorEnableRateLimit, asyncHandler(
   return twoFactorStatusResponse(res, user.id);
 }));
 
-router.delete('/2fa/devices/:id', requireAuth, asyncHandler(async (req, res) => {
+defineRoute(router, { method: 'delete', path: '/2fa/devices/:id', summary: 'Esquecer um navegador lembrado', tags: ['auth'], auth: 'session', params: deviceParamsSchema, noBody: 'O navegador vem no caminho.', responses: { 200: twoFactorStatusSchema }, errors: [401] }, requireAuth, asyncHandler(async (req, res) => {
   const result = await revokeTrustedDevices(prisma, req.auth.user.id, { deviceId: String(req.params.id) });
   if (result.count) {
     await logAuthSecurityEvent(prisma, { userId: req.auth.user.id, type: 'TRUSTED_DEVICES_REVOKED', req, metadata: { deviceId: String(req.params.id) } });
@@ -858,7 +874,7 @@ router.delete('/2fa/devices/:id', requireAuth, asyncHandler(async (req, res) => 
   return twoFactorStatusResponse(res, req.auth.user.id);
 }));
 
-router.delete('/2fa/devices', requireAuth, asyncHandler(async (req, res) => {
+defineRoute(router, { method: 'delete', path: '/2fa/devices', summary: 'Esquecer todos os navegadores lembrados', tags: ['auth'], auth: 'session', noBody: 'Ação sobre a própria conta.', responses: { 200: twoFactorStatusSchema }, errors: [401] }, requireAuth, asyncHandler(async (req, res) => {
   const result = await revokeTrustedDevices(prisma, req.auth.user.id);
   if (result.count) {
     await logAuthSecurityEvent(prisma, { userId: req.auth.user.id, type: 'TRUSTED_DEVICES_REVOKED', req, metadata: { count: result.count } });
@@ -866,7 +882,7 @@ router.delete('/2fa/devices', requireAuth, asyncHandler(async (req, res) => {
   return twoFactorStatusResponse(res, req.auth.user.id);
 }));
 
-router.post('/forgot-password', forgotPasswordRateLimit, asyncHandler(async (req, res) => {
+defineRoute(router, { method: 'post', path: '/forgot-password', summary: 'Pedir link de recuperação de senha (resposta sempre igual)', tags: ['auth'], auth: 'public', body: forgotPasswordSchema, responses: { 200: okMessageSchema }, errors: [400, 429] }, forgotPasswordRateLimit, asyncHandler(async (req, res) => {
   const data = forgotPasswordSchema.parse(req.body);
   const rawIdentifier = String(data.identifier || '').trim();
   const normalizedIdentifier = normalizeCnpj(rawIdentifier);
@@ -918,7 +934,7 @@ router.post('/forgot-password', forgotPasswordRateLimit, asyncHandler(async (req
   passwordResetSuccessMessage(res);
 }));
 
-router.get('/reset-password-status', asyncHandler(async (req, res) => {
+defineRoute(router, { method: 'get', path: '/reset-password-status', summary: 'Validar o link de redefinição de senha', tags: ['auth'], auth: 'publicToken', query: tokenQuerySchema, responses: { 200: tokenStatusSchema }, errors: [400] }, asyncHandler(async (req, res) => {
   const token = String(req.query.token || '').trim();
   if (!token) {
     return res.status(400).json({ error: 'Token ausente.' });
@@ -934,7 +950,7 @@ router.get('/reset-password-status', asyncHandler(async (req, res) => {
   });
 }));
 
-router.post('/resend-password-setup', resendPasswordSetupRateLimit, asyncHandler(async (req, res) => {
+defineRoute(router, { method: 'post', path: '/resend-password-setup', summary: 'Reenviar o link de primeiro acesso', tags: ['auth'], auth: 'publicToken', body: resendPasswordSetupSchema, responses: { 200: okMessageSchema }, errors: [400, 429] }, resendPasswordSetupRateLimit, asyncHandler(async (req, res) => {
   const data = resendPasswordSetupSchema.parse(req.body);
   const tokenRow = data.token.startsWith('setup_')
     ? await findPasswordResetToken(data.token)
@@ -950,7 +966,7 @@ router.post('/resend-password-setup', resendPasswordSetupRateLimit, asyncHandler
   });
 }));
 
-router.post('/reset-password', resetPasswordRateLimit, asyncHandler(async (req, res) => {
+defineRoute(router, { method: 'post', path: '/reset-password', summary: 'Definir nova senha pelo link de redefinição', tags: ['auth'], auth: 'publicToken', body: resetPasswordSchema, responses: { 200: okSchema }, errors: [400, 429] }, resetPasswordRateLimit, asyncHandler(async (req, res) => {
   const data = resetPasswordSchema.parse(req.body);
   const tokenRow = await findPasswordResetToken(data.token);
   const status = passwordResetTokenStatus(tokenRow);
@@ -992,7 +1008,7 @@ router.post('/reset-password', resetPasswordRateLimit, asyncHandler(async (req, 
   res.json({ ok: true });
 }));
 
-router.post('/change-password', requireAuth, asyncHandler(async (req, res) => {
+defineRoute(router, { method: 'post', path: '/change-password', summary: 'Trocar a própria senha (encerra as outras sessões)', tags: ['auth'], auth: 'session', body: changePasswordSchema, responses: { 200: okSchema }, errors: [400, 401] }, requireAuth, asyncHandler(async (req, res) => {
   const data = changePasswordSchema.parse(req.body);
   const currentUser = await prisma.user.findUniqueOrThrow({
     where: { id: req.auth.user.id }
@@ -1021,7 +1037,7 @@ router.post('/change-password', requireAuth, asyncHandler(async (req, res) => {
   res.json({ ok: true });
 }));
 
-router.put('/account', requireAuth, asyncHandler(async (req, res) => {
+defineRoute(router, { method: 'put', path: '/account', summary: 'Atualizar e-mail e preferências da própria conta', tags: ['auth'], auth: 'session', body: accountSchema, responses: { 200: accountUpdateResponseSchema, 202: accountUpdateResponseSchema }, errors: [400, 401, 409] }, requireAuth, asyncHandler(async (req, res) => {
   const data = accountSchema.parse(req.body);
   let currentUser = await prisma.user.findUniqueOrThrow({
     where: { id: req.auth.user.id },
@@ -1072,7 +1088,7 @@ router.put('/account', requireAuth, asyncHandler(async (req, res) => {
   });
 }));
 
-router.get('/notification-preferences/:token', asyncHandler(async (req, res) => {
+defineRoute(router, { method: 'get', path: '/notification-preferences/:token', summary: 'Abrir as preferências de notificação pelo link do e-mail', tags: ['auth'], auth: 'publicToken', params: tokenParamsSchema, responses: { 200: tokenStatusSchema }, errors: [] }, asyncHandler(async (req, res) => {
   const token = String(req.params.token || '').trim();
   const tokenRow = await findNotificationPreferenceToken(token);
   const status = notificationPreferenceTokenStatus(tokenRow);
@@ -1084,7 +1100,7 @@ router.get('/notification-preferences/:token', asyncHandler(async (req, res) => 
   });
 }));
 
-router.put('/notification-preferences/:token', asyncHandler(async (req, res) => {
+defineRoute(router, { method: 'put', path: '/notification-preferences/:token', summary: 'Salvar as preferências de notificação pelo link do e-mail', tags: ['auth'], auth: 'publicToken', params: tokenParamsSchema, body: notificationPreferenceSchema, bodyOptional: true, responses: { 200: okSchema }, errors: [400, 404] }, asyncHandler(async (req, res) => {
   const token = String(req.params.token || '').trim();
   const preferences = notificationPreferenceSchema.parse(req.body || {});
   const user = await consumeNotificationPreferenceToken(token, preferences);
@@ -1094,7 +1110,7 @@ router.put('/notification-preferences/:token', asyncHandler(async (req, res) => 
   });
 }));
 
-router.get('/email-change-status', asyncHandler(async (req, res) => {
+defineRoute(router, { method: 'get', path: '/email-change-status', summary: 'Validar o link de confirmação de troca de e-mail', tags: ['auth'], auth: 'publicToken', query: tokenQuerySchema, responses: { 200: tokenStatusSchema }, errors: [400] }, asyncHandler(async (req, res) => {
   const token = String(req.query.token || '').trim();
   if (!token) {
     return res.status(400).json({ error: 'Token ausente.' });
@@ -1108,7 +1124,7 @@ router.get('/email-change-status', asyncHandler(async (req, res) => {
   });
 }));
 
-router.post('/confirm-email-change', asyncHandler(async (req, res) => {
+defineRoute(router, { method: 'post', path: '/confirm-email-change', summary: 'Confirmar a troca de e-mail pelo link', tags: ['auth'], auth: 'publicToken', body: emailChangeTokenSchema, responses: { 200: okSchema }, errors: [400, 409] }, asyncHandler(async (req, res) => {
   const data = emailChangeTokenSchema.parse(req.body);
   const tokenRow = await findEmailChangeToken(data.token);
   const status = emailChangeTokenStatus(tokenRow);
@@ -1192,7 +1208,7 @@ router.post('/confirm-email-change', asyncHandler(async (req, res) => {
   res.json({ ok: true, user: publicUser(user) });
 }));
 
-router.post('/client-privacy-consent', requireAuth, asyncHandler(async (req, res) => {
+defineRoute(router, { method: 'post', path: '/client-privacy-consent', summary: 'Aceitar o termo de privacidade (contas de cliente)', tags: ['auth'], auth: 'session', body: clientPrivacyConsentSchema, bodyOptional: true, responses: { 200: userEnvelopeSchema }, errors: [400, 401, 403] }, requireAuth, asyncHandler(async (req, res) => {
   const data = clientPrivacyConsentSchema.parse(req.body || {});
   if (req.auth.user.accountType !== 'CLIENT' && req.auth.user.role !== 'CLIENT') {
     return res.status(403).json({ error: 'Aceite disponível apenas para contas de cliente.' });
@@ -1210,11 +1226,11 @@ router.post('/client-privacy-consent', requireAuth, asyncHandler(async (req, res
   res.json({ user: publicUser(user) });
 }));
 
-router.get('/me', requireAuth, asyncHandler(async (req, res) => {
+defineRoute(router, { method: 'get', path: '/me', summary: 'Usuário da sessão atual', tags: ['auth'], auth: 'session', responses: { 200: userEnvelopeSchema }, errors: [401] }, requireAuth, asyncHandler(async (req, res) => {
   res.json({ user: req.auth.user });
 }));
 
-router.post('/logout', requireAuth, asyncHandler(async (req, res) => {
+defineRoute(router, { method: 'post', path: '/logout', summary: 'Sair (apaga a sessão no servidor e o cookie)', tags: ['auth'], auth: 'session', noBody: 'Encerra a sessão atual.', responses: { 204: null }, errors: [401] }, requireAuth, asyncHandler(async (req, res) => {
   await prisma.userSession.deleteMany({
     where: { id: req.auth.sessionId }
   });

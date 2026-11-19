@@ -131,7 +131,7 @@ test('PostgreSQL + HTTP: independent cost requests share verified catalogs and o
   try {
     const failure = await fetch(endpoint + routes[4], { headers: { authorization: 'Bearer ' + fixture.sessions.admin[0] } });
     assert.equal(failure.status, 503, 'Even cached cards must verify the source revision before serving a response');
-    assert.deepEqual(await failure.json(), { error: 'Não foi possível verificar a atualização dos dados. Tente novamente.' });
+    assert.equal((await failure.json()).error, 'Não foi possível verificar a atualização dos dados. Tente novamente.');
   } finally { database.$queryRaw = originalRaw; }
   const originalReferenceRead = database.$queryRaw;
   await writer.query('UPDATE "JobRole" SET name=$1 WHERE id=$2', ['Cargo atualizado ' + fixture.prefix, fixture.prefix + '-role']);
@@ -142,7 +142,7 @@ test('PostgreSQL + HTTP: independent cost requests share verified catalogs and o
   try {
     const failure = await fetch(endpoint + routes[0], { headers: { authorization: 'Bearer ' + fixture.sessions.admin[0] } });
     assert.equal(failure.status, 404, 'The detail route preserves its existing error contract instead of serving a preceding revision');
-    assert.deepEqual(await failure.json(), { error: 'catalog unavailable' });
+    assert.equal((await failure.json()).error, 'catalog unavailable');
   } finally { database.$queryRaw = originalReferenceRead; }
   assert.equal((await get(routes[0], 'admin')).canViewProjectFinancials, true, 'A subsequent request retries the failed catalog');
 });

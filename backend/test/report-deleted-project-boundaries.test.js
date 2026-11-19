@@ -1054,7 +1054,8 @@ test('POST report creation rejects duplicate project report date before reservin
   }));
 
   assert.equal(response.statusCode, 409);
-  assert.deepEqual(response.json, { error: 'Já existe um relatório deste projeto para esta data.' });
+  assert.equal(response.json.error, 'Já existe um relatório deste projeto para esta data.');
+  assert.equal(response.json.code, 'CONFLICT');
   assert.deepEqual(calls.map(([name]) => name), ['project.findFirstOrThrow', 'report.findFirst']);
   assert.equal(calls[1][1].where.projectId, 'project-1');
   assert.equal(calls[1][1].where.reportType, ReportType.RDO);

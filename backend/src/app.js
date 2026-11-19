@@ -26,6 +26,7 @@ import { requestMetrics } from './middleware/request-metrics.js';
 import { requestSourceContext } from './lib/operations/request-sources.js';
 import apiRouter from './routes/index.js';
 import { publicErrorCode } from './lib/http/public-error-code.js';
+import { requestIdMiddleware, standardErrorBodyMiddleware } from './lib/http/error-response.js';
 import {
   authorizeStoredFile,
   normalizeRelativeUploadPath,
@@ -88,6 +89,10 @@ const browserCors = cors({
   exposedHeaders: ['Content-Disposition']
 });
 app.use((req, res, next) => req.integrationBoundaryApplied ? next() : browserCors(req, res, next));
+// API interna: um id por requisição (cabeçalho X-Request-Id) e erros sempre com
+// `code` e `requestId` no corpo (spec 042, D6). A v1 tem o envelope próprio.
+app.use('/api', (req, res, next) => (req.integrationBoundaryApplied ? next() : requestIdMiddleware(req, res, next)));
+app.use('/api', standardErrorBodyMiddleware);
 
 export function jsonBodyLimitForRequest(method, requestPath) {
   const isProjectDocumentUpload = method === 'POST'
@@ -235,7 +240,7 @@ app.use((err, req, res, _next) => {
 
   // Corpo malformado: não expor a mensagem interna do parser de JSON.
   if (err && (err.type === 'entity.parse.failed' || (err instanceof SyntaxError && 'body' in err))) {
-    return res.status(400).json({ error: 'Corpo da requisição inválido.' });
+    return res.status(400).json({ error: 'Corpo da requisição inválido.', code: 'INVALID_JSON' });
   }
 
   if (err instanceof ZodError) {
@@ -243,13 +248,15 @@ app.use((err, req, res, _next) => {
     const firstMessage = issues.find(issue => issue.message)?.message;
     return res.status(400).json({
       error: firstMessage ? `Dados inválidos: ${firstMessage}` : 'Dados inválidos',
+      code: 'VALIDATION_ERROR',
       details: localizedZodErrorDetails(err)
     });
   }
 
   if (err && err.type === 'entity.too.large') {
     return res.status(413).json({
-      error: 'Arquivo muito grande para upload.'
+      error: 'Arquivo muito grande para upload.',
+      code: 'PAYLOAD_TOO_LARGE'
     });
   }
 
@@ -269,12 +276,13 @@ app.use((err, req, res, _next) => {
       return res.status(409).json({
         error: target
           ? `Registro duplicado para um campo único (${target}).`
-          : 'Registro duplicado para um campo único.'
+          : 'Registro duplicado para um campo único.',
+        code: 'DUPLICATE_RECORD'
       });
     }
 
     if (err.code === 'P2003') {
-      return res.status(400).json({ error: 'Referência inválida entre registros.' });
+      return res.status(400).json({ error: 'Referência inválida entre registros.', code: 'INVALID_REFERENCE' });
     }
 
     if (err.code === 'P2025') {
@@ -282,13 +290,13 @@ app.use((err, req, res, _next) => {
     }
 
     if (err.code === 'P2021') {
-      return res.status(503).json({ error: 'Banco de dados não está atualizado. Execute as migrações e tente novamente.' });
+      return res.status(503).json({ error: 'Banco de dados não está atualizado. Execute as migrações e tente novamente.', code: 'DATABASE_NOT_MIGRATED' });
     }
   }
 
   const isProduction = env.nodeEnv === 'production';
   const status = err.status || err.statusCode || 500;
-  const requestId = status >= 500 ? (req.requestId || randomUUID()) : null;
+  const requestId = req.requestId || randomUUID();
   if (status >= 500) {
     // O mesmo id vai na resposta, no log e no alerta, para cruzar os três.
     console.error(`[http-5xx] requestId=${requestId} ${req.method} ${req.path}`);
@@ -305,8 +313,9 @@ app.use((err, req, res, _next) => {
       console.warn('Falha ao reportar erro HTTP operacional.', captureError);
     });
   }
-  // Vai no cabeçalho (não no corpo) para não alterar o contrato das respostas.
-  if (requestId) res.setHeader('X-Request-Id', requestId);
+  // O mesmo id vai no cabeçalho e no corpo (o corpo é completado pelo
+  // standardErrorBodyMiddleware), para o usuário informar ao suporte.
+  if (!res.headersSent) res.setHeader('X-Request-Id', requestId);
   res.status(status).json({
     error: status >= 500
       ? (isProduction ? 'Erro interno do servidor.' : observableError.message)

@@ -1,0 +1,2887 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "filtroAPP — API interna",
+    "version": "0",
+    "description": "Gerado de backend/src (defineRoute + schemas zod). Não editar à mão: `npm run contract:build` no backend. A API pública de integração (v1) tem contrato próprio em specs/015-api-token-playground/contracts/openapi.yaml."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "paths": {
+    "/api/auth/2fa": {
+      "get": {
+        "operationId": "getApiAuth2fa",
+        "summary": "Situação do segundo fator e navegadores lembrados",
+        "tags": [
+          "auth"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "x-auth": "session",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "enforced": {
+                      "type": "boolean"
+                    },
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "canToggle": {
+                      "type": "boolean"
+                    },
+                    "emailHint": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "hasEmail": {
+                      "type": "boolean"
+                    },
+                    "trustedDeviceDays": {
+                      "type": "number"
+                    },
+                    "trustedDevices": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {}
+                            ],
+                            "description": "Data/hora ISO 8601"
+                          },
+                          "lastUsedAt": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {}
+                                ],
+                                "description": "Data/hora ISO 8601"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "expiresAt": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {}
+                            ],
+                            "description": "Data/hora ISO 8601"
+                          },
+                          "current": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "label",
+                          "createdAt",
+                          "lastUsedAt",
+                          "expiresAt",
+                          "current"
+                        ],
+                        "additionalProperties": {}
+                      }
+                    }
+                  },
+                  "required": [
+                    "enforced",
+                    "required",
+                    "enabled",
+                    "canToggle",
+                    "emailHint",
+                    "hasEmail",
+                    "trustedDeviceDays",
+                    "trustedDevices"
+                  ],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/2fa/devices": {
+      "delete": {
+        "operationId": "deleteApiAuth2faDevices",
+        "summary": "Esquecer todos os navegadores lembrados",
+        "tags": [
+          "auth"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "x-auth": "session",
+        "x-no-body": "Ação sobre a própria conta.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "enforced": {
+                      "type": "boolean"
+                    },
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "canToggle": {
+                      "type": "boolean"
+                    },
+                    "emailHint": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "hasEmail": {
+                      "type": "boolean"
+                    },
+                    "trustedDeviceDays": {
+                      "type": "number"
+                    },
+                    "trustedDevices": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {}
+                            ],
+                            "description": "Data/hora ISO 8601"
+                          },
+                          "lastUsedAt": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {}
+                                ],
+                                "description": "Data/hora ISO 8601"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "expiresAt": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {}
+                            ],
+                            "description": "Data/hora ISO 8601"
+                          },
+                          "current": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "label",
+                          "createdAt",
+                          "lastUsedAt",
+                          "expiresAt",
+                          "current"
+                        ],
+                        "additionalProperties": {}
+                      }
+                    }
+                  },
+                  "required": [
+                    "enforced",
+                    "required",
+                    "enabled",
+                    "canToggle",
+                    "emailHint",
+                    "hasEmail",
+                    "trustedDeviceDays",
+                    "trustedDevices"
+                  ],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/2fa/devices/{id}": {
+      "delete": {
+        "operationId": "deleteApiAuth2faDevicesId",
+        "summary": "Esquecer um navegador lembrado",
+        "tags": [
+          "auth"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "x-auth": "session",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          }
+        ],
+        "x-no-body": "O navegador vem no caminho.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "enforced": {
+                      "type": "boolean"
+                    },
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "canToggle": {
+                      "type": "boolean"
+                    },
+                    "emailHint": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "hasEmail": {
+                      "type": "boolean"
+                    },
+                    "trustedDeviceDays": {
+                      "type": "number"
+                    },
+                    "trustedDevices": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {}
+                            ],
+                            "description": "Data/hora ISO 8601"
+                          },
+                          "lastUsedAt": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {}
+                                ],
+                                "description": "Data/hora ISO 8601"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "expiresAt": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {}
+                            ],
+                            "description": "Data/hora ISO 8601"
+                          },
+                          "current": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "label",
+                          "createdAt",
+                          "lastUsedAt",
+                          "expiresAt",
+                          "current"
+                        ],
+                        "additionalProperties": {}
+                      }
+                    }
+                  },
+                  "required": [
+                    "enforced",
+                    "required",
+                    "enabled",
+                    "canToggle",
+                    "emailHint",
+                    "hasEmail",
+                    "trustedDeviceDays",
+                    "trustedDevices"
+                  ],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/2fa/disable": {
+      "post": {
+        "operationId": "postApiAuth2faDisable",
+        "summary": "Desativar o segundo fator (contas onde é opcional)",
+        "tags": [
+          "auth"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "x-auth": "session",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "currentPassword": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "currentPassword"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "enforced": {
+                      "type": "boolean"
+                    },
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "canToggle": {
+                      "type": "boolean"
+                    },
+                    "emailHint": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "hasEmail": {
+                      "type": "boolean"
+                    },
+                    "trustedDeviceDays": {
+                      "type": "number"
+                    },
+                    "trustedDevices": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {}
+                            ],
+                            "description": "Data/hora ISO 8601"
+                          },
+                          "lastUsedAt": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {}
+                                ],
+                                "description": "Data/hora ISO 8601"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "expiresAt": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {}
+                            ],
+                            "description": "Data/hora ISO 8601"
+                          },
+                          "current": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "label",
+                          "createdAt",
+                          "lastUsedAt",
+                          "expiresAt",
+                          "current"
+                        ],
+                        "additionalProperties": {}
+                      }
+                    }
+                  },
+                  "required": [
+                    "enforced",
+                    "required",
+                    "enabled",
+                    "canToggle",
+                    "emailHint",
+                    "hasEmail",
+                    "trustedDeviceDays",
+                    "trustedDevices"
+                  ],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem permissão",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Muitas requisições",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/2fa/enable": {
+      "post": {
+        "operationId": "postApiAuth2faEnable",
+        "summary": "Iniciar a ativação do segundo fator (envia código)",
+        "tags": [
+          "auth"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "x-auth": "session",
+        "x-no-body": "Ação sobre a própria conta; sem parâmetros.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "challengeToken": {
+                      "type": "string"
+                    },
+                    "emailHint": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "expiresAt": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {}
+                      ],
+                      "description": "Data/hora ISO 8601"
+                    }
+                  },
+                  "required": [
+                    "challengeToken",
+                    "emailHint",
+                    "expiresAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem permissão",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Muitas requisições",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Indisponível",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/2fa/enable/confirm": {
+      "post": {
+        "operationId": "postApiAuth2faEnableConfirm",
+        "summary": "Confirmar a ativação do segundo fator",
+        "tags": [
+          "auth"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "x-auth": "session",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "challengeToken": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20
+                  }
+                },
+                "required": [
+                  "challengeToken",
+                  "code"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "enforced": {
+                      "type": "boolean"
+                    },
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "canToggle": {
+                      "type": "boolean"
+                    },
+                    "emailHint": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "hasEmail": {
+                      "type": "boolean"
+                    },
+                    "trustedDeviceDays": {
+                      "type": "number"
+                    },
+                    "trustedDevices": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {}
+                            ],
+                            "description": "Data/hora ISO 8601"
+                          },
+                          "lastUsedAt": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {}
+                                ],
+                                "description": "Data/hora ISO 8601"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "expiresAt": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {}
+                            ],
+                            "description": "Data/hora ISO 8601"
+                          },
+                          "current": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "label",
+                          "createdAt",
+                          "lastUsedAt",
+                          "expiresAt",
+                          "current"
+                        ],
+                        "additionalProperties": {}
+                      }
+                    }
+                  },
+                  "required": [
+                    "enforced",
+                    "required",
+                    "enabled",
+                    "canToggle",
+                    "emailHint",
+                    "hasEmail",
+                    "trustedDeviceDays",
+                    "trustedDevices"
+                  ],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Muitas requisições",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/2fa/resend": {
+      "post": {
+        "operationId": "postApiAuth2faResend",
+        "summary": "Reenviar o código do segundo fator",
+        "tags": [
+          "auth"
+        ],
+        "security": [],
+        "x-auth": "public",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "challengeToken": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "challengeToken"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "emailHint": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "emailHint"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Muitas requisições",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Indisponível",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/2fa/verify": {
+      "post": {
+        "operationId": "postApiAuth2faVerify",
+        "summary": "Confirmar o código do segundo fator e abrir a sessão",
+        "tags": [
+          "auth"
+        ],
+        "security": [],
+        "x-auth": "public",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "challengeToken": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20
+                  },
+                  "rememberDevice": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "challengeToken",
+                  "code"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "description": "Só durante a transição para o cookie (spec 041)",
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {}
+                      ],
+                      "description": "Data/hora ISO 8601"
+                    },
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "username": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "emailVerifiedAt": {
+                          "anyOf": [
+                            {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {}
+                              ],
+                              "description": "Data/hora ISO 8601"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "role": {
+                          "type": "string"
+                        },
+                        "accountType": {
+                          "type": "string"
+                        },
+                        "moduleRoles": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "isActive": {
+                          "type": "boolean"
+                        },
+                        "clientCnpj": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "privacyPolicyRequired": {
+                          "type": "boolean"
+                        },
+                        "requiredPrivacyPolicyVersion": {
+                          "type": "string"
+                        },
+                        "twoFactor": {
+                          "type": "object",
+                          "properties": {
+                            "required": {
+                              "type": "boolean"
+                            },
+                            "enabled": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "required",
+                            "enabled"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "username",
+                        "name",
+                        "email",
+                        "emailVerifiedAt",
+                        "role",
+                        "accountType",
+                        "moduleRoles",
+                        "isActive",
+                        "clientCnpj",
+                        "privacyPolicyRequired",
+                        "requiredPrivacyPolicyVersion",
+                        "twoFactor"
+                      ],
+                      "additionalProperties": {},
+                      "description": "Usuário autenticado"
+                    },
+                    "trustedDeviceExpiresAt": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {}
+                      ],
+                      "description": "Data/hora ISO 8601"
+                    },
+                    "trustedDeviceToken": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "expiresAt",
+                    "user"
+                  ],
+                  "additionalProperties": {},
+                  "description": "Sessão criada; o token principal vai no cookie HttpOnly fv_session"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Muitas requisições",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/account": {
+      "put": {
+        "operationId": "putApiAuthAccount",
+        "summary": "Atualizar e-mail e preferências da própria conta",
+        "tags": [
+          "auth"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "x-auth": "session",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "email",
+                        "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                      },
+                      {
+                        "type": "string",
+                        "const": ""
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "notificationPreferences": {
+                    "type": "object",
+                    "properties": {
+                      "reports": {
+                        "type": "boolean"
+                      },
+                      "signatures": {
+                        "type": "boolean"
+                      },
+                      "signatureReminders": {
+                        "default": true,
+                        "type": "boolean"
+                      },
+                      "surveyReminders": {
+                        "type": "boolean"
+                      },
+                      "calibrationReminders": {
+                        "default": true,
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "reports",
+                      "signatures",
+                      "surveyReminders"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "username": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "emailVerifiedAt": {
+                          "anyOf": [
+                            {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {}
+                              ],
+                              "description": "Data/hora ISO 8601"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "role": {
+                          "type": "string"
+                        },
+                        "accountType": {
+                          "type": "string"
+                        },
+                        "moduleRoles": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "isActive": {
+                          "type": "boolean"
+                        },
+                        "clientCnpj": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "privacyPolicyRequired": {
+                          "type": "boolean"
+                        },
+                        "requiredPrivacyPolicyVersion": {
+                          "type": "string"
+                        },
+                        "twoFactor": {
+                          "type": "object",
+                          "properties": {
+                            "required": {
+                              "type": "boolean"
+                            },
+                            "enabled": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "required",
+                            "enabled"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "username",
+                        "name",
+                        "email",
+                        "emailVerifiedAt",
+                        "role",
+                        "accountType",
+                        "moduleRoles",
+                        "isActive",
+                        "clientCnpj",
+                        "privacyPolicyRequired",
+                        "requiredPrivacyPolicyVersion",
+                        "twoFactor"
+                      ],
+                      "additionalProperties": {},
+                      "description": "Usuário autenticado"
+                    },
+                    "emailChangePending": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "user"
+                  ],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Aceito",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "username": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "emailVerifiedAt": {
+                          "anyOf": [
+                            {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {}
+                              ],
+                              "description": "Data/hora ISO 8601"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "role": {
+                          "type": "string"
+                        },
+                        "accountType": {
+                          "type": "string"
+                        },
+                        "moduleRoles": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "isActive": {
+                          "type": "boolean"
+                        },
+                        "clientCnpj": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "privacyPolicyRequired": {
+                          "type": "boolean"
+                        },
+                        "requiredPrivacyPolicyVersion": {
+                          "type": "string"
+                        },
+                        "twoFactor": {
+                          "type": "object",
+                          "properties": {
+                            "required": {
+                              "type": "boolean"
+                            },
+                            "enabled": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "required",
+                            "enabled"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "username",
+                        "name",
+                        "email",
+                        "emailVerifiedAt",
+                        "role",
+                        "accountType",
+                        "moduleRoles",
+                        "isActive",
+                        "clientCnpj",
+                        "privacyPolicyRequired",
+                        "requiredPrivacyPolicyVersion",
+                        "twoFactor"
+                      ],
+                      "additionalProperties": {},
+                      "description": "Usuário autenticado"
+                    },
+                    "emailChangePending": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "user"
+                  ],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/change-password": {
+      "post": {
+        "operationId": "postApiAuthChangePassword",
+        "summary": "Trocar a própria senha (encerra as outras sessões)",
+        "tags": [
+          "auth"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "x-auth": "session",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "currentPassword": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "newPassword": {
+                    "type": "string",
+                    "minLength": 10
+                  }
+                },
+                "required": [
+                  "currentPassword",
+                  "newPassword"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/client-privacy-consent": {
+      "post": {
+        "operationId": "postApiAuthClientPrivacyConsent",
+        "summary": "Aceitar o termo de privacidade (contas de cliente)",
+        "tags": [
+          "auth"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "x-auth": "session",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "privacyNoticeAccepted": {
+                    "type": "boolean",
+                    "const": true
+                  },
+                  "privacyNoticeVersion": {
+                    "type": "string",
+                    "const": "client_account_privacy_v1"
+                  }
+                },
+                "required": [
+                  "privacyNoticeAccepted",
+                  "privacyNoticeVersion"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "username": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "emailVerifiedAt": {
+                          "anyOf": [
+                            {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {}
+                              ],
+                              "description": "Data/hora ISO 8601"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "role": {
+                          "type": "string"
+                        },
+                        "accountType": {
+                          "type": "string"
+                        },
+                        "moduleRoles": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "isActive": {
+                          "type": "boolean"
+                        },
+                        "clientCnpj": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "privacyPolicyRequired": {
+                          "type": "boolean"
+                        },
+                        "requiredPrivacyPolicyVersion": {
+                          "type": "string"
+                        },
+                        "twoFactor": {
+                          "type": "object",
+                          "properties": {
+                            "required": {
+                              "type": "boolean"
+                            },
+                            "enabled": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "required",
+                            "enabled"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "username",
+                        "name",
+                        "email",
+                        "emailVerifiedAt",
+                        "role",
+                        "accountType",
+                        "moduleRoles",
+                        "isActive",
+                        "clientCnpj",
+                        "privacyPolicyRequired",
+                        "requiredPrivacyPolicyVersion",
+                        "twoFactor"
+                      ],
+                      "additionalProperties": {},
+                      "description": "Usuário autenticado"
+                    }
+                  },
+                  "required": [
+                    "user"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem permissão",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/confirm-email-change": {
+      "post": {
+        "operationId": "postApiAuthConfirmEmailChange",
+        "summary": "Confirmar a troca de e-mail pelo link",
+        "tags": [
+          "auth"
+        ],
+        "security": [],
+        "x-auth": "publicToken",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "token"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/email-change-status": {
+      "get": {
+        "operationId": "getApiAuthEmailChangeStatus",
+        "summary": "Validar o link de confirmação de troca de e-mail",
+        "tags": [
+          "auth"
+        ],
+        "security": [],
+        "x-auth": "publicToken",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 500
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "valid": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "valid"
+                  ],
+                  "additionalProperties": {},
+                  "description": "Situação do token informado"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/forgot-password": {
+      "post": {
+        "operationId": "postApiAuthForgotPassword",
+        "summary": "Pedir link de recuperação de senha (resposta sempre igual)",
+        "tags": [
+          "auth"
+        ],
+        "security": [],
+        "x-auth": "public",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "identifier": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "identifier"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Muitas requisições",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "operationId": "postApiAuthLogin",
+        "summary": "Entrar com usuário e senha",
+        "tags": [
+          "auth"
+        ],
+        "security": [],
+        "x-auth": "public",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "rememberMe": {
+                    "type": "boolean"
+                  },
+                  "trustedDeviceToken": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "username",
+                  "password"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "token": {
+                          "description": "Só durante a transição para o cookie (spec 041)",
+                          "type": "string"
+                        },
+                        "expiresAt": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {}
+                          ],
+                          "description": "Data/hora ISO 8601"
+                        },
+                        "user": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "username": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "email": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "emailVerifiedAt": {
+                              "anyOf": [
+                                {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {}
+                                  ],
+                                  "description": "Data/hora ISO 8601"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "role": {
+                              "type": "string"
+                            },
+                            "accountType": {
+                              "type": "string"
+                            },
+                            "moduleRoles": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "isActive": {
+                              "type": "boolean"
+                            },
+                            "clientCnpj": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "privacyPolicyRequired": {
+                              "type": "boolean"
+                            },
+                            "requiredPrivacyPolicyVersion": {
+                              "type": "string"
+                            },
+                            "twoFactor": {
+                              "type": "object",
+                              "properties": {
+                                "required": {
+                                  "type": "boolean"
+                                },
+                                "enabled": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "required",
+                                "enabled"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "username",
+                            "name",
+                            "email",
+                            "emailVerifiedAt",
+                            "role",
+                            "accountType",
+                            "moduleRoles",
+                            "isActive",
+                            "clientCnpj",
+                            "privacyPolicyRequired",
+                            "requiredPrivacyPolicyVersion",
+                            "twoFactor"
+                          ],
+                          "additionalProperties": {},
+                          "description": "Usuário autenticado"
+                        },
+                        "trustedDeviceExpiresAt": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {}
+                          ],
+                          "description": "Data/hora ISO 8601"
+                        },
+                        "trustedDeviceToken": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "expiresAt",
+                        "user"
+                      ],
+                      "additionalProperties": {},
+                      "description": "Sessão criada; o token principal vai no cookie HttpOnly fv_session"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "twoFactorRequired": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "challengeToken": {
+                          "type": "string"
+                        },
+                        "emailHint": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "expiresAt": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {}
+                          ],
+                          "description": "Data/hora ISO 8601"
+                        },
+                        "trustedDeviceDays": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "twoFactorRequired",
+                        "challengeToken",
+                        "emailHint",
+                        "expiresAt",
+                        "trustedDeviceDays"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Senha correta; falta confirmar o código enviado por e-mail"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem permissão",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Muitas requisições",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Indisponível",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "operationId": "postApiAuthLogout",
+        "summary": "Sair (apaga a sessão no servidor e o cookie)",
+        "tags": [
+          "auth"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "x-auth": "session",
+        "x-no-body": "Encerra a sessão atual.",
+        "responses": {
+          "204": {
+            "description": "Sem conteúdo"
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "operationId": "getApiAuthMe",
+        "summary": "Usuário da sessão atual",
+        "tags": [
+          "auth"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "x-auth": "session",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "username": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "emailVerifiedAt": {
+                          "anyOf": [
+                            {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {}
+                              ],
+                              "description": "Data/hora ISO 8601"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "role": {
+                          "type": "string"
+                        },
+                        "accountType": {
+                          "type": "string"
+                        },
+                        "moduleRoles": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "isActive": {
+                          "type": "boolean"
+                        },
+                        "clientCnpj": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "privacyPolicyRequired": {
+                          "type": "boolean"
+                        },
+                        "requiredPrivacyPolicyVersion": {
+                          "type": "string"
+                        },
+                        "twoFactor": {
+                          "type": "object",
+                          "properties": {
+                            "required": {
+                              "type": "boolean"
+                            },
+                            "enabled": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "required",
+                            "enabled"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "username",
+                        "name",
+                        "email",
+                        "emailVerifiedAt",
+                        "role",
+                        "accountType",
+                        "moduleRoles",
+                        "isActive",
+                        "clientCnpj",
+                        "privacyPolicyRequired",
+                        "requiredPrivacyPolicyVersion",
+                        "twoFactor"
+                      ],
+                      "additionalProperties": {},
+                      "description": "Usuário autenticado"
+                    }
+                  },
+                  "required": [
+                    "user"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/notification-preferences/{token}": {
+      "get": {
+        "operationId": "getApiAuthNotificationPreferencesToken",
+        "summary": "Abrir as preferências de notificação pelo link do e-mail",
+        "tags": [
+          "auth"
+        ],
+        "security": [],
+        "x-auth": "publicToken",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "valid": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "valid"
+                  ],
+                  "additionalProperties": {},
+                  "description": "Situação do token informado"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "putApiAuthNotificationPreferencesToken",
+        "summary": "Salvar as preferências de notificação pelo link do e-mail",
+        "tags": [
+          "auth"
+        ],
+        "security": [],
+        "x-auth": "publicToken",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reports": {
+                    "type": "boolean"
+                  },
+                  "signatures": {
+                    "type": "boolean"
+                  },
+                  "signatureReminders": {
+                    "default": true,
+                    "type": "boolean"
+                  },
+                  "surveyReminders": {
+                    "type": "boolean"
+                  },
+                  "calibrationReminders": {
+                    "default": true,
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "reports",
+                  "signatures",
+                  "surveyReminders"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/resend-password-setup": {
+      "post": {
+        "operationId": "postApiAuthResendPasswordSetup",
+        "summary": "Reenviar o link de primeiro acesso",
+        "tags": [
+          "auth"
+        ],
+        "security": [],
+        "x-auth": "publicToken",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "token"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Muitas requisições",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/reset-password": {
+      "post": {
+        "operationId": "postApiAuthResetPassword",
+        "summary": "Definir nova senha pelo link de redefinição",
+        "tags": [
+          "auth"
+        ],
+        "security": [],
+        "x-auth": "publicToken",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 10
+                  }
+                },
+                "required": [
+                  "token",
+                  "password"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Muitas requisições",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/reset-password-status": {
+      "get": {
+        "operationId": "getApiAuthResetPasswordStatus",
+        "summary": "Validar o link de redefinição de senha",
+        "tags": [
+          "auth"
+        ],
+        "security": [],
+        "x-auth": "publicToken",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 500
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "valid": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "valid"
+                  ],
+                  "additionalProperties": {},
+                  "description": "Situação do token informado"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "sessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "fv_session"
+      },
+      "bearerSession": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Só na transição para o cookie (spec 041)"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": [
+          "error",
+          "code",
+          "requestId"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Mensagem para exibir ao usuário"
+          },
+          "code": {
+            "type": "string",
+            "description": "Código estável do erro (ex.: VALIDATION_ERROR, TWO_FACTOR_INVALID)"
+          },
+          "requestId": {
+            "type": "string",
+            "description": "Mesmo valor do cabeçalho X-Request-Id"
+          },
+          "details": {
+            "description": "Detalhes, como os campos inválidos"
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  }
+}

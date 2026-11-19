@@ -397,7 +397,11 @@ test('POST /api/webhooks/projects returns the same 401 for missing and invalid t
   });
   assert.equal(missing.statusCode, 401);
   assert.equal(invalid.statusCode, 401);
-  assert.deepEqual(missing.json, invalid.json);
+  // Mesma resposta para token ausente ou inválido (sem vazar qual foi o caso);
+  // só o requestId muda, por ser um por requisição.
+  const withoutRequestId = ({ requestId, ...body }) => body;
+  assert.deepEqual(withoutRequestId(missing.json), withoutRequestId(invalid.json));
+  assert.ok(missing.json.requestId && invalid.json.requestId && missing.json.requestId !== invalid.json.requestId);
 });
 
 test('POST /api/webhooks/projects creates and returns a normalized pending project', async t => {
