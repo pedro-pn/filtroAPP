@@ -206,7 +206,7 @@ O PDF de evidência com nome, assinatura, IP e User-Agent **é o próprio instru
 | Tipo de documento | Prazo mínimo de retenção | Base legal |
 |---|---|---|
 | Relatório com assinatura de prestação de serviço | 5 anos | Código Civil, art. 206, §5°, I (prescrição de ação) |
-| Documento trabalhista — EPI assinado | 20 anos | NR-1/Portarias MTE; entendimento consolidado TST |
+| Documento trabalhista — EPI assinado | 20 anos | NR-6, item 6.6.1 "h" (registrar o fornecimento de EPI ao trabalhador); NR-1/PGR; entendimento consolidado TST (revisar com o jurídico). Exclusão e alteração da evidência bloqueadas na API e no banco (trigger `EPI_SIGNED_HISTORY_LOCKED`, migration `20261119150000_epi_signed_history_guard`) |
 | Relatório técnico de obra (RDO/RTP) | 10 anos (conforme contrato) | Lei de Licitações nº 14.133/2021, normas ABNT |
 | Pesquisa de satisfação (respostas) | 2 anos após resposta | Legítimo interesse para gestão de qualidade |
 

@@ -29,6 +29,10 @@ SET client_min_messages = warning;
 
 BEGIN;
 
+-- Cópia descartável: libera a guarda de 20 anos das fichas de EPI assinadas
+-- (migration 20261119150000_epi_signed_history_guard) só nesta transação.
+SET LOCAL filtrovali.epi_history_override = 'anonimizacao-homologacao';
+
 -- Sal aleatório por execução: o hash é estável dentro da cópia (preserva as
 -- ligações entre tabelas) e não pode ser revertido por força bruta.
 CREATE TEMP TABLE _anon_salt ON COMMIT DROP AS
