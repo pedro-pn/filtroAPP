@@ -243,6 +243,16 @@ tag_running_images() {
   done
 }
 
+# Commit gravado na imagem do backend com essa marcação (vazio se a imagem é
+# antiga, sem APP_GIT_SHA, ou não existe).
+image_sha() {
+  local sha
+  sha="$(docker image inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "${IMAGE_PREFIX}-backend:$1" 2>/dev/null \
+    | sed -n 's/^APP_GIT_SHA=//p' | head -n 1)"
+  [[ "$sha" =~ ^[0-9a-f]{40}$ ]] && printf '%s' "$sha"
+  return 0
+}
+
 images_exist() {
   local tag="$1" svc
   for svc in "${APP_SERVICES[@]}"; do
@@ -337,7 +347,7 @@ rollback_after_failure() {
     log "não funcionar com o schema atual. Se ela falhar, restaure o dump pré-deploy (runbook, seção 3)."
   fi
   log "voltando automaticamente para a versão anterior ($PREV_SHA)"
-  if switch_to_images previous && verify_release ""; then
+  if switch_to_images previous && verify_release "$(image_sha previous)"; then
     write_status "ROLLED_BACK" "$reason"
     log "versão anterior ($PREV_SHA) no ar. O checkout continua em $NEW_SHA."
     log "Migrations já aplicadas continuam no banco; se a nova migration alterou dados, veja o runbook."
@@ -399,17 +409,31 @@ if [ "$MODE" = "rollback" ]; then
     echo "[deploy] não existem imagens ${IMAGE_PREFIX}-{backend,worker,nginx}:$TARGET_TAG neste servidor" >&2
     exit 1
   fi
+  # O commit de destino é lido da imagem ANTES de remarcar as imagens em
+  # execução: com --rollback-to before-rollback, a remarcação apagaria o próprio
+  # destino e a "volta" subiria a versão que já está no ar (ensaio de 2026-11-19).
+  expected="$(image_sha "$TARGET_TAG")"
+  [ -n "$expected" ] || { [[ "$TARGET_TAG" =~ ^[0-9a-f]{40}$ ]] && expected="$TARGET_TAG"; }
+  if [ -n "$expected" ] && [ "$expected" = "$PREV_SHA" ]; then
+    echo "[deploy] :$TARGET_TAG é o commit que já está no ar ($PREV_SHA); nada a voltar." >&2
+    exit 1
+  fi
+  [ -n "$expected" ] || log "AVISO: a imagem :$TARGET_TAG não informa o commit; a conferência só verá se o sistema responde"
+  [ -n "$expected" ] && NEW_SHA="$expected"   # status e avisos mostram o commit, não a marcação
+  for svc in "${APP_SERVICES[@]}"; do
+    docker tag "${IMAGE_PREFIX}-${svc}:${TARGET_TAG}" "${IMAGE_PREFIX}-${svc}:rollback-target"
+  done
   tag_running_images before-rollback
   [ "$MAINTENANCE" = "on" ] && maintenance_on "volta manual para :$TARGET_TAG"
-  expected=""
-  [[ "$TARGET_TAG" =~ ^[0-9a-f]{40}$ ]] && expected="$TARGET_TAG"
-  if switch_to_images "$TARGET_TAG" && verify_release "$expected"; then
-    write_status "SUCCESS" "volta manual para :$TARGET_TAG"
-    log "no ar: :$TARGET_TAG. Para desfazer: deploy/deploy-prod.sh --rollback-to before-rollback"
+  undo="before-rollback"
+  [[ "$PREV_SHA" =~ ^[0-9a-f]{40}$ ]] && undo="$PREV_SHA"
+  if switch_to_images rollback-target && verify_release "$expected"; then
+    write_status "SUCCESS" "volta manual para :$TARGET_TAG${expected:+ ($expected)}"
+    log "no ar: :$TARGET_TAG${expected:+ (commit $expected)}. Para desfazer: deploy/deploy-prod.sh --rollback-to $undo"
     exit 0
   fi
   write_status "FAILURE" "volta manual para :$TARGET_TAG falhou"
-  log "a versão :$TARGET_TAG não passou na conferência; para desfazer: deploy/deploy-prod.sh --rollback-to before-rollback"
+  log "a versão :$TARGET_TAG não passou na conferência; para desfazer: deploy/deploy-prod.sh --rollback-to $undo"
   exit 1
 fi
 

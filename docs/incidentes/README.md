@@ -32,3 +32,4 @@ Regras:
 | 2026-11-18 | [Produção sem alertas operacionais](2026-11-18-producao-sem-alertas.md) | Risco latente (auditoria) |
 | 2026-11-18 | [Aplicação conectando como superusuário do banco](2026-11-18-banco-superusuario.md) | Risco latente (auditoria) |
 | 2026-11-18 | [Restauração de backup nunca comprovada](2026-11-18-restore-nao-comprovado.md) | Risco latente (auditoria) |
+| 2026-11-19 | [Ensaio de volta: `--rollback-to before-rollback` não desfez a volta](2026-11-19-ensaio-volta-before-rollback.md) | Incidente (ensaio de volta) |

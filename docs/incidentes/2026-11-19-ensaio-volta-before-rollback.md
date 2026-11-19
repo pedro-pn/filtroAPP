@@ -1,0 +1,13 @@
+# Ensaio de volta: `--rollback-to before-rollback` não desfez a volta
+
+- **Início / detecção / fim:** 2026-11-19, 13:50:58 a 13:54:32 UTC (ensaio planejado do critério 1.5).
+- **Quem detectou e como:** o próprio ensaio. Depois do passo 3, o `/health` continuou respondendo `version: 3b641336…` em vez de `c1787760…`, e a mensagem final do script ("Para desfazer: … before-rollback") indicava que nada tinha mudado.
+- **Impacto:** das 13:51:35 às 13:54:32 (~3 min) a produção rodou a versão de 18/11 (`3b641336`), sem 2FA, monitor de abuso e teto da OpenAI. Sem perda de dados: a volta troca só o código, e as migrations do período eram só de acréscimo (o código antigo as ignora). Cada troca de versão deixou o sistema indisponível por alguns segundos.
+- **Linha do tempo:**
+  1. 13:50:58 `deploy/deploy-prod.sh --rollback` → `:before-rollback` marcado com a versão no ar (`c1787760`), `:previous` (`3b641336`) no ar em 37 s, conferência OK.
+  2. 13:52:11 `deploy/deploy-prod.sh --rollback-to before-rollback` → o script remarcou a imagem em execução (agora `3b641336`) como `:before-rollback`, apagando o destino, e subiu a mesma versão; conferência "OK" porque, com marcação simbólica, só checava se o sistema respondia.
+  3. 13:53:57 `deploy/deploy-prod.sh --rollback-to c1787760…` → versão atual de volta, conferência com o commit OK.
+- **Causa raiz:** no modo de volta, `tag_running_images before-rollback` rodava antes de o script resolver o destino; quando o destino era a própria marcação `before-rollback`, ele era sobrescrito. Além disso, a conferência pós-troca só exigia o commit quando o destino era um SHA explícito.
+- **Correção aplicada:** PR `fix/deploy-rollback-target-sha` — o destino é resolvido (`APP_GIT_SHA` da imagem) e fixado numa marcação própria (`:rollback-target`) antes de remarcar o que está no ar; a conferência exige esse commit no `/health` e no frontend; voltar para o commit que já está no ar é recusado; a volta automática após falha também confere o commit de `:previous`; o status e a mensagem "para desfazer" passam a citar o SHA. Teste `backend/test/deploy-rollback-tags.test.js` reproduz a sequência do ensaio com um Docker falso que guarda marcações (falha com o script antigo, passa com o novo).
+- **O que muda para não repetir:** repetir o ensaio (`--rollback` e `--rollback-to before-rollback`) depois do deploy da correção para fechar o critério 1.5; no runbook, preferir `--rollback-to <sha>` (o script agora imprime o SHA exato para desfazer).
+- **Tempos medidos:** volta 37 s (13:50:58 → 13:51:35); retorno 35 s (13:53:57 → 13:54:32); backend saudável em 27–32 s após a troca.

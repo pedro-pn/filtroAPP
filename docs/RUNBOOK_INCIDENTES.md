@@ -124,6 +124,11 @@ deploy/deploy-prod.sh --rollback-to <sha>        # uma versão específica
 deploy/deploy-prod.sh --rollback-to before-rollback   # desfaz a volta
 ```
 
+Cada volta confere no `/health` e no frontend o commit de destino e imprime o
+comando exato para desfazer (`--rollback-to <sha>`), que é a forma preferida.
+Voltar para o commit que já está no ar é recusado. Ensaio e defeito corrigido:
+[`incidentes/2026-11-19-ensaio-volta-before-rollback.md`](incidentes/2026-11-19-ensaio-volta-before-rollback.md).
+
 A volta troca **código** (backend, worker, frontend) sem build e sem migrations.
 As migrations só andam para frente; o código anterior continua funcionando
 quando a migration nova só acrescentou tabelas ou colunas (o padrão do projeto).
