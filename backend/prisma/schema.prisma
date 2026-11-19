@@ -3732,6 +3732,23 @@ model DataRetentionHold {
   @@unique([kind, targetId])
 }
 
+// Contadores de uso por período (pilar 10): teto de gasto da OpenAI e sinais de
+// abuso (falhas de login, respostas 429). Compartilhados entre API e worker e
+// preservados entre deploys. subject: "global", "user:<id>", "ip:<ip>" ou o nome
+// do limitador. Linhas de abuso (com IP) ficam 30 dias; as da OpenAI, 400 dias.
+model UsageCounter {
+  id          String   @id @default(cuid())
+  kind        String
+  subject     String
+  periodStart DateTime
+  count       Int      @default(0)
+  tokens      Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  @@unique([kind, subject, periodStart])
+  @@index([kind, periodStart])
+}
+
 model JobRun {
   id         String    @id @default(cuid())
   name       String

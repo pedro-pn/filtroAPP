@@ -86,6 +86,8 @@ INSERT INTO _anon_plan (tbl, col, strategy, expr) VALUES
   ('ReportDraft', '*', 'delete', NULL),
   ('ReportEmailJob', '*', 'delete', NULL),
   ('ApiRequestLog', '*', 'delete', NULL),
+  -- Contadores de abuso guardam IPs de produção; o uso da OpenAI vai junto (sem valor em homologação).
+  ('UsageCounter', '*', 'delete', NULL),
 
   -- Usuários (o admin exclusivo de homologação é criado depois pelo sync).
   ('User', 'username', 'set', '''staging-user-'' || "id"'),

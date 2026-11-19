@@ -24,7 +24,7 @@ import {
 import { hasModuleRole } from '../../lib/module-roles.js';
 import prisma from '../../lib/prisma.js';
 import { SIGNATURE_EPI_NOTICE_VERSION, validatePrivacyNoticeAcknowledgement } from '../../lib/privacy-consent.js';
-import { createMemoryRateLimit } from '../../lib/rate-limit.js';
+import { createMemoryRateLimit, expensiveRouteLimit } from '../../lib/rate-limit.js';
 import { requireAuth } from '../../middleware/auth.js';
 import env from '../../config/env.js';
 import { makeCommonSchemas } from '../../../../shared/schemas/common.js';
@@ -1163,7 +1163,7 @@ router.put('/collaborators/:id/profile', requireEpiTechnician, asyncHandler(asyn
   res.json(epiCollaboratorDto(item));
 }));
 
-router.get('/collaborators/:id/pdf', asyncHandler(async (req, res) => {
+router.get('/collaborators/:id/pdf', ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
   assertEpiCollaboratorAccess(req, req.params.id);
   const archived = String(req.query.archived || '').toLowerCase() === 'true';
   return sendCollaboratorPdf(res, req.params.id, { archived });

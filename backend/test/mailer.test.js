@@ -178,3 +178,11 @@ test('Microsoft token errors include the Entra response without exposing the con
     }
   );
 });
+
+test('password SMTP transport also verifies the server certificate', () => {
+  const transporter = createMailerTransport({
+    envConfig: { ...oauthConfig, smtpAuthMode: 'password', smtpPass: 'smtp-password' }
+  });
+  assert.equal(transporter.transporter.options.auth.pass, 'smtp-password');
+  assert.equal(transporter.transporter.options.tls.rejectUnauthorized, true);
+});

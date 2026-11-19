@@ -257,6 +257,25 @@ corrija o e-mail logo depois de entrar. Os eventos ficam em `AuthSecurityEvent`
 
 ---
 
+## 7. Alerta de abuso ou de custo
+
+E-mail "Abuso: …" ou "OpenAI: …% do teto"; painel de Operações › "Abuso e custo".
+
+| Sinal | O que fazer |
+|---|---|
+| **Falhas de login de um mesmo IP** | Os limitadores já devolvem 429. Se persistir, bloqueie o IP no host: `ufw insert 1 deny from <ip>` (ou no Caddy). Remova a regra quando o ataque parar. |
+| **Falhas de login numa mesma conta** | Avise o dono da conta; se não foi ele, troque a senha pelo painel de contas (derruba as sessões) ou desative a conta temporariamente. |
+| **Falhas de login em todas as contas** | Ataque distribuído (password spraying): confira `dcp logs --since 1h backend | grep "/api/auth/login"`, bloqueie as faixas de IP mais frequentes e considere ligar a página de manutenção se o volume derrubar o sistema. |
+| **Bloqueios por limite (429)** num limitador de rota cara | Pode ser uso legítimo intenso (ex.: geração em lote) ou automação. Confira quem com `dcp logs --since 1h backend`. Se for legítimo e recorrente, aumente o limite em `backend/src/lib/rate-limit.js` (`EXPENSIVE_ROUTE_LIMITS`) num PR. |
+| **OpenAI acima de 80% / teto atingido** | Veja no painel de Operações o uso do dia e do mês. Se o uso for esperado, aumente `OPENAI_DAILY_TOKEN_BUDGET`/`OPENAI_MONTHLY_TOKEN_BUDGET` e recrie o backend; se não, procure a conta com mais chamadas (`UsageCounter`, `kind = 'openai.calls.day'`) e confira o limite no painel da OpenAI. |
+
+```bash
+# Contas/IPs com mais falhas de login nos últimos 60 min
+dcp exec -T postgres psql -U postgres -d filtrovali -c "SELECT subject, sum(count) FROM \"UsageCounter\" WHERE kind = 'abuse.login-failure' AND \"periodStart\" > now() - interval '60 min' GROUP BY 1 ORDER BY 2 DESC LIMIT 10"
+```
+
+---
+
 ## Registro do incidente
 
 Todo incidente com impacto para usuário gera um registro em

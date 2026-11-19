@@ -589,6 +589,8 @@ deploy/deploy-prod.sh --rollback   # volta manual para a versão anterior
 Incidentes (fora do ar, banco cheio, deploy ruim, restore, troca de credencial,
 serviço externo parado): `docs/RUNBOOK_INCIDENTES.md`.
 
+Termos do negócio (RDO, RLQ, HH, Missão, Efetivo, Romaneio…): [`docs/GLOSSARIO.md`](docs/GLOSSARIO.md). Registros de incidentes: [`docs/incidentes/`](docs/incidentes/README.md). Revisão de segurança: [`docs/seguranca/REVISAO_2026-11.md`](docs/seguranca/REVISAO_2026-11.md).
+
 Caminho manual (plano B):
 
 ```bash
@@ -634,6 +636,8 @@ Nginx HTTP interno
 ## Variáveis de Ambiente
 
 ### Backend (`backend/.env`)
+
+Onde ficam: em produção, todas as variáveis abaixo vão em `backend/.env.production` (homologação: `backend/.env.staging`), carregado pelo Compose em backend, worker e migrate. Exceções: `POSTGRES_PASSWORD` (container do Postgres e backup, também no env do backup em `/root/.config/filtroapp-backup/env`), `APP_GIT_SHA` (gravada na imagem pelo `deploy/deploy-prod.sh`), `NODE_ENV`/`BACKGROUND_JOBS_IN_API`/limites de conexão (fixados no `docker-compose.prod.yml`). Nunca registre valores reais aqui nem no Git; `backend/.env.example` lista todas as variáveis lidas pelo backend (o teste `backend/test/env-example-coverage.test.js` falha se faltar alguma).
 
 | Variável | Obrigatória | Descrição |
 |---|---|---|
@@ -699,6 +703,9 @@ Nginx HTTP interno
 | `OPERATIONS_ALERT_INTERVAL_MS` | Não | Intervalo do job de alertas operacionais |
 | `OPERATIONS_ALERT_WEBHOOK_URL` | Não | Webhook de alertas operacionais |
 | `OPERATIONS_ALERT_EMAILS` | Não (recomendado em produção) | E-mails, separados por vírgula, que recebem erros 5xx, falhas de processo/job e alertas operacionais |
+| `OPENAI_DAILY_TOKEN_BUDGET` / `OPENAI_MONTHLY_TOKEN_BUDGET` | Não | Teto de tokens da OpenAI no sistema, somando todos os usuários (padrão 1.500.000/dia e 20.000.000/mês; 0 desliga). Persistido no banco. Não substitui o limite no painel da OpenAI |
+| `OPENAI_USER_DAILY_CALLS` / `OPENAI_BUDGET_ALERT_PERCENT` / `OPENAI_USD_PER_MILLION_TOKENS` | Não | Adequações por usuário por dia (padrão 100, no banco); percentual do teto que dispara alerta (padrão 80); preço opcional para estimar custo |
+| `ABUSE_WINDOW_MINUTES`, `ABUSE_LOGIN_FAILURES_TOTAL`, `ABUSE_LOGIN_FAILURES_PER_IP`, `ABUSE_LOGIN_FAILURES_PER_ACCOUNT`, `ABUSE_RATE_LIMIT_HITS` | Não | Limites de alerta de abuso na janela (padrões 15 min, 100, 30, 15, 50). Ver `deploy/PRODUCTION.md`, "Abuso e custo" |
 | `OPERATIONS_ALERT_EMAIL_THROTTLE_MINUTES` | Não | Janela mínima entre e-mails do mesmo erro (padrão 30) |
 | `OPERATIONS_ALERT_REPEAT_HOURS` | Não | Reenvio do mesmo alerta operacional enquanto persistir (padrão 6) |
 | `APP_GIT_SHA` | Não | Versão (SHA do commit) gravada na imagem; aparece nos alertas |
@@ -707,6 +714,28 @@ Nginx HTTP interno
 | `OPERATIONS_DEPLOY_STATUS_FILE` / `OPERATIONS_REQUIRE_DEPLOY_STATUS` | Não | Resultado do último `deploy-prod.sh` no painel e nos alertas (padrão `/ops-status/deploy-latest.json`) |
 | `ERROR_TRACKING_PROVIDER` / `ERROR_TRACKING_WEBHOOK_URL` | Não | Captura e encaminhamento de erros |
 | `ZAPSIGN_API_TOKEN` / `ZAPSIGN_ORGANIZATION_ID` | Não | Apenas para download de PDFs legados já assinados pela ZapSign |
+| `ZAPSIGN_API_BASE_URL` / `ZAPSIGN_REFRESH_TOKEN` / `ZAPSIGN_USERNAME` / `ZAPSIGN_PASSWORD` | Não | Alternativa ao token fixo da ZapSign (download legado). Aliases antigos aceitos: `APSIGN_REFRESH_TOKEN`, `ZAPSIGN_LOGIN`, `ZAPSIGN_EMAIL`, `ZAPSIGN_SENHA`, `ZAPSIGN_ORG_ID` |
+| `NODE_ENV` | Sim em produção | `production` ativa as validações obrigatórias (`TRUST_PROXY`, `ALLOWED_ORIGIN`, segredos de token); o Compose de produção já define |
+| `APP_ENV` | Não | `development` / `test` / `staging` / `production`; distingue homologação de produção quando `NODE_ENV=production` nas duas |
+| `ALLOWED_ORIGIN` | Sim em produção | Origens do frontend aceitas pelo CORS, separadas por vírgula; vazio liberaria qualquer origem |
+| `BACKGROUND_JOBS_IN_API` | Não | `false` em produção (Compose): os jobs rodam no worker |
+| `WORKER_HEALTH_FILE` | Não | Arquivo de batimento do worker lido pelo healthcheck (padrão `/tmp/filtro-worker-health.json`) |
+| `DATABASE_CONNECT_TIMEOUT_MS` / `DATABASE_IDLE_TIMEOUT_MS` / `DATABASE_STATEMENT_TIMEOUT_MS` / `DATABASE_LOCK_TIMEOUT_MS` / `DATABASE_IDLE_TRANSACTION_TIMEOUT_MS` | Não | Limites do pool `pg` e da sessão PostgreSQL |
+| `HTTP_PERFORMANCE_ENABLED` / `HTTP_PERFORMANCE_WINDOW_MS` / `HTTP_PERFORMANCE_SAMPLE_MS` | Não | Métricas de tempo por rota (p50/p95) no painel de Operações |
+| `RESOURCE_LIST_CACHE_TTL_MS` / `DASHBOARD_CACHE_TTL_MS` | Não | Cache em memória das listagens e dos cards do painel, em ms (padrão 60000; 0 desliga) |
+| `ACOMPANHAMENTO_READ_CACHE_ENABLED` e `ACOMPANHAMENTO_{RESPONSE,MONTHLY,REFERENCE,PROGRESS}_CACHE_ENABLED` | Não | Caches derivados do Acompanhamento; os subcontroles só valem com o principal ligado |
+| `UPLOAD_DIR` | Não | Alias antigo de `REPORTS_DIR` |
+| `PROJECT_DOCUMENT_MAX_MB` | Não | Tamanho máximo dos documentos do projeto (padrão 20, máximo 100) |
+| `ASSINATURAS_PREVIEW_CONCURRENCY` | Não | Renderizações simultâneas de pré-visualização de PDF (1–4) |
+| `LIBREOFFICE_BINARY` / `DOCX_TO_PDF_TIMEOUT_MS` | Não | Conversão DOCX → PDF |
+| `DATABOOK_PYTHON` / `DATABOOK_TIMEOUT_MS` / `DATABOOK_HUNSPELL` / `DATABOOK_HUNSPELL_DICT` | Não | Gerador Python do Data Book e verificação ortográfica |
+| `OPENAI_API_KEY` / `OPENAI_MODEL` / `OPENAI_REASONING_EFFORT` / `OPENAI_TIMEOUT_MS` | Não | "Adequar para relatório"; sem chave, o botão não aparece. A chave só existe no backend |
+| `LGPD_NOTIFICATION_EMAIL` / `PRIVACY_NOTIFICATION_EMAIL` | Não (recomendado em produção) | Destino dos pedidos de titulares; `PRIVACY_NOTIFICATION_EMAIL` tem prioridade |
+| `PRIVACY_NOTICE_LEGACY_ROLLOUT_COMPAT_ENABLED` | Não | Compatibilidade do aviso de privacidade para contas antigas sem versão aceita |
+| `CONECTA_RH_COMPANY_ID` / `CONECTA_RH_API_URL` / `CONECTA_RH_READ_TOKEN` | Não | Integração Conecta RH: empresa autorizada a publicar e recuperação por snapshot/feed no worker |
+| `COMERCIALAPP_API_URL` / `COMERCIALAPP_SERVICE_TOKEN` / `COMERCIALAPP_ADDITIONAL_CONTRACT` / `COMERCIALAPP_ALLOW_STAGING_HTTP` | Não | Ponte com o ComercialAPP (`docs/comercialapp-bridge.md`) |
+| `CRM_PLANNING_ENVIRONMENT` / `CRM_PLANNING_TENANT_ID` | Não | Namespace do contrato planning-1.0 (PrismaCRM); vazio infere sandbox fora de produção |
+| `ROMANEIO_EQUIPMENT_FILE` | Não | Catálogo de equipamentos do Romaneio (padrão: arquivo do repositório) |
 
 ### Frontend (`frontend/.env`)
 

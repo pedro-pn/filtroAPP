@@ -182,6 +182,31 @@ export async function sendOperationalErrorEmail(payload, {
   }
 }
 
+// Alerta com assunto/texto prontos (ex.: abuso, teto da OpenAI), com o mesmo
+// controle de repetição dos erros: um e-mail por impressão digital por janela.
+export async function sendThrottledAlertEmail({ fingerprint, subject, text }, {
+  recipients = alertEmailRecipients(),
+  throttle = defaultThrottle,
+  sendMailFn = sendMail,
+  logger = console
+} = {}) {
+  if (!recipients.length) return { sent: false, reason: 'not-configured' };
+  const decision = throttle.take(fingerprint);
+  if (!decision.send) return { sent: false, reason: 'throttled', suppressed: decision.suppressed };
+  const body = decision.suppressed > 0
+    ? `${text}\n\nAlertas iguais suprimidos desde o último e-mail: ${decision.suppressed}.`
+    : text;
+  try {
+    const result = deliveryResult(await sendMailFn({ to: recipients.join(', '), subject, text: body }));
+    if (!result.sent) throttle.forget(fingerprint);
+    return result;
+  } catch (error) {
+    throttle.forget(fingerprint);
+    logger.warn?.('Falha ao enviar e-mail de alerta.', error?.message || error);
+    return { sent: false, reason: 'send-error' };
+  }
+}
+
 export async function sendOperationalStatusEmail({ subject, text }, {
   recipients = alertEmailRecipients(),
   sendMailFn = sendMail,

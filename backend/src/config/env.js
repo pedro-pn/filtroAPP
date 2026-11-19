@@ -93,6 +93,15 @@ export function assertProductionTrustProxyConfigured({ nodeEnv, trustProxyConfig
   }
 }
 
+// Sem ALLOWED_ORIGIN o CORS aceita qualquer origem (app.js); em produção isso
+// precisa ser explícito.
+export function assertProductionAllowedOriginConfigured({ nodeEnv, allowedOrigin }) {
+  if (nodeEnv !== 'production') return;
+  if (!String(allowedOrigin || '').split(',').some(origin => origin.trim())) {
+    throw new Error('ALLOWED_ORIGIN deve ser configurado em produção (origens do frontend, separadas por vírgula); vazio liberaria qualquer origem no CORS.');
+  }
+}
+
 export function assertProductionSignatureTokenSecretConfigured({ nodeEnv, signatureTokenSecret }) {
   if (nodeEnv !== 'production') return;
   if (!signatureTokenSecret) {
@@ -202,6 +211,21 @@ const rawEnvSchema = z.object({
   OPENAI_MODEL: stringWithDefault('gpt-6-luna'),
   OPENAI_REASONING_EFFORT: z.preprocess(emptyToUndefined, z.enum(['none', 'minimal', 'low', 'medium', 'high']).default('low')),
   OPENAI_TIMEOUT_MS: integerWithDefault('OPENAI_TIMEOUT_MS', 30000, { min: 1000 }),
+  // Teto de gasto da OpenAI no sistema (pilar 10.2), em tokens (entrada + saída),
+  // somando todos os usuários; persistido no banco. 0 desliga o teto correspondente.
+  OPENAI_DAILY_TOKEN_BUDGET: integerWithDefault('OPENAI_DAILY_TOKEN_BUDGET', 1_500_000, { min: 0 }),
+  OPENAI_MONTHLY_TOKEN_BUDGET: integerWithDefault('OPENAI_MONTHLY_TOKEN_BUDGET', 20_000_000, { min: 0 }),
+  OPENAI_USER_DAILY_CALLS: integerWithDefault('OPENAI_USER_DAILY_CALLS', 100, { min: 0 }),
+  OPENAI_BUDGET_ALERT_PERCENT: integerWithDefault('OPENAI_BUDGET_ALERT_PERCENT', 80, { min: 1, max: 100 }),
+  // Opcional: preço médio por milhão de tokens (USD) só para mostrar estimativa de custo.
+  OPENAI_USD_PER_MILLION_TOKENS: numberWithDefault('OPENAI_USD_PER_MILLION_TOKENS', 0, { min: 0 }),
+  // Detecção de abuso (pilar 10.3): limites por janela; acima deles sai alerta.
+  ABUSE_WINDOW_MINUTES: integerWithDefault('ABUSE_WINDOW_MINUTES', 15, { min: 5, max: 1440 }),
+  ABUSE_LOGIN_FAILURES_TOTAL: integerWithDefault('ABUSE_LOGIN_FAILURES_TOTAL', 100, { min: 1 }),
+  ABUSE_LOGIN_FAILURES_PER_IP: integerWithDefault('ABUSE_LOGIN_FAILURES_PER_IP', 30, { min: 1 }),
+  ABUSE_LOGIN_FAILURES_PER_ACCOUNT: integerWithDefault('ABUSE_LOGIN_FAILURES_PER_ACCOUNT', 15, { min: 1 }),
+  ABUSE_RATE_LIMIT_HITS: integerWithDefault('ABUSE_RATE_LIMIT_HITS', 50, { min: 1 }),
+  ABUSE_MONITOR_FLUSH_MS: integerWithDefault('ABUSE_MONITOR_FLUSH_MS', 30_000, { min: 1000 }),
   OMIE_TIMEOUT_MS: integerWithDefault('OMIE_TIMEOUT_MS', 30000, { min: 1000 }),
   ZAPSIGN_TIMEOUT_MS: integerWithDefault('ZAPSIGN_TIMEOUT_MS', 30000, { min: 1000 }),
   REMOTE_IMAGE_TIMEOUT_MS: integerWithDefault('REMOTE_IMAGE_TIMEOUT_MS', 15000, { min: 1000 }),
@@ -252,6 +276,7 @@ const rawEnvSchema = z.object({
 
   for (const check of [
     () => assertProductionTrustProxyConfigured({ nodeEnv: value.NODE_ENV, trustProxyConfigured, trustProxy }),
+    () => assertProductionAllowedOriginConfigured({ nodeEnv: value.NODE_ENV, allowedOrigin: value.ALLOWED_ORIGIN }),
     () => assertProductionSignatureTokenSecretConfigured({
       nodeEnv: value.NODE_ENV,
       signatureTokenSecret: value.SIGNATURE_TOKEN_SECRET
@@ -381,6 +406,17 @@ export function loadEnv(source = process.env) {
     openaiModel: raw.OPENAI_MODEL,
     openaiReasoningEffort: raw.OPENAI_REASONING_EFFORT,
     openaiTimeoutMs: raw.OPENAI_TIMEOUT_MS,
+    openaiDailyTokenBudget: raw.OPENAI_DAILY_TOKEN_BUDGET,
+    openaiMonthlyTokenBudget: raw.OPENAI_MONTHLY_TOKEN_BUDGET,
+    openaiUserDailyCalls: raw.OPENAI_USER_DAILY_CALLS,
+    openaiBudgetAlertPercent: raw.OPENAI_BUDGET_ALERT_PERCENT,
+    openaiUsdPerMillionTokens: raw.OPENAI_USD_PER_MILLION_TOKENS,
+    abuseWindowMs: raw.ABUSE_WINDOW_MINUTES * 60 * 1000,
+    abuseLoginFailuresTotal: raw.ABUSE_LOGIN_FAILURES_TOTAL,
+    abuseLoginFailuresPerIp: raw.ABUSE_LOGIN_FAILURES_PER_IP,
+    abuseLoginFailuresPerAccount: raw.ABUSE_LOGIN_FAILURES_PER_ACCOUNT,
+    abuseRateLimitHits: raw.ABUSE_RATE_LIMIT_HITS,
+    abuseMonitorFlushMs: raw.ABUSE_MONITOR_FLUSH_MS,
     omieTimeoutMs: raw.OMIE_TIMEOUT_MS,
     zapsignTimeoutMs: raw.ZAPSIGN_TIMEOUT_MS,
     remoteImageTimeoutMs: raw.REMOTE_IMAGE_TIMEOUT_MS,

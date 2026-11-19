@@ -12,7 +12,9 @@ export const UNTRACKED_READ_CACHE_MODELS = Object.freeze([
   'ApiUsageBucket', 'DataRetentionRun', 'NotificationRead', 'NotificationPreferenceToken',
   'ConectaRhReceipt', 'ConectaRhSyncState',
   // 2FA (spec 039): escritos a cada login, como as sessões.
-  'TwoFactorChallenge', 'TrustedDevice', 'AuthSecurityEvent'
+  'TwoFactorChallenge', 'TrustedDevice', 'AuthSecurityEvent',
+  // Contadores de abuso/OpenAI: escrita frequente, não alimentam leituras derivadas.
+  'UsageCounter'
 ]);
 
 export const currentDerivedReadVersion = () => versions.getStore() ?? null;

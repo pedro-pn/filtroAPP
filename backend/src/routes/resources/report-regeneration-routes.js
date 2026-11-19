@@ -7,6 +7,7 @@ import {
 } from '../../lib/internal-report-signatures.js';
 import { createReportRegenerator } from '../../lib/reports/regeneration.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireHubAdmin, requireModuleRole } from '../../middleware/auth.js';
+import { expensiveRouteLimit } from '../../lib/rate-limit.js';
 
 export async function recreateReportSignatureRound(tx, report, saved, hash, { userId, evidence }, shouldCreateRound) {
   await invalidateUnsignedInternalSignatureRound(tx, {
@@ -32,7 +33,7 @@ export function registerReportRegenerationRoutes(router, { shouldCreateSignature
     ...options,
     replaceSignatureRound: (...args) => recreateReportSignatureRound(...args, shouldCreateSignatureRound)
   });
-  router.post('/:id/regenerate', requireAuth, requireHubAdmin, requireModuleRole(...RDO_ACCESS_ROLES), asyncHandler(async (req, res) => {
+  router.post('/:id/regenerate', requireAuth, requireHubAdmin, requireModuleRole(...RDO_ACCESS_ROLES), ...expensiveRouteLimit('generation'), asyncHandler(async (req, res) => {
     res.json(await regenerate(req.params.id, {
       userId: req.auth.user.id,
       evidence: signatureEvidenceFromRequest(req)
