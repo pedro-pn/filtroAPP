@@ -5,7 +5,7 @@ import test from 'node:test';
 import sharp from 'sharp';
 
 import app from '../src/app.js';
-import { createGeneratedEquipmentAttachment } from '../src/lib/equipment-attachments.js';
+import { createGeneratedEquipmentAttachment, EquipmentAttachmentKinds, removeEquipmentAttachments } from '../src/lib/equipment-attachments.js';
 import { createSession } from '../src/lib/auth.js';
 import { CLIENT_PRIVACY_NOTICE_VERSION } from '../src/lib/privacy-consent.js';
 import prisma from '../src/lib/prisma.js';
@@ -113,6 +113,9 @@ test('modelo de passos da categoria guarda fotos; equipamento copia ao ter passo
   assert.equal(listInactive.find(item => item.id === equipment.id).romaneioCatalogItemId, null, 'item inativo no catálogo não gera QR');
 
   // ── Página pública do QR (sem login) ──
+  // Com LibreOffice disponível, os passos anteriores já podem ter gerado um PDF.
+  // A verificação da página vazia precisa começar sem esse documento.
+  await removeEquipmentAttachments(prisma, equipment.id, EquipmentAttachmentKinds.OPERATION_MANUAL_GENERATED);
   await prisma.romaneioCatalogItem.update({ where: { id: catalog.id }, data: { isActive: true } });
   const fresh = await prisma.romaneioCatalogItem.findUnique({ where: { id: catalog.id } });
   assert.match(fresh.publicToken, /^[0-9a-f-]{36}$/, 'item de catálogo recebe token público automaticamente');

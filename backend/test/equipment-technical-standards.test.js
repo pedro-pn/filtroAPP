@@ -240,6 +240,7 @@ test('API cria e remove um padrão sem vínculos', async t => {
 
 test('API de categorias reutiliza o padrão escolhido e não depende do schema enviado pelo cliente', async t => {
   const { tx } = databaseFixture();
+  mockPrisma(t, prisma.equipmentAttachment, 'findMany', async () => []);
   mockPrisma(t, prisma, '$transaction', callback => callback(tx));
   mockPrisma(t, prisma.equipmentCategory, 'findUnique', tx.equipmentCategory.findUnique);
   const response = await invoke(routeHandler('/categories', 'post'), {

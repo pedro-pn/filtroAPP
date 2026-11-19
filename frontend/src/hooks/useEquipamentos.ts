@@ -20,7 +20,7 @@ import {
   removeTechnicalStandard,
   removeNotificationRecipient,
   saveOperationManual,
-  setNotificationRecipientActive,
+  updateNotificationRecipient,
   updateEquipamento,
   updateEquipmentCategory,
   updateTechnicalStandard,
@@ -29,6 +29,7 @@ import {
   type EquipmentCategoryPayload,
   type EquipmentPayload,
   type NotificationConfig,
+  type NotificationRecipientUpdate,
   type OperationStepPayload,
   type TechnicalStandardPayload
 } from '../api/equipamentos';
@@ -55,7 +56,7 @@ export function useNotificationMutations() {
   return {
     updateConfig: useMutation({ mutationFn: (payload: Partial<NotificationConfig>) => updateNotificationConfig(payload), onSuccess: invalidate }),
     addRecipient: useMutation({ mutationFn: (payload: { userId?: string; email?: string }) => addNotificationRecipient(payload), onSuccess: invalidate }),
-    setActive: useMutation({ mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => setNotificationRecipientActive(id, isActive), onSuccess: invalidate }),
+    updateRecipient: useMutation({ mutationFn: ({ id, ...payload }: { id: string } & NotificationRecipientUpdate) => updateNotificationRecipient(id, payload), onSuccess: invalidate }),
     removeRecipient: useMutation({ mutationFn: (id: string) => removeNotificationRecipient(id), onSuccess: invalidate })
   };
 }

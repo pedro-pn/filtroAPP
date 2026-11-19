@@ -1,8 +1,14 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import test, { beforeEach } from 'node:test';
 
 import equipamentosRouter from '../src/routes/resources/equipamentos.js';
 import prisma from '../src/lib/prisma.js';
+
+beforeEach(t => {
+  const original = prisma.equipmentAttachment.findMany;
+  prisma.equipmentAttachment.findMany = async () => [];
+  t.after(() => { prisma.equipmentAttachment.findMany = original; });
+});
 
 function routeHandler(path, method) {
   const layer = equipamentosRouter.stack.find(

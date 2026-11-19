@@ -1,4 +1,4 @@
-// Config (singleton) e destinatários das notificações de calibração do módulo
+// Config (singleton) e destinatários das notificações do módulo
 // Equipamentos. Substitui a lista fixa de gestores/coordenadores por uma lista
 // configurável (contas internas + e-mails avulsos) e marcos ajustáveis.
 
@@ -8,6 +8,7 @@ const CONFIG_ID = 'default';
 
 export const DEFAULT_NOTIFICATION_CONFIG = {
   enabled: true,
+  notifyOnEquipmentCreated: false,
   milestoneDays: [30, 15, 7],
   notifyOnDueDay: true,
   repeatExpired: true,
@@ -33,6 +34,7 @@ export function normalizeNotificationConfig(row) {
   const milestoneDays = sanitizeMilestoneDays(row.milestoneDays);
   return {
     enabled: row.enabled !== false,
+    notifyOnEquipmentCreated: row.notifyOnEquipmentCreated === true,
     milestoneDays: milestoneDays.length ? milestoneDays : [...DEFAULT_NOTIFICATION_CONFIG.milestoneDays],
     notifyOnDueDay: row.notifyOnDueDay !== false,
     repeatExpired: row.repeatExpired !== false,
@@ -47,10 +49,11 @@ export async function getEquipmentNotificationConfig(client = prisma) {
 }
 
 export async function updateEquipmentNotificationConfig(client, data) {
-  const next = normalizeNotificationConfig({ ...DEFAULT_NOTIFICATION_CONFIG, ...data });
-  const existing = await client.equipmentNotificationConfig.findFirst({ select: { id: true } });
+  const existing = await client.equipmentNotificationConfig.findFirst();
+  const next = normalizeNotificationConfig({ ...existing, ...data });
   const payload = {
     enabled: next.enabled,
+    notifyOnEquipmentCreated: next.notifyOnEquipmentCreated,
     milestoneDays: next.milestoneDays,
     notifyOnDueDay: next.notifyOnDueDay,
     repeatExpired: next.repeatExpired,
@@ -68,11 +71,13 @@ export async function listEquipmentNotificationRecipients(client = prisma) {
   return client.equipmentNotificationRecipient.findMany({ orderBy: { email: 'asc' } });
 }
 
-// E-mails ativos (deduplicados) que devem receber as notificações.
-export async function activeRecipientEmails(client = prisma) {
+// E-mails ativos (deduplicados) que aderiram ao tipo de notificação.
+export async function activeRecipientEmails(client = prisma, preference = 'notifyCalibrationReminders') {
   if (!client.equipmentNotificationRecipient?.findMany) return [];
   const rows = await client.equipmentNotificationRecipient.findMany({ where: { isActive: true } });
-  return Array.from(new Set(rows.map(row => normalizeEmail(row.email)).filter(Boolean)));
+  return Array.from(new Set(rows
+    .filter(row => row.isActive !== false && (row[preference] ?? (preference !== 'notifyEquipmentCreated')))
+    .map(row => normalizeEmail(row.email)).filter(Boolean)));
 }
 
 export { normalizeEmail };
