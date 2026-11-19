@@ -39,17 +39,17 @@ jobs:
       - name: Run architecture check
         run: npm run architecture:check
 
-  # Os testes do backend rodam em 3 fatias paralelas (cada uma com seu
+  # Os testes do backend rodam em 4 fatias paralelas (cada uma com seu
   # PostgreSQL); o job "Backend" abaixo só consolida o resultado, para o nome
   # exigido na proteção da main continuar o mesmo.
   backend-tests:
-    name: Backend tests (${{ matrix.shard }}/3)
+    name: Backend tests (${{ matrix.shard }}/4)
     # Keep native package installation on a fixed runner image.
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: [1, 2, 3, 4]
     services:
       postgres:
         image: postgres:16
@@ -188,7 +188,7 @@ jobs:
       - name: Run backend tests (shard)
         env:
           DATABOOK_PYTHON: python
-        run: node scripts/run-test-shard.js --shard=${{ matrix.shard }} --of=3
+        run: node scripts/run-test-shard.js --shard=${{ matrix.shard }} --of=4
 
   backend:
     name: Backend
