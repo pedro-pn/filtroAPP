@@ -28,16 +28,20 @@ test('pasta de equipamentos comporta PDFs de 20 MB após codificação base64', 
   assert.equal(jsonBodyLimitForRequest('POST', '/api/equipamentos/abc123/documents-other'), '25mb');
 });
 
-test('upload, substituição, extração e assinatura física aceitam PDFs de 50 MB em base64 nos dois caminhos da API', () => {
+test('assinatura física e anexos PDF aceitam PDFs de 50 MB em base64 nos dois caminhos da API', () => {
   for (const prefix of ['/api/reports', '/api/rdo/reports']) {
-    for (const [method, suffix] of [
-      ['POST', '/manual-upload'], ['POST', '/manual-extract'],
-      ['PUT', '/abc123/manual-pdf'], ['POST', '/abc123/physical-signature'],
-      ['POST', '/abc123/pdf-attachments']
-    ]) {
+    for (const [method, suffix] of [['POST', '/abc123/physical-signature'], ['POST', '/abc123/pdf-attachments']]) {
       const path = `${prefix}${suffix}`;
       assert.equal(jsonBodyLimitForRequest(method, path), '70mb', `${method} ${path}`);
       assert.equal(jsonBodyLimitForRequest(method, `${path}-other`), '1mb');
+    }
+  }
+});
+
+test('upload manual de RDO usa multipart: o JSON dessas rotas volta ao limite padrão (spec 042, D3)', () => {
+  for (const prefix of ['/api/reports', '/api/rdo/reports']) {
+    for (const [method, suffix] of [['POST', '/manual-upload'], ['POST', '/manual-extract'], ['PUT', '/abc123/manual-pdf']]) {
+      assert.equal(jsonBodyLimitForRequest(method, `${prefix}${suffix}`), '1mb', `${method} ${prefix}${suffix}`);
     }
   }
 });

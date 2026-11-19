@@ -14,6 +14,8 @@ import { isManualClientReleaseActive } from '../../lib/reports/client-visibility
 import { MAX_MANUAL_REPORT_PDF_DATA_URL_LENGTH } from '../../lib/reports/manual-pdf-extraction.js';
 import { clearProjectDerivedCaches } from '../../lib/resource-list-cache.js';
 import { requireAuth } from '../../middleware/auth.js';
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { rdoRoute, reportSummarySchema } from '../../lib/api-contract/domains/rdo.js';
 
 const clientReleaseSchema = z.object({ release: z.boolean() });
 const physicalSignatureSchema = z.object({
@@ -48,7 +50,7 @@ export function registerReportReleaseRoutes(router, {
   createManualReportVersion,
   releasedServiceReportsAfterRdoSignature
 }) {
-  router.patch('/:id/client-release', requireAuth, requireRdoManager, asyncHandler(async (req, res) => {
+  defineRoute(router, rdoRoute('PATCH /:id/client-release', { summary: 'Liberar ou revogar o relatório para o cliente', responses: { 200: reportSummarySchema }, errors: [400, 401, 403, 404, 409], body: clientReleaseSchema }), requireAuth, requireRdoManager, asyncHandler(async (req, res) => {
     const { release } = clientReleaseSchema.parse(req.body || {});
     const existing = await prisma.report.findUnique({ where: { id: req.params.id }, include });
     if (!existing || isReportUnavailable(existing)) return res.status(404).json({ error: 'Relatório não encontrado.' });
@@ -108,7 +110,7 @@ export function registerReportReleaseRoutes(router, {
     res.json(item);
   }));
 
-  router.post('/:id/physical-signature', requireAuth, requireRdoManager, asyncHandler(async (req, res) => {
+  defineRoute(router, rdoRoute('POST /:id/physical-signature', { summary: 'Anexar o PDF assinado em papel', responses: { 200: reportSummarySchema }, errors: [400, 401, 403, 404, 409, 413], body: physicalSignatureSchema }), requireAuth, requireRdoManager, asyncHandler(async (req, res) => {
     const data = physicalSignatureSchema.parse(req.body || {});
     const existing = await prisma.report.findUnique({ where: { id: req.params.id }, include });
     if (!existing || isReportUnavailable(existing)) return res.status(404).json({ error: 'Relatório não encontrado.' });

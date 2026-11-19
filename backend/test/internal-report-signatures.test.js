@@ -53,8 +53,8 @@ beforeEach(t => {
 
 test('manager approval preflights signature delivery and enqueues post-processing', async () => {
   const source = await fs.readFile(new URL('../src/routes/resources/reports.js', import.meta.url), 'utf8');
-  const statusRouteStart = source.indexOf("router.patch('/:id/status'");
-  const statusRouteEnd = source.indexOf("router.post('/:id/request-signature'", statusRouteStart);
+  const statusRouteStart = source.indexOf("rdoRoute('PATCH /:id/status'");
+  const statusRouteEnd = source.indexOf("rdoRoute('POST /:id/request-signature'", statusRouteStart);
   const statusRoute = source.slice(statusRouteStart, statusRouteEnd);
 
   assert.ok(statusRouteStart !== -1 && statusRouteEnd !== -1, 'status route must be located');

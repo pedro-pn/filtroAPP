@@ -124,11 +124,11 @@ export function jsonBodyLimitForRequest(method, requestPath) {
   ].some(prefix => requestPath === prefix || requestPath.startsWith(`${prefix}/`));
   const isStockDocumentUploadApi = /^\/api\/estoque\/itens\/[^/]+\/documentos$/.test(requestPath);
   const isEquipmentDocumentUploadApi = /^\/api\/equipamentos\/[^/]+\/documents$/.test(requestPath);
-  const isManualReportUploadApi = requestPath === '/api/reports/manual-upload'
-    || requestPath === '/api/rdo/reports/manual-upload'
-    || requestPath === '/api/reports/manual-extract'
-    || requestPath === '/api/rdo/reports/manual-extract'
-    || /^\/api(?:\/rdo)?\/reports\/[^/]+\/(?:manual-pdf|physical-signature|pdf-attachments)$/.test(requestPath);
+  // Upload manual de RDO (manual-upload, manual-extract, :id/manual-pdf) vai em
+  // multipart desde a spec 042 (D3): o PDF não passa mais pelo JSON, que fica no
+  // limite padrão (1 MB, só o envio antigo com PDF pequeno). Assinatura física e
+  // anexos PDF continuam em base64.
+  const isManualReportUploadApi = /^\/api(?:\/rdo)?\/reports\/[^/]+\/(?:physical-signature|pdf-attachments)$/.test(requestPath);
   const isSignatureApi = requestPath.includes('/request-signature') || requestPath.includes('/public-sign');
   // Relatórios operacionais (manutenção etc.) levam as fotos em base64 no próprio corpo (até 10 por cartão).
   const isOperationalReportApi = /^\/api(?:\/rdo)?\/operational-reports(?:\/|$)/.test(requestPath);

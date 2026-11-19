@@ -5,6 +5,8 @@ import asyncHandler from '../../lib/async-handler.js';
 import prisma from '../../lib/prisma.js';
 import { isRdoDraftPayload } from '../../lib/reports/drafts.js';
 import { RDO_INTERNAL_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { rdoRoute, draftSchema, EMPTY } from '../../lib/api-contract/domains/rdo.js';
 
 export { isRdoDraftPayload } from '../../lib/reports/drafts.js';
 
@@ -82,7 +84,7 @@ export async function saveRdoDraft(database, userId, data, draftId = null, userR
   });
 }
 
-router.get('/', requireAuth, requireRdoInternal, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /', { summary: 'Rascunhos do usuário', tag: 'rdo-rascunhos', responses: { 200: z.array(draftSchema) } }), requireAuth, requireRdoInternal, asyncHandler(async (req, res) => {
   const items = await prisma.reportDraft.findMany({
     where: { userId: req.auth.user.id },
     include: { project: true },
@@ -91,19 +93,19 @@ router.get('/', requireAuth, requireRdoInternal, asyncHandler(async (req, res) =
   res.json(rdoDraftItems(items));
 }));
 
-router.post('/', requireAuth, requireRdoInternal, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('POST /', { summary: 'Salvar rascunho', tag: 'rdo-rascunhos', responses: { 200: draftSchema, 201: draftSchema }, errors: [400, 401, 403], body: schema }), requireAuth, requireRdoInternal, asyncHandler(async (req, res) => {
   const data = schema.parse(req.body);
   const { item, created } = await saveRdoDraft(prisma, req.auth.user.id, data, null, req.auth.user.role);
   res.status(created ? 201 : 200).json(item);
 }));
 
-router.put('/:id', requireAuth, requireRdoInternal, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('PUT /:id', { summary: 'Atualizar rascunho', tag: 'rdo-rascunhos', responses: { 200: draftSchema }, errors: [400, 401, 403, 404], body: schema.omit({ id: true }) }), requireAuth, requireRdoInternal, asyncHandler(async (req, res) => {
   const data = schema.omit({ id: true }).parse(req.body);
   const { item } = await saveRdoDraft(prisma, req.auth.user.id, data, req.params.id, req.auth.user.role);
   res.json(item);
 }));
 
-router.delete('/:id', requireAuth, requireRdoInternal, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('DELETE /:id', { summary: 'Excluir rascunho', tag: 'rdo-rascunhos', noBody: 'Identificado pelo caminho.', responses: { 204: EMPTY }, errors: [401, 403, 404] }), requireAuth, requireRdoInternal, asyncHandler(async (req, res) => {
   const current = await prisma.reportDraft.findUniqueOrThrow({ where: { id: req.params.id } });
   if (current.userId !== req.auth.user.id || !isRdoDraftPayload(current.payload)) {
     return res.status(403).json({ error: 'Você não tem permissão para excluir este rascunho.' });

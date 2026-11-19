@@ -34,7 +34,27 @@ test('rota retorna campos do PDF sem precisar de projeto ou gravar relatório', 
   assert.deepEqual(result.warnings, []);
 });
 
+function invokeWithStatus(req) {
+  return new Promise((resolve, reject) => {
+    const res = { statusCode: 200, status(value) { this.statusCode = value; return this; }, json(body) { resolve({ status: this.statusCode, body }); } };
+    route.stack.at(-1).handle(req, res, reject);
+  });
+}
+
 test('rota rejeita corpo vazio e conteúdo não PDF antes de extrair', async () => {
-  await assert.rejects(invoke({}), { name: 'ZodError' });
+  const empty = await invokeWithStatus({ body: {} });
+  assert.equal(empty.status, 400);
+  assert.equal(empty.body.error, 'Envie o PDF do relatório.');
   await assert.rejects(invoke({ pdfDataUrl: 'data:application/pdf;base64,SGVsbG8=' }), { statusCode: 400 });
+  await assert.rejects(invokeWithStatus({ body: {}, uploadedFile: { fileName: 'x.pdf', bytes: Buffer.from('Hello') } }), { statusCode: 400 });
+});
+
+test('rota extrai o PDF recebido em multipart (parte pdf), sem base64', async () => {
+  const pdf = await PDFDocument.create();
+  const page = pdf.addPage();
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  page.drawText('Entrada: 07:10', { x: 30, y: 750, size: 12, font });
+  const result = await invokeWithStatus({ body: {}, uploadedFile: { fileName: 'rdo.pdf', bytes: Buffer.from(await pdf.save()) } });
+  assert.equal(result.status, 200);
+  assert.equal(result.body.fields.arrivalTime, '07:10');
 });

@@ -27,6 +27,8 @@ import {
 import { canClientSeeReportForAccess } from './reports.js';
 import { isRdoDraftPayload } from './drafts.js';
 import { expensiveRouteLimit } from '../../lib/rate-limit.js';
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { rdoRoute, okSchema, jsonObjectSchema, FILE, EMPTY } from '../../lib/api-contract/domains/rdo.js';
 
 const router = Router();
 const requireRdoInternal = requireModuleRole(...RDO_INTERNAL_ROLES);
@@ -390,7 +392,7 @@ function wildcardFilePath(value) {
   return Array.isArray(value) ? value.join('/') : value;
 }
 
-router.get('/file/*filePath', requireAuth, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /file/*filePath', { summary: 'Baixar um arquivo enviado (autorizado por projeto/relatório)', tag: 'rdo-arquivos', responses: { 200: FILE }, errors: [401, 403, 404] }), requireAuth, asyncHandler(async (req, res) => {
   const normalizedPath = normalizeRelativeUploadPath(wildcardFilePath(req.params.filePath));
   const targetPath = resolveStoredFilePath(normalizedPath);
   if (!targetPath) {
@@ -405,7 +407,7 @@ router.get('/file/*filePath', requireAuth, asyncHandler(async (req, res) => {
 
 router.use(requireAuth);
 
-router.post('/', requireRdoInternal, ...expensiveRouteLimit('upload'), asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('POST /', { summary: 'Enviar foto ou arquivo do RDO (base64)', tag: 'rdo-arquivos', responses: { 201: jsonObjectSchema }, errors: [400, 401, 403, 413, 429], body: schema }), requireRdoInternal, ...expensiveRouteLimit('upload'), asyncHandler(async (req, res) => {
   const data = schema.parse(req.body);
   const match = data.dataUrl.match(/^data:(.+);base64,(.+)$/);
   if (!match) {
@@ -460,7 +462,7 @@ const deleteSchema = z
 
 // Exclusão GLOBAL de uma imagem: remove a referência de TODOS os relatórios,
 // serviços e rascunhos que a usam, apaga as linhas de índice e o arquivo do disco.
-router.delete('/file', requireRdoInternal, asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('DELETE /file', { summary: 'Remover um arquivo enviado', tag: 'rdo-arquivos', responses: { 200: okSchema, 204: EMPTY }, errors: [400, 401, 403, 404], body: deleteSchema }), requireRdoInternal, asyncHandler(async (req, res) => {
   const data = deleteSchema.parse(req.body || {});
   const target = normalizeReportUploadReference(data.storagePath || data.url || '');
   if (!target) {
