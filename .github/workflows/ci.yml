@@ -138,20 +138,39 @@ jobs:
             bash ../scripts/ensure-ubuntu-package-dns.sh
           fi
 
+      # Os espelhos padrão do runner (Azure) ficam como estão: priorizar
+      # mirrors.edge.kernel.org travou o `apt-get update` por 15 min em 2026-11-19
+      # (InRelease respondia ao curl, mas os índices ficavam em "Ign").
       - name: Configure Ubuntu package mirrors
         run: |
-          if curl --fail --silent --show-error --location --connect-timeout 5 --max-time 10 \
-            https://mirrors.edge.kernel.org/ubuntu/dists/noble/InRelease > /dev/null; then
-            { printf 'https://mirrors.edge.kernel.org/ubuntu/\tpriority:0\n'; cat /etc/apt/apt-mirrors.txt; } > "$RUNNER_TEMP/ci-apt-mirrors.txt"
-            sudo cp "$RUNNER_TEMP/ci-apt-mirrors.txt" /etc/apt/apt-mirrors.txt
-          else
-            echo 'Extra Ubuntu mirror unavailable; keeping the runner default mirrors.'
-          fi
-          printf 'Acquire::Retries "1";\nAcquire::http::Timeout "20";\nAcquire::https::Timeout "20";\n' | sudo tee /etc/apt/apt.conf.d/zz-ci-retries > /dev/null
+          printf 'Acquire::Retries "3";\nAcquire::http::Timeout "20";\nAcquire::https::Timeout "20";\n' | sudo tee /etc/apt/apt.conf.d/zz-ci-retries > /dev/null
+
+      # Mesmo cuidado do Chromium no job Frontend: os .deb ficam em cache e, com
+      # cache, a instalação não toca o espelho do apt.
+      - name: Restore Hunspell Ubuntu packages
+        id: hunspellcache
+        uses: actions/cache@v6
+        with:
+          path: ~/apt-archives
+          key: hunspell-pt-br-ubuntu-24.04-v1
 
       - name: Install Hunspell pt-BR (revisão ortográfica do Data Book)
-        timeout-minutes: 5
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends hunspell hunspell-pt-br
+        timeout-minutes: 15
+        run: |
+          # Com cache: dpkg instala os .deb guardados direto, sem índice nem rede.
+          # Se faltar dependência, o apt pela rede abaixo completa a instalação.
+          if [ "${{ steps.hunspellcache.outputs.cache-hit }}" = "true" ] && ls ~/apt-archives/*.deb > /dev/null 2>&1 \
+            && sudo dpkg -i ~/apt-archives/*.deb && hunspell -D < /dev/null 2>&1 | grep -q pt_BR; then
+            exit 0
+          fi
+          echo "Cache de pacotes indisponível ou incompatível: instalando pela rede."
+          mkdir -p ~/apt-archives/partial
+          printf 'Dir::Cache::Archives "%s/apt-archives/";\nAPT::Keep-Downloaded-Packages "true";\n' "$HOME" \
+            | sudo tee /etc/apt/apt.conf.d/zz-ci-archive-cache > /dev/null
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends hunspell hunspell-pt-br
+          # O apt grava como root; o cache só salva o que o runner consegue ler.
+          sudo rm -rf ~/apt-archives/partial ~/apt-archives/lock
+          sudo chown -R "$(id -u):$(id -g)" ~/apt-archives
 
       - name: Run Data Book generator tests
         working-directory: backend/databook
@@ -535,25 +554,22 @@ jobs:
             bash ../scripts/ensure-ubuntu-package-dns.sh
           fi
 
+      # Os espelhos padrão do runner (Azure) ficam como estão: priorizar
+      # mirrors.edge.kernel.org travou o `apt-get update` por 15 min em 2026-11-19
+      # (InRelease respondia ao curl, mas os índices ficavam em "Ign").
       - name: Configure Ubuntu package mirrors
         run: |
-          if curl --fail --silent --show-error --location --connect-timeout 5 --max-time 10 \
-            https://mirrors.edge.kernel.org/ubuntu/dists/noble/InRelease > /dev/null; then
-            { printf 'https://mirrors.edge.kernel.org/ubuntu/\tpriority:0\n'; cat /etc/apt/apt-mirrors.txt; } > "$RUNNER_TEMP/ci-apt-mirrors.txt"
-            sudo cp "$RUNNER_TEMP/ci-apt-mirrors.txt" /etc/apt/apt-mirrors.txt
-          else
-            echo 'Extra Ubuntu mirror unavailable; keeping the runner default mirrors.'
-          fi
           printf 'Acquire::Retries "3";\nAcquire::http::Timeout "20";\nAcquire::https::Timeout "20";\n' | sudo tee /etc/apt/apt.conf.d/zz-ci-retries > /dev/null
 
       - name: Resolve Playwright version
         id: playwright
         run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
 
-      # O espelho do apt da Ubuntu às vezes leva minutos por pacote. O navegador
-      # e os .deb das dependências ficam em cache por versão do Playwright; numa
-      # execução com cache o apt só baixa o índice e pacotes que mudaram.
+      # O espelho do apt da Ubuntu às vezes trava (pacotes ou o próprio índice).
+      # O navegador e os .deb das dependências ficam em cache por versão do
+      # Playwright; com cache, nada é baixado do espelho.
       - name: Restore Playwright Chromium and its Ubuntu packages
+        id: pwcache
         uses: actions/cache@v6
         with:
           path: |
@@ -564,6 +580,19 @@ jobs:
       - name: Install Chromium for notification and equipment regressions
         timeout-minutes: 15
         run: |
+          # O navegador vem do cache. O runner já traz as bibliotecas do Chrome;
+          # só instala dependências do sistema se o Chromium não abrir.
+          npx playwright install chromium
+          probe() {
+            node -e "require('@playwright/test').chromium.launch().then(b => b.close()).catch(e => { console.error(e.message); process.exit(1); })"
+          }
+          if probe; then exit 0; fi
+          echo "Chromium não abriu sem dependências; tentando os .deb do cache."
+          if ls ~/apt-archives/*.deb > /dev/null 2>&1 \
+            && sudo apt-get install -y --no-download --no-install-recommends ~/apt-archives/*.deb && probe; then
+            exit 0
+          fi
+          echo "Instalando dependências pela rede."
           mkdir -p ~/apt-archives/partial
           printf 'Dir::Cache::Archives "%s/apt-archives/";\nAPT::Keep-Downloaded-Packages "true";\n' "$HOME" \
             | sudo tee /etc/apt/apt.conf.d/zz-ci-archive-cache > /dev/null
