@@ -6,6 +6,8 @@ import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import type { Collaborator } from '../../types/domain';
 import type { ManualReportCollaboratorReplicationPrompt } from './manualReportCollaboratorReplication';
 import type { ManualReportUploadFileState } from './manualReportUploadFile';
+import { ReportDateWarning } from '../../components/reports/ReportDateWarning';
+import { reportDateDescribedBy } from '../../utils/reportDateWarning';
 
 interface ManualReportUploadFileCardProps {
   file: ManualReportUploadFileState;
@@ -57,9 +59,11 @@ export function ManualReportUploadFileCard({
             id={dateId}
             type="date"
             value={file.reportDate}
+            aria-describedby={reportDateDescribedBy(dateId, file.reportDate)}
             onChange={event => onUpdate(file.id, { reportDate: event.target.value })}
             required
           />
+          <ReportDateWarning inputId={dateId} value={file.reportDate} />
         </div>
         <div className="field-group">
           <label htmlFor={sequenceId}>Número</label>

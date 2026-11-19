@@ -3,6 +3,8 @@ import type { ReactNode } from 'react';
 import { Button, Card, Field, Input, ProgressSteps, Select, Switch, Textarea } from '../ui/ds';
 import './ReportCollaboratorTags.css';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
+import { ReportDateWarning } from './ReportDateWarning';
+import { reportDateDescribedBy } from '../../utils/reportDateWarning';
 import {
   formatReportMinutes,
   type ReportOvertimeSummary
@@ -75,9 +77,11 @@ export function ReportDateField({
         type="date"
         value={value}
         aria-invalid={Boolean(invalid)}
+        aria-describedby={reportDateDescribedBy(id, value)}
         onChange={(event) => onChange(event.target.value)}
         required={required}
       />
+      <ReportDateWarning inputId={id} value={value} />
       {children}
     </Field>
   );
