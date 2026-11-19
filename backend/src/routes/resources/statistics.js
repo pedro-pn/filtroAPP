@@ -11,6 +11,7 @@ import { buildMonthlyAllocationPdf, buildMonthlyAllocationSummary, processMonthl
 import prisma from '../../lib/prisma.js';
 import { statisticsProjectsCache } from '../../lib/resource-list-cache.js';
 import { requireAuth, requireModuleRole } from '../../middleware/auth.js';
+import { expensiveRouteLimit } from '../../lib/rate-limit.js';
 
 const router = Router();
 const requireRdoStats = requireModuleRole('rdo:manager', 'rdo:coordinator');
@@ -668,7 +669,7 @@ router.get('/projects', requireAuth, requireRdoStats, asyncHandler(async (req, r
 
 // ─── CSV Export ───────────────────────────────────────────────────────────────
 
-router.get('/projects/export', requireAuth, requireRdoStats, asyncHandler(async (req, res) => {
+router.get('/projects/export', requireAuth, requireRdoStats, ...expensiveRouteLimit('export'), asyncHandler(async (req, res) => {
   const role = req.auth.user.role;
   if (role !== 'MANAGER' && role !== 'COORDINATOR') {
     return res.status(403).json({ error: 'Acesso restrito a gestor e coordenador.' });
@@ -813,7 +814,7 @@ router.get('/allocation-report', requireAuth, requireRdoStats, asyncHandler(asyn
   res.json(data);
 }));
 
-router.get('/allocation-report/pdf', requireAuth, requireRdoStats, asyncHandler(async (req, res) => {
+router.get('/allocation-report/pdf', requireAuth, requireRdoStats, ...expensiveRouteLimit('generation'), asyncHandler(async (req, res) => {
   const yearMonth = String(req.query.yearMonth || currentYearMonth());
   if (!validateYearMonth(yearMonth)) {
     return res.status(400).json({ error: 'Mês inválido. Use o formato YYYY-MM.' });

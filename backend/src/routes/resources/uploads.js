@@ -26,6 +26,7 @@ import {
 } from '../../lib/report-upload-attachments.js';
 import { canClientSeeReportForAccess } from './reports.js';
 import { isRdoDraftPayload } from './drafts.js';
+import { expensiveRouteLimit } from '../../lib/rate-limit.js';
 
 const router = Router();
 const requireRdoInternal = requireModuleRole(...RDO_INTERNAL_ROLES);
@@ -404,7 +405,7 @@ router.get('/file/*filePath', requireAuth, asyncHandler(async (req, res) => {
 
 router.use(requireAuth);
 
-router.post('/', requireRdoInternal, asyncHandler(async (req, res) => {
+router.post('/', requireRdoInternal, ...expensiveRouteLimit('upload'), asyncHandler(async (req, res) => {
   const data = schema.parse(req.body);
   const match = data.dataUrl.match(/^data:(.+);base64,(.+)$/);
   if (!match) {

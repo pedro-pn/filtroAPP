@@ -42,7 +42,7 @@ import {
 } from '../../lib/assinaturas/signing.js';
 import { inlineContentDisposition } from '../../lib/documents/storage.js';
 import prisma from '../../lib/prisma.js';
-import { createMemoryRateLimit } from '../../lib/rate-limit.js';
+import { createMemoryRateLimit, expensiveRouteLimit } from '../../lib/rate-limit.js';
 import { signatureEvidenceFromRequest } from '../../lib/signatures/common.js';
 import { requireAuth } from '../../middleware/auth.js';
 
@@ -255,7 +255,7 @@ router.delete('/documentos/:id/compartilhamentos/:userId', asyncHandler(async (r
   return res.status(204).end();
 }));
 
-router.get('/documentos/:id/pdf', asyncHandler(async (req, res) => {
+router.get('/documentos/:id/pdf', ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
   const document = await documentForAccessOrThrow(prisma, req.params.id, ownerId(req));
   const bytes = await sourcePdfBuffer(document);
   res.setHeader('Cache-Control', 'no-store');
@@ -264,7 +264,7 @@ router.get('/documentos/:id/pdf', asyncHandler(async (req, res) => {
   return res.send(bytes);
 }));
 
-router.get('/documentos/:id/pdf-final', asyncHandler(async (req, res) => {
+router.get('/documentos/:id/pdf-final', ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
   const document = await documentForAccessOrThrow(prisma, req.params.id, ownerId(req));
   const bytes = await finalPdfBuffer(document);
   res.setHeader('Cache-Control', 'no-store');

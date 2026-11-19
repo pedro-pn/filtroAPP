@@ -20,7 +20,7 @@ import { normalizeCnpj } from '../../lib/cnpj.js';
 import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
 import { hasModuleRole } from '../../lib/module-roles.js';
 import prisma from '../../lib/prisma.js';
-import { createMemoryRateLimit } from '../../lib/rate-limit.js';
+import { createMemoryRateLimit, expensiveRouteLimit } from '../../lib/rate-limit.js';
 import { requireAuth } from '../../middleware/auth.js';
 
 const router = Router();
@@ -770,7 +770,7 @@ router.patch('/requests/:id/status', requireAuth, requirePrivacyManager, asyncHa
   res.json({ request: updated });
 }));
 
-router.get('/me/data-export', requireAuth, asyncHandler(async (req, res) => {
+router.get('/me/data-export', requireAuth, ...expensiveRouteLimit('export'), asyncHandler(async (req, res) => {
   const user = await prisma.user.findUniqueOrThrow({
     where: { id: req.auth.user.id },
     include: {

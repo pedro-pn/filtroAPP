@@ -10,7 +10,9 @@ const caches = new Set();
 export const UNTRACKED_READ_CACHE_MODELS = Object.freeze([
   'PerformanceReadRevision', 'JobRun', 'JobLock', 'UserSession', 'ApiRequestLog',
   'ApiUsageBucket', 'DataRetentionRun', 'NotificationRead', 'NotificationPreferenceToken',
-  'ConectaRhReceipt', 'ConectaRhSyncState'
+  'ConectaRhReceipt', 'ConectaRhSyncState',
+  // Contadores de abuso/OpenAI: escrita frequente, não alimentam leituras derivadas.
+  'UsageCounter'
 ]);
 
 export const currentDerivedReadVersion = () => versions.getStore() ?? null;

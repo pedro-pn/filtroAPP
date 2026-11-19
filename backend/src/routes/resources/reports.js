@@ -84,7 +84,7 @@ import {
   reportPlanningContextHandler
 } from '../../lib/reports/planning-context-handler.js';
 import { NotificationEmailCategory, notificationRecipientsForEmails } from '../../lib/notification-preferences.js';
-import { createMemoryRateLimit } from '../../lib/rate-limit.js';
+import { createMemoryRateLimit, expensiveRouteLimit } from '../../lib/rate-limit.js';
 import prisma from '../../lib/prisma.js';
 import { logSlowOperation } from '../../lib/performance-logging.js';
 import { activeReportProjectWhere, assertProjectReadyForReports } from '../../lib/project-visibility.js';
@@ -5517,7 +5517,7 @@ router.post('/counts', requireAuth, requireRdoAccess, asyncHandler(async (req, r
   res.json({ totals });
 }));
 
-router.post('/batch-download', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
+router.post('/batch-download', requireAuth, requireRdoAccess, ...expensiveRouteLimit('generation'), asyncHandler(async (req, res) => {
   const data = batchDownloadSchema.parse(req.body);
   if (data.format === 'docx' && !canReviewRdoReports(req.auth.user)) {
     return res.status(403).json({ error: 'Apenas quem revisa relatórios pode baixar DOCX em lote.' });
@@ -5695,7 +5695,7 @@ router.put('/:id/manual-data', requireAuth, requireRdoManager, asyncHandler(asyn
   res.json(result.item);
 }));
 
-router.put('/:id/manual-pdf', requireAuth, requireRdoManager, asyncHandler(async (req, res) => {
+router.put('/:id/manual-pdf', requireAuth, requireRdoManager, ...expensiveRouteLimit('upload'), asyncHandler(async (req, res) => {
   const data = manualReportPdfReplaceSchema.parse(req.body || {});
   const hasNewPdf = Boolean(data.pdfDataUrl);
   const signed = data.signatureMode === 'SIGNED';
@@ -6038,7 +6038,7 @@ registerReportRegenerationRoutes(router, { database: prisma, include,
   notifySignatureRound: ({ report, tokens }) => deliverIssuedSignatureRequestEmails(report, tokens)
 });
 
-router.get('/:id/pdf', requireAuth, requireModuleRole(...RDO_ACCESS_ROLES, ...EFETIVO_ACCESS_ROLES), asyncHandler(async (req, res) => {
+router.get('/:id/pdf', requireAuth, requireModuleRole(...RDO_ACCESS_ROLES, ...EFETIVO_ACCESS_ROLES), ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
   const abortController = new AbortController();
   res.on('close', () => {
     if (!res.writableEnded) abortController.abort();
@@ -6069,7 +6069,7 @@ router.get('/:id/pdf', requireAuth, requireModuleRole(...RDO_ACCESS_ROLES, ...EF
   });
 }));
 
-router.get('/:id/docx', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
+router.get('/:id/docx', requireAuth, requireRdoAccess, ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
   let item = await prisma.report.findUniqueOrThrow({
     where: { id: req.params.id },
     include

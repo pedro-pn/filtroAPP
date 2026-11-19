@@ -27,6 +27,7 @@ import {
   requireQualidadeAccess,
   requireQualidadeManager
 } from '../../middleware/auth.js';
+import { expensiveRouteLimit } from '../../lib/rate-limit.js';
 
 const router = Router();
 const schemas = makeQualidadeSchemas(z);
@@ -100,7 +101,7 @@ router.delete('/naturezas/:id', requireQualidadeManager, asyncHandler(async (req
   }
 }));
 
-router.get('/registros/export', asyncHandler(async (req, res) => {
+router.get('/registros/export', ...expensiveRouteLimit('export'), asyncHandler(async (req, res) => {
   const records = await listRecordsForExport(prisma, req.query);
   const buffer = buildQualityRecordsXlsx(records);
   const today = new Date().toISOString().slice(0, 10);

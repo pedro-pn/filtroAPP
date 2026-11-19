@@ -51,6 +51,36 @@ export type OperationalDeployStatus = {
   message?: string;
 };
 
+export type OperationalOpenAiPeriod = {
+  periodStart: string;
+  calls: number;
+  tokens: number;
+  budget: number | null;
+  estimatedUsd: number | null;
+};
+
+export type OperationalAbuseFinding = {
+  type: string;
+  subject: string;
+  count: number;
+  threshold: number;
+  label: string;
+};
+
+export type OperationalAbuseStatus = {
+  status: string;
+  windowMinutes?: number;
+  loginFailures?: number;
+  rateLimited?: number;
+  findings: OperationalAbuseFinding[];
+  openai: {
+    day: OperationalOpenAiPeriod;
+    month: OperationalOpenAiPeriod;
+    userDailyCalls: number | null;
+    alertPercent: number;
+  } | null;
+};
+
 export type OperationalIntegrationRun = {
   id: string;
   integration: string;
@@ -97,6 +127,7 @@ export type OperationalStatus = {
   backup: OperationalFileStatus;
   restore: OperationalFileStatus;
   deploy?: OperationalDeployStatus;
+  abuse?: OperationalAbuseStatus;
   omie: {
     configured: boolean;
     enabled: boolean;

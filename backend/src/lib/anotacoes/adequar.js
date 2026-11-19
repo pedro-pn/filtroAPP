@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import OpenAI from 'openai';
 
 import env from '../../config/env.js';
+import { recordOpenAiTokens, reserveOpenAiCall } from '../abuse/openai-budget.js';
 import { createKeyedTtlCache } from '../ttl-cache.js';
 import { verificarAderencia } from './aderencia.js';
 import { montarInstrucoes } from './instrucoes.js';
@@ -13,6 +14,14 @@ const MAX_TOKENS_SAIDA = 4000;
 const cacheResultados = createKeyedTtlCache(10 * 60 * 1000, 200);
 
 let clientePadrao = null;
+
+// Teto de gasto (dia/mês, todos os usuários) e limite diário por usuário, no banco.
+let orcamento = { reservar: reserveOpenAiCall, registrar: recordOpenAiTokens };
+
+/** Troca o controle de orçamento (testes usam um falso, sem banco). */
+export function definirOrcamentoOpenAi(impl) {
+  orcamento = impl;
+}
 
 export function adequacaoConfigurada() {
   return Boolean(env.openaiApiKey);
@@ -51,6 +60,11 @@ export function traduzirErro(error) {
   return erro(502, 'A OpenAI não conseguiu adequar a anotação agora. Tente novamente.', 'FALHA_OPENAI');
 }
 
+function tokensDaResposta(response) {
+  const u = response?.usage || {};
+  return (Number(u.input_tokens) || 0) + (Number(u.output_tokens) || 0);
+}
+
 function registrarUso(response, inicio) {
   // Só métricas: nunca o texto da anotação nem o resultado.
   const u = response?.usage || {};
@@ -66,6 +80,8 @@ function registrarUso(response, inicio) {
 }
 
 async function chamarOpenAI(anotacao, { usuarioId, openai }) {
+  // Só chamadas reais contam: resultado reaproveitado do cache não gasta nada.
+  await orcamento.reservar({ userId: usuarioId });
   const inicio = Date.now();
   const response = await openai.responses.create({
     model: env.openaiModel,
@@ -78,6 +94,7 @@ async function chamarOpenAI(anotacao, { usuarioId, openai }) {
     ...(usuarioId ? { safety_identifier: hash(`filtrovali:${usuarioId}`).slice(0, 32) } : {})
   });
   registrarUso(response, inicio);
+  await orcamento.registrar({ tokens: tokensDaResposta(response) });
   if (response.status === 'incomplete') {
     throw erro(502, 'A resposta da OpenAI veio incompleta. Tente com uma anotação menor.', 'INCOMPLETA');
   }

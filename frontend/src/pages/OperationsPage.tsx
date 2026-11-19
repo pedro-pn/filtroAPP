@@ -6,7 +6,9 @@ import {
   FileSpreadsheet,
   GitCommitHorizontal,
   RefreshCw,
-  ShieldCheck
+  ShieldAlert,
+  ShieldCheck,
+  Sparkles
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useMemo } from 'react';
@@ -14,7 +16,9 @@ import { Link, useLocation, useNavigate } from 'react-router';
 
 import {
   getOperationalStatus,
+  type OperationalAbuseStatus,
   type OperationalDeployStatus,
+  type OperationalOpenAiPeriod,
   type OperationalFileStatus,
   type OperationalStatus
 } from '../api/operations';
@@ -264,6 +268,74 @@ function DeployStatusCard({ item }: { item?: OperationalDeployStatus }) {
         ]}
       />
       {deploy.message ? <p className="ops-page__note">{deploy.message}</p> : null}
+    </Card>
+  );
+}
+
+function tokens(value?: number | null) {
+  return typeof value === 'number' ? value.toLocaleString('pt-BR') : '—';
+}
+
+function openAiPeriodValue(period?: OperationalOpenAiPeriod) {
+  if (!period) return '—';
+  const budget = period.budget ? ` de ${tokens(period.budget)}` : ' (sem teto)';
+  const cost = period.estimatedUsd !== null ? ` · ≈ US$ ${period.estimatedUsd.toFixed(2)}` : '';
+  return `${tokens(period.tokens)}${budget} tokens${cost}`;
+}
+
+function AbuseStatusCard({ item }: { item?: OperationalAbuseStatus }) {
+  const abuse = item || { status: 'UNAVAILABLE', findings: [], openai: null };
+  return (
+    <Card
+      className="ops-page__panel"
+      title={<PanelTitle title="Abuso e limites" icon={ShieldAlert} />}
+      actions={<OperationalStatusPill status={abuse.status} />}
+    >
+      <DetailRows
+        rows={[
+          {
+            label: `Falhas de login (${abuse.windowMinutes ?? 15} min)`,
+            value: String(abuse.loginFailures ?? '—')
+          },
+          {
+            label: `Bloqueios por limite (${abuse.windowMinutes ?? 15} min)`,
+            value: String(abuse.rateLimited ?? '—')
+          }
+        ]}
+      />
+      {abuse.findings.length ? (
+        <ul className="ops-page__note">
+          {abuse.findings.map(finding => (
+            <li key={`${finding.type}:${finding.subject}`}>
+              {finding.label}: {finding.subject} ({finding.count}, limite {finding.threshold})
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </Card>
+  );
+}
+
+function OpenAiUsageCard({ item }: { item?: OperationalAbuseStatus }) {
+  const openai = item?.openai;
+  return (
+    <Card
+      className="ops-page__panel"
+      title={<PanelTitle title="Uso da OpenAI" icon={Sparkles} />}
+    >
+      <DetailRows
+        rows={[
+          { label: 'Hoje', value: openAiPeriodValue(openai?.day) },
+          { label: 'Este mês', value: openAiPeriodValue(openai?.month) },
+          {
+            label: 'Limite por usuário/dia',
+            value: openai?.userDailyCalls ? `${openai.userDailyCalls} adequações` : '—'
+          }
+        ]}
+      />
+      <p className="ops-page__note">
+        O teto do sistema não substitui o limite de gasto no painel da OpenAI.
+      </p>
     </Card>
   );
 }
@@ -585,6 +657,16 @@ export function OperationsPage({ preview = false }: { preview?: boolean }) {
                 item={status.restore}
                 icon={ShieldCheck}
               />
+            </div>
+          </section>
+          <section
+            className="ops-page__section"
+            aria-labelledby="ops-abuse-title"
+          >
+            <h2 id="ops-abuse-title">Abuso e custo</h2>
+            <div className="ops-page__grid">
+              <AbuseStatusCard item={status.abuse} />
+              <OpenAiUsageCard item={status.abuse} />
             </div>
           </section>
           <section

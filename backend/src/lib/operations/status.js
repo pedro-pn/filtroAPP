@@ -4,6 +4,8 @@ import env from '../../config/env.js';
 import prisma from '../prisma.js';
 import { databaseRoleStatus } from './database-role.js';
 import { errorTrackingStatus } from './error-tracking.js';
+import { abuseFindingLabel, abuseThresholds, detectAbuse, readAbuseWindow } from '../abuse/monitor.js';
+import { openAiUsageSummary } from '../abuse/openai-budget.js';
 
 export const RECURRING_JOB_NAMES = [
   'assinaturas:finalization',
@@ -308,6 +310,51 @@ async function deployStatus({ config, readFile }) {
   };
 }
 
+// Sinais de abuso da janela atual e uso da OpenAI (pilar 10). A tabela
+// UsageCounter pode não existir antes da migration: aí a seção fica UNAVAILABLE.
+async function abuseStatus(prismaClient, config, now) {
+  if (!prismaClient.usageCounter) return { status: 'UNAVAILABLE', findings: [], openai: null };
+  try {
+    const [rows, openai] = await Promise.all([
+      readAbuseWindow({ prismaClient, now, config }),
+      openAiUsageSummary({ prismaClient, now, config })
+    ]);
+    const thresholds = abuseThresholds(config);
+    const findings = detectAbuse(rows, thresholds).map(finding => ({ ...finding, label: abuseFindingLabel(finding) }));
+    const loginFailures = rows.find(row => row.kind === 'abuse.login-failure' && row.subject === 'global')?.count ?? 0;
+    const rateLimited = rows.filter(row => row.kind === 'abuse.rate-limited').reduce((sum, row) => sum + row.count, 0);
+    return {
+      status: findings.length ? 'ALERT' : 'OK',
+      windowMinutes: Math.round(thresholds.windowMs / 60000),
+      thresholds,
+      loginFailures,
+      rateLimited,
+      findings: findings.slice(0, 20),
+      openai
+    };
+  } catch (error) {
+    return { status: 'UNAVAILABLE', findings: [], openai: null, error: error?.code || 'read-failed' };
+  }
+}
+
+function abuseProblems(abuse, config) {
+  const problems = [];
+  for (const finding of abuse?.findings || []) {
+    problems.push(problem(`Uso fora do normal: ${finding.label}.`, { scope: 'abuse', source: finding.subject }));
+  }
+  const openai = abuse?.openai;
+  for (const [period, label] of [['day', 'diário'], ['month', 'mensal']]) {
+    const data = openai?.[period];
+    if (data?.budget && data.tokens >= (data.budget * config.openaiBudgetAlertPercent) / 100) {
+      const reached = data.tokens >= data.budget;
+      problems.push(problem(reached
+        ? `Teto ${label} de tokens da OpenAI atingido; a adequação por IA está bloqueada.`
+        : `Uso da OpenAI acima de ${config.openaiBudgetAlertPercent}% do teto ${label}.`, { scope: 'openai-budget' }));
+    }
+  }
+  return problems;
+}
+
 function collectProblems({
   recurringJobs,
   dataRetention,
@@ -451,7 +498,8 @@ export async function getOperationalStatus({
     deploy,
     omie,
     commercialImport,
-    database
+    database,
+    abuse
   ] = await Promise.all([
     latestRecurringJobRuns(prismaClient),
     dataRetentionStatus(prismaClient),
@@ -462,7 +510,8 @@ export async function getOperationalStatus({
     deployStatus({ config, readFile }),
     omieSyncStatus(prismaClient, config),
     commercialImportStatus(prismaClient, config),
-    databaseRoleStatus(prismaClient)
+    databaseRoleStatus(prismaClient),
+    abuseStatus(prismaClient, config, now)
   ]);
 
   const problems = collectProblems({
@@ -477,7 +526,7 @@ export async function getOperationalStatus({
     database,
     config,
     now
-  });
+  }).concat(abuseProblems(abuse, config));
 
   return {
     ok: problems.length === 0,
@@ -495,6 +544,7 @@ export async function getOperationalStatus({
     omie,
     commercialImport,
     database,
+    abuse,
     errorTracking: errorTrackingStatus(config),
     alerting: {
       enabled: config.operationsAlertJobEnabled,
