@@ -1,6 +1,8 @@
 import asyncHandler from '../../lib/async-handler.js';
 import { reportClientAccessStatus } from '../../lib/reports/client-access.js';
 import { signatureTokenHash } from '../../lib/signature-token.js';
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { rdoRoute, jsonObjectSchema, FILE } from '../../lib/api-contract/domains/rdo.js';
 
 export function registerReportPublicViewRoutes(router, {
   database, reportInclude, limiter, getReportPdfDownload, sendDownloadBuffer,
@@ -22,7 +24,7 @@ export function registerReportPublicViewRoutes(router, {
     return status;
   }
 
-  router.get('/public-view/:token', limiter, asyncHandler(async (req, res) => {
+  defineRoute(router, rdoRoute('GET /public-view/:token', { summary: 'Ver o relatório pelo link público de leitura', auth: 'publicToken', responses: { 200: jsonObjectSchema }, errors: [404, 410, 429] }), limiter, asyncHandler(async (req, res) => {
     const access = await accessFromToken(req.params.token);
     const status = accessStatus(access);
     res.setHeader('Cache-Control', 'no-store');
@@ -46,7 +48,7 @@ export function registerReportPublicViewRoutes(router, {
     });
   }));
 
-  router.get('/public-view/:token/pdf', limiter, asyncHandler(async (req, res) => {
+  defineRoute(router, rdoRoute('GET /public-view/:token/pdf', { summary: 'PDF pelo link público de leitura', auth: 'publicToken', responses: { 200: FILE }, errors: [404, 410, 429] }), limiter, asyncHandler(async (req, res) => {
     const access = await accessFromToken(req.params.token);
     const status = accessStatus(access);
     if (status !== 'ACTIVE') {

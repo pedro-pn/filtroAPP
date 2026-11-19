@@ -239,13 +239,33 @@ export interface ManualReportPdfExtraction {
   warnings: string[];
 }
 
+// Upload manual: o PDF vai como arquivo (parte `pdf`) e os demais campos como
+// JSON (parte `payload`) em multipart/form-data, sem base64 no corpo (spec 042,
+// D3). As telas continuam guardando o PDF como data URL; a conversão é só aqui.
+export function pdfDataUrlToBlob(pdfDataUrl: string): Blob {
+  const match = /^data:([^;,]+)?(;base64)?,(.*)$/s.exec(pdfDataUrl);
+  if (!match) throw new Error('PDF inválido.');
+  const binary = match[2] ? atob(match[3].replace(/\s/g, '')) : decodeURIComponent(match[3]);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return new Blob([bytes], { type: match[1] || 'application/pdf' });
+}
+
+export function manualReportFormData(payload: Record<string, unknown>, pdfDataUrl?: string, fileName?: string): FormData {
+  const form = new FormData();
+  form.append('payload', JSON.stringify(payload));
+  if (pdfDataUrl) form.append('pdf', pdfDataUrlToBlob(pdfDataUrl), fileName || 'relatorio.pdf');
+  return form;
+}
+
 export async function extractManualReportPdf(pdfDataUrl: string): Promise<ManualReportPdfExtraction> {
-  const response = await apiClient.post<ManualReportPdfExtraction>(rdoApiPath('/reports/manual-extract'), { pdfDataUrl });
+  const response = await apiClient.post<ManualReportPdfExtraction>(rdoApiPath('/reports/manual-extract'), manualReportFormData({}, pdfDataUrl));
   return response.data;
 }
 
 export async function uploadManualReport(payload: ManualReportUploadPayload) {
-  const response = await apiClient.post<ReportSummary>(rdoApiPath('/reports/manual-upload'), payload);
+  const { pdfDataUrl, ...fields } = payload;
+  const response = await apiClient.post<ReportSummary>(rdoApiPath('/reports/manual-upload'), manualReportFormData(fields, pdfDataUrl, payload.fileName));
   return response.data;
 }
 
@@ -255,7 +275,8 @@ export async function updateManualReportData(id: string, payload: ManualReportOp
 }
 
 export async function replaceManualReportPdf(id: string, payload: ManualReportPdfReplacePayload) {
-  const response = await apiClient.put<ReportSummary>(rdoApiPath(`/reports/${id}/manual-pdf`), payload);
+  const { pdfDataUrl, ...fields } = payload;
+  const response = await apiClient.put<ReportSummary>(rdoApiPath(`/reports/${id}/manual-pdf`), manualReportFormData(fields, pdfDataUrl, payload.fileName));
   return response.data;
 }
 

@@ -71,6 +71,20 @@ function responsesFor(contract) {
   return responses;
 }
 
+// Corpo JSON ou multipart. No multipart, os campos de texto vêm do schema e os
+// arquivos de `bodyFiles` ({ campo: descrição }) entram como binário.
+function requestBodyFor(contract) {
+  const contentType = contract.bodyContentType || 'application/json';
+  const schema = jsonSchema(contract.body, 'input');
+  if (contentType === 'multipart/form-data' && contract.bodyFiles) {
+    schema.properties ||= {};
+    for (const [name, description] of Object.entries(contract.bodyFiles).sort(([a], [b]) => a.localeCompare(b))) {
+      schema.properties[name] = { type: 'string', format: 'binary', description };
+    }
+  }
+  return { required: !contract.bodyOptional, content: { [contentType]: { schema } } };
+}
+
 export function buildInternalOpenApi(routes, { version = '0' } = {}) {
   const paths = {};
   for (const route of routes) {
@@ -85,12 +99,8 @@ export function buildInternalOpenApi(routes, { version = '0' } = {}) {
       security: SECURITY_BY_AUTH[contract.auth],
       'x-auth': contract.auth,
       parameters: [...pathParameters(route.path, contract.params), ...queryParameters(contract.query)],
-      ...(contract.body ? {
-        requestBody: {
-          required: !contract.bodyOptional,
-          content: { 'application/json': { schema: jsonSchema(contract.body, 'input') } }
-        }
-      } : {}),
+      ...(contract.body ? { requestBody: requestBodyFor(contract) } : {}),
+      ...(contract.validateInput === 'handler' ? { 'x-validated-by': contract.validatedBy } : {}),
       ...(contract.noBody ? { 'x-no-body': contract.noBody } : {}),
       responses: responsesFor(contract)
     };

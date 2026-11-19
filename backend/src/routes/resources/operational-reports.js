@@ -56,6 +56,8 @@ import {
 import { reportCollaboratorCreateManyData } from "../../lib/report-collaborators.js";
 import { clearProjectDerivedCaches } from "../../lib/resource-list-cache.js";
 import { requireAuth } from "../../middleware/auth.js";
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { rdoRoute, operationalReportSchema, jsonObjectSchema, jsonArraySchema, FILE } from '../../lib/api-contract/domains/rdo.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -356,9 +358,7 @@ async function freshMaintenance(id) {
   });
 }
 
-router.get(
-  "/context",
-  asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /context', { summary: 'Contexto dos relatórios operacionais (permissões e catálogos)', tag: 'rdo-operacional', responses: { 200: jsonObjectSchema } }), asyncHandler(async (req, res) => {
     const canEmitMaintenance = hasReportEmissionPermission(
       req.auth.user,
       ReportEmissionPermissions.MAINTENANCE,
@@ -479,9 +479,7 @@ router.get(
   }),
 );
 
-router.get(
-  "/",
-  asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /', { summary: 'Listar relatórios operacionais', tag: 'rdo-operacional', responses: { 200: jsonObjectSchema }, errors: [400, 401, 403], query: operationalListQuerySchema }), asyncHandler(async (req, res) => {
     const query = operationalListQuerySchema.parse(req.query);
     const allowedTypes = [];
     if (hasReportEmissionPermission(
@@ -535,9 +533,7 @@ router.get(
   }),
 );
 
-router.post(
-  "/",
-  asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('POST /', { summary: 'Criar relatório operacional', tag: 'rdo-operacional', responses: { 201: operationalReportSchema }, errors: [400, 401, 403, 404, 409], body: operationalReportInputSchema }), asyncHandler(async (req, res) => {
     const data = operationalReportInputSchema.parse(req.body);
     assertReportEmissionPermission(req.auth.user, permissionForKind(data.kind));
     const reportType = reportTypeForOperationalKind(data.kind);
@@ -667,9 +663,7 @@ router.post(
   }),
 );
 
-router.get(
-  "/maintenance",
-  asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /maintenance', { summary: 'Listar manutenções', tag: 'rdo-operacional', responses: { 200: jsonObjectSchema }, errors: [400, 401, 403], query: maintenanceListQuerySchema }), asyncHandler(async (req, res) => {
     assertReportEmissionPermission(
       req.auth.user,
       ReportEmissionPermissions.MAINTENANCE,
@@ -708,9 +702,7 @@ router.get(
   }),
 );
 
-router.post(
-  "/maintenance",
-  asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('POST /maintenance', { summary: 'Registrar manutenção avulsa', tag: 'rdo-operacional', responses: { 201: operationalReportSchema }, errors: [400, 401, 403, 404, 409], body: maintenanceInputSchema }), asyncHandler(async (req, res) => {
     assertReportEmissionPermission(
       req.auth.user,
       ReportEmissionPermissions.MAINTENANCE,
@@ -741,9 +733,7 @@ router.post(
   }),
 );
 
-router.get(
-  "/maintenance/history/categories",
-  asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /maintenance/history/categories', { summary: 'Categorias do histórico de manutenção', tag: 'rdo-operacional', responses: { 200: jsonArraySchema } }), asyncHandler(async (req, res) => {
     assertReportEmissionPermission(
       req.auth.user,
       ReportEmissionPermissions.MAINTENANCE,
@@ -761,9 +751,7 @@ router.get(
   }),
 );
 
-router.get(
-  "/maintenance/history",
-  asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /maintenance/history', { summary: 'Histórico de manutenção', tag: 'rdo-operacional', responses: { 200: jsonObjectSchema }, errors: [400, 401, 403], query: maintenanceHistoryQuerySchema }), asyncHandler(async (req, res) => {
     assertReportEmissionPermission(
       req.auth.user,
       ReportEmissionPermissions.MAINTENANCE,
@@ -843,9 +831,7 @@ router.get(
   }),
 );
 
-router.get(
-  "/maintenance/schedule",
-  asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /maintenance/schedule', { summary: 'Agenda de manutenção', tag: 'rdo-operacional', responses: { 200: jsonObjectSchema }, errors: [400, 401, 403], query: maintenanceScheduleQuerySchema }), asyncHandler(async (req, res) => {
     assertReportEmissionPermission(
       req.auth.user,
       ReportEmissionPermissions.MAINTENANCE,
@@ -952,9 +938,7 @@ router.get(
   }),
 );
 
-router.get(
-  "/maintenance/attachments/:attachmentId",
-  asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /maintenance/attachments/:attachmentId', { summary: 'Baixar anexo de manutenção', tag: 'rdo-operacional', responses: { 200: FILE }, errors: [401, 403, 404] }), asyncHandler(async (req, res) => {
     const [attachment, supervisor] = await Promise.all([
       prisma.maintenanceAttachment.findUnique({
         where: { id: req.params.attachmentId },
@@ -980,9 +964,7 @@ router.get(
   }),
 );
 
-router.get(
-  "/maintenance/:id/document",
-  asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /maintenance/:id/document', { summary: 'Documento (PDF) da manutenção', tag: 'rdo-operacional', responses: { 200: FILE }, errors: [401, 403, 404] }), asyncHandler(async (req, res) => {
     const [record, supervisor] = await Promise.all([
       freshMaintenance(req.params.id),
       maintenanceSupervisorState(),
@@ -1011,9 +993,7 @@ router.get(
   }),
 );
 
-router.get(
-  "/maintenance/:id",
-  asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /maintenance/:id', { summary: 'Detalhe da manutenção', tag: 'rdo-operacional', responses: { 200: operationalReportSchema }, errors: [401, 403, 404] }), asyncHandler(async (req, res) => {
     const [record, supervisor] = await Promise.all([
       freshMaintenance(req.params.id),
       maintenanceSupervisorState(),
@@ -1025,9 +1005,7 @@ router.get(
   }),
 );
 
-router.put(
-  "/maintenance/:id",
-  asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('PUT /maintenance/:id', { summary: 'Editar manutenção avulsa', tag: 'rdo-operacional', responses: { 200: operationalReportSchema }, errors: [400, 401, 403, 404, 409], body: maintenanceInputSchema }), asyncHandler(async (req, res) => {
     const data = maintenanceInputSchema.parse(req.body);
     const existing = await freshMaintenance(req.params.id);
     if (!existing || existing.reportId)
@@ -1258,9 +1236,7 @@ async function approveMaintenanceRecords(
   }
 }
 
-router.patch(
-  "/maintenance/:id/status",
-  asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('PATCH /maintenance/:id/status', { summary: 'Mudar o status da manutenção avulsa', tag: 'rdo-operacional', responses: { 200: operationalReportSchema }, errors: [400, 401, 403, 404, 409], body: operationalStatusInputSchema }), asyncHandler(async (req, res) => {
     const data = operationalStatusInputSchema.parse(req.body);
     const [record, supervisor] = await Promise.all([
       freshMaintenance(req.params.id),
@@ -1365,9 +1341,7 @@ router.patch(
   }),
 );
 
-router.get(
-  "/:id",
-  asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('GET /:id', { summary: 'Detalhe do relatório operacional', tag: 'rdo-operacional', responses: { 200: operationalReportSchema }, errors: [401, 403, 404] }), asyncHandler(async (req, res) => {
     const [report, supervisor] = await Promise.all([
       freshReport(req.params.id),
       maintenanceSupervisorState(),
@@ -1385,9 +1359,7 @@ router.get(
   }),
 );
 
-router.put(
-  "/:id",
-  asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('PUT /:id', { summary: 'Editar relatório operacional', tag: 'rdo-operacional', responses: { 200: operationalReportSchema }, errors: [400, 401, 403, 404, 409], body: operationalReportInputSchema }), asyncHandler(async (req, res) => {
     const data = operationalReportInputSchema.parse(req.body);
     const existing = await freshReport(req.params.id);
     const kind = kindForReportType(existing?.reportType);
@@ -1557,9 +1529,7 @@ router.put(
   }),
 );
 
-router.patch(
-  "/:id/status",
-  asyncHandler(async (req, res) => {
+defineRoute(router, rdoRoute('PATCH /:id/status', { summary: 'Mudar o status do relatório operacional', tag: 'rdo-operacional', responses: { 200: operationalReportSchema }, errors: [400, 401, 403, 404, 409], body: operationalStatusInputSchema }), asyncHandler(async (req, res) => {
     const data = operationalStatusInputSchema.parse(req.body);
     const [report, supervisor] = await Promise.all([
       freshReport(req.params.id),

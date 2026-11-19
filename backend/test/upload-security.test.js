@@ -461,7 +461,9 @@ test('stored upload access denies internal users for files outside any project f
 test('protected upload route uses shared auth middleware', () => {
   const source = fs.readFileSync(new URL('../src/routes/resources/uploads.js', import.meta.url), 'utf8');
 
-  assert.match(source, /router\.get\('\/file\/\*filePath', requireAuth,/);
+  // Desde a spec 042 (fase 2) a rota é declarada com defineRoute; o primeiro
+  // middleware continua sendo o requireAuth compartilhado.
+  assert.match(source, /rdoRoute\('GET \/file\/\*filePath', \{[^\n]*\}\), requireAuth,/);
   assert.doesNotMatch(source, /function authenticateFileRequest/);
 });
 

@@ -12,6 +12,15 @@ export const CONTRACT_KEY = Symbol.for('filtrovali.apiContract');
 const METHODS = new Set(['get', 'post', 'put', 'patch', 'delete']);
 const WRITE_METHODS = new Set(['post', 'put', 'patch', 'delete']);
 export const AUTH_KINDS = new Set(['public', 'session', 'publicToken', 'apiToken']);
+// Como a entrada declarada é validada (spec 042):
+//   - 'replace' (padrão): o contrato valida e entrega ao handler o valor validado;
+//   - 'check': o contrato valida, mas o handler recebe a entrada original
+//     (para rotas antigas que normalizam o corpo à mão depois);
+//   - 'handler': o contrato só documenta; o próprio handler valida com o mesmo
+//     schema (`validatedBy` diz onde). Usado na migração dos domínios antigos para
+//     não mudar a ordem das respostas (ex.: 403 de papel antes do 400 de dados).
+export const VALIDATE_MODES = new Set(['replace', 'check', 'handler']);
+const BODY_CONTENT_TYPES = new Set(['application/json', 'multipart/form-data']);
 
 function isZodSchema(value) {
   return value instanceof z.ZodType;
@@ -38,16 +47,35 @@ function assertSpec(spec) {
     if (schema !== null && !isZodSchema(schema)) throw new TypeError(`defineRoute ${where}: resposta ${status} deve ser schema zod ou null.`);
   }
   if (spec.errors !== undefined && !Array.isArray(spec.errors)) throw new TypeError(`defineRoute ${where}: errors deve ser lista.`);
+  if (spec.validateInput !== undefined && !VALIDATE_MODES.has(spec.validateInput)) {
+    throw new TypeError(`defineRoute ${where}: validateInput deve ser ${[...VALIDATE_MODES].join(', ')}.`);
+  }
+  if (spec.validateInput === 'handler' && !spec.validatedBy) {
+    throw new TypeError(`defineRoute ${where}: validateInput 'handler' exige validatedBy (onde a entrada é validada).`);
+  }
+  if (spec.bodyContentType !== undefined && !BODY_CONTENT_TYPES.has(spec.bodyContentType)) {
+    throw new TypeError(`defineRoute ${where}: bodyContentType deve ser ${[...BODY_CONTENT_TYPES].join(', ')}.`);
+  }
+  if (spec.bodyFiles !== undefined && (typeof spec.bodyFiles !== 'object' || spec.bodyContentType !== 'multipart/form-data')) {
+    throw new TypeError(`defineRoute ${where}: bodyFiles só vale com bodyContentType multipart/form-data.`);
+  }
 }
 
 // Valida a entrada declarada. `req.body` recebe o valor já validado (com
 // defaults do zod); `req.query` é só leitura no Express 5, então a query
 // validada fica em `req.validatedQuery`.
 function contractValidator(spec) {
+  const mode = spec.validateInput || 'replace';
   return function validateContract(req, _res, next) {
-    if (spec.params) req.params = spec.params.parse(req.params || {});
-    if (spec.query) req.validatedQuery = spec.query.parse(req.query || {});
-    if (spec.body) req.body = spec.body.parse(spec.bodyOptional ? (req.body ?? {}) : req.body);
+    if (mode === 'handler') return next();
+    const params = spec.params ? spec.params.parse(req.params || {}) : undefined;
+    const query = spec.query ? spec.query.parse(req.query || {}) : undefined;
+    const body = spec.body ? spec.body.parse(spec.bodyOptional ? (req.body ?? {}) : req.body) : undefined;
+    if (query !== undefined) req.validatedQuery = query;
+    if (mode === 'replace') {
+      if (params !== undefined) req.params = params;
+      if (body !== undefined) req.body = body;
+    }
     next();
   };
 }

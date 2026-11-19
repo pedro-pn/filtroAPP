@@ -8,6 +8,8 @@ import {
 import { createReportRegenerator } from '../../lib/reports/regeneration.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireHubAdmin, requireModuleRole } from '../../middleware/auth.js';
 import { expensiveRouteLimit } from '../../lib/rate-limit.js';
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { rdoRoute, jsonObjectSchema } from '../../lib/api-contract/domains/rdo.js';
 
 export async function recreateReportSignatureRound(tx, report, saved, hash, { userId, evidence }, shouldCreateRound) {
   await invalidateUnsignedInternalSignatureRound(tx, {
@@ -33,7 +35,7 @@ export function registerReportRegenerationRoutes(router, { shouldCreateSignature
     ...options,
     replaceSignatureRound: (...args) => recreateReportSignatureRound(...args, shouldCreateSignatureRound)
   });
-  router.post('/:id/regenerate', requireAuth, requireHubAdmin, requireModuleRole(...RDO_ACCESS_ROLES), ...expensiveRouteLimit('generation'), asyncHandler(async (req, res) => {
+  defineRoute(router, rdoRoute('POST /:id/regenerate', { summary: 'Regerar o PDF do relatório (admin)', noBody: 'Ação sobre o relatório do caminho.', responses: { 200: jsonObjectSchema }, errors: [401, 403, 404, 409, 429] }), requireAuth, requireHubAdmin, requireModuleRole(...RDO_ACCESS_ROLES), ...expensiveRouteLimit('generation'), asyncHandler(async (req, res) => {
     res.json(await regenerate(req.params.id, {
       userId: req.auth.user.id,
       evidence: signatureEvidenceFromRequest(req)

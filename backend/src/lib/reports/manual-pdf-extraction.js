@@ -4,6 +4,7 @@ import { manualPdfTextFromItems, parseManualReportPdfFields } from './manual-pdf
 
 const require = createRequire(import.meta.url);
 const MAX_PDF_BYTES = 50 * 1024 * 1024;
+export const MAX_MANUAL_REPORT_PDF_BYTES = MAX_PDF_BYTES;
 export const MAX_MANUAL_REPORT_PDF_DATA_URL_LENGTH = Math.ceil(MAX_PDF_BYTES / 3) * 4 + 'data:application/pdf;base64,'.length;
 const MAX_OCR_PAGES = 3;
 let extractionTail = Promise.resolve();
@@ -18,8 +19,17 @@ export function decodeManualReportPdfDataUrl(value) {
   if (!match) invalidPdf('Envie um PDF válido.');
   const encoded = match[1].replace(/\s/g, '');
   if (!encoded || encoded.length % 4 === 1) invalidPdf('PDF enviado está corrompido.');
-  const bytes = Buffer.from(encoded, 'base64');
-  if (!bytes.length || bytes.length > MAX_PDF_BYTES) invalidPdf('PDF inválido ou maior que 50 MB.');
+  return validateManualReportPdfBytes(Buffer.from(encoded, 'base64'));
+}
+
+// Mesmas regras para o PDF recebido em multipart (spec 042, D3).
+export function validateManualReportPdfBytes(bytes) {
+  function invalidPdf(message) {
+    const error = new Error(message);
+    error.statusCode = 400;
+    throw error;
+  }
+  if (!Buffer.isBuffer(bytes) || !bytes.length || bytes.length > MAX_PDF_BYTES) invalidPdf('PDF inválido ou maior que 50 MB.');
   if (bytes.subarray(0, 5).toString('latin1') !== '%PDF-') invalidPdf('Arquivo enviado não parece ser um PDF.');
   return bytes;
 }
