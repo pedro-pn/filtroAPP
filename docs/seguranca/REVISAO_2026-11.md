@@ -47,7 +47,7 @@ mesclado ou quando um item aberto for tratado.
 | 15 | 7.3 | Respostas 5xx expunham códigos internos (`P1001`, `ECONNREFUSED`) | Corrigido — #606 |
 | 16 | 4.1 | Sem 2FA, inclusive para administradores | **Aberto** — exige spec própria |
 | 17 | 4.2 | Token de sessão no `localStorage`, válido por até 30 dias | **Aberto** — mitigado pela CSP restritiva do nginx |
-| 18 | 6.5 | Homologação sem CSP/HSTS/X-Frame-Options nos estáticos (`deploy/nginx/staging.conf`) | **Aberto** |
+| 18 | 6.5 | Homologação sem CSP/HSTS/X-Frame-Options nos estáticos (`deploy/nginx/staging.conf`) | Corrigido (`fix/staging-security-headers`; paridade testada em `nginx-security-headers.test.js`) |
 | 19 | 10.3 | Nenhum alerta de abuso (picos de falha de login, 429, gasto da OpenAI) | **Aberto** |
 | 20 | 10.1/10.2 | Sem limite nas rotas pesadas (PDF, Data Book, exportações) e sem teto global de gasto com a OpenAI | **Aberto** |
 | 21 | 8.4 | 2 vulnerabilidades moderadas (`ajv` → `fast-uri`) e 2 baixas no backend | **Aberto** (Dependabot ativo) |

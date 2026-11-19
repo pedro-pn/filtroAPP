@@ -225,7 +225,8 @@ docker compose --env-file backend/.env.staging -f docker-compose.staging.yml exe
 De uma máquina cujo IP está autorizado:
 
 ```bash
-# Certificado válido e cabeçalho X-Environment: staging.
+# Certificado válido, cabeçalho X-Environment: staging e os mesmos cabeçalhos de
+# segurança de produção (CSP, HSTS sem preload, X-Frame-Options, nosniff...).
 curl -I https://filtrostaging.filtrovali.com.br/
 # Redirecionamento para HTTPS.
 curl -I http://filtrostaging.filtrovali.com.br/
@@ -253,7 +254,7 @@ python3 deploy/test-staging-https.py
 O teste usa uma configuração de proxy exclusiva de teste, containers e rede
 descartáveis, sem portas no host, sem banco e sem contatar autoridades de
 certificação públicas. Valida o contrato do filtroAPP: TLS com uma CA local,
-rotas, restrição de IP, headers encaminhados, redirecionamento HTTP e os domínios
+rotas, restrição de IP, headers encaminhados, cabeçalhos de segurança, redirecionamento HTTP e os domínios
 de produção/legado. Também roda no job Docker do CI, sem precisar clonar o
 repositório `infra-proxy`.
 

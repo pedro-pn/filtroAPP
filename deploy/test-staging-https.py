@@ -147,6 +147,11 @@ req.end();
                     "X-Forwarded-For": "203.0.113.250", "X-Forwarded-Proto": "http",
                 })
                 assert response["headers"]["x-environment"] == "staging", response
+                for header in ("content-security-policy", "strict-transport-security",
+                               "x-content-type-options", "x-frame-options",
+                               "referrer-policy", "permissions-policy"):
+                    assert header in response["headers"], (header, response)
+                assert "frame-ancestors 'none'" in response["headers"]["content-security-policy"], response
                 upstream = json.loads(response["body"])
                 assert upstream["path"] == path, upstream
                 assert upstream["headers"]["host"] == DOMAIN, upstream
