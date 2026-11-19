@@ -75,20 +75,17 @@ Total: **3,5–4 dias** (sem F6).
 
 Teste de carga (11.4), testes visuais, cobertura de todas as telas, homologação.
 
-## Decisões para o usuário
+## Decisões tomadas (2026-11-19)
 
-1. **D1 — Tornar o job obrigatório na `main`?**
-   a) Sim, depois de 10 execuções seguidas sem falha *(recomendado)*;
-   b) sim desde o primeiro dia; c) não, só informativo.
-2. **D2 — Quais jornadas no primeiro PR?**
-   a) Login+2FA, RDO→PDF e permissão negada; Efetivo no segundo *(recomendado)*;
-   b) as quatro de uma vez; c) só login+2FA e RDO→PDF.
-3. **D3 — Frontend do e2e:**
-   a) reaproveitar o `dist` do job `frontend-unit` como artefato (mais rápido, mesmo bundle)
-   *(recomendado)*; b) buildar de novo no job e2e (independente, +30–45 s).
-4. **D4 — Data Book no e2e?**
-   a) Não agora; só se o job ficar abaixo de 3 min *(recomendado)*; b) sim, no primeiro PR.
-5. **D5 — Captura do e-mail do 2FA:**
-   a) Mailpit como service container *(recomendado — zero código de teste no app)*;
-   b) transporte de e-mail "arquivo" ativado por env no backend (mais simples, mas é
-   código só de teste dentro do app).
+Todas seguem a recomendação do plano:
+
+1. **D1 — Obrigatoriedade:** o job "E2E (real stack)" entra **informativo**; vira check
+   obrigatório da `main` depois de **10 execuções seguidas sem falha** e de ter pego uma
+   quebra de contrato injetada de propósito.
+2. **D2 — Jornadas do primeiro PR:** login ADMIN + 2FA, RDO do rascunho ao PDF e
+   permissão negada para COLLABORATOR. A jornada do Efetivo (missão/alocação) fica
+   para um segundo PR.
+3. **D3 — Frontend:** reaproveitar o `dist` do job `frontend-unit` como artefato.
+4. **D4 — Data Book:** fora do e2e por enquanto.
+5. **D5 — E-mail do 2FA:** Mailpit como service container do CI; nenhum código de
+   teste dentro do app.
