@@ -10,6 +10,7 @@ import { buildQrLinkSettings, normalizeQrAccess } from '../../lib/equipamentos/q
 import { pruneOperationPhotos, resolveOperationStepItems } from '../../lib/equipamentos/operation-manual-photos.js';
 import { generateOperationManualPdf, normalizeOperationStepItems, resolveEffectiveOperationSteps, serializeOperationStepItems, MAX_OPERATION_STEPS, MAX_OPERATION_STEP_LENGTH, MAX_OPERATION_STEP_PHOTOS } from '../../lib/equipamentos/operation-manual.js';
 import { notifyCalibrationUpdatedSafely } from '../../lib/calibration-reminders.js';
+import { notifyEquipmentCreatedSafely } from '../../lib/equipamentos/created-notification.js';
 import { normalizeFieldSchema, normalizeTechnicalSchema, slugifySystemKey } from '../../lib/equipment-categories.js';
 import { removeTechnicalStandard, saveCategoryTechnicalStandard, updateTechnicalStandard } from '../../lib/equipamentos/technical-standards.js';
 import { normalizeChecklistDisplayMode, normalizeChecklistItems } from '../../lib/equipamentos/equipment-checklist.js';
@@ -467,7 +468,8 @@ router.delete(
   asyncHandler(async (req, res) => {
     const category = await prisma.equipmentCategory.findUnique({
       where: { id: req.params.id },
-      include: { _count: { select: { equipment: true } } }
+      // A remoção de equipamentos preserva o histórico com isActive=false.
+      include: { _count: { select: { equipment: { where: { isActive: true } } } } }
     });
     if (!category) return res.status(404).json({ error: 'Categoria não encontrada.' });
     if (category._count.equipment > 0) {
@@ -917,8 +919,9 @@ router.post(
     await syncRomaneioCatalog();
     const fresh = await prisma.companyEquipment.findUnique({
       where: { id: item.id },
-      include: equipmentAttachmentsInclude
+      include: { ...equipmentAttachmentsInclude, category: { select: { name: true } } }
     });
+    await notifyEquipmentCreatedSafely({ equipment: fresh });
     res.status(201).json(await withRomaneioCatalogIds(prisma, withCurrentAttachments(fresh)));
   })
 );
@@ -1288,20 +1291,29 @@ router.put(
   })
 );
 
-// === Notificações de calibração (destinatários + configuração) ===
+// === Notificações de equipamentos (destinatários + configuração) ===
 
 const notificationConfigSchema = z.object({
   enabled: z.boolean().optional(),
+  notifyOnEquipmentCreated: z.boolean().optional(),
   milestoneDays: z.array(z.number()).optional(),
   notifyOnDueDay: z.boolean().optional(),
   repeatExpired: z.boolean().optional(),
   repeatGapDays: z.number().int().positive().optional()
 });
 
+const recipientPreferencesSchema = z.object({
+  isActive: z.boolean().optional(),
+  notifyCalibrationReminders: z.boolean().optional(),
+  notifyCalibrationUpdated: z.boolean().optional(),
+  notifyEquipmentCreated: z.boolean().optional()
+});
+
 const recipientSchema = z
   .object({
     userId: z.string().trim().min(1).optional().nullable(),
-    email: z.string().trim().email().optional()
+    email: z.string().trim().email().optional(),
+    ...recipientPreferencesSchema.omit({ isActive: true }).shape
   })
   .refine(data => data.userId || data.email, {
     message: 'Informe uma conta ou um e-mail.'
@@ -1370,8 +1382,8 @@ router.post(
     if (!email) return res.status(400).json({ error: 'Informe um e-mail válido.' });
     const recipient = await prisma.equipmentNotificationRecipient.upsert({
       where: { email },
-      create: { email, userId, isActive: true },
-      update: { userId, isActive: true }
+      create: { ...data, email, userId, isActive: true },
+      update: { ...data, email, userId, isActive: true }
     });
     res.status(201).json(recipient);
   })
@@ -1381,10 +1393,10 @@ router.put(
   '/notifications/recipients/:id',
   requireEquipamentosManager,
   asyncHandler(async (req, res) => {
-    const isActive = Boolean(req.body?.isActive);
+    const data = recipientPreferencesSchema.parse(req.body);
     const recipient = await prisma.equipmentNotificationRecipient.update({
       where: { id: req.params.id },
-      data: { isActive }
+      data
     });
     res.json(recipient);
   })

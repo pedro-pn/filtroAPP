@@ -522,10 +522,11 @@ export async function updateRdoSlot(slotKey: string, categoryIds: string[], seco
   return response.data;
 }
 
-// === Notificações de calibração ===
+// === Notificações de equipamentos ===
 
 export interface NotificationConfig {
   enabled: boolean;
+  notifyOnEquipmentCreated: boolean;
   milestoneDays: number[];
   notifyOnDueDay: boolean;
   repeatExpired: boolean;
@@ -537,7 +538,14 @@ export interface NotificationRecipient {
   userId: string | null;
   email: string;
   isActive: boolean;
+  notifyCalibrationReminders: boolean;
+  notifyCalibrationUpdated: boolean;
+  notifyEquipmentCreated: boolean;
 }
+
+export type NotificationRecipientUpdate = Partial<Pick<NotificationRecipient,
+  'isActive' | 'notifyCalibrationReminders' | 'notifyCalibrationUpdated' | 'notifyEquipmentCreated'
+>>;
 
 export interface NotificationAccount {
   id: string;
@@ -579,7 +587,7 @@ export async function listNotificationRecipients() {
 export async function addNotificationRecipient(payload: {
   userId?: string;
   email?: string;
-}) {
+} & Omit<NotificationRecipientUpdate, 'isActive'>) {
   const response = await apiClient.post<NotificationRecipient>(
     equipamentosApiPath('/notifications/recipients'),
     payload
@@ -587,13 +595,13 @@ export async function addNotificationRecipient(payload: {
   return response.data;
 }
 
-export async function setNotificationRecipientActive(
+export async function updateNotificationRecipient(
   id: string,
-  isActive: boolean
+  payload: NotificationRecipientUpdate
 ) {
   const response = await apiClient.put<NotificationRecipient>(
     equipamentosApiPath(`/notifications/recipients/${id}`),
-    { isActive }
+    payload
   );
   return response.data;
 }

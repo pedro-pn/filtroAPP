@@ -111,6 +111,7 @@ test('falha ao salvar o registro remove o PDF recém-enviado do armazenamento', 
 });
 
 test('categoria persiste a opção Anexar documentos ao criar e editar', async t => {
+  mockMethod(t, prisma.equipmentAttachment, 'findMany', async () => []);
   mockMethod(t, prisma.equipmentCategory, 'findUnique', async ({ where }) => where.id ? { name: 'Bombas', syncToRomaneio: false } : null);
   mockMethod(t, prisma.equipmentCategory, 'create', async ({ data }) => ({ id: 'category', ...data }));
   mockMethod(t, prisma.equipmentCategory, 'update', async ({ data }) => ({ id: 'category', ...data }));

@@ -204,6 +204,22 @@
 .equip-page-v2 .equip-notif-item.off .equip-notif-email { color: var(--muted); }
 .equip-page-v2 .equip-notif-tag { background: var(--brand-soft); color: var(--brand-text); }
 .equip-page-v2 .equip-notif-item .fv-remove-icon-button { margin-inline-start: auto; }
+.equip-page-v2 .equip-notif-types {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-5);
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-3) 0 0;
+  border: 0;
+  border-top: var(--border-width) solid var(--line);
+}
+.equip-page-v2 .equip-notif-types legend {
+  padding: 0 var(--space-2) 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
 
 .equip-page-v2 .equip-maintenance-config .operational-profile-grid {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));

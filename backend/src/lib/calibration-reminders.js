@@ -177,8 +177,8 @@ function groupCandidates(candidates) {
 }
 
 // Destinatários configurados (contas internas + e-mails avulsos).
-async function recipientsForCalibration(client) {
-  const emails = await activeRecipientEmails(client);
+async function recipientsForCalibration(client, preference = 'notifyCalibrationReminders') {
+  const emails = await activeRecipientEmails(client, preference);
   return emails.map(email => ({ email, notificationPreferencesUrl: '' }));
 }
 
@@ -224,7 +224,7 @@ export async function notifyCalibrationUpdated({
   const config = await getEquipmentNotificationConfig(client);
   if (!config.enabled) return false;
 
-  const recipients = await recipientsForCalibration(client);
+  const recipients = await recipientsForCalibration(client, 'notifyCalibrationUpdated');
   if (!recipients.length) return false;
 
   const template = buildCalibrationUpdatedEmailTemplate({

@@ -2779,26 +2779,30 @@ enum EquipmentAttachmentKind {
   OPERATION_MANUAL_PHOTO
 }
 
-// Destinatários das notificações de calibração do módulo Equipamentos: contas
+// Destinatários das notificações do módulo Equipamentos: contas
 // internas (userId) ou e-mails avulsos. Substitui a lista fixa de gestores/coordenadores.
 model EquipmentNotificationRecipient {
-  id        String   @id @default(cuid())
-  userId    String?
-  email     String   @unique
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                         String   @id @default(cuid())
+  userId                     String?
+  email                      String   @unique
+  isActive                   Boolean  @default(true)
+  notifyCalibrationReminders Boolean  @default(true)
+  notifyCalibrationUpdated   Boolean  @default(true)
+  notifyEquipmentCreated     Boolean  @default(false)
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
 }
 
-// Configuração (singleton) dos e-mails de calibração: marcos, repetição e on/off.
+// Configuração (singleton) dos e-mails de equipamentos.
 model EquipmentNotificationConfig {
-  id             String   @id @default(cuid())
-  enabled        Boolean  @default(true)
-  milestoneDays  Int[]    @default([30, 15, 7])
-  notifyOnDueDay Boolean  @default(true)
-  repeatExpired  Boolean  @default(true)
-  repeatGapDays  Int      @default(5)
-  updatedAt      DateTime @updatedAt
+  id                       String   @id @default(cuid())
+  enabled                  Boolean  @default(true)
+  notifyOnEquipmentCreated Boolean  @default(false)
+  milestoneDays            Int[]    @default([30, 15, 7])
+  notifyOnDueDay           Boolean  @default(true)
+  repeatExpired            Boolean  @default(true)
+  repeatGapDays            Int      @default(5)
+  updatedAt                DateTime @updatedAt
 }
 
 // Mapeamento configurável: cada "slot" de equipamento do formulário de RDO

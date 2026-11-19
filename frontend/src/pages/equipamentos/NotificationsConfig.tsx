@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 
-import type { NotificationConfig } from '../../api/equipamentos';
+import type { NotificationConfig, NotificationRecipientUpdate } from '../../api/equipamentos';
 import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { useToast } from '../../components/ui/ToastContext';
 import { Button } from '../../components/ui/ds';
@@ -11,17 +11,24 @@ import {
   useNotificationRecipients
 } from '../../hooks/useEquipamentos';
 
+const notificationTypes = [
+  { key: 'notifyCalibrationReminders', label: 'Vencimento da calibração' },
+  { key: 'notifyCalibrationUpdated', label: 'Calibração atualizada' },
+  { key: 'notifyEquipmentCreated', label: 'Novo equipamento cadastrado' }
+] as const;
+
 export function NotificationsConfig() {
   const configQuery = useNotificationConfig();
   const recipientsQuery = useNotificationRecipients();
   const accountsQuery = useNotificationAccounts();
-  const { updateConfig, addRecipient, setActive, removeRecipient } = useNotificationMutations();
+  const { updateConfig, addRecipient, updateRecipient, removeRecipient } = useNotificationMutations();
   const showToast = useToast();
 
   const [draft, setDraft] = useState<NotificationConfig | null>(null);
   const [milestonesText, setMilestonesText] = useState('');
   const [accountId, setAccountId] = useState('');
   const [email, setEmail] = useState('');
+  const [recipientChange, setRecipientChange] = useState<({ id: string } & NotificationRecipientUpdate) | null>(null);
 
   useEffect(() => {
     if (configQuery.data && !draft) {
@@ -30,7 +37,11 @@ export function NotificationsConfig() {
     }
   }, [configQuery.data, draft]);
 
-  const recipients = useMemo(() => recipientsQuery.data || [], [recipientsQuery.data]);
+  const recipients = useMemo(() => (recipientsQuery.data || []).map(recipient =>
+    recipientChange?.id === recipient.id
+      ? { ...recipient, ...recipientChange }
+      : recipient
+  ), [recipientsQuery.data, recipientChange]);
   const linkedEmails = useMemo(() => new Set(recipients.map(r => r.email.toLowerCase())), [recipients]);
   const availableAccounts = (accountsQuery.data || []).filter(account => !linkedEmails.has(account.email.toLowerCase()));
 
@@ -45,7 +56,7 @@ export function NotificationsConfig() {
       milestonesText.split(',').map(part => Math.trunc(Number(part.trim()))).filter(value => Number.isFinite(value) && value > 0)
     )).sort((a, b) => b - a);
     updateConfig.mutate({ ...draft, milestoneDays }, {
-      onSuccess: config => { setMilestonesText(config.milestoneDays.join(', ')); showToast('Configuração salva.', 'success'); },
+      onSuccess: config => { setDraft(config); setMilestonesText(config.milestoneDays.join(', ')); showToast('Configuração salva.', 'success'); },
       onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível salvar.', 'error')
     });
   }
@@ -68,12 +79,26 @@ export function NotificationsConfig() {
     });
   }
 
+  function changeRecipient(id: string, preferences: NotificationRecipientUpdate) {
+    setRecipientChange({ id, ...preferences });
+    updateRecipient.mutate({ id, ...preferences }, {
+      onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível atualizar o destinatário.', 'error'),
+      onSettled: () => setRecipientChange(null)
+    });
+  }
+
   return (
     <>
       <section className="page-card">
-        <div className="admin-toolbar"><div className="sec">Notificações de calibração</div></div>
+        <div className="admin-toolbar"><div className="sec">Notificações por e-mail</div></div>
         {draft && (
           <form className="equip-notif-config" onSubmit={saveConfig}>
+            <label className="equip-toggle">
+              <input type="checkbox" checked={draft.notifyOnEquipmentCreated} onChange={e => patch({ notifyOnEquipmentCreated: e.target.checked })} />
+              <span>Avisar quando um novo equipamento for cadastrado</span>
+            </label>
+            <small className="rel-meta">O aviso de cadastro é enviado aos destinatários com esse tipo de notificação selecionado.</small>
+
             <label className="equip-toggle">
               <input type="checkbox" checked={draft.enabled} onChange={e => patch({ enabled: e.target.checked })} />
               <span>Enviar e-mails de calibração</span>
@@ -127,7 +152,7 @@ export function NotificationsConfig() {
 
       <section className="page-card">
         <div className="admin-toolbar"><div className="sec">Destinatários</div></div>
-        <p className="rel-meta equip-slots-hint">Quem recebe os e-mails de calibração: contas internas ou e-mails avulsos.</p>
+        <p className="rel-meta equip-slots-hint">Escolha quais avisos cada conta interna ou e-mail avulso recebe. As escolhas são salvas automaticamente.</p>
 
         <div className="equip-notif-add">
           <div className="field-group">
@@ -162,11 +187,27 @@ export function NotificationsConfig() {
                 <input
                   type="checkbox"
                   checked={recipient.isActive}
-                  onChange={e => setActive.mutate({ id: recipient.id, isActive: e.target.checked })}
+                  aria-label={`Destinatário ativo: ${recipient.email}`}
+                  disabled={recipientChange !== null}
+                  onChange={e => changeRecipient(recipient.id, { isActive: e.target.checked })}
                 />
                 <span>Ativo</span>
               </label>
               <RemoveIconButton label={`Remover destinatário ${recipient.email}`} onClick={() => removeRecipient.mutate(recipient.id)} />
+              <fieldset className="equip-notif-types" disabled={!recipient.isActive || recipientChange !== null}>
+                <legend>Receber por e-mail</legend>
+                {notificationTypes.map(type => (
+                  <label className="equip-toggle compact" key={type.key}>
+                    <input
+                      type="checkbox"
+                      checked={recipient[type.key]}
+                      aria-label={`${type.label} para ${recipient.email}`}
+                      onChange={e => changeRecipient(recipient.id, { [type.key]: e.target.checked })}
+                    />
+                    <span>{type.label}</span>
+                  </label>
+                ))}
+              </fieldset>
             </li>
           ))}
         </ul>

@@ -314,3 +314,23 @@ test('sends calibration updated email to all configured recipients', async () =>
   assert.match(messages[0].text, /SN-CAL/);
   assert.match(messages[0].text, /Nova validade: 05\/12\/2026/);
 });
+
+test('lembretes e atualizações respeitam escolhas independentes por destinatário', async () => {
+  const recipients = [
+    { email: 'lembrete@example.com', isActive: true, notifyCalibrationReminders: true, notifyCalibrationUpdated: false },
+    { email: 'atualizacao@example.com', isActive: true, notifyCalibrationReminders: false, notifyCalibrationUpdated: true },
+    { email: 'cadastro@example.com', isActive: true, notifyCalibrationReminders: false, notifyCalibrationUpdated: false, notifyEquipmentCreated: true }
+  ];
+  const { messages } = await runScenario({ recipients,
+    equipment: [eq({ id: 'eq-1', code: 'CP-01', expiresAt: new Date('2026-07-05T00:00:00Z') })]
+  });
+  assert.deepEqual(messages.map(message => message.to), ['lembrete@example.com']);
+  const updates = [];
+  await notifyCalibrationUpdated({
+    client: makeClient({ recipients }), now: NOW,
+    equipment: eq({ id: 'eq-1', code: 'CP-01', expiresAt: new Date('2026-12-05T00:00:00Z') }),
+    previousExpiresAt: new Date('2026-06-01T00:00:00Z'),
+    mailer: async message => updates.push(message)
+  });
+  assert.deepEqual(updates.map(message => message.to), ['atualizacao@example.com']);
+});

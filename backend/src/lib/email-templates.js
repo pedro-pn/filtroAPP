@@ -1119,6 +1119,27 @@ export function buildCalibrationReminderEmailTemplate({
   };
 }
 
+export function buildEquipmentCreatedEmailTemplate({ equipment }) {
+  const details = [
+    ['Código', equipment?.code || '---'],
+    ['Nome', equipment?.name || '---'],
+    ['Categoria', equipment?.category?.name || 'Equipamentos']
+  ];
+  return {
+    subject: `[Filtrovali] Novo equipamento cadastrado - ${equipment?.code || ''}`.trim(),
+    text: [
+      'Um novo equipamento foi cadastrado no sistema.', '',
+      ...details.map(([label, value]) => `${label}: ${value}`), '', privacyTextLine()
+    ].join('\n'),
+    html: wrapEmailHtml({
+      title: 'Novo equipamento cadastrado',
+      intro: 'Um novo equipamento foi cadastrado no sistema.',
+      body: `${details.map(([label, value]) => `<p><strong>${label}:</strong> ${escapeHtml(value)}</p>`).join('')}${privacyHtmlLine()}`,
+      footer: 'Esta notificação foi gerada automaticamente pelo sistema Filtrovali.'
+    })
+  };
+}
+
 export function buildCalibrationUpdatedEmailTemplate({
   category,
   equipment,
