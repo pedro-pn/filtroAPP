@@ -1,8 +1,14 @@
 import axios from 'axios';
 import { notifyDataWrite } from './dataUpdates';
 
+// Sessão em cookie HttpOnly (spec 041): o token não fica mais no localStorage.
+// A chave antiga só é lida uma vez no boot, para migrar quem já estava logado.
 const TOKEN_STORAGE_KEY = 'filtrovali-react-token';
 const UNAUTHORIZED_EVENT = 'filtrovali:unauthorized';
+// Toda chamada do app leva este cabeçalho; o backend exige nas escritas por cookie (CSRF).
+const CSRF_HEADER = 'X-Filtrovali-Request';
+// Respostas 401 destas rotas não significam "sessão caiu" (credencial errada, boot).
+const UNAUTHORIZED_EXEMPT_PATHS = ['/auth/login', '/auth/2fa/verify', '/auth/2fa/resend', '/auth/me'];
 
 export class ApiClientError extends Error {
   status?: number;
@@ -25,7 +31,8 @@ export class ApiClientError extends Error {
 }
 
 export const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api'
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+  headers: { [CSRF_HEADER]: '1' }
 });
 
 export function rdoApiPath(path: string) {
@@ -54,29 +61,6 @@ export function estoqueApiPath(path: string) {
 
 export function qualidadeApiPath(path: string) {
   return `/qualidade${path.startsWith('/') ? path : `/${path}`}`;
-}
-
-function tokenFromAuthorizationHeader(header: unknown) {
-  if (typeof header !== 'string') return '';
-  const match = header.match(/^Bearer\s+(.+)$/i);
-  return match?.[1]?.trim() || '';
-}
-
-function tokenFromRequestHeaders(headers: unknown) {
-  if (!headers) return '';
-
-  const maybeAxiosHeaders = headers as { get?: unknown };
-  if (typeof maybeAxiosHeaders.get === 'function') {
-    const token = tokenFromAuthorizationHeader((maybeAxiosHeaders.get as (name: string) => unknown)('Authorization'));
-    if (token) return token;
-  }
-
-  if (typeof headers === 'object') {
-    const headerMap = headers as Record<string, unknown>;
-    return tokenFromAuthorizationHeader(headerMap.Authorization || headerMap.authorization);
-  }
-
-  return '';
 }
 
 function extractApiErrorMessage(error: unknown) {
@@ -113,14 +97,6 @@ function translateAxiosErrorMessage(message: string | undefined, status?: number
   return text;
 }
 
-apiClient.interceptors.request.use(config => {
-  const token = localStorage.getItem(TOKEN_STORAGE_KEY);
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
 apiClient.interceptors.response.use(
   response => {
     notifyDataWrite(response.config.method, response.config.url);
@@ -131,9 +107,10 @@ apiClient.interceptors.response.use(
     const status = axios.isAxiosError(error) ? error.response?.status : undefined;
 
     if (status === 401 && axios.isAxiosError(error)) {
-      const requestToken = tokenFromRequestHeaders(error.config?.headers);
-      if (requestToken && requestToken === localStorage.getItem(TOKEN_STORAGE_KEY)) {
-        window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT, { detail: { token: requestToken } }));
+      const url = String(error.config?.url || '');
+      if (!UNAUTHORIZED_EXEMPT_PATHS.some(path => url.startsWith(path))) {
+        const code = (error.response?.data as { code?: string } | undefined)?.code;
+        window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT, { detail: { code } }));
       }
     }
 
@@ -145,4 +122,4 @@ apiClient.interceptors.response.use(
   }
 );
 
-export { TOKEN_STORAGE_KEY, UNAUTHORIZED_EVENT };
+export { CSRF_HEADER, TOKEN_STORAGE_KEY, UNAUTHORIZED_EVENT };

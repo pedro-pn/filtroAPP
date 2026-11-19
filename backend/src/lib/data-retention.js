@@ -22,13 +22,17 @@ export function retentionCutoffs(now = new Date(), apiTokenLogRetentionDays = 36
     auditLogAnonymizeBefore: new Date(now.getTime() - 730 * DAY_MS),
     surveyEvidenceAnonymizeBefore: new Date(now.getTime() - 365 * DAY_MS),
     abandonedDraftDeleteBefore: new Date(now.getTime() - 183 * DAY_MS),
-    apiTokenUsageDeleteBefore: new Date(now.getTime() - apiTokenLogRetentionDays * DAY_MS)
+    apiTokenUsageDeleteBefore: new Date(now.getTime() - apiTokenLogRetentionDays * DAY_MS),
+    // Sessões paradas além do limite de inatividade (spec 041) já não autenticam.
+    ...(env.sessionIdleHours > 0 ? { sessionIdleBefore: new Date(now.getTime() - env.sessionIdleHours * 60 * 60 * 1000) } : {})
   };
 }
 
 export function retentionTargets(cutoffs) {
   return {
-    expiredSessions: { expiresAt: { lt: cutoffs.now } },
+    expiredSessions: cutoffs.sessionIdleBefore
+      ? { OR: [{ expiresAt: { lt: cutoffs.now } }, { lastUsedAt: { lt: cutoffs.sessionIdleBefore } }] }
+      : { expiresAt: { lt: cutoffs.now } },
     expiredPasswordTokens: { expiresAt: { lt: cutoffs.now } },
     reportAuditLogs: {
       createdAt: { lt: cutoffs.auditLogAnonymizeBefore },

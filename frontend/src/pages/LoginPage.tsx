@@ -14,7 +14,7 @@ import { PublicFlowShell } from './PublicFlowShell';
 const REMEMBERED_USER_KEY = 'filtrovali-react-remembered-user';
 
 export function LoginPage({ preview = false }: { preview?: boolean }) {
-  const { isAuthenticated, isBootstrapping, token, user, login, completeTwoFactor } = useAuth();
+  const { isAuthenticated, isBootstrapping, sessionEndReason, user, login, completeTwoFactor } = useAuth();
   const location = useLocation();
   const [username, setUsername] = useState(() => {
     if (preview) return '';
@@ -41,7 +41,7 @@ export function LoginPage({ preview = false }: { preview?: boolean }) {
     return next.startsWith('/') && !next.startsWith('//') && !next.includes('\\') ? next : '';
   }, [location.search]);
   const redirectPath = useMemo(() => nextPath || preferredEntryPath(user), [nextPath, user]);
-  if (!preview && (isBootstrapping || (token && !user))) return null;
+  if (!preview && isBootstrapping) return null;
   if (!preview && isAuthenticated) return <Navigate to={redirectPath} replace />;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -154,6 +154,8 @@ export function LoginPage({ preview = false }: { preview?: boolean }) {
         <label className="public-flow-checkbox"><input type="checkbox" checked={rememberMe} onChange={event => setRememberMe(event.target.checked)} />Lembrar usuário</label>
         <Link to="/forgot-password">Esqueci minha senha</Link>
       </div>
+      {!error && sessionEndReason === 'idle' ? <Alert tone="info">Sua sessão expirou por inatividade. Entre de novo para continuar.</Alert> : null}
+      {!error && sessionEndReason === 'expired' ? <Alert tone="info">Sua sessão terminou. Entre de novo para continuar.</Alert> : null}
       {error ? <Alert tone="danger">{error}</Alert> : null}
       {previewMessage ? <Alert tone="info">{previewMessage}</Alert> : null}
       <Button variant="primary" type="submit" loading={isSubmitting} fullWidth>{isSubmitting ? 'Entrando…' : 'Entrar'}</Button>

@@ -711,6 +711,36 @@ e-mail; marque "Lembrar este navegador" para não pedir de novo por 30 dias.
   retenção (`DATA_RETENTION_JOB_ENABLED`); IP/navegador da trilha
   `AuthSecurityEvent` são anonimizados após 2 anos.
 
+## Sessão do navegador em cookie (spec 041)
+
+A sessão passa a viajar num cookie `fv_session` (`HttpOnly`, `Secure`,
+`SameSite=Strict`) e as escritas exigem o cabeçalho `X-Filtrovali-Request` mais uma
+origem permitida (`ALLOWED_ORIGIN`, que produção já define). O nginx repassa
+`Cookie`/`Set-Cookie` sem configuração extra. A migration só acrescenta
+`UserSession.lastUsedAt`.
+
+**Rode no servidor** — nada além do deploy normal:
+
+```bash
+cd ~/apps/filtroAPP && git pull --ff-only && deploy/deploy-prod.sh
+```
+
+Ninguém é deslogado: quem estava logado com o token antigo (no `localStorage`)
+ganha o cookie no primeiro acesso. A transição termina em
+`SESSION_BEARER_BROWSER_UNTIL` (padrão **2026-12-20** em produção); a partir daí o
+token de sessão por `Authorization: Bearer` responde 401 `SESSION_BEARER_RETIRED`
+e só o cookie vale. Para adiar, acrescente ao `backend/.env.production`, por exemplo,
+`SESSION_BEARER_BROWSER_UNTIL=2027-01-15` (ou `never`) e recrie backend e worker.
+A API de integração (`/api/integracoes/v1`, tokens `fva_…`) não é afetada.
+
+Conferência no navegador de produção, depois do deploy (DevTools → Application):
+cookie `fv_session` com HttpOnly, Secure e SameSite=Strict; `localStorage` sem
+`filtrovali-react-token`; uma escrita feita de outra origem recebe 403 `CSRF_*`.
+
+Prazos (opcional, padrões já valem): `SESSION_ABSOLUTE_HOURS=168`,
+`SESSION_REMEMBER_DAYS=30`, `SESSION_IDLE_HOURS=12` (sessões paradas além do limite
+caem com `SESSION_IDLE` e são apagadas pela rotina de retenção).
+
 ## Retenção LGPD
 
 O worker roda um job diário de retenção quando `DATA_RETENTION_JOB_ENABLED=true`. A rotina base só apaga sessões e
