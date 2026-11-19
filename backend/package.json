@@ -18,6 +18,7 @@
     "prisma:deploy": "prisma migrate deploy",
     "migration:check": "node scripts/migration-safety.js",
     "prisma:seed": "node prisma/seed.js",
+    "e2e:seed": "node prisma/e2e-seed.js",
     "import:master-data": "node scripts/import-master-data.js",
     "import:collaborators-csv": "node scripts/import-collaborators-csv.js",
     "normalize:collaborator-roles": "node scripts/normalize-collaborator-roles.js",
