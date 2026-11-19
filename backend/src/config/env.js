@@ -93,6 +93,15 @@ export function assertProductionTrustProxyConfigured({ nodeEnv, trustProxyConfig
   }
 }
 
+// Sem ALLOWED_ORIGIN o CORS aceita qualquer origem (app.js); em produção isso
+// precisa ser explícito.
+export function assertProductionAllowedOriginConfigured({ nodeEnv, allowedOrigin }) {
+  if (nodeEnv !== 'production') return;
+  if (!String(allowedOrigin || '').split(',').some(origin => origin.trim())) {
+    throw new Error('ALLOWED_ORIGIN deve ser configurado em produção (origens do frontend, separadas por vírgula); vazio liberaria qualquer origem no CORS.');
+  }
+}
+
 export function assertProductionSignatureTokenSecretConfigured({ nodeEnv, signatureTokenSecret }) {
   if (nodeEnv !== 'production') return;
   if (!signatureTokenSecret) {
@@ -248,6 +257,7 @@ const rawEnvSchema = z.object({
 
   for (const check of [
     () => assertProductionTrustProxyConfigured({ nodeEnv: value.NODE_ENV, trustProxyConfigured, trustProxy }),
+    () => assertProductionAllowedOriginConfigured({ nodeEnv: value.NODE_ENV, allowedOrigin: value.ALLOWED_ORIGIN }),
     () => assertProductionSignatureTokenSecretConfigured({
       nodeEnv: value.NODE_ENV,
       signatureTokenSecret: value.SIGNATURE_TOKEN_SECRET

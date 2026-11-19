@@ -143,8 +143,9 @@ export function createMailerTransport({ envConfig = env, fetchImpl = globalThis.
       ? { type: 'OAuth2', user: envConfig.smtpUser }
       : { user: envConfig.smtpUser, pass: envConfig.smtpPass },
     tls: {
-      // Tokens OAuth2 nunca devem ser enviados por uma conexão com certificado não confiável.
-      rejectUnauthorized: authMode === 'oauth2'
+      // Token OAuth2 ou senha SMTP: nenhuma credencial vai por uma conexão com
+      // certificado não confiável (evita MITM no modo senha).
+      rejectUnauthorized: true
     }
   });
 
