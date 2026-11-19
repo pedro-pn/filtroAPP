@@ -116,12 +116,15 @@ function sessionIdle(session, now, config = env) {
 }
 
 function touchSession(session, now) {
-  const lastUsedAt = session.lastUsedAt ? new Date(session.lastUsedAt).getTime() : 0;
+  // Sessões anteriores à migration (sem lastUsedAt) ficam só com o prazo absoluto
+  // (≤ 30 dias); as criadas depois já nascem com lastUsedAt.
+  if (!session.lastUsedAt) return;
+  const lastUsedAt = new Date(session.lastUsedAt).getTime();
   if (now.getTime() - lastUsedAt < LAST_USED_WRITE_INTERVAL_MS) return;
   // Escrita leve e no máximo a cada 5 min por sessão; falha não derruba o pedido.
   Promise.resolve()
     .then(() => prisma.userSession.updateMany({
-      where: { id: session.id, OR: [{ lastUsedAt: null }, { lastUsedAt: { lt: new Date(now.getTime() - LAST_USED_WRITE_INTERVAL_MS) } }] },
+      where: { id: session.id, lastUsedAt: { lt: new Date(now.getTime() - LAST_USED_WRITE_INTERVAL_MS) } },
       data: { lastUsedAt: now }
     }))
     .catch(() => {});
