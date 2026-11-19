@@ -15,7 +15,8 @@ este arquivo no mesmo PR (pilar 13.7/13.8).
 | **RLQ** | Relatório de Limpeza Química. Traz as etapas e os produtos químicos usados; alimenta o Data Book (FDS dos produtos). | `ReportType.RLQ`, `frontend/src/pages/efetivo/components/QualityDocumentModels.tsx` |
 | **RTP** | Relatório de Teste de Pressão. | `ReportType.RTP`, idem |
 | **RCPU** | Relatório de Contagem de Partículas e Umidade (análise do óleo). | `ReportType.RCPU`, idem |
-| **RLM / RLF / RLI** | Demais relatórios de serviço do sistema. Pela convenção dos nomes: limpeza mecânica, flushing e inibição **(confirmar)**. | `ReportType.RLM`, `RLF`, `RLI` |
+| **RLM** | Relatório de limpeza mecânica. | `ReportType.RLM` |
+| **RLF / RLI** | Relatórios exclusivos do **serviço de inibição** (ver *Inibição*): RLF registra a etapa de lavagem com água (flushing da inibição) e RLI a circulação de inibidor de corrosão. Não confundir com os serviços de flushing primário e secundário. | `ReportType.RLF`, `ReportType.RLI` |
 | **Relatório liberado** | Relatório revisado e liberado para o cliente ver/baixar. | e-mails em `backend/src/lib/email-templates.js` |
 | **Revisar relatórios** | Permissão extra (`REVIEW_REPORTS`) que deixa o coordenador editar e aprovar RDOs. | `RdoExtraPermission` |
 | **Data Book** | Dossiê final do projeto em PDF: relatórios, certificados, FDS e revisões, gerado pelo gerador Python. | `backend/databook/`, `backend/src/routes/resources/databook.js`, `docs/DATABOOK_*.md` |
@@ -32,8 +33,8 @@ este arquivo no mesmo PR (pilar 13.7/13.8).
 | **Acompanhamento** | Módulo de gestão do projeto: avanço físico, custos, horas previstas x realizadas, cronograma, faturamento. | `backend/src/lib/acompanhamento/`, `frontend/src/pages/acompanhamento/` |
 | **Medição** | Quantidade executada de um serviço (metros, litros ou unidades) registrada nos relatórios; base do avanço e do faturamento. | `shared/modules/mechanical-measurement.js`, `model ProjectWorkflowMeasurement` |
 | **Conciliação (por medição)** | Tela do Acompanhamento que vincula quantitativos importados às medições dos relatórios. | `docs/conciliacao-por-medicao.md`, `ReportMeasurementLink` |
-| **Sistemas / Inibição** | Sistemas hidráulicos/de lubrificação do cliente atendidos no projeto; "inibição" é o serviço de preservação (aplicação de inibidor de corrosão) desses sistemas **(confirmar)**. | `backend/scripts/import-inhibition-systems-csv.js`, `report-pdf.js` (`Flushing/Inibição`) |
-| **Flushing** | Circulação de óleo em alta vazão para limpar tubulações de um sistema. | `report-pdf.js`, serviços históricos |
+| **Sistemas / Inibição** | **Inibição**: serviço específico de um cliente, feito nos sistemas dele, em duas etapas — lavagem com água (flushing) e circulação de inibidor de corrosão — registradas nos relatórios RLF e RLI. **Sistemas**: os sistemas do cliente atendidos no serviço. | `backend/scripts/import-inhibition-systems-csv.js`, `report-pdf.js` (`Flushing/Inibição`) |
+| **Flushing** | Serviços de flushing primário e secundário: circulação de óleo em alta vazão para limpar tubulações de um sistema. Diferente da lavagem com água que faz parte do serviço de *Inibição* (RLF). | `report-pdf.js`, serviços históricos |
 | **Serviços históricos** | Serviços executados antes do sistema, lançados para compor o histórico do cliente. | `docs/SERVICOS_HISTORICOS.md` |
 | **Meta semanal** | Meta de avanço da semana por projeto, mostrada no topo do Acompanhamento e do Efetivo. | `shared/modules/mission-weekly-progress.js` |
 
