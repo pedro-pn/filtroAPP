@@ -157,8 +157,10 @@ jobs:
       - name: Install Hunspell pt-BR (revisão ortográfica do Data Book)
         timeout-minutes: 15
         run: |
+          # Com cache: dpkg instala os .deb guardados direto, sem índice nem rede.
+          # Se faltar dependência, o apt pela rede abaixo completa a instalação.
           if [ "${{ steps.hunspellcache.outputs.cache-hit }}" = "true" ] && ls ~/apt-archives/*.deb > /dev/null 2>&1 \
-            && sudo apt-get install -y --no-download --no-install-recommends ~/apt-archives/*.deb; then
+            && sudo dpkg -i ~/apt-archives/*.deb && hunspell -D < /dev/null 2>&1 | grep -q pt_BR; then
             exit 0
           fi
           echo "Cache de pacotes indisponível ou incompatível: instalando pela rede."
