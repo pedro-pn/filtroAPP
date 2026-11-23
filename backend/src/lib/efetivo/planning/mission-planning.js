@@ -484,7 +484,8 @@ export async function deleteMission(missionId, context = {}, dependencies = {}) 
 
 export async function moveMissionStage(missionId, payload, context = {}, dependencies = {}) {
   const database = await resolvePlanningDatabase(dependencies.database);
-  return runPlanningTransaction(database, async tx => {
+  const recipientsService = payload.reportRecipients ? await import('../../projects/report-recipients.js') : null;
+  const result = await runPlanningTransaction(database, async tx => {
     const existing = await tx.efetivoMissionPlan.findUnique({
       where: { id: missionId },
       include: {
@@ -534,6 +535,9 @@ export async function moveMissionStage(missionId, payload, context = {}, depende
       await assertProjectMobilizationAuthorized(tx, existing.projectId);
     }
     const startsExecution = plan.kind === 'OFFICIAL' && existing.stage !== 'EXECUTION' && payload.stage === 'EXECUTION';
+    if (payload.reportRecipients && !startsExecution) {
+      throw planningError('Confirme os destinatários ao iniciar a execução de uma missão oficial.', { code: 'MISSION_REPORT_RECIPIENTS_EXECUTION_REQUIRED' });
+    }
     if (startsExecution) {
       if (!payload.startDate) throw planningError('Confirme a data de início real da execução.', { code: 'PROJECT_WORKFLOW_EXECUTION_START_REQUIRED' });
       const today = (dependencies.now || new Date()).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
@@ -542,6 +546,7 @@ export async function moveMissionStage(missionId, payload, context = {}, depende
         throw planningError('O início real deve ser uma data já ocorrida e não pode ser anterior à mobilização efetiva.', { code: 'INVALID_PROJECT_WORKFLOW_EXECUTION_START' });
       }
       const reportTeam = validateMissionReportOperator(existing, payload.operatorId);
+      if (payload.reportRecipients) await recipientsService.saveProjectReportRecipients(tx, existing.projectId, payload.reportRecipients, dependencies);
       await assignMissionReportTeam(tx, existing.projectId, payload.operatorId, reportTeam, payload.startDate);
     }
     const updatesDemobilization = payload.stage === 'FINISHED' && payload.returnDate !== undefined;
@@ -584,8 +589,10 @@ export async function moveMissionStage(missionId, payload, context = {}, depende
     await recordEfetivoAudit(tx, {
       planId: plan.id, actorUserId: context.actorUserId, action: 'MISSION_STAGE_CHANGE', entityType: 'MISSION', entityId: missionId,
       summary: `${existing.project.name} movida para ${payload.stage}.`, beforeData: { stage: existing.stage, order: existing.kanbanOrder },
-      afterData: { stage: payload.stage, order: index, ...(startsExecution ? { startDate: payload.startDate, operatorId: payload.operatorId } : {}) }, evidence: context.evidence
+      afterData: { stage: payload.stage, order: index, ...(startsExecution ? { startDate: payload.startDate, operatorId: payload.operatorId, ...(payload.reportRecipients ? { reportRecipients: payload.reportRecipients } : {}) } : {}) }, evidence: context.evidence
     });
     return missionWithCurrentRoles(moved);
   });
+  if (payload.reportRecipients) await recipientsService.reconcileProjectReportRecipients(result.projectId, context, dependencies);
+  return result;
 }

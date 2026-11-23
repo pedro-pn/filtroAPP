@@ -2,6 +2,7 @@ import { apiClient, type ApiClientError } from './client';
 import type { ProjectRomaneiosResponse } from './acompanhamentoComercial';
 import type { ProjectDocumentRequirementSummary } from './projectDocuments';
 import type { ClientSigner } from '../types/domain';
+import type { ProjectReportRecipients } from '../../../shared/schemas/project-report-recipients.js';
 
 export type ProjectWorkflowStage = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'WAITING_PLANNING' | 'MOBILIZATION_PLANNING' | 'PREPARATION' | 'MOBILIZATION' | 'EXECUTION' | 'DEMOBILIZATION' | 'POST_JOB' | 'FINAL_MEASUREMENT' | 'FINISHED';
 export type ProjectWorkflowChecklistStatus = 'PENDING' | 'DONE' | 'NOT_APPLICABLE';
@@ -934,7 +935,7 @@ export type ProjectWorkflowPatch = { correctionStage?: ProjectWorkflowStage | nu
   | { action: 'documentation_requirement_archive'; version: number; requirementId: string; archived: boolean }
   | { action: 'issue'; version: number; issueId: string; description: string; ownerName: string | null; requiredLeadTimeDays: number | null; dueDate: string | null; criticality: ProjectWorkflowCriticality; status: ProjectWorkflowIssueStatus }
   | { action: 'accept'; version: number }
-  | { action: 'stage'; version: number; stage: ProjectWorkflowStage; startDate?: string; operatorId?: string; reason?: string }
+  | { action: 'stage'; version: number; stage: ProjectWorkflowStage; startDate?: string; operatorId?: string; reportRecipients?: ProjectReportRecipients; reason?: string }
   | { action: 'mobilization'; version: number; mobilizationDate: string }
   | { action: 'demobilization'; version: number; mobilizationDate?: string | null; fieldCompletionDate?: string | null; returnDate?: string | null }
   | { action: 'post_job'; version: number; meetingDate?: string | null; fieldLeaderFeedback?: string | null; teamFeedback?: string | null; problemsFound?: string | null; solutionsAdopted?: string | null; improvementOpportunities?: string | null; lessonsLearned?: string | null; equipmentFeedback?: string | null; planningFeedback?: string | null }

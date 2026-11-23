@@ -813,6 +813,7 @@ export function makeProjectWorkflowSchemas(z) {
     stage: z.enum(PROJECT_WORKFLOW_STAGES),
     startDate: dateOnly.optional(),
     operatorId: id.optional(),
+    reportRecipients: makeProjectReportRecipientsSchema(z).optional(),
     reason: z.string().trim().min(3, 'Informe uma justificativa com ao menos 3 caracteres.').max(1000, 'A justificativa deve ter no máximo 1000 caracteres.').optional()
   }).strict().superRefine((value, ctx) => {
     if (value.stage === 'EXECUTION' && !value.startDate) {
@@ -823,6 +824,9 @@ export function makeProjectWorkflowSchemas(z) {
     }
     if (value.stage !== 'EXECUTION' && value.operatorId) {
       ctx.addIssue({ code: 'custom', path: ['operatorId'], message: 'O operador responsável só pode ser selecionado ao entrar em execução.' });
+    }
+    if (value.stage !== 'EXECUTION' && value.reportRecipients) {
+      ctx.addIssue({ code: 'custom', path: ['reportRecipients'], message: 'Os destinatários só podem ser confirmados ao entrar em execução.' });
     }
   });
   const mobilization = z.object({

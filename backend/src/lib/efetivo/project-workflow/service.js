@@ -62,7 +62,7 @@ import { projectDocumentReadiness, projectDocumentRequirements } from './documen
 import { notifyProjectWorkflowClientRegistrationRequested, notifyProjectWorkflowResourceConflicts } from './email-alerts.js';
 import { getNotificationEmailSetting, setNotificationEmailSetting } from '../notification-email-settings.js';
 import { detectResourceConflicts, syncResourceConflictIssues } from './resource-conflicts.js';
-import { saveProjectReportRecipients } from '../../projects/report-recipients.js';
+import { reconcileProjectReportRecipients, saveProjectReportRecipients } from '../../projects/report-recipients.js';
 import { buildProjectExecutionWeeklyReview, reviewStartDate } from './weekly-review.js';
 import {
   currentRomaneioEquipmentForProject,
@@ -1066,6 +1066,10 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
         name: project.name,
         clientName: project.clientName,
         clientEmailPrimary: project.clientEmailPrimary,
+        clientEmailCc: project.clientEmailCc || [],
+        clientSigners: project.clientSigners || [],
+        clientSignerFirstName: project.clientSignerFirstName || '',
+        clientSignerLastName: project.clientSignerLastName || '',
         location: project.location,
         startDate: dateKey(project.startDate),
         operatorId: project.operatorId || null,
@@ -2314,6 +2318,7 @@ async function applyStage(tx, workflow, payload, now, context, dependencies) {
     : null;
   const issues = projectWorkflowTransitionIssues({
     ...workflow,
+    ...(payload.stage === 'EXECUTION' && payload.reportRecipients ? { project: { ...workflow.project, ...payload.reportRecipients } } : {}),
     demobilizationDate: projectDates?.demobilizationDate || null
   }, payload.stage);
   if (issues.length) {
@@ -2341,6 +2346,9 @@ async function applyStage(tx, workflow, payload, now, context, dependencies) {
       select: OPERATIONAL_MISSION_QUERY.select
     });
     reportTeam = validateMissionReportOperator(mission, payload.operatorId);
+    if (payload.reportRecipients) {
+      await saveProjectReportRecipients(tx, workflow.projectId, payload.reportRecipients, dependencies);
+    }
   }
   // Voltar para a Preparação (da Mobilização em campo, ou da Execução na Sede) devolve a missão a Stand by:
   // sem "Pronto para mobilizar", essa é a única forma de sair de uma etapa operacional de volta à Preparação.
@@ -2654,13 +2662,8 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
     delete eventData.version;
     await recordEvent(tx, projectId, context.actorUserId, `WORKFLOW_${payload.action.toUpperCase()}`, eventData);
   });
-  if (payload.action === 'report_recipients') {
-    const reconcile = dependencies.reconcileProjectClientSignatureRequirements
-      || (await import('../../../routes/resources/reports.js')).reconcileProjectClientSignatureRequirements;
-    await reconcile(projectId, { userId: context.actorUserId, evidence: context.evidence || {} });
-    const clearCaches = dependencies.clearProjectDerivedCaches
-      || (await import('../../resource-list-cache.js')).clearProjectDerivedCaches;
-    clearCaches();
+  if (payload.action === 'report_recipients' || (payload.action === 'stage' && payload.stage === 'EXECUTION' && payload.reportRecipients)) {
+    await reconcileProjectReportRecipients(projectId, context, dependencies);
   }
   if (resourceConflictNotice) {
     try {
