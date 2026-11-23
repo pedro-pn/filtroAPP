@@ -17,20 +17,24 @@ import './PhysicalSignatureBatchDialog.css';
 
 interface Props {
   projects: Project[];
+  projectsLoading?: boolean;
+  projectsError?: boolean;
+  onRetryProjects?: () => void;
   onClose: () => void;
   upload: (payload: PhysicalSignatureUpload) => Promise<unknown>;
 }
 
-export function PhysicalSignatureBatchDialog({ projects, onClose, upload }: Props) {
+export function PhysicalSignatureBatchDialog({ projects, projectsLoading = false, projectsError = false, onRetryProjects, onClose, upload }: Props) {
   const [projectId, setProjectId] = useState('');
   const [files, setFiles] = useState<PhysicalSignatureBatchFile[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
   const showToast = useToast();
+  const projectsReady = !projectsLoading && !projectsError;
   const candidates = useQuery({
     queryKey: ['physical-signature-candidates', projectId],
     queryFn: ({ signal }) => listReports({ projectId, status: 'APPROVED', reportType: 'RDO', summary: true }, signal),
-    enabled: Boolean(projectId),
+    enabled: Boolean(projectId) && projectsReady,
     select: reports => reports.filter(report => report.projectId === projectId && canReceivePhysicalSignature(report)),
     // Keep the chosen targets visible throughout the batch, including saved rows.
     staleTime: Infinity,
@@ -46,7 +50,7 @@ export function PhysicalSignatureBatchDialog({ projects, onClose, upload }: Prop
   }
 
   function addFiles(selected: File[]) {
-    if (submittingRef.current || !projectId || !candidates.isSuccess) return;
+    if (submittingRef.current || !projectsReady || !projectId || !candidates.isSuccess) return;
     if (!selected.length) { setFiles(current => current.filter(file => file.status === 'success')); return; }
     const valid = selected.filter(file => !validatePhysicalSignatureFile(file));
     const invalid = selected.filter(file => validatePhysicalSignatureFile(file));
@@ -63,7 +67,7 @@ export function PhysicalSignatureBatchDialog({ projects, onClose, upload }: Prop
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (submittingRef.current || !projectId || !remaining.length || Object.keys(errors).length) return;
+    if (submittingRef.current || !projectsReady || !projectId || !remaining.length || Object.keys(errors).length) return;
     submittingRef.current = true;
     setSubmitting(true);
     try {
@@ -84,7 +88,7 @@ export function PhysicalSignatureBatchDialog({ projects, onClose, upload }: Prop
     footer={<>
       <Button variant="secondary" type="button" disabled={submitting} onClick={onClose}>{savedCount ? 'Fechar' : 'Cancelar'}</Button>
       {remaining.length || !savedCount ? <Button variant="primary" type="submit" form="physical-signature-batch-form"
-        disabled={submitting || !projectId || candidates.isPending || candidates.isError || !remaining.length || Boolean(Object.keys(errors).length)} loading={submitting}>
+        disabled={submitting || !projectsReady || !projectId || candidates.isPending || candidates.isError || !remaining.length || Boolean(Object.keys(errors).length)} loading={submitting}>
         {submitting ? 'Enviando lote…' : `Enviar ${remaining.length || ''} PDF${remaining.length === 1 ? '' : 's'} vinculado${remaining.length === 1 ? '' : 's'}`}
       </Button> : null}
     </>}
@@ -95,7 +99,10 @@ export function PhysicalSignatureBatchDialog({ projects, onClose, upload }: Prop
         Revise os vínculos sugeridos antes de enviar.
         Ao enviar, cada PDF será a versão final do RDO, que ficará bloqueado para edição.
       </p>
-      <Field label="Projeto" required disabled={submitting || files.length > 0}
+      {projectsLoading ? <p role="status">Carregando projetos…</p> : null}
+      {projectsError ? <Alert tone="danger">Não foi possível carregar os projetos. <Button variant="secondary" size="sm" type="button" onClick={onRetryProjects}>Tentar novamente</Button></Alert> : null}
+      {projectsReady && !projects.length ? <Alert tone="info">Nenhum projeto disponível para envio de assinados em lote.</Alert> : null}
+      <Field label="Projeto" required disabled={submitting || !projectsReady || !projects.length || files.length > 0}
         helperText={files.length ? 'Este lote pertence ao projeto selecionado. Para outro projeto, abra um novo lote.' : 'Escolha o projeto antes de adicionar os PDFs.'}>
         <Select value={projectId} placeholder="Selecione o projeto" onChange={event => setProjectId(event.target.value)}
           options={projects.map(project => ({ value: project.id, label: `${project.code} — ${project.name}` }))} />
@@ -104,7 +111,7 @@ export function PhysicalSignatureBatchDialog({ projects, onClose, upload }: Prop
       {projectId && candidates.isError ? <Alert tone="danger">Não foi possível carregar os RDOs deste projeto. <Button variant="secondary" size="sm" type="button" onClick={() => void candidates.refetch()}>Tentar novamente</Button></Alert> : null}
       {projectId && candidates.isSuccess && !reports.length ? <Alert tone="info">Este projeto não possui RDOs aprovados disponíveis para receber um PDF assinado.</Alert> : null}
       {projectId ? <PdfDropzone appearance="design-system" id="physical-signature-batch-pdfs" label="PDFs assinados pelo cliente"
-        multiple onFile={() => {}} onFiles={addFiles} disabled={submitting || !candidates.isSuccess || !reports.length}
+        multiple onFile={() => {}} onFiles={addFiles} disabled={submitting || !projectsReady || !candidates.isSuccess || !reports.length}
         emptyHint="Selecione vários PDFs deste projeto, de até 50 MB cada" /> : null}
       {files.length ? <p role="status" aria-live="polite">{files.length} arquivo(s) · {savedCount} enviado(s) · {remaining.length} restante(s)</p> : null}
       {files.length ? <ul className="physical-signature-batch-list">{files.map(entry => {

@@ -30,6 +30,73 @@ test('Gestor lê somente as fontes da aba e adia os painéis pesados', async ({ 
   expect(errors).toEqual([]);
 });
 
+test('lote de assinados abre em Aprovados sem cache e carrega projetos somente ao abrir', async ({ page }) => {
+  await page.goto(manager + '?tab=aprovados&batch-projects-delay=1&pending=1');
+  const open = page.getByRole('button', { name: 'Enviar assinados em lote', exact: true });
+  await expect(open).toBeEnabled();
+  const projectReads = () => page.evaluate(() => window.gestorReadRequests.filter(row => row.url.endsWith('/bootstrap/gestor')));
+  expect(await projectReads()).toEqual([]);
+  await open.click();
+  const dialog = page.getByRole('dialog', { name: 'Enviar RDOs assinados em lote', exact: true });
+  const projects = dialog.getByRole('combobox', { name: 'Projeto', exact: true });
+  await expect(dialog.getByText('Carregando projetos…', { exact: true })).toBeVisible();
+  await expect(projects).toBeDisabled();
+  await expect(dialog.locator('input[type=file]')).toHaveCount(0);
+  await expect.poll(projectReads).toEqual([{ url: '/rdo/bootstrap/gestor', params: { section: 'relatorios' } }]);
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(open).toBeFocused();
+  await open.click();
+  await page.evaluate(() => window.finishBatchProjectLoad());
+  await expect(projects).toBeEnabled();
+  await expect(projects.locator('option[value="active-other"]')).toHaveCount(1);
+  await expect(projects.locator('option[value="archived-other"]')).toHaveCount(1);
+  await expect(projects.locator('option[value="active-villaris"]')).toHaveCount(0);
+  expect(await page.evaluate(() => window.gestorReadRequests.filter(row => row.url.endsWith('/reports') && row.params?.projectId))).toEqual([]);
+  await projects.selectOption('archived-other');
+  await dialog.locator('input[type=file]:enabled').setInputFiles({
+    name: 'RDO 1.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n%%EOF')
+  });
+  await expect(dialog.getByLabel('RDO de RDO 1.pdf', { exact: true })).toHaveValue('report-other');
+  await dialog.getByRole('button', { name: 'Enviar 1 PDF vinculado', exact: true }).click();
+  await expect(dialog.getByText('PDF registrado com sucesso.', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => window.physicalBatchUploads)).toEqual([{ id: 'report-other', fileName: 'RDO 1.pdf' }]);
+  await dialog.getByRole('button', { name: 'Fechar', exact: true }).last().click();
+  await expect(open).toBeEnabled();
+  await open.click();
+  await expect(projects).toHaveValue('');
+  await expect(dialog.locator('input[type=file]')).toHaveCount(0);
+});
+
+test('lote de assinados mostra falha de projetos e permite tentar novamente', async ({ page }) => {
+  await page.goto(manager + '?tab=aprovados&batch-projects-error=1');
+  await page.getByRole('button', { name: 'Enviar assinados em lote', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Enviar RDOs assinados em lote', exact: true });
+  const projects = dialog.getByRole('combobox', { name: 'Projeto', exact: true });
+  await expect(dialog.getByText('Não foi possível carregar os projetos.', { exact: false })).toBeVisible();
+  await expect(projects).toBeDisabled();
+  await expect(dialog.locator('input[type=file]')).toHaveCount(0);
+  await expect(dialog.getByRole('button', { name: /^Enviar .*PDFs vinculados$/ })).toBeDisabled();
+  await page.evaluate(() => { window.batchProjectLoad.allowed = true; });
+  await dialog.getByRole('button', { name: 'Tentar novamente', exact: true }).click();
+  await expect(projects).toBeEnabled();
+  await projects.selectOption('archived-other');
+  await expect(dialog.locator('input[type=file]')).toBeEnabled();
+});
+
+test('lote de assinados explica lista de projetos vazia e continua permitindo fechar', async ({ page }) => {
+  await page.goto(manager + '?tab=aprovados&batch-projects-empty=1');
+  const open = page.getByRole('button', { name: 'Enviar assinados em lote', exact: true });
+  await open.click();
+  const dialog = page.getByRole('dialog', { name: 'Enviar RDOs assinados em lote', exact: true });
+  await expect(dialog.getByText('Nenhum projeto disponível para envio de assinados em lote.', { exact: true })).toBeVisible();
+  await expect(dialog.getByRole('combobox', { name: 'Projeto', exact: true })).toBeDisabled();
+  await expect(dialog.getByRole('button', { name: /^Enviar .*PDFs vinculados$/ })).toBeDisabled();
+  await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await expect(open).toBeEnabled();
+});
+
 test('formulário adiado mantém foco, Escape e retorno ao botão de abertura', async ({ page }) => {
   const scripts = [];
   page.on('request', request => scripts.push(request.url()));
