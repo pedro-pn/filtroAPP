@@ -4208,7 +4208,7 @@ export function GestorPage() {
             description={tab === 'pendentes' ? 'Acompanhe os relatórios que aguardam revisão ou foram devolvidos.' : 'Consulte os relatórios aprovados e assinados.'}
             actions={
               <>
-                {tab === 'aprovados' ? <Suspense fallback={<BrandLoading label="Carregando painel…" />}><PhysicalSignatureBatchAction projects={manualReportProjectOptions} upload={payload => reportMutations.uploadPhysicalSignature.mutateAsync(payload)} /></Suspense> : null}
+                {tab === 'aprovados' ? <Suspense fallback={<BrandLoading label="Carregando painel…" />}><PhysicalSignatureBatchAction upload={payload => reportMutations.uploadPhysicalSignature.mutateAsync(payload)} /></Suspense> : null}
                 <Button variant="secondary" aria-label="Abrir upload de relatórios antigos" onClick={() => openManualReportUpload()}>
                   <span className="rdo-action-label rdo-action-label--full">Upload de relatórios antigos</span>
                   <span className="rdo-action-label rdo-action-label--compact">Upload antigo</span>

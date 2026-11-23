@@ -59,7 +59,9 @@ const report = {
 
 const projectCreateRequests: unknown[] = [];
 const gestorReadRequests: Array<{ url: string; params: unknown }> = [];
-Object.assign(window, { projectCreateRequests, gestorReadRequests });
+const physicalBatchUploads: Array<{ id: string; fileName: string }> = [];
+const batchProjectLoad = { allowed: false };
+Object.assign(window, { projectCreateRequests, gestorReadRequests, physicalBatchUploads, batchProjectLoad });
 
 apiClient.defaults.adapter = async config => {
   const url = config.url || '';
@@ -84,7 +86,23 @@ apiClient.defaults.adapter = async config => {
   } else if (url.endsWith('/projects')) {
     data = config.params?.active === false ? archivedProjects : activeProjects;
   } else if (url.endsWith('/bootstrap/gestor')) {
-    data = { activeProjects, archivedProjects, collaborators: [], surveys: [], projectSegments: [], surveyQuestions: [] };
+    const params = new URLSearchParams(window.location.search);
+    if (config.params?.section === 'relatorios') {
+      if (params.has('batch-projects-error') && !batchProjectLoad.allowed) throw new AxiosError('Falha simulada', undefined, config, undefined, {
+        config, status: 503, statusText: 'Service Unavailable', headers: {}, data: { error: 'Falha ao carregar projetos.' }
+      });
+      if (params.has('batch-projects-delay') && !batchProjectLoad.allowed) await new Promise<void>(resolve => {
+        Object.assign(window, { finishBatchProjectLoad: () => { batchProjectLoad.allowed = true; resolve(); } });
+      });
+    }
+    data = { activeProjects: params.has('batch-projects-empty') ? [] : activeProjects,
+      archivedProjects: params.has('batch-projects-empty') ? [] : archivedProjects,
+      collaborators: [], surveys: [], projectSegments: [], surveyQuestions: [] };
+  } else if (config.method === 'post' && url.endsWith('/physical-signature')) {
+    const payload = JSON.parse(config.data);
+    physicalBatchUploads.push({ id: url.split('/').at(-2)!, fileName: payload.fileName });
+    Object.assign(report, { status: 'SIGNED', physicalSignedAt: new Date().toISOString() });
+    data = { report, releasedServiceReports: [] };
   } else if (url.includes('/reports/historical-services/')) {
     data = { items: [] };
   } else if (url.endsWith('/statistics/overview')) {
