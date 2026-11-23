@@ -2672,10 +2672,9 @@ function formatAllocationDate(value: string) {
   return formatDateOnlyPtBr(value);
 }
 
-// Conferência semanal de alocação (feature 037): dia sem projeto (Sede, Folga, Férias...) não
-// tem local nem CNPJ; dia conferido ganha o selo "Conferido".
+// Dias sem projeto não têm local nem CNPJ; só dias confirmados ganham o selo "Conferido".
 function isOffProjectDay(day: AllocationReportDay) {
-  return day.source === 'REVIEW' && !day.projectId;
+  return day.projectId === null;
 }
 
 function allocationDayKey(day: AllocationReportDay, index: number) {
@@ -3006,7 +3005,7 @@ function MonthlyAllocationDashboard({
           title={
             <span className="rdo-stats-allocation__heading">
               <h2>Alocação mensal de colaboradores</h2>
-              <span>Resumo dia a dia por projeto, local da obra e CNPJ.</span>
+              <span>Resumo dia a dia por projeto, folga, viagem e férias, com local da obra e CNPJ.</span>
             </span>
           }
           actions={
@@ -3241,7 +3240,7 @@ function MonthlyAllocationDashboard({
         <div className="stats-card-header">
           <div>
             <div className="survey-dash-card-title">Alocação mensal de colaboradores</div>
-            <div className="stats-alloc-subtitle">Resumo dia a dia por projeto, local da obra e CNPJ.</div>
+            <div className="stats-alloc-subtitle">Resumo dia a dia por projeto, folga, viagem e férias, com local da obra e CNPJ.</div>
           </div>
           <div className="stats-alloc-actions">
             <label className="stats-alloc-select-field">

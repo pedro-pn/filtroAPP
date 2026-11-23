@@ -139,7 +139,7 @@ export type AllocationReportKind = 'PROJECT' | 'TRAVEL' | 'SEDE' | 'FOLGA' | 'FE
 export interface AllocationReportDay {
   date: string;
   shift: string;
-  // null quando o dia conferido não tem projeto (Sede, Folga, Férias...) — feature 037.
+  // null quando o dia não tem projeto (Sede, Folga, Férias...).
   projectId: string | null;
   projectCode: string;
   projectName: string;
@@ -149,7 +149,7 @@ export interface AllocationReportDay {
   reportId: string | null;
   sequenceNumber: number | null;
   kind?: AllocationReportKind;
-  source?: 'RDO' | 'REVIEW';
+  source?: 'RDO' | 'REVIEW' | 'EFETIVO';
   reviewed?: boolean;
 }
 

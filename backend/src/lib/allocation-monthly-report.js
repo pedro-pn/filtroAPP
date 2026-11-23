@@ -10,6 +10,8 @@ import { formatCnpj } from './cnpj.js';
 import { buildMonthlyAllocationReportEmailTemplate } from './email-templates.js';
 import { runTrackedJob } from './jobs/runner.js';
 import { loadConfirmedReviewDays } from './efetivo/allocation-review/confirmed-days.js';
+import { getReviewMonth } from './efetivo/allocation-review/read-model.js';
+import { getAllocationTrailsForRange } from './acompanhamento/allocation-audit.js';
 import { nthBusinessDayOfMonth, weekStartsTouchingMonth } from './calendar/business-day-deadline.js';
 import { loadCorporateCalendar, resolveCorporateCalendar } from './calendar/corporate-calendar.js';
 import { getMissingMailerConfig, sendMail } from './mailer.js';
@@ -258,12 +260,18 @@ export const REVIEW_KIND_LABELS = Object.freeze({
 });
 
 /*
- * Dias conferidos substituem as entradas de RDO do mesmo colaborador e data. Projeto e viagem
- * levam o CNPJ do cliente do projeto; situações sem projeto saem sem CNPJ. O turno é o do RDO
- * quando o RDO do dia é do mesmo projeto conferido (inclusive noturno); senão, diurno.
+ * Situações do Efetivo substituem as entradas de RDO do mesmo colaborador e data; decisões
+ * confirmadas têm prioridade. Projeto e viagem levam o CNPJ do cliente; situações sem projeto
+ * saem sem CNPJ. Preserva o turno do RDO do mesmo projeto (inclusive noturno); senão, diurno.
  */
-export async function applyReviewedDays({ entries, fromDate, toDate, client }) {
-  const reviewDays = await loadConfirmedReviewDays({ from: fromDate, to: toDate }, client);
+export async function applyReviewedDays({ entries, fromDate, toDate, client, additionalDays = [] }) {
+  const confirmedDays = await loadConfirmedReviewDays({ from: fromDate, to: toDate }, client);
+  const confirmedKeys = new Set(confirmedDays.map(day => `${day.date}|${day.collaboratorId}`));
+  const reviewDays = [
+    ...additionalDays.filter(day => !confirmedKeys.has(`${day.date}|${day.collaboratorId}`))
+      .map(day => ({ ...day, source: 'EFETIVO', reviewed: false })),
+    ...confirmedDays.map(day => ({ ...day, source: 'REVIEW', reviewed: true }))
+  ];
   if (!reviewDays.length) return { entries, reviewedDayCount: 0 };
   const reviewedKeys = new Set(reviewDays.map(day => `${day.date}|${day.collaboratorId}`));
   const kept = [];
@@ -306,8 +314,8 @@ export async function applyReviewedDays({ entries, fromDate, toDate, client }) {
       collaboratorName: stringValue(collaborator?.name) || previous[0]?.collaboratorName || '',
       collaboratorRole: stringValue(collaborator?.jobRole?.name) || previous[0]?.collaboratorRole || '',
       kind: day.kind,
-      source: 'REVIEW',
-      reviewed: true
+      source: day.source,
+      reviewed: day.reviewed
     };
     if (!base.collaboratorName) continue;
     if (day.kind === 'PROJECT' || day.kind === 'TRAVEL') {
@@ -346,10 +354,10 @@ export async function applyReviewedDays({ entries, fromDate, toDate, client }) {
       });
     }
   }
-  return { entries: kept, reviewedDayCount: reviewedKeys.size };
+  return { entries: kept, reviewedDayCount: confirmedKeys.size };
 }
 
-export async function buildMonthlyAllocationSummary({ yearMonth, client = prisma }) {
+export async function buildMonthlyAllocationSummary({ yearMonth, client = prisma, now = new Date(), loadReviewMonth = getReviewMonth }) {
   const fromDate = monthStart(yearMonth);
   if (!fromDate) {
     const error = new Error('Mês inválido. Use o formato YYYY-MM.');
@@ -392,8 +400,19 @@ export async function buildMonthlyAllocationSummary({ yearMonth, client = prisma
     }
   }
 
+  // As situações sem RDO também aparecem antes da confirmação, como na conferência do Efetivo.
+  // Projetos continuam vindo dos RDOs aprovados/assinados ou de dias efetivamente conferidos.
+  const reviewMonth = await loadReviewMonth({ yearMonth, now }, {
+    database: client,
+    getTrails: range => getAllocationTrailsForRange(range, { database: client })
+  });
+  const additionalDays = reviewMonth.rows.flatMap(row => row.days
+    .filter(day => day.eligible && !day.isFuture && day.value
+      && (day.value.kind === 'TRAVEL' || Object.hasOwn(REVIEW_KIND_LABELS, day.value.kind)))
+    .map(day => ({ collaboratorId: row.collaborator.id, date: day.date, ...day.value })));
+
   const { entries: mergedEntries, reviewedDayCount } = await applyReviewedDays({
-    entries: Array.from(entriesByKey.values()), fromDate, toDate, client
+    entries: Array.from(entriesByKey.values()), fromDate, toDate, client, additionalDays
   });
   const entries = mergedEntries.sort((a, b) => (
     a.collaboratorName.localeCompare(b.collaboratorName, 'pt-BR') ||
@@ -594,9 +613,9 @@ export async function buildMonthlyAllocationPdf(data) {
       drawText(page, formatDatePt(day.date), 42, y, { size: 8, font: fonts.regular, color: rgb(0.1, 0.1, 0.1) });
       drawText(page, day.shift, 92, y, { size: 8, font: fonts.regular, color: rgb(0.1, 0.1, 0.1) });
       drawText(page, truncateText(day.projectName, 52), 150, y, { size: 8, font: fonts.regular, color: rgb(0.1, 0.1, 0.1) });
-      const offProject = day.source === 'REVIEW' && !day.projectId;
+      const offProject = day.projectId === null;
       const locationLine = offProject
-        ? 'Fora de projeto · conferido'
+        ? `Fora de projeto${day.reviewed ? ' · conferido' : ''}`
         : `Local da obra: ${day.workLocation || '-'}${day.reviewed ? ' · conferido' : ''}`;
       drawText(page, truncateTextToWidth(locationLine, fonts.regular, 7, 300), 150, y - 10, { size: 7, font: fonts.regular, color: rgb(0.42, 0.45, 0.43) });
       drawText(page, truncateText(day.clientName || '-', 30), 460, y, { size: 8, font: fonts.regular, color: rgb(0.1, 0.1, 0.1) });
@@ -647,12 +666,12 @@ export async function previewMonthlyAllocationDelivery({ yearMonth, now = new Da
   return recipientDeliveryState(yearMonth, await activeRecipients(client), client);
 }
 
-export async function sendMonthlyAllocationReport({ yearMonth, now = new Date(), mailer = sendMail, client = prisma } = {}) {
+export async function sendMonthlyAllocationReport({ yearMonth, now = new Date(), mailer = sendMail, client = prisma, loadReviewMonth = getReviewMonth } = {}) {
   assertClosedMonth(yearMonth, now);
   const recipients = await activeRecipients(client);
   if (recipients.length === 0) return { skipped: true, reason: 'no_recipients', sent: 0 };
 
-  const data = await buildMonthlyAllocationSummary({ yearMonth, client });
+  const data = await buildMonthlyAllocationSummary({ yearMonth, client, now, loadReviewMonth });
   const pdf = await buildMonthlyAllocationPdf(data);
   const template = buildMonthlyAllocationReportEmailTemplate({
     monthLabel: data.label,
@@ -772,7 +791,7 @@ export async function openReviewWeeksForMonth(yearMonth, client = prisma) {
   return weekStarts.filter(key => !closedSet.has(key));
 }
 
-export async function processMonthlyAllocationReport({ yearMonth: requestedMonth, now = new Date(), client = prisma, mailer = sendMail, missingMailerConfig = getMissingMailerConfig(), loadCalendar = defaultLoadCalendar } = {}) {
+export async function processMonthlyAllocationReport({ yearMonth: requestedMonth, now = new Date(), client = prisma, mailer = sendMail, missingMailerConfig = getMissingMailerConfig(), loadCalendar = defaultLoadCalendar, loadReviewMonth = getReviewMonth } = {}) {
   const sendWindow = requestedMonth ? null : await monthlySendWindow({ now, client, loadCalendar });
   if (sendWindow && !sendWindow.inWindow) return { skipped: true, reason: 'outside_send_window' };
   const yearMonth = requestedMonth ?? previousYearMonth(now);
@@ -789,7 +808,7 @@ export async function processMonthlyAllocationReport({ yearMonth: requestedMonth
   if (!claimed) return { skipped: true, reason: 'already_processed', yearMonth };
 
   try {
-    const result = await sendMonthlyAllocationReport({ yearMonth, now, client, mailer });
+    const result = await sendMonthlyAllocationReport({ yearMonth, now, client, mailer, loadReviewMonth });
     if (result.skipped && result.reason === 'no_recipients') {
       await client.allocationReportDelivery.delete({ where: { yearMonth } }).catch(() => {});
       return { yearMonth, ...result };

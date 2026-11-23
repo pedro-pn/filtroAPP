@@ -2,7 +2,7 @@ import prisma from '../../prisma.js';
 
 /*
  * Dias de linhas CONFERIDAS da conferência semanal (feature 037). É a única leitura usada pelo
- * custo HH e pelo relatório mensal: rascunhos (linha ainda não conferida) não têm efeito.
+ * custo HH e fornece as decisões prioritárias do relatório mensal.
  * `to` é exclusivo.
  */
 function asDate(value) {
