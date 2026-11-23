@@ -191,11 +191,7 @@ test('diálogo de numeração mantém opt-in DS e o formulário de RDO usa o Mod
     '<Modal open={sequenceEditOpen}',
     '</Modal>'
   );
-  const collaboratorServiceDialog = sectionBetween(
-    newReport,
-    '<Modal\n        open={showServiceModal}',
-    '</Modal>'
-  );
+  const collaboratorServiceDialog = source('src/components/reports/RdoServicePromptModal.tsx');
   const signatureModal = sectionBetween(
     signatureDialog,
     '<Modal\n      open={open}',
@@ -260,5 +256,6 @@ test('diálogo de numeração mantém opt-in DS e o formulário de RDO usa o Mod
     'seletor de serviço do formulário migrado deve usar o design system'
   );
   assert.match(collaboratorServiceDialog, /fullscreenOnMobile=\{false\}/);
-  assert.match(collaboratorServiceDialog, /panelClassName="rdo-service-picker"/);
+  assert.match(collaboratorServiceDialog, /panelClassName="rdo-service-picker rdo-service-prompt"/);
+  assert.match(newReport, /<RdoServicePromptModal\b/);
 });

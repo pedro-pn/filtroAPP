@@ -24,7 +24,7 @@ import { ReportWorkforceNotices } from '../../components/reports/ReportWorkforce
 import { ServiceCollaboratorsBlock, ServiceFields } from '../../components/reports/ServiceFields';
 import { serviceTypeLabels } from '../../components/reports/serviceTypes';
 import { AppIcon } from '../../components/icons/AppIcon';
-import { Modal } from '../../components/ui/Modal';
+import { RdoServicePromptModal, type RdoServicePromptMode } from '../../components/reports/RdoServicePromptModal';
 import { UploadField } from '../../components/ui/UploadField';
 import { ReportDateWarning } from '../../components/reports/ReportDateWarning';
 import { reportDateDescribedBy } from '../../utils/reportDateWarning';
@@ -52,6 +52,7 @@ import { PageHeader } from '../../layout/PageHeader';
 import { useRdoStore } from '../../store/rdoStore';
 import type { UploadedFile } from '../../api/uploads';
 import type { ReportSummary } from '../../types/domain';
+import type { PendingProjectService } from '../../utils/ongoingServices';
 import { roleHomePath } from '../../auth/rolePath';
 import { buildReportServicePayload, normalizeServiceType } from '../../utils/reportServicePayload';
 import { buildContinuedServiceData, formServiceOngoingKeys, isPendingServiceFromLaterDay, pendingProjectServicesForDate, serviceEquipmentLabel } from '../../utils/ongoingServices';
@@ -66,7 +67,7 @@ import { rdoWorkforceJustificationSchema } from '../../utils/rdoPlanningPrefill'
 import { hubModulesForUser } from '../hubModules';
 import { formatMinutes } from './newReportFormatting';
 import './NewReportPage.css';
-import { calculateReportOvertimeSummary } from '../../utils/reportOvertime';
+import { calculateReportOvertimeSummary, calculateWorkedMinutes, parseDurationToMinutes } from '../../utils/reportOvertime';
 import { resolveAuthorizedReportSelection } from '../../auth/reportPermissions';
 import { OperationalReportFormPage } from './OperationalReportFormPage';
 import { AdequarAnotacaoButton } from '../../components/anotacoes/AdequarAnotacaoButton';
@@ -230,7 +231,11 @@ function SiteRdoFormPage() {
   const showToast = useToast();
   const { confirm, confirmDialog } = useConfirmDialog();
   const [step, setStep] = useState(0);
-  const [showServiceModal, setShowServiceModal] = useState(false);
+  const [servicePrompt, setServicePrompt] = useState<{ mode: RdoServicePromptMode; prompted: boolean; nonce: number } | null>(null);
+  // O seletor abre sozinho só na primeira entrada na etapa Serviços sem nenhum serviço; depois
+  // disso fica a cargo do botão "Adicionar serviço" e da confirmação ao avançar sem serviço.
+  const serviceAutoPromptDoneRef = useRef(false);
+  const [noServiceAcknowledged, setNoServiceAcknowledged] = useState(false);
   const [invalidTarget, setInvalidTarget] = useState<string | null>(null);
   const [ddsNoveltyActive, setDdsNoveltyActive] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -404,6 +409,48 @@ function SiteRdoFormPage() {
       showToast(error instanceof Error ? error.message : 'Não foi possível excluir o serviço.', 'error');
     }
   }
+
+  function openServicePicker(mode: RdoServicePromptMode, prompted = false) {
+    setServicePrompt({ mode, prompted, nonce: Date.now() });
+  }
+
+  function handleContinueSelectedServices(items: PendingProjectService[]) {
+    items.forEach(({ service, key }) => continueService(service, key));
+    setServicePrompt(null);
+  }
+
+  // "Não houve serviço hoje" já responde à etapa Serviços: leva direto à Finalização.
+  function handleNoServiceToday() {
+    setNoServiceAcknowledged(true);
+    setServicePrompt(null);
+    setInvalidTarget(null);
+    setStep(2);
+  }
+
+  const promptablePendingServices = effectiveServiceOnly ? [] : visiblePendingProjectServices;
+  const pendingServicesLoading = !!projectId && lastProjectReportQuery.isLoading;
+  // Dia inteiro em standby (tempo de standby cobre todo o período trabalhado, diurno + noturno,
+  // descontados os intervalos): não há serviço a registrar, então nenhum lembrete é exibido.
+  const fullDayStandby = useMemo(() => {
+    if (effectiveServiceOnly || !standby) return false;
+    const standbyMinutes = parseDurationToMinutes(standbyDuration);
+    const workedMinutes = calculateWorkedMinutes(arrivalTime, departureTime, lunchBreak)
+      + (noturno ? calculateWorkedMinutes(noturnoStart, noturnoEnd, noturnoInterval) : 0);
+    return standbyMinutes > 0 && workedMinutes > 0 && standbyMinutes >= workedMinutes;
+  }, [arrivalTime, departureTime, effectiveServiceOnly, lunchBreak, noturno, noturnoEnd, noturnoInterval, noturnoStart, standby, standbyDuration]);
+  const remindMissingService = !effectiveServiceOnly && !services.length && !noServiceAcknowledged && !fullDayStandby;
+
+  useEffect(() => {
+    if (step !== 1 || serviceAutoPromptDoneRef.current) return;
+    if (services.length || fullDayStandby) {
+      serviceAutoPromptDoneRef.current = true;
+      return;
+    }
+    // Espera o histórico do projeto para decidir entre "serviços em andamento" e o seletor de tipo.
+    if (pendingServicesLoading) return;
+    serviceAutoPromptDoneRef.current = true;
+    openServicePicker(promptablePendingServices.length ? 'ongoing' : 'types', true);
+  }, [step, services.length, fullDayStandby, pendingServicesLoading, promptablePendingServices.length]);
 
   function handleContinueServices() {
     if (!pendingProjectServices.length) return;
@@ -705,10 +752,31 @@ function SiteRdoFormPage() {
 
     if (step === 1) {
       if (!validateServices()) return;
+      if (remindMissingService) {
+        void confirmAdvanceWithoutService();
+        return;
+      }
     }
 
     setInvalidTarget(null);
     setStep((current) => Math.min(current + 1, steps.length - 1));
+  }
+
+  async function confirmAdvanceWithoutService() {
+    const proceed = await confirm({
+      title: 'Seguir sem registrar serviço?',
+      description: 'Limpeza química, flushing, filtragem, teste de pressão e os demais serviços técnicos precisam ser adicionados aqui para gerar o relatório do serviço. Descrever o trabalho só em "Atividades do dia" não gera esse relatório.',
+      confirmLabel: 'Seguir sem serviço',
+      cancelLabel: 'Adicionar serviço',
+      danger: false
+    });
+    if (proceed) {
+      setNoServiceAcknowledged(true);
+      setInvalidTarget(null);
+      setStep(2);
+      return;
+    }
+    openServicePicker(promptablePendingServices.length ? 'ongoing' : 'types');
   }
 
   function buildResumoText() {
@@ -1437,7 +1505,7 @@ function SiteRdoFormPage() {
               type="button"
               fullWidth
               iconLeft={<AppIcon icon={DS_ICONS.plus} size="sm" />}
-              onClick={() => setShowServiceModal(true)}
+              onClick={() => openServicePicker('types')}
             >
               {TEXT.addService}
             </Button>
@@ -1475,6 +1543,22 @@ function SiteRdoFormPage() {
         </Card>
 
         <Card className="rdo-form-card rdo-form-card--activities" title="Atividades do dia">
+          {!effectiveServiceOnly && !services.length && !fullDayStandby ? (
+            <Alert
+              className="rdo-no-service-hint"
+              tone="warning"
+              title="Nenhum serviço registrado neste RDO"
+              action={{
+                label: 'Adicionar serviço',
+                onClick: () => {
+                  setStep(1);
+                  openServicePicker(promptablePendingServices.length ? 'ongoing' : 'types');
+                }
+              }}
+            >
+              Se a equipe executou limpeza química, flushing, filtragem ou outro serviço técnico, registre-o na etapa Serviços em vez de descrevê-lo aqui.
+            </Alert>
+          ) : null}
           <div className="field-group">
             <label htmlFor="rdo-description">{TEXT.dailyDescription}</label>
             <Textarea
@@ -1540,34 +1624,22 @@ function SiteRdoFormPage() {
         </section>
       </main>
 
-      <Modal
-        open={showServiceModal}
-        onClose={() => setShowServiceModal(false)}
-        appearance="design-system"
-        title="Tipo de serviço"
-        size="md"
-        fullscreenOnMobile={false}
-        closeOnBackdrop
-        backdropClassName="rdo-service-picker-backdrop"
-        panelClassName="rdo-service-picker"
-      >
-            <div className="stype-grid">
-              {serviceOptions.map(({ type, icon, name }) => (
-                <button
-                  key={type}
-                  className="stype-btn"
-                  type="button"
-                  onClick={() => {
-                    addService(type);
-                    setShowServiceModal(false);
-                  }}
-                >
-                  <div className="stype-icon"><AppIcon icon={icon} /></div>
-                  <div className="stype-name">{name}</div>
-                </button>
-              ))}
-            </div>
-      </Modal>
+      <RdoServicePromptModal
+        key={servicePrompt?.nonce ?? 'closed'}
+        open={Boolean(servicePrompt)}
+        initialMode={servicePrompt?.mode ?? 'types'}
+        prompted={servicePrompt?.prompted ?? false}
+        pendingItems={promptablePendingServices}
+        reportDate={reportDate || todayDateOnly()}
+        serviceOptions={serviceOptions}
+        onClose={() => setServicePrompt(null)}
+        onContinue={handleContinueSelectedServices}
+        onPickType={(type) => {
+          addService(type);
+          setServicePrompt(null);
+        }}
+        onNoService={effectiveServiceOnly ? undefined : handleNoServiceToday}
+      />
 
       {user ? (
         <RdoDdsNovelty
