@@ -1,5 +1,6 @@
 import { useId, useState, type ReactNode } from 'react';
 
+import { AdequarAnotacaoButton } from '../anotacoes/AdequarAnotacaoButton';
 import { RemoveIconButton } from '../ui/RemoveIconButton';
 import './ReportCollaboratorTags.css';
 import type { Collaborator } from '../../types/domain';
@@ -366,6 +367,7 @@ export function ManualReportOperationalFields({
                         onChange={event => onChange({ standbyMotivo: event.target.value })}
                         placeholder="Motivo do stand-by"
                       />
+                      <AdequarAnotacaoButton valor={value.standbyMotivo} campo="Motivo do standby" disabled={disabled} onAplicar={texto => onChange({ standbyMotivo: texto })} />
                     </div>
                   </div>
                 </div>

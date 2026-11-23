@@ -1337,6 +1337,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                 disabled={readOnly || (showOvertimeApproval && !acceptOvertime)}
                 onChange={event => setField('overtimeReason', event.target.value)}
               />
+              <AdequarAnotacaoButton valor={form.overtimeReason} campo="Motivo da hora extra" disabled={readOnly || (showOvertimeApproval && !acceptOvertime)} onAplicar={texto => setField('overtimeReason', texto)} />
             </div>
           ) : null}
         </Card>
