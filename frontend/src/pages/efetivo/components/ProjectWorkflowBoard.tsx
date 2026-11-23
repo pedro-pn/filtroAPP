@@ -123,7 +123,7 @@ type LegacyMove = {
   stage: MissionStage;
   order: number;
   returnDate?: string | null;
-  executionStart?: { startDate: string; operatorId?: string };
+  executionStart?: Parameters<typeof movePlanningMission>[5];
   snapshot: ProjectKanbanColumns;
 };
 
@@ -1319,6 +1319,7 @@ export function ProjectWorkflowBoard({
       </Suspense>
       <Suspense fallback={<BrandLoading label="Carregando execução…" />}>
       {executionStartTarget ? <ProjectExecutionStartModal
+        key={executionStartTarget.project.id}
         project={executionStartTarget.project}
         plannedStartDate={executionStartTarget.plannedStartDate}
         executedAtHeadquarters={executionStartTarget.executedAtHeadquarters}
@@ -1326,15 +1327,15 @@ export function ProjectWorkflowBoard({
         onClose={() => {
           if (!update.isPending && !managedMove.isPending && !moveLegacyMission.isPending) setExecutionStartTarget(null);
         }}
-        onConfirm={(startDate, operatorId) => {
-          const callbacks = { onSuccess: () => setExecutionStartTarget(null), onError: () => setExecutionStartTarget(null) };
+        onConfirm={(startDate, operatorId, reportRecipients) => {
+          const callbacks = { onSuccess: () => setExecutionStartTarget(null) };
           if (executionStartTarget.legacyMove) {
             const move = executionStartTarget.legacyMove;
             setColumns(moveProjectInColumns(columns, move.project.id, 'EXECUTION'));
-            moveLegacyMission.mutate({ ...move, executionStart: { startDate, operatorId } }, callbacks);
+            moveLegacyMission.mutate({ ...move, executionStart: { startDate, operatorId, reportRecipients } }, callbacks);
             return;
           }
-          const patch = { ...executionStartTarget.patch, startDate, operatorId };
+          const patch = { ...executionStartTarget.patch, startDate, operatorId, reportRecipients };
           if (executionStartTarget.move) {
             const move = executionStartTarget.move;
             setColumns(moveProjectInColumns(columns, move.project.id, 'EXECUTION'));

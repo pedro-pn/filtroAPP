@@ -327,7 +327,7 @@ test('Projetos reaproveita o card DS e mantém formulários e revisões isolados
     page.match(
       /<Button[\s\S]{0,240}?variant="primary"[\s\S]{0,240}?size="sm"[\s\S]{0,240}?type="button"[^>]*>[\s\S]{0,300}?\+ Adicionar[\s\S]{0,80}?<\/Button>/g
     )?.length,
-    2
+    1
   );
   assert.equal(
     projectsTab.match(

@@ -1,7 +1,9 @@
 import type { Dispatch, KeyboardEvent, SetStateAction } from 'react';
+import { Plus, X } from 'lucide-react';
 import type { ClientSigner } from '../../types/domain';
 import { parseEmailList, signerFirstName, signerLastName } from '../../utils/projectClientContacts';
-import { Button } from '../ui/ds';
+import { AppIcon } from '../icons/AppIcon';
+import { Button, IconButton } from '../ui/ds';
 
 export interface ProjectClientFormState {
   clientEmailPrimary: string;
@@ -116,7 +118,7 @@ export function ProjectClientFields<T extends ProjectClientFormState>({
       </div>
       <div className="field-group field-group-wide">
         <label htmlFor={`${idPrefix}-client-email-cc-input`}>E-mails em cópia</label>
-        <div className="cc-list">
+        <div className="cc-list" data-fv-ds>
           {ccEmails.length ? (
             <div className="cc-list-header">
               <span>E-mail</span>
@@ -134,14 +136,12 @@ export function ProjectClientFields<T extends ProjectClientFormState>({
                       <input type="checkbox" aria-label={`Assinante: ${email}`} checked={Boolean(signer)} onChange={() => toggleSigner(email)} />
                       <span className="tog-sl" />
                     </label>
-                    <button
-                      className="email-chip-rm"
-                      type="button"
-                      aria-label={`Remover e-mail ${email}`}
+                    <IconButton
+                      icon={X}
+                      size="sm"
+                      label={`Remover e-mail ${email}`}
                       onClick={() => setCcEmails(ccEmails.filter(item => item !== email))}
-                    >
-                      ×
-                    </button>
+                    />
                   </div>
                 </div>
                 {signer ? (
@@ -181,11 +181,11 @@ export function ProjectClientFields<T extends ProjectClientFormState>({
               onKeyDown={handleCcInputKeyDown}
               onBlur={event => commitCcInput(event.currentTarget)}
             />
-            <Button variant="primary" size="sm" type="button" onClick={event => {
+            <Button variant="secondary" size="sm" type="button" iconLeft={<AppIcon icon={Plus} size="sm" />} onClick={event => {
               const input = event.currentTarget.parentElement?.querySelector('input');
               commitCcInput(input || null);
             }}>
-              + Adicionar
+              Adicionar
             </Button>
           </div>
         </div>

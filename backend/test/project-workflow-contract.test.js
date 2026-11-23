@@ -76,6 +76,26 @@ test('router de gestão fica sob autenticação do Efetivo e valida todas as ent
   assert.match(router, /requireEfetivoViewer/);
 });
 
+test('entrada em execução valida os destinatários juntos e preserva clientes sem o novo campo', () => {
+  const { patch } = makeProjectWorkflowSchemas(z);
+  const payload = { action: 'stage', version: 1, stage: 'EXECUTION', startDate: '2026-09-10' };
+  assert.equal(patch.safeParse(payload).success, true);
+  const reportRecipients = {
+    clientEmailPrimary: ' Cliente@Example.com ', clientEmailCc: ['ana@example.com'],
+    clientSigners: [{ email: 'ana@example.com', firstName: 'Ana', lastName: 'Silva', signsServiceReports: false }]
+  };
+  const parsed = patch.parse({ ...payload, reportRecipients });
+  assert.equal(parsed.reportRecipients.clientEmailPrimary, 'cliente@example.com');
+  assert.equal(parsed.reportRecipients.clientSigners[0].signsServiceReports, false);
+  for (const invalid of [
+    { ...reportRecipients, clientEmailPrimary: '' },
+    { ...reportRecipients, clientEmailCc: ['invalido'] },
+    { ...reportRecipients, clientSigners: [{ ...reportRecipients.clientSigners[0], lastName: '' }] },
+    { ...reportRecipients, clientEmailCc: [] }
+  ]) assert.equal(patch.safeParse({ ...payload, reportRecipients: invalid }).success, false);
+  assert.equal(patch.safeParse({ action: 'stage', version: 1, stage: 'MOBILIZATION', reportRecipients }).success, false);
+});
+
 test('contrato de desmobilização recebe a mobilização do cronograma sem quebrar clientes anteriores', () => {
   const { patch } = makeProjectWorkflowSchemas(z);
   assert.equal(patch.safeParse({

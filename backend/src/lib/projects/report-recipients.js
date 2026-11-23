@@ -16,3 +16,12 @@ export async function saveProjectReportRecipients(tx, projectId, payload, depend
   }
   return updated;
 }
+
+export async function reconcileProjectReportRecipients(projectId, context = {}, dependencies = {}) {
+  const reconcile = dependencies.reconcileProjectClientSignatureRequirements
+    || (await import('../../routes/resources/reports.js')).reconcileProjectClientSignatureRequirements;
+  await reconcile(projectId, { userId: context.actorUserId, evidence: context.evidence || {} });
+  const clearCaches = dependencies.clearProjectDerivedCaches
+    || (await import('../resource-list-cache.js')).clearProjectDerivedCaches;
+  clearCaches();
+}

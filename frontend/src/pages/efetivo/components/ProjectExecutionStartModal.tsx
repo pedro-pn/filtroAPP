@@ -1,10 +1,18 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { z } from 'zod';
+import { makeProjectReportRecipientsSchema, type ProjectReportRecipients } from '../../../../../shared/schemas/project-report-recipients.js';
 
 import type { ProjectWorkflowProject } from '../../../api/projectWorkflow';
+import { ProjectClientFields, type ProjectClientFormState } from '../../../components/projects/ProjectClientFields';
 import { Alert, Button, Field, Input, Select } from '../../../components/ui/ds';
 import { Modal } from '../../../components/ui/Modal';
 import { displayDateOnly } from '../../../utils/calendarGrid';
 import { projectExecutionStartSuggestion, projectReportOperatorOptions } from '../../../utils/projectExecutionStart';
+import { parseEmailList, projectClientFormState } from '../../../utils/projectClientContacts';
+import '../EfetivoDialogs.css';
+import './ProjectWorkflowReportRecipients.css';
+
+const recipientsSchema = makeProjectReportRecipientsSchema(z);
 
 export function ProjectExecutionStartModal({ project, plannedStartDate, executedAtHeadquarters, saving, onClose, onConfirm }: {
   project: ProjectWorkflowProject;
@@ -12,7 +20,7 @@ export function ProjectExecutionStartModal({ project, plannedStartDate, executed
   executedAtHeadquarters: boolean;
   saving: boolean;
   onClose: () => void;
-  onConfirm: (startDate: string, operatorId?: string) => void;
+  onConfirm: (startDate: string, operatorId: string | undefined, reportRecipients: ProjectReportRecipients) => void;
 }) {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
   const { suggestedStartDate: suggested, futureDate } = projectExecutionStartSuggestion(project, plannedStartDate, today);
@@ -22,6 +30,8 @@ export function ProjectExecutionStartModal({ project, plannedStartDate, executed
   const suggestedOperator = operators.find(operator => operator.id === project.operatorId)?.id
     || (operators.length === 1 ? operators[0].id : '');
   const [operatorId, setOperatorId] = useState(suggestedOperator);
+  const [recipients, setRecipients] = useState<ProjectClientFormState>(() => projectClientFormState(project));
+  const [recipientsError, setRecipientsError] = useState('');
   useEffect(() => setStartDate(suggested), [project.id, suggested]);
   useEffect(() => setOperatorId(suggestedOperator), [project.id, suggestedOperator]);
   const validOperator = !operators.length || operators.some(operator => operator.id === operatorId);
@@ -33,11 +43,18 @@ export function ProjectExecutionStartModal({ project, plannedStartDate, executed
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (startDate && !dateError && validOperator && !saving) onConfirm(startDate, operators.length ? operatorId : undefined);
+    if (!startDate || dateError || !validOperator || saving) return;
+    const result = recipientsSchema.safeParse({ ...recipients, clientEmailCc: parseEmailList(recipients.clientEmailCc) });
+    if (!result.success) {
+      setRecipientsError(result.error.issues[0]?.message || 'Revise os destinatários.');
+      return;
+    }
+    setRecipientsError('');
+    onConfirm(startDate, operators.length ? operatorId : undefined, result.data);
   }
 
   return (
-    <Modal open onClose={onClose} closeOnEscape={!saving} appearance="design-system" title="Confirmar início da execução" size="sm" fullscreenOnMobile={false} panelClassName="efetivo-dialog" footer={<><Button variant="secondary" disabled={saving} onClick={onClose}>Cancelar</Button><Button variant="primary" type="submit" form="project-execution-start-form" loading={saving} disabled={!startDate || Boolean(dateError) || !validOperator}>Confirmar e iniciar execução</Button></>}>
+    <Modal open onClose={onClose} closeOnEscape={!saving} appearance="design-system" title="Confirmar início da execução" size="md" fullscreenOnMobile={false} panelClassName="efetivo-dialog" footer={<><Button variant="secondary" disabled={saving} onClick={onClose}>Cancelar</Button><Button variant="primary" type="submit" form="project-execution-start-form" loading={saving} disabled={!startDate || Boolean(dateError) || !validOperator}>Confirmar e iniciar execução</Button></>}>
       <form id="project-execution-start-form" className="efetivo-dialog-form" onSubmit={submit}>
         <p className="efetivo-dialog-description">{project.code} · {project.name}</p>
         {futureDate ? <Alert tone="info" title={`Início previsto para ${displayDateOnly(futureDate)}`}>
@@ -52,6 +69,14 @@ export function ProjectExecutionStartModal({ project, plannedStartDate, executed
             {operators.map(operator => <option key={operator.id} value={operator.id}>{operator.name}</option>)}
           </Select>
         </Field> : <Alert tone="warning" title="Execução sem operador de campo para os relatórios">A equipe não possui colaborador com conta ativa e acesso ao Relatório. O Gestor de Contrato será definido como responsável padrão e administradores e gestores serão notificados da falta de operador.</Alert>}
+        <section className="project-workflow-report-recipients" aria-labelledby="execution-report-recipients-title">
+          <fieldset disabled={saving}>
+            <legend id="execution-report-recipients-title">Destinatários dos relatórios</legend>
+            <p className="efetivo-dialog-description">Confirme o e-mail principal, os e-mails em cópia e quem também assina. Os dados serão salvos ao iniciar a execução.</p>
+            <ProjectClientFields form={recipients} setForm={setRecipients} idPrefix="execution" required />
+          </fieldset>
+          {recipientsError ? <Alert tone="danger" title={recipientsError} /> : null}
+        </section>
       </form>
     </Modal>
   );

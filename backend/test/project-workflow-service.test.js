@@ -1722,6 +1722,48 @@ test('execução exige operador da missão com colaborador e conta interna ativo
   }
 });
 
+test('início da execução cadastra os destinatários na mesma transação, inclusive na Sede', async () => {
+  for (const executedAtHeadquarters of [false, true]) {
+    const { database, state } = fakeDatabase();
+    await startProjectWorkflow('project-1', { leaderUserId: 'leader-1' }, manager, { database });
+    makeStateReadyForMobilization(state);
+    state.workflow.executedAtHeadquarters = executedAtHeadquarters;
+    state.workflow.stage = executedAtHeadquarters ? 'PREPARATION' : 'MOBILIZATION';
+    state.workflow.actualMobilizationDate = new Date('2026-09-10T00:00:00Z');
+    state.project.clientEmailPrimary = '';
+    const effects = [];
+    const reportRecipients = {
+      clientEmailPrimary: ' Novo@Example.com ', clientSignerFirstName: ' Joana ', clientSignerLastName: ' Souza ',
+      clientEmailCc: ['ana@example.com', 'ANA@example.com', 'leitor@example.com'],
+      clientSigners: [{ email: 'ana@example.com', firstName: 'Ana', lastName: 'Silva', signsServiceReports: false }]
+    };
+    const result = await updateProjectWorkflow('project-1', {
+      action: 'stage', version: 1, stage: 'EXECUTION', startDate: '2026-09-12', operatorId: 'collaborator-1', reportRecipients
+    }, leader, {
+      database, now: new Date('2026-09-14T12:00:00Z'), synchronizeOfficialMissionStage: async () => null,
+      clientAccounts: {
+        ensureClientAccountForProject: async tx => { assert.equal(tx, database); effects.push('primary'); },
+        ensureClientCcAccounts: async () => effects.push('copies')
+      },
+      reconcileProjectClientSignatureRequirements: async projectId => { assert.equal(projectId, 'project-1'); effects.push('signatures'); },
+      clearProjectDerivedCaches: () => effects.push('cache')
+    });
+    assert.equal(result.workflow.stage, 'EXECUTION');
+    assert.equal(result.project.clientEmailPrimary, 'novo@example.com');
+    assert.deepEqual(result.project.clientEmailCc, ['ana@example.com', 'leitor@example.com']);
+    assert.equal(result.project.clientSigners[0].signsServiceReports, false);
+    assert.equal(result.project.clientSigners[0].name, 'Ana Silva');
+    assert.equal(result.project.operatorId, 'collaborator-1');
+    assert.equal(result.project.startDate, '2026-09-12');
+    assert.deepEqual(effects, ['primary', 'copies', 'signatures', 'cache']);
+    assert.deepEqual(state.events.at(-1).data.reportRecipients, reportRecipients);
+    const list = await listProjectWorkflows({}, manager, { database });
+    assert.equal(list.items[0].clientSigners[0].name, 'Ana Silva');
+    assert.equal(list.items[0].clientSignerFirstName, 'Joana');
+    assert.deepEqual(list.items[0].clientEmailCc, ['ana@example.com', 'leitor@example.com']);
+  }
+});
+
 test('equipe sem conta habilitada inicia sem operador, atribui Gestor de Contrato e notifica uma vez', async () => {
   for (const unavailable of ['no-account', 'inactive-user', 'no-rdo']) {
     const { database, state } = fakeDatabase();
@@ -1816,8 +1858,12 @@ test('falha ao salvar a etapa desfaz o início real e preserva a data anterior',
     return originalUpdate(input);
   };
   await assert.rejects(updateProjectWorkflow('project-1', {
-    action: 'stage', version: 1, stage: 'EXECUTION', operatorId: 'collaborator-1', startDate: '2026-09-12'
-  }, leader, { database, now: new Date('2026-09-14T12:00:00Z'), synchronizeOfficialMissionStage: async () => null }), /Falha ao gravar etapa/);
+    action: 'stage', version: 1, stage: 'EXECUTION', operatorId: 'collaborator-1', startDate: '2026-09-12',
+    reportRecipients: { clientEmailPrimary: 'novo@example.com', clientEmailCc: [], clientSigners: [] }
+  }, leader, { database, now: new Date('2026-09-14T12:00:00Z'), synchronizeOfficialMissionStage: async () => null,
+    clientAccounts: { ensureClientAccountForProject: async () => {}, ensureClientCcAccounts: async () => {} }
+  }), /Falha ao gravar etapa/);
+  assert.equal(state.project.clientEmailPrimary, 'cliente@example.com');
   assert.equal(state.project.startDate.toISOString(), '2026-09-11T00:00:00.000Z');
   assert.equal(state.project.operatorId, 'previous-operator');
   assert.deepEqual(state.authorizedUsers, [{ projectId: 'project-1', userId: 'previous-user' }]);

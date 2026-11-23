@@ -130,7 +130,10 @@ function legacyExecutionDatabase(kind = 'OFFICIAL') {
     },
     efetivoPlan: { findUnique: async () => state.plan, update: async () => state.plan },
     projectWorkflow: { findUnique: async () => null },
-    project: { update: async ({ data }) => { Object.assign(state.project, data); } },
+    project: {
+      findFirst: async () => ({ ...state.project }),
+      update: async ({ data }) => { Object.assign(state.project, data); return { ...state.project }; }
+    },
     projectAuthorizedUser: { createMany: async ({ data }) => state.users.push(...data) },
     notificationEvent: { upsert: async ({ create }) => { state.notifications.push(create); } },
     efetivoMissionPlan: {
@@ -213,6 +216,38 @@ test('missão antiga rejeita execução sem responsável ou data válida e prese
     assert.equal(state.users.length, 0);
     assert.equal(state.project.operatorId, undefined);
   }
+});
+
+test('missão antiga salva destinatários junto com operador e início real', async () => {
+  const { database, state } = legacyExecutionDatabase();
+  const effects = [];
+  const input = stageInputSchema.parse({ stage: 'EXECUTION', order: 0, startDate: '2026-09-12', operatorId: 'ana',
+    reportRecipients: { clientEmailPrimary: ' Cliente@Example.com ', clientEmailCc: ['copia@example.com'],
+      clientSigners: [{ email: 'copia@example.com', firstName: 'Joana', lastName: 'Souza', signsServiceReports: false }] }
+  });
+  await moveMissionStage('mission-1', input, { version: 1 }, {
+    database, now: new Date('2026-09-14T12:00:00Z'),
+    clientAccounts: { ensureClientAccountForProject: async () => {}, ensureClientCcAccounts: async () => {} },
+    reconcileProjectClientSignatureRequirements: async id => effects.push(id), clearProjectDerivedCaches: () => effects.push('cache')
+  });
+  assert.equal(state.project.clientEmailPrimary, 'cliente@example.com');
+  assert.equal(state.project.clientSigners[0].name, 'Joana Souza');
+  assert.equal(state.project.clientSigners[0].signsServiceReports, false);
+  assert.equal(state.project.operatorId, 'ana');
+  assert.equal(state.mission.stage, 'EXECUTION');
+  assert.deepEqual(effects, ['project-1', 'cache']);
+  assert.deepEqual(state.audits[0].afterData.reportRecipients, input.reportRecipients);
+});
+
+test('destinatários inválidos e cenários não alteram o projeto na entrada em execução', async () => {
+  assert.equal(stageInputSchema.safeParse({ stage: 'EXECUTION', order: 0, reportRecipients: { clientEmailPrimary: 'invalido' } }).success, false);
+  const reportRecipients = { clientEmailPrimary: 'cliente@example.com', clientEmailCc: [], clientSigners: [] };
+  assert.equal(stageInputSchema.safeParse({ stage: 'MOBILIZATION', order: 0, reportRecipients }).success, false);
+  const { database, state } = legacyExecutionDatabase('SCENARIO');
+  await assert.rejects(moveMissionStage('mission-1', { stage: 'EXECUTION', order: 0, reportRecipients }, { version: 1 }, { database }),
+    error => error.code === 'MISSION_REPORT_RECIPIENTS_EXECUTION_REQUIRED');
+  assert.equal(state.project.clientEmailPrimary, undefined);
+  assert.equal(state.mission.stage, 'MOBILIZATION');
 });
 
 test('mover cenário para execução não altera operador ou acessos do projeto oficial', async () => {

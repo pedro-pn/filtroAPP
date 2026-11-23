@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { makeProjectReportRecipientsSchema } from '../../../../../shared/schemas/project-report-recipients.js';
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 export const dateOnlySchema = z.string().regex(datePattern, 'Use o formato AAAA-MM-DD.').refine(value => {
@@ -178,7 +179,10 @@ export const stageInputSchema = z.object({
   order: z.coerce.number().int().min(0),
   startDate: dateOnlySchema.optional(),
   operatorId: idSchema.optional(),
+  reportRecipients: makeProjectReportRecipientsSchema(z).optional(),
   returnDate: dateOnlySchema.nullable().optional()
+}).refine(value => !value.reportRecipients || value.stage === 'EXECUTION', {
+  path: ['reportRecipients'], message: 'Os destinatários só podem ser confirmados ao entrar em execução.'
 });
 
 // Contratação hipotética informada já na criação do cenário; quantidade 0 significa "sem contratação".

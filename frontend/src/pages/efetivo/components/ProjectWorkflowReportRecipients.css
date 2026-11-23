@@ -37,6 +37,22 @@
   outline-offset: 3px;
 }
 
+.project-workflow-report-recipients legend {
+  margin-bottom: var(--space-3);
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: var(--font-semibold);
+}
+
+.project-workflow-report-recipients .efetivo-dialog-description,
+.project-workflow-report-recipients fieldset > .field-group:first-of-type {
+  grid-column: 1 / -1;
+}
+
+.project-workflow-report-recipients .cc-add-row .fv-button {
+  flex-shrink: 0;
+}
+
 @media (max-width: 640px) {
   .project-workflow-report-recipients fieldset {
     grid-template-columns: minmax(0, 1fr);

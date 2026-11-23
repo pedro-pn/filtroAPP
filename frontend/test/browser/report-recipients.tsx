@@ -29,7 +29,7 @@ function Fixture() {
     setProject(current => ({ ...current, ...payload }));
     setVersion(current => current + 1);
   }
-  return <main className="fv-ds project-workflow-modal" style={{ padding: 24, maxWidth: 900, margin: 'auto' }}>
+  return <main className="project-workflow-modal" style={{ padding: 24, maxWidth: 900, margin: 'auto' }}>
     <h1>Destinatários dos relatórios</h1>
     <ProjectWorkflowReportRecipients key={version} project={project} workflow={workflow} saving={false} onPatch={save} />
     <output data-test-writes>{JSON.stringify(writes)}</output>
