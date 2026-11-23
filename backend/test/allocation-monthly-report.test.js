@@ -3,13 +3,20 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 import {
-  buildMonthlyAllocationSummary,
+  buildMonthlyAllocationSummary as buildSummaryWithReviewSources,
   buildMonthlyAllocationPdf,
   previewMonthlyAllocationDelivery,
   previousYearMonth,
-  processMonthlyAllocationReport,
-  sendMonthlyAllocationReport
+  processMonthlyAllocationReport as processReportWithReviewSources,
+  sendMonthlyAllocationReport as sendReportWithReviewSources
 } from '../src/lib/allocation-monthly-report.js';
+
+// Estes cenários isolam RDOs, decisões confirmadas e entrega de e-mail.
+// A leitura automática das fontes é coberta em allocation-monthly-situations.test.js.
+const noAutomaticDays = { loadReviewMonth: async () => ({ rows: [] }) };
+const buildMonthlyAllocationSummary = options => buildSummaryWithReviewSources({ ...noAutomaticDays, ...options });
+const processMonthlyAllocationReport = options => processReportWithReviewSources({ ...noAutomaticDays, ...options });
+const sendMonthlyAllocationReport = options => sendReportWithReviewSources({ ...noAutomaticDays, ...options });
 
 function createRecipientDeliveryMock(initialRows = []) {
   const rows = new Map();
