@@ -2455,7 +2455,7 @@ export function GestorPage() {
           <input id={`project-workday-${project.id}`} type="text" placeholder="09:00" value={projectForm.workdayHours} onChange={(event) => setProjectForm((current) => ({ ...current, workdayHours: event.target.value }))} />
         </div>
         <div className="field-group">
-          <label htmlFor={`project-weekend-${project.id}`}>Jornada fim de semana</label>
+          <label htmlFor={`project-weekend-${project.id}`}>Jornada fim de semana e feriados</label>
           <input
             id={`project-weekend-${project.id}`}
             type="text"
@@ -2472,7 +2472,7 @@ export function GestorPage() {
           </select>
         </div>
         <div className="field-group">
-          <label htmlFor={`project-sun-${project.id}`}>Inclui domingo</label>
+          <label htmlFor={`project-sun-${project.id}`}>Inclui domingo e feriados</label>
           <select id={`project-sun-${project.id}`} value={projectForm.includesSunday ? 'true' : 'false'} onChange={(event) => setProjectForm((current) => ({ ...current, includesSunday: event.target.value === 'true' }))}>
             <option value="true">Sim</option>
             <option value="false">Não</option>
@@ -2634,7 +2634,7 @@ export function GestorPage() {
                 <input id="project-workday" type="text" placeholder="09:00" value={projectForm.workdayHours} onChange={(event) => setProjectForm((current) => ({ ...current, workdayHours: event.target.value }))} />
               </div>
               <div className="field-group">
-                <label htmlFor="project-weekend">Jornada fim de semana</label>
+                <label htmlFor="project-weekend">Jornada fim de semana e feriados</label>
                 <input id="project-weekend" type="text" placeholder="08:00" value={projectForm.weekendWorkdayHours} onChange={(event) => setProjectForm((current) => ({ ...current, weekendWorkdayHours: event.target.value }))} />
               </div>
               <div className="field-group">
@@ -2645,7 +2645,7 @@ export function GestorPage() {
                 </select>
               </div>
               <div className="field-group">
-                <label htmlFor="project-sun">Inclui domingo</label>
+                <label htmlFor="project-sun">Inclui domingo e feriados</label>
                 <select id="project-sun" value={projectForm.includesSunday ? 'true' : 'false'} onChange={(event) => setProjectForm((current) => ({ ...current, includesSunday: event.target.value === 'true' }))}>
                   <option value="true">Sim</option>
                   <option value="false">Não</option>

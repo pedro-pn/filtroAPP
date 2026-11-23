@@ -852,7 +852,7 @@ export function renderProjectCard(
       const weekendDays =
         [
           project.includesSaturday ? 'sábado' : null,
-          project.includesSunday ? 'domingo' : null
+          project.includesSunday ? 'domingo e feriados' : null
         ]
           .filter(Boolean)
           .join(' e ') || 'Não incluído';
@@ -1106,7 +1106,7 @@ export function renderProjectCard(
                       <dd>{project.workdayHours || '-'}</dd>
                     </div>
                     <div className="rdo-archived-project-card__detail">
-                      <dt>Fim de semana</dt>
+                      <dt>Fim de semana e feriados</dt>
                       <dd>{weekendDays}</dd>
                     </div>
                     <div className="rdo-archived-project-card__detail">

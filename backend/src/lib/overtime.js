@@ -62,7 +62,7 @@ export function getExpectedMinutes(project, reportDate, corporateCalendar = null
   const weekendBase = parseBreak(project.weekendWorkdayHours || '08:00');
   const weekdayBase = parseBreak(project.workdayHours || '09:00');
 
-  if (holiday) return 0;
+  if (holiday) return project.includesSunday ? weekendBase : 0;
   if (dow === 5) return weekendBase;
   if (dow === 6) return project.includesSaturday ? weekendBase : 0;
   if (dow === 0) return project.includesSunday ? weekendBase : 0;
