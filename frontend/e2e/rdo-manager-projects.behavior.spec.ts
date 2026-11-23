@@ -169,9 +169,11 @@ test('Projetos preserva busca, ordenação, detalhes e abertura dos formulários
     name: '+ Adicionar',
     exact: true
   });
-  await expect(addButtons).toHaveCount(2);
+  await expect(addButtons).toHaveCount(1);
   await expect(addButtons.first()).toHaveClass(/\bfv-button--primary\b/);
-  await expect(addButtons.nth(1)).toHaveClass(/\bfv-button--primary\b/);
+  const addCopyEmail = project.getByRole('button', { name: 'Adicionar', exact: true });
+  await expect(addCopyEmail).toHaveClass(/\bfv-button--secondary\b/);
+  await expect(addCopyEmail).toHaveClass(/\bfv-button--sm\b/);
   await expect(
     project.getByRole('button', {
       name: '+ Adicionar segmento',
