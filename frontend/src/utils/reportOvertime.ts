@@ -54,12 +54,12 @@ export function getExpectedReportMinutes(
   const date = new Date(`${reportDate}T00:00:00Z`);
   if (Number.isNaN(date.getTime()))
     return parseDurationToMinutes(policy.workdayHours || '09:00');
-  if (isHoliday) return 0;
   const day = date.getUTCDay();
   const weekdayBase = parseDurationToMinutes(policy.workdayHours || '09:00');
   const weekendBase = parseDurationToMinutes(
     policy.weekendWorkdayHours || '08:00'
   );
+  if (isHoliday) return policy.includesSunday ? weekendBase : 0;
   if (day === 5) return weekendBase;
   if (day === 6) return policy.includesSaturday ? weekendBase : 0;
   if (day === 0) return policy.includesSunday ? weekendBase : 0;
