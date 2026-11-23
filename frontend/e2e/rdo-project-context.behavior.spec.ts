@@ -83,7 +83,7 @@ const report = {
   services
 };
 
-async function mockApp(page: Page, savedReport = report) {
+async function mockApp(page: Page, savedReport = report, historyReports: unknown[] = []) {
   const requests: Array<{ path: string; body: Record<string, unknown> }> = [];
   await page.addInitScript(() => {
     localStorage.setItem('filtrovali-react-token', 'context-test-token');
@@ -150,7 +150,7 @@ async function mockApp(page: Page, savedReport = report) {
                 pagination: { total: 0, page: 1, pageSize: 25, totalPages: 0 },
                 groups: []
               }
-            : [];
+            : historyReports;
     else if (path === '/api/rdo/reports/report-1')
       response =
         request.method() === 'PUT' ? { ...savedReport, ...body } : savedReport;
@@ -190,7 +190,7 @@ test('data no futuro ou de outro ano mostra aviso, mas não bloqueia o avanço d
   await expect(page.locator('#rdo-date')).toHaveAttribute('aria-describedby', /rdo-date-date-warning/);
   await page.locator('#rdo-work-location').selectOption('Oficina');
   await page.getByRole('button', { name: 'Próximo', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Adicionar serviço', exact: true })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Qual serviço foi executado hoje?' })).toBeVisible();
 });
 
 for (const [type, label] of [
@@ -207,8 +207,7 @@ for (const [type, label] of [
     await fillHeader(page);
     await page.locator('#rdo-work-location').selectOption('Oficina');
     await page.getByRole('button', { name: 'Próximo', exact: true }).click();
-    await page.getByRole('button', { name: 'Adicionar serviço', exact: true }).click();
-    await page.getByRole('dialog', { name: 'Tipo de serviço' }).getByRole('button', { name: label, exact: true }).click();
+    await page.getByRole('dialog', { name: 'Qual serviço foi executado hoje?' }).getByRole('button', { name: label, exact: true }).click();
     await page.getByRole('combobox', { name: /^Escopo/ }).selectOption('"UG 1"');
     const equipment = page.locator(type === 'inibicao' ? 'select[id$="-equipmentId"]' : 'input[id^="service-equipment-"]');
     const system = page.locator(type === 'inibicao' ? 'select[id$="-system"]' : 'input[id^="service-system-"]');
@@ -283,15 +282,17 @@ test('local e escopo são obrigatórios, independentes por serviço e persistido
   );
   await page.locator('#rdo-work-location').selectOption('Canteiro');
   await page.getByRole('button', { name: 'Próximo', exact: true }).click();
-  for (const type of ['Limpeza química', 'Limpeza mecânica']) {
-    await page
-      .getByRole('button', { name: 'Adicionar serviço', exact: true })
-      .click();
-    await page
-      .getByRole('dialog', { name: 'Tipo de serviço' })
-      .getByRole('button', { name: type, exact: true })
-      .click();
-  }
+  await page
+    .getByRole('dialog', { name: 'Qual serviço foi executado hoje?' })
+    .getByRole('button', { name: 'Limpeza química', exact: true })
+    .click();
+  await page
+    .getByRole('button', { name: 'Adicionar serviço', exact: true })
+    .click();
+  await page
+    .getByRole('dialog', { name: 'Tipo de serviço' })
+    .getByRole('button', { name: 'Limpeza mecânica', exact: true })
+    .click();
   const cards = page.locator('[data-service-id]');
   await expect(cards).toHaveCount(2);
   const firstScope = cards.nth(0).getByRole('combobox', { name: 'Escopo' });
@@ -354,7 +355,11 @@ test('RDO sem serviços salva o local selecionado no envio', async ({
   await fillHeader(page);
   await page.locator('#rdo-work-location').selectOption('Canteiro');
   await page.getByRole('button', { name: 'Próximo', exact: true }).click();
-  await page.getByRole('button', { name: 'Próximo', exact: true }).click();
+  await page
+    .getByRole('dialog', { name: 'Qual serviço foi executado hoje?' })
+    .getByRole('button', { name: 'Não houve serviço hoje', exact: true })
+    .click();
+  await expect(page.getByText('Etapa 3 de 3 · Finalização')).toBeVisible();
   await page
     .getByRole('button', { name: 'Enviar relatório', exact: true })
     .click();
@@ -367,6 +372,88 @@ test('RDO sem serviços salva o local selecionado no envio', async ({
       specialConditions: { workLocation: 'Canteiro' },
       services: []
     });
+});
+
+test('etapa Serviços abre o seletor sozinha e confirma antes de seguir sem serviço', async ({ page }) => {
+  await mockApp(page);
+  await page.goto('/rdo/relatorio/novo?tipo=obra');
+  await fillHeader(page);
+  await page.locator('#rdo-work-location').selectOption('Canteiro');
+  await page.getByRole('button', { name: 'Próximo', exact: true }).click();
+  const prompt = page.getByRole('dialog', { name: 'Qual serviço foi executado hoje?' });
+  await expect(prompt).toContainText('Escrever apenas em "Atividades do dia" não substitui o registro do serviço.');
+  await page.keyboard.press('Escape');
+  await expect(prompt).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Próximo', exact: true }).click();
+  const confirmation = page.getByRole('dialog', { name: 'Seguir sem registrar serviço?' });
+  await confirmation.getByRole('button', { name: 'Adicionar serviço', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Tipo de serviço' })).toBeVisible();
+  await page.keyboard.press('Escape');
+
+  await page.getByRole('button', { name: 'Próximo', exact: true }).click();
+  await confirmation.getByRole('button', { name: 'Seguir sem serviço', exact: true }).click();
+  await expect(page.getByText('Nenhum serviço registrado neste RDO')).toBeVisible();
+  await page.getByRole('button', { name: 'Adicionar serviço', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Tipo de serviço' }).getByRole('button', { name: 'Flushing', exact: true }).click();
+  await expect(page.locator('[data-service-id]')).toHaveCount(1);
+});
+
+test('standby no período inteiro não pede serviço; standby parcial continua pedindo', async ({ page }) => {
+  await mockApp(page);
+  await page.goto('/rdo/relatorio/novo?tipo=obra');
+  await fillHeader(page);
+  await page.locator('#rdo-work-location').selectOption('Canteiro');
+  await page.getByText('Houve standby?', { exact: true }).click();
+  // Jornada 08:00–17:00 com 1h de almoço = 8h trabalhadas.
+  await page.locator('#rdo-standby-duration-control').fill('08:00');
+  await page.locator('#rdo-standby-reason-control').fill('Aguardando liberação da área');
+  await page.getByRole('button', { name: 'Próximo', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Adicionar serviço', exact: true })).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Próximo', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByText('Etapa 3 de 3 · Finalização')).toBeVisible();
+  await expect(page.getByText('Nenhum serviço registrado neste RDO')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Voltar', exact: true }).click();
+  await page.getByRole('button', { name: 'Voltar', exact: true }).click();
+  await page.locator('#rdo-standby-duration-control').fill('04:00');
+  await page.getByRole('button', { name: 'Próximo', exact: true }).click();
+  await page.getByRole('button', { name: 'Próximo', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Seguir sem registrar serviço?' })).toBeVisible();
+});
+
+test('etapa Serviços oferece continuar os serviços em andamento ou iniciar outro', async ({ page }) => {
+  const previous = { ...report, id: 'report-0', reportDate: '2026-10-01', sequenceNumber: 7,
+    createdAt: '2026-10-01T12:00:00Z', status: 'APPROVED',
+    services: [services[0], { ...services[1], id: 'service-flushing', serviceType: 'flushing',
+      extraData: { ...services[1].extraData, equipmentId: 'EQ-2', 'Equipamento(s)': 'EQ-2' } }] };
+  await mockApp(page, report, [previous]);
+  await page.goto('/rdo/relatorio/novo?tipo=obra');
+  await fillHeader(page);
+  await page.locator('#rdo-work-location').selectOption('Canteiro');
+  await page.getByRole('button', { name: 'Próximo', exact: true }).click();
+  const prompt = page.getByRole('dialog', { name: 'Serviços em andamento' });
+  await expect(prompt).toContainText('Este projeto tem 2 serviços que ainda não foram finalizados.');
+  const items = prompt.getByRole('checkbox');
+  await expect(items).toHaveCount(2);
+  // Nenhum serviço vem marcado: continuar exige escolha explícita.
+  await expect(items.nth(0)).not.toBeChecked();
+  await expect(items.nth(1)).not.toBeChecked();
+  const continueButton = prompt.getByRole('button', { name: 'Continuar serviço', exact: true });
+  await expect(continueButton).toBeDisabled();
+  await items.nth(0).check();
+  await prompt.getByRole('button', { name: 'Iniciar outro serviço', exact: true }).click();
+  const picker = page.getByRole('dialog', { name: 'Qual serviço foi executado hoje?' });
+  await picker.getByRole('button', { name: 'Voltar aos serviços em andamento', exact: true }).click();
+  await expect(prompt.getByRole('checkbox').nth(0)).toBeChecked();
+  await expect(prompt.getByRole('checkbox').nth(1)).not.toBeChecked();
+  await continueButton.click();
+  await expect(prompt).toHaveCount(0);
+  await expect(page.locator('[data-service-id]')).toHaveCount(1);
+  // O outro serviço segue disponível no cartão de continuidade da própria etapa.
+  await expect(page.locator('.continuity-card .ongoing-item-react')).toHaveCount(1);
 });
 
 test('editor restaura local e escopos e salva as alterações', async ({

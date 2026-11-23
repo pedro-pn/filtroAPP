@@ -33,7 +33,9 @@ test('gestor cria RDO do rascunho ao envio e baixa um PDF válido do relatório'
   await page.getByRole('combobox', { name: 'Adicionar colaborador', exact: true }).selectOption({ label: seed.collaborators.ana.name });
 
   await page.getByRole('button', { name: 'Próximo', exact: true }).click();
-  await page.getByRole('button', { name: 'Próximo', exact: true }).click();
+  // A etapa Serviços abre o seletor sozinha; RDO sem serviço segue direto para a Finalização.
+  await page.getByRole('dialog').getByRole('button', { name: 'Não houve serviço hoje', exact: true }).click();
+  await expect(page.getByText('Etapa 3 de 3 · Finalização')).toBeVisible();
 
   const created = page.waitForResponse(response =>
     response.request().method() === 'POST' && /\/api\/(rdo\/)?reports$/.test(new URL(response.url()).pathname)

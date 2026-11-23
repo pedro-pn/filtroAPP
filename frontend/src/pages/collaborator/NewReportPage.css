@@ -1268,3 +1268,95 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Seletor de serviço com prompt automático (serviços em andamento / tipo de serviço) */
+:where(.fv-ds, [data-fv-ds]) .rdo-service-prompt__intro {
+  margin: 0 0 var(--space-3);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-service-prompt__list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-service-prompt__item {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-service-prompt__item.is-selected {
+  border-color: var(--warning-line);
+  background: var(--warning-bg);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-service-prompt__item input {
+  width: 1.125rem;
+  height: 1.125rem;
+  flex: 0 0 auto;
+  margin: 0.125rem 0 0;
+  accent-color: var(--brand);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-service-prompt__item-main {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-service-prompt__item-title {
+  color: var(--ink);
+  font-weight: var(--font-semibold);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-service-prompt__item-sub {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-service-prompt__item-meta {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-service-prompt__footer {
+  display: flex;
+  width: 100%;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+:where(.fv-ds, [data-fv-ds]) .rdo-service-prompt__no-service {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0 var(--space-1);
+  margin: var(--space-4) 0 0;
+  padding-top: var(--space-3);
+  border-top: var(--border-width) dashed var(--line);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+.rdo-form-page .rdo-no-service-hint {
+  margin-bottom: var(--space-3);
+}
+
+@media (max-width: 520px) {
+  :where(.fv-ds, [data-fv-ds]) .rdo-service-prompt__footer > .fv-button {
+    flex: 1 1 100%;
+  }
+}
