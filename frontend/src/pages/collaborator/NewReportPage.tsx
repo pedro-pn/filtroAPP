@@ -1538,6 +1538,7 @@ function SiteRdoFormPage() {
                 value={overtimeReason}
                 onChange={event => setHeaderField('overtimeReason', event.target.value)}
               />
+              <AdequarAnotacaoButton valor={overtimeReason} campo="Motivo da hora extra" onAplicar={texto => setHeaderField('overtimeReason', texto)} />
             </div>
           ) : null}
         </Card>

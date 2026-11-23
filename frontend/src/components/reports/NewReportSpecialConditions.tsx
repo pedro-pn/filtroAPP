@@ -3,6 +3,7 @@ import { useState } from 'react';
 import type { DdsTheme } from '../../api/ddsThemes';
 import type { RdoStoreState } from '../../store/rdoStore';
 import type { Collaborator } from '../../types/domain';
+import { AdequarAnotacaoButton } from '../anotacoes/AdequarAnotacaoButton';
 import { Badge, Button, Card, Field, Input, Select, Switch } from '../ui/ds';
 
 interface NewReportSpecialConditionsProps {
@@ -244,6 +245,7 @@ export function NewReportSpecialConditions({
             </Field>
             <Field id="rdo-standby-reason" className={fieldState('header:standbyMotivo')} label="Motivo" required optionalText={null} data-invalid-target="header:standbyMotivo">
               <Input id="rdo-standby-reason-control" type="text" placeholder="Motivo..." value={standbyMotivo} invalid={invalidTarget === 'header:standbyMotivo'} onChange={event => setHeaderField('standbyMotivo', event.target.value)} />
+              <AdequarAnotacaoButton valor={standbyMotivo} campo="Motivo do standby" onAplicar={texto => setHeaderField('standbyMotivo', texto)} />
             </Field>
           </div>
         </div>
