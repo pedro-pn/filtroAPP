@@ -1,5 +1,6 @@
 import { resource } from './operational-resource-definition.js';
 import { weeklyTargetSchema } from './weekly-target-schema.js';
+import { projectServicesArraySchema, projectServicesRouteContract } from './project-services-contract.js';
 
 export const CONDITIONS_VALUE_SCOPE = 'projetos.condicoes.valores.read';
 const commonQuery = ['limit', 'cursor', 'updatedSince', 'snapshotAt', 'projectId', 'projectCode'];
@@ -19,6 +20,13 @@ const management = (model, path, scope, label, domain, fields, options = {}) => 
 });
 
 export const MANAGEMENT_RESOURCES = Object.freeze([
+  management('Project', '/acompanhamento/projetos/servicos', 'acompanhamento.progresso.read',
+    'Composição do avanço por serviço e equipamento', 'project-tracking', {
+      projectId: 'string', projectCode: 'string', avancoTotal: 'number?', servicos: 'array', updatedAt: 'datetime'
+    }, { operationId: 'acompanhamento.projects.services.list', openApiOperationId: 'listIntegrationProjectServices',
+      queryParams: [...commonQuery, 'updated_since'], routeContract: projectServicesRouteContract,
+      fieldSchemas: { servicos: projectServicesArraySchema },
+      projectNotice: 'Mesmos cartões do detalhe por escopo e equipamento, sem pessoas, notas ou sistemas individuais. Avanço total do detalhe. Agregado usa watermark de leitura; updatedSince/updated_since pode repetir linhas. Snapshot não reconstrói fontes históricas.' }),
   management('Project', '/acompanhamento/projetos/semanas', 'acompanhamento.progresso.read',
     'Avanço, meta e revisão semanal por projeto', 'project-tracking', {
       projectId: 'string', projectCode: 'string', weekStart: 'date', avancoInicio: 'number?', avancoFim: 'number?',

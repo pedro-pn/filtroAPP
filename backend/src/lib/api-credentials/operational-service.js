@@ -14,6 +14,7 @@ import { listIntegrationEvents } from './event-feed.js';
 
 import { loadInvoiceRows } from './invoice-rows.js';
 import { listManagementResources } from './management-service.js';
+import { projectServicesQuerySchema } from './project-services-contract.js';
 
 const querySchema = makeOperationalReadQuerySchema(z);
 
@@ -21,6 +22,10 @@ export function prepareOperationalQuery(operationId, input, context) {
   let resource = getOperationalResource(operationId);
   if (!resource) throw new IntegrationApiError(400, 'UNKNOWN_OPERATION', 'Operação indisponível.');
   if (!hasIntegrationScopes(resource, context.scopes)) throw new IntegrationApiError(403, 'INSUFFICIENT_SCOPE', 'A credencial não possui a permissão necessária.');
+  if (operationId === 'acompanhamento.projects.services.list') {
+    const { updated_since, ...canonical } = projectServicesQuerySchema.parse(input);
+    input = updated_since ? { ...canonical, updatedSince: updated_since } : canonical;
+  }
   const query = querySchema.parse(input);
   if (resource.conditionalScope && context.scopes.has(resource.conditionalScope)) {
     resource = { ...resource, fields: { ...resource.fields, ...resource.conditionalFields } };

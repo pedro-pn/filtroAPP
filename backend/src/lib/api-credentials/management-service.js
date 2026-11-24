@@ -3,9 +3,10 @@ import { createHash } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { buildWeeklyProgressComparison, corporateToday, dateOnlyKey, weekStartKey, effectiveWeeklyProgressTarget } from '../../../../shared/modules/mission-weekly-progress.js';
 import { projectCostSummary } from '../../../../shared/modules/project-cost-summary.js';
+import { projectServiceComposition } from '../../../../shared/modules/project-service-composition.js';
 import { PROJECT_EXECUTION_WEEKLY_CHECKS } from '../../../../shared/schemas/project-execution.js';
 import { addDays, isWeeklyReviewComplete, normalizeWeeklyChecks } from '../efetivo/project-workflow/weekly-review.js';
-import { computeProgressDetailsForProjects } from '../acompanhamento/avanco.js';
+import { buildRequiredWeeklyProgress, computeProgressDetailsForProjects } from '../acompanhamento/avanco.js';
 import { getProjectDetail } from '../acompanhamento/project-detail.js';
 import { loadAllocatedAttendanceDays } from '../acompanhamento/labor-cost.js';
 import { IntegrationApiError } from '../../middleware/api-request-context.js';
@@ -90,6 +91,17 @@ async function projectWeeks(client, candidates, snapshotAt) {
       meta: projectWeeklyTarget(comparisons.get(row.projectId)[own ? 'own' : 'group'].get(row.weekStart)),
       revisao: projectWeeklyReview(reviews.find(review => review.projectId === row.projectId && dateOnlyKey(review.weekStartDate) === row.weekStart)),
       updatedAt: snapshotAt };
+  });
+}
+
+async function projectServices(client, candidates) {
+  const details = await computeProgressDetailsForProjects(candidates.map(row => row.projectId), {
+    database: client, currentOnly: true
+  });
+  return candidates.map(row => {
+    const progress = details.get(row.projectId)?.progress;
+    return { ...row, avancoTotal: progress?.progressPct ?? null,
+      servicos: projectServiceComposition({ target: buildRequiredWeeklyProgress(progress), fallbackProgress: progress }) };
   });
 }
 
@@ -202,7 +214,8 @@ export async function listManagementResources(client, resource, query, context, 
     operationId: resource.operationId, filters, snapshotAt: snapshotAt.toISOString(), position: { key: rowKey(pageRows.at(-1)),
       ...(weekly ? { from: weeks[0], to: weeks.at(-1) } : {}) } } }) : null;
   const output = resource.operationId === 'acompanhamento.projects.weeks.list' ? await projectWeeks(client, pageRows, snapshotAt)
-    : resource.operationId === 'acompanhamento.projects.costs.list' ? await projectCosts(client, pageRows, snapshotAt) : pageRows;
+    : resource.operationId === 'acompanhamento.projects.costs.list' ? await projectCosts(client, pageRows, snapshotAt)
+    : resource.operationId === 'acompanhamento.projects.services.list' ? await projectServices(client, pageRows) : pageRows;
   return { items: output.map(row => serializeOperationalResource(resource, row, context)),
     page: { limit: query.limit, hasMore, nextCursor, snapshotAt: snapshotAt.toISOString() } };
 }

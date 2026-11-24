@@ -96,7 +96,7 @@ test('every operational collection is grantable, routable, selectable in playgro
     assert.ok(!futureScopeDefinitions().some(scope => scope.code === resource.scope));
     const route = router.stack.find(layer => layer.route?.path === resource.path && layer.route?.methods.get).route;
     assert.deepEqual(Object.keys(route.methods), ['get']);
-    assert.equal(route.stack.length, 2);
+    assert.equal(route.stack.length, resource.routeContract ? 3 : 2);
     let allowed = false;
     route.stack[0].handle({ apiAuth: { scopeCodes: new Set(resource.requiredScopes) }, query: {} }, {}, () => { allowed = true; });
     assert.equal(allowed, true);

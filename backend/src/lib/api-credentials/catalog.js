@@ -4,7 +4,7 @@ import { OPERATIONAL_DOWNLOADS } from './extended-operational-resources.js';
 import { describePlaygroundParameters } from './playground-parameters.js';
 import { CRM_PLANNING_EXAMPLE } from '../../../../shared/modules/crm-planning-example.js';
 
-export const API_CATALOG_VERSION = '2026-11-13.1';
+export const API_CATALOG_VERSION = '2026-11-24.1';
 export { API_DATA_DOMAINS, DATA_CATALOG_VERSION, flattenDataCatalogModels, futureScopeDefinitions } from './data-catalog.js';
 
 const QUALITY_RECORD_FIELDS = ['id', 'number', 'type', 'registeredAt', 'origin', 'project', 'eventDate', 'nature', 'subnature', 'description', 'impact', 'recurrence', 'linkedRnc', 'disposition', 'definedAction', 'actionOwner', 'actionDeadline', 'evidenceSummary', 'resultVerification', 'status', 'createdAt', 'updatedAt'];
@@ -64,7 +64,7 @@ export const API_SCOPES = Object.freeze([
       code, label: resources[0].label, domain: domain.label, sensitivity: resources[0].sensitivity || 'INTERNAL',
       status: 'AVAILABLE', dependencies: resources[0].dependencies, description: resources[0].projectNotice,
       models: resources.map(item => item.model), exposedFields: [...new Set(resources.flatMap(item => [
-        ...Object.keys(item.fields), ...Object.entries(item.fieldSchemas || {}).flatMap(([field, schema]) => Object.keys(schema.properties).map(name => `${field}.${name}`))
+        ...Object.keys(item.fields), ...Object.entries(item.fieldSchemas || {}).flatMap(([field, schema]) => Object.keys(schema.properties ?? schema.items?.properties ?? {}).map(name => `${field}.${name}`))
       ]))],
       excludedFields: [...(resources[0].excludedFields || domain.excludedFields), 'campos JSON livres', ...(resources.some(item => item.includesOperationalNotes) ? [] : ['observações livres']), 'campos não listados no contrato']
     };

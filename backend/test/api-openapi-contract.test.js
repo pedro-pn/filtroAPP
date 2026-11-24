@@ -177,6 +177,22 @@ test('G1 documenta exemplos válidos de todas as formas de meta sem campos indiv
   }
 });
 
+test('composição por serviço documenta exemplos válidos, nulos, equipamentos e excedentes sem campos livres', async () => {
+  const contract = YAML.parse(await readFile(contractUrl, 'utf8'));
+  const response = contract.paths['/integracoes/v1/acompanhamento/projetos/servicos'].get.responses['200'].content['application/json'];
+  const validate = new Ajv({ strict: false, formats: { 'date-time': true } }).compile(response.schema.properties.items.items);
+  assert.deepEqual(Object.keys(response.examples).sort(), ['porServico','porEquipamento','unidadesIncompativeis','semComposicao'].sort());
+  for (const example of Object.values(response.examples)) {
+    for (const row of example.value.items) {
+      assert.ok(validate(row), JSON.stringify(validate.errors));
+      assert.equal(validate({ ...row, nota: 'texto livre' }), false);
+      if (row.servicos.length) {
+        assert.equal(validate({ ...row, servicos: [{ ...row.servicos[0], sistemasIndividuais: [] }] }), false);
+      }
+    }
+  }
+});
+
 test('external operation catalog and runtime Zod schemas match the contract operations', async () => {
   const [source, qualityRoutes, adminRoutes] = await Promise.all([
     readFile(contractUrl, 'utf8'),

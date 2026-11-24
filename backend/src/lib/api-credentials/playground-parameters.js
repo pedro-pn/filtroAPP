@@ -13,6 +13,7 @@ const queryDefinitions = {
   cursor: { label: 'Cursor da próxima página', type: 'text', maxLength: 4096, help: 'Na URI: cursor=VALOR. Copie page.nextCursor, codifique-o na URL e mantenha os mesmos filtros.', advanced: true },
   snapshotAt: { label: 'Teto da consulta (horário local)', type: 'datetime', help: 'Na URI: snapshotAt=DATA_HORA_ISO. Use page.snapshotAt para manter o mesmo teto entre páginas.', advanced: true },
   updatedSince: { label: 'Atualizados desde (horário local)', type: 'datetime', help: 'Na URI: updatedSince=DATA_HORA_ISO. Retorna registros cuja última alteração ocorreu desde esse instante.' },
+  updated_since: { label: 'Atualizados desde (alias)', type: 'datetime', advanced: true, help: 'Alias de updatedSince. Informe somente um dos dois. Agregados podem repetir linhas.' },
   updatedUntil: { label: 'Atualizados até (horário local)', type: 'datetime', help: 'Na URI: updatedUntil=DATA_HORA_ISO. Limita a última alteração até esse instante.' },
   createdSince: { label: 'Criados desde (horário local)', type: 'datetime', help: 'Na URI: createdSince=DATA_HORA_ISO. Detecta criações, não alterações; faça reconciliações completas periodicamente.' },
   projectCode: { label: 'Código do projeto', type: 'text', maxLength: 100, help: 'Na URI: projectCode=05776. Use o código cadastrado, preservando zeros à esquerda; deve estar no recorte do token.' },
