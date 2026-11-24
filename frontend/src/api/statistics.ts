@@ -12,6 +12,8 @@ export interface StatsParams {
 }
 
 export type StatsExportSection = 'summary' | 'byProject' | 'services';
+export type StatsExportFormat = 'csv' | 'xlsx';
+export type StatsExportParams = StatsParams & { section: StatsExportSection; format?: StatsExportFormat };
 
 export interface ClientSegmentPayload {
   label: string;
@@ -251,7 +253,8 @@ export async function createProjectSegment(payload: ClientSegmentPayload): Promi
   return response.data;
 }
 
-export async function downloadProjectStatsCsv(params: StatsParams & { section: StatsExportSection }): Promise<Blob> {
+/** Baixa a exportação de estatísticas em CSV (padrão) ou planilha XLSX (`format: 'xlsx'`). */
+export async function downloadProjectStatsCsv(params: StatsExportParams): Promise<Blob> {
   const response = await apiClient.get<Blob>(rdoApiPath('/statistics/projects/export'), {
     params,
     responseType: 'blob'
@@ -259,10 +262,10 @@ export async function downloadProjectStatsCsv(params: StatsParams & { section: S
   return response.data;
 }
 
-export function statsExportFileName(params: StatsParams & { section: StatsExportSection }): string {
+export function statsExportFileName(params: StatsExportParams): string {
   const from = params.from || 'inicio';
   const to = params.to || 'fim';
-  return `estatisticas-${params.section}-${from}-${to}.csv`;
+  return `estatisticas-${params.section}-${from}-${to}.${params.format === 'xlsx' ? 'xlsx' : 'csv'}`;
 }
 
 export interface StatsOverviewProject {

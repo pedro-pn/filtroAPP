@@ -17,7 +17,8 @@ import { StockFilter } from './StockFilter';
 import { formatStockQuantity } from './stockQuantity';
 import { useToast } from '../../components/ui/ToastContext';
 import { Badge, Select } from '../../components/ui/ds';
-import { formatDateOnlyPtBr, todayDateOnly } from '../../utils/dateOnly';
+import { dateInputValue, formatDateOnlyPtBr, todayDateOnly } from '../../utils/dateOnly';
+import { downloadSpreadsheet, type XlsxColumn } from '../../utils/spreadsheetExport';
 
 const PAGE_SIZE = 50;
 const EXPORT_PAGE_SIZE = 200;
@@ -97,6 +98,44 @@ function exportRows(movements: StockMovement[]) {
   ];
 }
 
+const SPREADSHEET_COLUMNS: XlsxColumn[] = [
+  { header: 'Data', type: 'date' },
+  { header: 'Tipo', tone: value => (value === 'Saída' ? 'warning' : 'success') },
+  { header: 'Motivo' },
+  { header: 'Código' },
+  { header: 'Item' },
+  { header: 'Lote' },
+  { header: 'Validade', type: 'date' },
+  { header: 'Quantidade', type: 'decimal', numFmt: 'General' },
+  { header: 'Saldo após', type: 'decimal', numFmt: 'General' },
+  { header: 'Unidade', align: 'center' },
+  { header: 'Projeto' },
+  { header: 'NF' },
+  { header: 'Fornecedor' },
+  { header: 'Solicitante' },
+  { header: 'Autor' },
+  {
+    header: 'Status',
+    tone: value => (value === 'Ativa' ? 'success' : value === 'Estornada' || value === 'Substituída por edição' ? 'neutral' : 'info')
+  },
+  { header: 'Origem' },
+  { header: 'Observações', width: 48, wrap: true }
+];
+
+function spreadsheetRows(movements: StockMovement[]) {
+  // Mesmas colunas do CSV, com datas e quantidades tipadas.
+  return exportRows(movements).slice(1).map((row, index) => {
+    const movement = movements[index];
+    const typed = [...row];
+    typed[0] = dateInputValue(movement.date);
+    typed[6] = dateInputValue(movement.batch.expiryDate);
+    typed[10] = movement.project ? typed[10] : '';
+    return typed;
+  });
+}
+
+type ExportFormat = 'csv' | 'xlsx';
+
 interface Props {
   isManager: boolean;
   onRegisterMovement: () => void;
@@ -147,7 +186,7 @@ export function StockMovementsTab({ isManager, onRegisterMovement }: Props) {
   const movements = useMemo(() => data?.movements || [], [data]);
   const totalPages = Math.max(1, Math.ceil((data?.total || 0) / PAGE_SIZE));
   const exportMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (format: ExportFormat) => {
       const firstPage = await listStockMovements(movementListParams(1, EXPORT_PAGE_SIZE));
       const allMovements = [...firstPage.movements];
       for (let nextPage = 2; allMovements.length < firstPage.total; nextPage += 1) {
@@ -155,17 +194,38 @@ export function StockMovementsTab({ isManager, onRegisterMovement }: Props) {
         if (!next.movements.length) break;
         allMovements.push(...next.movements);
       }
-      return allMovements;
+      return { rows: allMovements, format };
     },
-    onSuccess: rows => {
+    onSuccess: async ({ rows, format }) => {
       if (!rows.length) {
         showToast('Não há movimentações para exportar.', 'info');
+        return;
+      }
+      if (format === 'xlsx') {
+        try {
+          await downloadSpreadsheet({
+            sheets: [{
+              name: 'Movimentações',
+              title: 'Movimentações de estoque',
+              subtitle: 'Estoque',
+              meta: spreadsheetMeta(),
+              columns: SPREADSHEET_COLUMNS,
+              rows: spreadsheetRows(rows)
+            }]
+          }, `estoque-movimentacoes-${todayDateOnly()}.xlsx`);
+          showToast('Planilha exportada.', 'success');
+        } catch (error) {
+          showToast(error instanceof Error ? error.message : 'Não foi possível exportar a planilha.', 'error');
+        }
         return;
       }
       downloadCsv(`estoque-movimentacoes-${todayDateOnly()}.csv`, exportRows(rows));
       showToast('CSV exportado.', 'success');
     },
-    onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível exportar o CSV.', 'error')
+    onError: (error, format) => showToast(
+      error instanceof Error ? error.message : `Não foi possível exportar ${format === 'xlsx' ? 'a planilha' : 'o CSV'}.`,
+      'error'
+    )
   });
   const reverseMutation = useMutation({
     mutationFn: (id: string) => reverseStockMovement(id),
@@ -175,6 +235,22 @@ export function StockMovementsTab({ isManager, onRegisterMovement }: Props) {
     },
     onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível estornar.', 'error')
   });
+
+  function spreadsheetMeta(): Array<[string, string | undefined]> {
+    const item = itemsQuery.data?.find(entry => entry.id === itemId);
+    const project = projectsQuery.data?.find(entry => entry.id === projectId);
+    const period = from || to
+      ? `${from ? formatDateOnlyPtBr(from) : 'início'} a ${to ? formatDateOnlyPtBr(to) : 'hoje'}`
+      : 'Todo o histórico';
+    return [
+      ['Período', period],
+      ['Item', item ? `${item.name} · ${item.code}` : 'Todos'],
+      ['Tipo', type ? typeLabel(type) : 'Entrada e saída'],
+      ['Motivo', reason ? reasonLabel(reason) : 'Todos'],
+      ['Projeto', project ? `${project.code} — ${project.name}` : 'Todos'],
+      ['Ordem', dateOrder === 'asc' ? 'Mais antigas primeiro' : 'Mais recentes primeiro']
+    ];
+  }
 
   function resetPage(callback: () => void) {
     setPage(1);
@@ -190,10 +266,18 @@ export function StockMovementsTab({ isManager, onRegisterMovement }: Props) {
         <button
           className="mini-btn alt"
           type="button"
-          onClick={() => exportMutation.mutate()}
+          onClick={() => exportMutation.mutate('csv')}
           disabled={exportMutation.isPending || movementsQuery.isLoading || !data?.total}
         >
-          {exportMutation.isPending ? 'Exportando...' : 'Exportar CSV'}
+          {exportMutation.isPending && exportMutation.variables === 'csv' ? 'Exportando...' : 'Exportar CSV'}
+        </button>
+        <button
+          className="mini-btn alt"
+          type="button"
+          onClick={() => exportMutation.mutate('xlsx')}
+          disabled={exportMutation.isPending || movementsQuery.isLoading || !data?.total}
+        >
+          {exportMutation.isPending && exportMutation.variables === 'xlsx' ? 'Exportando...' : 'Exportar planilha'}
         </button>
         </div>
       </div>

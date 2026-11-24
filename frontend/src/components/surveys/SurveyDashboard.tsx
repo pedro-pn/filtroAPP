@@ -12,6 +12,7 @@ import type {
 } from '../../api/surveys';
 import { BrandLogo } from '../brand/BrandLogo';
 import { AppIcon } from '../icons/AppIcon';
+import { downloadSpreadsheet, type XlsxTone } from '../../utils/spreadsheetExport';
 import { useSurveyDashboard, useSurveyMutations } from '../../hooks/useSurveys';
 import {
   Alert,
@@ -1060,6 +1061,8 @@ export function SurveyDashboard({
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
   const [period, setPeriod] = useState<PeriodFilter>({ type: 'year' });
+  const [exportingSheet, setExportingSheet] = useState(false);
+  const [exportSheetError, setExportSheetError] = useState('');
   const { data, isLoading, isError } = useSurveyDashboard(year);
   const isDesignSystem = appearance === 'design-system';
 
@@ -1112,6 +1115,85 @@ export function SurveyDashboard({
     downloadCsv(`pesquisas_nps_${periodLabel.replace(/\s+/g, '_').toLowerCase()}.csv`, rows);
   }
 
+  async function handleExportSpreadsheet() {
+    setExportingSheet(true);
+    setExportSheetError('');
+    try {
+      const questionLabels = Array.from(new Set(agg.surveys.flatMap(survey => (
+        (survey.questionAnswers || []).map(answer => answer.label)
+      ))));
+      const statusTone: Record<string, XlsxTone> = { Respondida: 'success', Expirada: 'danger', Pendente: 'warning' };
+      const npsTone = (value: unknown): XlsxTone | null => {
+        if (typeof value !== 'number') return null;
+        return value >= 9 ? 'success' : value >= 7 ? 'warning' : 'danger';
+      };
+      const responseRateLabel = responseRate === null ? '—' : `${responseRate}%`;
+      await downloadSpreadsheet({
+        sheets: [
+          {
+            name: 'Pesquisas',
+            title: `Pesquisas de satisfação — ${periodLabel}`,
+            subtitle: 'Pesquisas NPS',
+            meta: [
+              ['Período', periodLabel],
+              ['Enviadas', agg.sent],
+              ['Respondidas', `${agg.responded} (taxa de resposta ${responseRateLabel})`],
+              ['NPS do período', agg.nps.score === null ? '—' : agg.nps.score]
+            ],
+            columns: [
+              { header: 'Projeto' },
+              { header: 'Cliente' },
+              { header: 'Responsável' },
+              { header: 'Enviada em', type: 'datetime' },
+              { header: 'Respondida em', type: 'datetime' },
+              { header: 'Status', tone: value => statusTone[String(value)] },
+              { header: 'NPS', type: 'integer', align: 'center', tone: npsTone, total: 'avg', totalNumFmt: '0.0' },
+              ...questionLabels.map(label => ({ header: label, type: 'decimal' as const, numFmt: 'General', align: 'center' as const, wrap: true }))
+            ],
+            rows: agg.surveys.map(survey => {
+              const answers = Object.fromEntries((survey.questionAnswers || []).map(answer => [answer.label, answer.value]));
+              return [
+                [survey.projectCode, survey.projectName].filter(Boolean).join(' - '),
+                survey.clientName,
+                survey.operatorName,
+                survey.sentAt,
+                survey.respondedAt || '',
+                surveyItemStatus(survey).label,
+                survey.npsScore,
+                ...questionLabels.map(label => answers[label] ?? '')
+              ];
+            }),
+            totalsLabel: 'Média',
+            emptyMessage: 'Nenhuma pesquisa enviada no período.'
+          },
+          {
+            name: 'Médias por pergunta',
+            title: `Médias por pergunta — ${periodLabel}`,
+            subtitle: 'Pesquisas NPS',
+            meta: [['Período', periodLabel]],
+            columns: [
+              { header: 'Pergunta', width: 56, wrap: true },
+              { header: 'Escala', align: 'center' },
+              { header: 'Média', type: 'decimal', align: 'center' },
+              { header: 'Respostas', type: 'integer', total: 'sum' }
+            ],
+            rows: agg.questionAverages.map(question => [
+              question.label,
+              qaMaxLabel(question).replace('/ ', '0 a ') || '—',
+              question.avg,
+              question.count
+            ]),
+            emptyMessage: 'Nenhuma resposta no período.'
+          }
+        ]
+      }, `pesquisas_nps_${periodLabel.replace(/\s+/g, '_').toLowerCase()}.xlsx`);
+    } catch (error) {
+      setExportSheetError(error instanceof Error ? error.message : 'Não foi possível exportar a planilha.');
+    } finally {
+      setExportingSheet(false);
+    }
+  }
+
   return (
     <div
       className={`survey-dashboard${isDesignSystem ? ' rdo-nps-dashboard' : ''}`}
@@ -1127,15 +1209,27 @@ export function SurveyDashboard({
             </div>
           }
           actions={
-            <Button
-              variant="secondary"
-              size="sm"
-              iconLeft={<AppIcon icon={DS_ICONS.fileText} size="sm" />}
-              onClick={handleExportCsv}
-              disabled={!agg.surveys.length}
-            >
-              Exportar CSV
-            </Button>
+            <div className="fv-export-actions">
+              <Button
+                variant="secondary"
+                size="sm"
+                iconLeft={<AppIcon icon={DS_ICONS.fileText} size="sm" />}
+                onClick={handleExportCsv}
+                disabled={!agg.surveys.length}
+              >
+                Exportar CSV
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                iconLeft={<AppIcon icon={DS_ICONS.spreadsheet} size="sm" />}
+                onClick={() => void handleExportSpreadsheet()}
+                disabled={!agg.surveys.length}
+                loading={exportingSheet}
+              >
+                Exportar planilha
+              </Button>
+            </div>
           }
           padding="md"
         >
@@ -1169,6 +1263,12 @@ export function SurveyDashboard({
         />
       )}
 
+      {exportSheetError ? (
+        <Alert tone="danger" title="Não foi possível exportar a planilha.">
+          {exportSheetError}
+        </Alert>
+      ) : null}
+
       {isLoading ? (
         isDesignSystem ? (
           <Card className="rdo-nps-dashboard__state" padding="md">
@@ -1189,9 +1289,17 @@ export function SurveyDashboard({
           {!isDesignSystem ? (
             <>
               <div className="survey-dash-period-label">{periodLabel}</div>
-              <div className="survey-dash-toolbar">
+              <div className="survey-dash-toolbar fv-export-actions">
                 <button className="mini-btn alt" type="button" onClick={handleExportCsv} disabled={!agg.surveys.length}>
                   Exportar CSV
+                </button>
+                <button
+                  className="mini-btn alt"
+                  type="button"
+                  onClick={() => void handleExportSpreadsheet()}
+                  disabled={!agg.surveys.length || exportingSheet}
+                >
+                  {exportingSheet ? 'Exportando...' : 'Exportar planilha'}
                 </button>
               </div>
             </>

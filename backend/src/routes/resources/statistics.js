@@ -12,6 +12,7 @@ import prisma from '../../lib/prisma.js';
 import { statisticsProjectsCache } from '../../lib/resource-list-cache.js';
 import { requireAuth, requireModuleRole } from '../../middleware/auth.js';
 import { expensiveRouteLimit } from '../../lib/rate-limit.js';
+import { XLSX_MIME_TYPE, buildStatisticsXlsx } from '../../lib/reports/statistics-export-xlsx.js';
 import { z } from 'zod';
 import { defineRoute } from '../../lib/api-contract/registry.js';
 import { rdoRoute, recipientSchema, jsonObjectSchema, FILE, EMPTY } from '../../lib/api-contract/domains/rdo.js';
@@ -670,7 +671,7 @@ defineRoute(router, rdoRoute('GET /projects', { summary: 'Estatísticas por proj
   res.status(result.statusCode).json(result.body);
 }));
 
-// ─── CSV Export ───────────────────────────────────────────────────────────────
+// ─── CSV / XLSX Export ────────────────────────────────────────────────────────
 
 defineRoute(router, rdoRoute('GET /projects/export', { summary: 'Exportar estatísticas por projeto (planilha)', tag: 'estatisticas', responses: { 200: FILE }, errors: [401, 403, 429] }), requireAuth, requireRdoStats, ...expensiveRouteLimit('export'), asyncHandler(async (req, res) => {
   const role = req.auth.user.role;
@@ -682,6 +683,10 @@ defineRoute(router, rdoRoute('GET /projects/export', { summary: 'Exportar estat�
   const section = req.query.section || 'summary';
   if (!['summary', 'byProject', 'services'].includes(section)) {
     return res.status(400).json({ error: 'Seção de exportação inválida.' });
+  }
+  const format = req.query.format || 'csv';
+  if (!['csv', 'xlsx'].includes(format)) {
+    return res.status(400).json({ error: 'Formato de exportação inválido.' });
   }
 
   // Build a fake req to delegate to the main route handler (simpler: just inline)
@@ -758,25 +763,22 @@ defineRoute(router, rdoRoute('GET /projects/export', { summary: 'Exportar estat�
     }).join(',');
   }
 
-  const filename = `estatisticas-${section}-${fromStr}-${toStr}.csv`;
-  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-  res.write('﻿'); // BOM for Excel
-
+  // Mesmas linhas para os dois formatos; o XLSX só tipa as colunas.
+  const table = { header: [], rows: [] };
   if (section === 'summary') {
     const globalSummary = summarize(reports);
-    res.write(csvRow(['Período de', 'Período até', 'Relatórios', 'Dias executados',
+    table.header = ['Período de', 'Período até', 'Relatórios', 'Dias executados',
       'Horas diurnas (min)', 'Horas noturnas (min)', 'HE diurna (min)', 'HE noturna (min)',
-      'Standby (dias)', 'Standby (min)', 'Colaboradores diurnos (média)', 'Colaboradores noturnos (média)']) + '\n');
-    res.write(csvRow([fromStr, toStr, globalSummary.reportCount, globalSummary.totalDays,
+      'Standby (dias)', 'Standby (min)', 'Colaboradores diurnos (média)', 'Colaboradores noturnos (média)'];
+    table.rows.push([fromStr, toStr, globalSummary.reportCount, globalSummary.totalDays,
       globalSummary.daytimeWorkedMinutes, globalSummary.nighttimeWorkedMinutes,
       globalSummary.daytimeOvertimeMinutes, globalSummary.nighttimeOvertimeMinutes,
       globalSummary.standbyCount, globalSummary.standbyMinutes,
-      globalSummary.avgDaytimeCollaborators, globalSummary.avgNighttimeCollaborators]) + '\n');
+      globalSummary.avgDaytimeCollaborators, globalSummary.avgNighttimeCollaborators]);
   } else if (section === 'byProject') {
-    res.write(csvRow(['Código', 'Projeto', 'Relatórios', 'Dias',
+    table.header = ['Código', 'Projeto', 'Relatórios', 'Dias',
       'H. diurnas (min)', 'H. noturnas (min)', 'HE diurna (min)', 'HE noturna (min)',
-      'Standby (dias)', 'Standby (min)']) + '\n');
+      'Standby (dias)', 'Standby (min)'];
     const byProjMap = new Map(projects.map(p => [p.id, p]));
     const reportsByProject = new Map();
     for (const r of reports) {
@@ -785,23 +787,44 @@ defineRoute(router, rdoRoute('GET /projects/export', { summary: 'Exportar estat�
     }
     for (const [pid, proj] of byProjMap) {
       const s = summarize(reportsByProject.get(pid) || []);
-      res.write(csvRow([proj.code, proj.name, s.reportCount, s.totalDays,
+      table.rows.push([proj.code, proj.name, s.reportCount, s.totalDays,
         s.daytimeWorkedMinutes, s.nighttimeWorkedMinutes,
         s.daytimeOvertimeMinutes, s.nighttimeOvertimeMinutes,
-        s.standbyCount, s.standbyMinutes]) + '\n');
+        s.standbyCount, s.standbyMinutes]);
     }
   } else if (section === 'services') {
-    res.write(csvRow(['Data', 'Projeto', 'RDO #', 'Tipo serviço', 'Sistema', 'Equipamento',
+    table.header = ['Data', 'Projeto', 'RDO #', 'Tipo serviço', 'Sistema', 'Equipamento',
       'Volume óleo (L)', 'Diâmetro', 'Comprimento (m)', 'Mangueiras (un)', 'Sistemas (un)',
-      'Correção após assinatura', 'Relatório da correção', 'Corrigido em']) + '\n');
+      'Correção após assinatura', 'Relatório da correção', 'Corrigido em'];
     for (const r of reports) {
       const proj = projects.find(p => p.id === r.projectId);
-      for (const row of buildServiceExportRows(r, proj)) {
-        res.write(csvRow(row) + '\n');
-      }
+      table.rows.push(...buildServiceExportRows(r, proj));
     }
   }
 
+  if (format === 'xlsx') {
+    const buffer = buildStatisticsXlsx({
+      section,
+      rows: table.rows,
+      from: fromStr,
+      to: toStr,
+      projectStatus,
+      segment,
+      projects,
+      projectFiltered: projectIdFilter.length > 0
+    });
+    res.setHeader('Content-Type', XLSX_MIME_TYPE);
+    res.setHeader('Content-Disposition', `attachment; filename="estatisticas-${section}-${fromStr}-${toStr}.xlsx"`);
+    res.setHeader('Content-Length', buffer.length);
+    return res.end(buffer);
+  }
+
+  const filename = `estatisticas-${section}-${fromStr}-${toStr}.csv`;
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.write('\uFEFF'); // BOM for Excel
+  res.write(csvRow(table.header) + '\n');
+  for (const row of table.rows) res.write(csvRow(row) + '\n');
   res.end();
 }));
 
