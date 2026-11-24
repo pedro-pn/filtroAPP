@@ -709,6 +709,12 @@ jobs:
         if: matrix.group == 'others'
         run: npx playwright test --config=playwright.quality-epi.config.ts --project=chromium epi-sizes.spec.ts
 
+      - name: Verify signed EPI archive and restoration in the browser
+        if: matrix.group == 'others'
+        run: >-
+          npx playwright test --config=playwright.quality-epi.config.ts --project=chromium
+          quality-epi.migration.spec.ts --grep 'EPI: assinatura, arquivo e restauração'
+
       - name: Verify RDO forms, notifications and equipment selection in the browser
         if: matrix.group == 'rdo'
         run: >-

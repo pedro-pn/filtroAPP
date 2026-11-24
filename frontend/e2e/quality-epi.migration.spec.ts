@@ -336,12 +336,12 @@ test('Qualidade visualizador e EPI colaborador não exibem ações de edição',
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
 });
 
-test('EPI: assinatura, arquivo e restauração usam confirmação e contratos existentes', async ({ page }) => {
+test('EPI: assinatura, arquivo e restauração preservam o EPI assinado', async ({ page }) => {
   await useFixtures(page, 'light');
   let current = { ...collaborator, epiRecords: [
     ...collaborator.epiRecords,
     { ...collaborator.epiRecords[0], id: 'epi-record-2', epiName: 'Luva' }
-  ].map(record => ({ ...record, archivedAt: record.archivedAt as string | null })) };
+  ].map(record => ({ ...record, signedAt: record.signedAt as string | null, archivedAt: record.archivedAt as string | null })) };
   let signatureIds: string[] = [];
   const archiveRequests: Array<{ recordIds: string[]; archived: boolean }> = [];
   await page.route('**/api/epi/collaborators', route => route.fulfill({
@@ -380,6 +380,11 @@ test('EPI: assinatura, arquivo e restauração usam confirmação e contratos ex
   await expect(selectAll).not.toBeChecked();
   await expect(page.getByText('https://example.com/assinar/teste')).toBeVisible();
 
+  current.epiRecords[0].signedAt = '2026-10-01T12:00:00.000Z';
+  await page.reload();
+  await page.getByRole('button', { name: /Marina Operações/ }).click();
+  await expect(page.locator('.epi-record-row').getByText('Assinado', { exact: true })).toHaveCount(1);
+
   await selectAll.check();
   await page.getByRole('button', { name: 'Arquivar selecionados' }).click();
   await expect(page.getByRole('dialog')).toContainText('Arquivar EPIs selecionados?');
@@ -389,13 +394,20 @@ test('EPI: assinatura, arquivo e restauração usam confirmação e contratos ex
   await page.getByRole('button', { name: 'Arquivados (2)' }).click();
   await expect(page.locator('.epi-record-row').getByText('Capacete', { exact: true })).toBeVisible();
   await expect(selectAll).not.toBeChecked();
+  await expect(page.getByRole('button', { name: 'Restaurar selecionados' })).toBeDisabled();
   await selectAll.check();
+  await expect(page.getByRole('button', { name: 'Restaurar selecionados' })).toBeEnabled();
   await page.getByRole('button', { name: 'Restaurar selecionados' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Restaurar' }).click();
   await expect.poll(() => archiveRequests).toEqual([
     { recordIds: ['epi-record-1', 'epi-record-2'], archived: true },
     { recordIds: ['epi-record-1', 'epi-record-2'], archived: false }
   ]);
+  await page.getByRole('button', { name: 'Ativos (2)' }).click();
+  await expect(page.locator('.epi-record-row').getByText('Assinado', { exact: true })).toHaveCount(1);
+  await expect(page.locator('.epi-record-row').getByText('Pendente', { exact: true })).toHaveCount(1);
+  await page.getByRole('checkbox', { name: 'Selecionar Capacete', exact: true }).check();
+  await expect(page.getByRole('button', { name: 'Solicitar assinatura' })).toBeDisabled();
 });
 
 test('EPI: perfil, devolução e PDF permanecem operacionais', async ({ page }) => {
