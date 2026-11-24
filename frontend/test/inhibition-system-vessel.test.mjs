@@ -24,7 +24,9 @@ test('inibição acompanha a embarcação nas opções, na troca de seleção e 
     const props = { serviceType: 'inibicao', units: [], manometers: [], groupKey: 'inhibition', hideUploads: true,
       inhibitionOptions: { vessels: ['51632', '51633', '51634'].map(code => ({ id: code, code })), systems: [system] },
       onChange: patch => { data = { ...data, ...patch }; } };
-    const form = () => ServiceFields({ ...props, data });
+    // ServiceFields delega para o conteúdo do formulário; desembrulha para percorrer a árvore.
+    const unwrap = element => typeof element?.type === 'function' ? unwrap(element.type(element.props)) : element;
+    const form = () => unwrap(ServiceFields({ ...props, data }));
 
     for (const vesselCode of ['51632', '51633', '51634']) {
       // Existing drafts may still contain the catalog's original diagram.

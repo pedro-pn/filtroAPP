@@ -1,5 +1,8 @@
 import { MechanicalMeasurementFields } from './MechanicalMeasurementFields';
 import type { ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { listProjectSystems } from '../../api/projectSystems';
+import { scopedMeasurementMode, selectedProjectSystem, type ScopedMeasurementMode } from '../../utils/projectSystemSelection';
 import { CLEANING_CHEMICAL_LABELS, CLEANING_STAGES, STANDARD_MATERIALS, cleaningChemicalOptions, cleaningChemicalSelectionLabel, materialSelection, orderedCleaningStages, selectedChemicalProducts } from '../../../../shared/modules/rdo-material.js';
 import { inhibitionSystemValue, type InhibitionOptions } from '../../api/inhibitionOptions';
 import type { Manometer, ParticleCounter, Unit } from '../../types/domain';
@@ -7,7 +10,7 @@ import type { UploadedFile } from '../../api/uploads';
 import { UploadField } from '../ui/UploadField';
 import { getServiceUploadGroup, updateServiceUploadGroup } from '../../utils/serviceUploadGroups';
 import { RemoveIconButton } from '../ui/RemoveIconButton';
-import { cleaningModePatch } from '../../utils/cleaningMeasurement';
+import { cleaningModePatch, flushingModePatch } from '../../utils/cleaningMeasurement';
 import { inhibitionSystemForVessel } from '../../utils/inhibitionSystem';
 import { isPressureHoseEquipment, isPressureHoseUnits, pressureHoseModePatch } from '../../utils/pressureHoseMeasurement';
 import { AdequarAnotacaoButton } from '../anotacoes/AdequarAnotacaoButton';
@@ -961,7 +964,31 @@ function ServiceFormSection({
   );
 }
 
-export function ServiceFields({
+// Serviços cuja forma de medição (tubulação, sistema, mangueiras) pode vir do escopo do projeto.
+const SCOPE_MODE_SERVICES = ['limpeza', 'pressao', 'flushing'];
+
+export function ServiceFields(props: ServiceFieldsProps) {
+  if (!props.projectId || props.disabled || !SCOPE_MODE_SERVICES.includes(normalizeServiceType(props.serviceType))) {
+    return <ServiceFieldsContent {...props} scopeMode={null} />;
+  }
+  return <ScopedServiceFields {...props} projectId={props.projectId} />;
+}
+
+function ScopedServiceFields(props: ServiceFieldsProps & { projectId: string }) {
+  const query = useQuery({ queryKey: ['project-systems', 'reports', props.projectId],
+    queryFn: () => listProjectSystems(props.projectId), staleTime: 30_000 });
+  const system = query.data ? selectedProjectSystem(query.data, props.data) : undefined;
+  return <ServiceFieldsContent {...props} scopeMode={scopedMeasurementMode(system, normalizeServiceType(props.serviceType))} />;
+}
+
+function ScopeMeasurementNote({ text }: { text: string }) {
+  return <div className="field-group">
+    <label>Medição</label>
+    <small className="muted">{text} — definida no escopo do equipamento/sistema.</small>
+  </div>;
+}
+
+function ServiceFieldsContent({
   serviceType,
   data,
   onChange,
@@ -982,8 +1009,9 @@ export function ServiceFields({
   hideUploads = false,
   hideNotes = false,
   appearance = 'legacy',
-  transferServiceId
-}: ServiceFieldsProps) {
+  transferServiceId,
+  scopeMode
+}: ServiceFieldsProps & { scopeMode: ScopedMeasurementMode | null }) {
   const normalizedType = normalizeServiceType(serviceType);
   const slotSource = (key: string): EquipmentSlotSource | undefined => equipments && rdoSlotMap && key in rdoSlotMap
     ? { key, primaryIds: rdoSlotMap[key], secondaryIds: rdoSecondarySlotMap?.[key] || [], categories: rdoEquipmentCategories, equipments, suggestedEquipmentIds }
@@ -1008,6 +1036,9 @@ export function ServiceFields({
     const local = getStrings(data.local);
     const tipoInspecao = getStrings(data.tipoInspecao);
     const limpezaTubulacao = limpezaTubulacaoValue(data);
+    // Só esconde a pergunta quando os dados já estão na modalidade do escopo; registro divergente segue editável.
+    const cleaningModeFromScope = (scopeMode === 'TUBULACAO' && limpezaTubulacao === 'Sim')
+      || (scopeMode === 'SISTEMA' && limpezaTubulacao === 'Não');
     const chemicalProducts = selectedChemicalProducts(data);
     const chemicalOptions = cleaningChemicalOptions(data);
 
@@ -1052,7 +1083,9 @@ export function ServiceFields({
               ))}
             </div>
           </div>
-          <div className={fieldClass(invalidKey, 'limpezaTubulacao')}>
+          {cleaningModeFromScope ? (
+            <ScopeMeasurementNote text={limpezaTubulacao === 'Sim' ? 'Tubulação (diâmetro e comprimento)' : 'Sistema (unidades)'} />
+          ) : <div className={fieldClass(invalidKey, 'limpezaTubulacao')}>
             <label>Limpeza de tubulação? {requiredMark()}</label>
             <div className="rdo-tag-group">
               {['Sim', 'Não'].map(label => (
@@ -1068,7 +1101,7 @@ export function ServiceFields({
                 </label>
               ))}
             </div>
-          </div>
+          </div>}
           {limpezaTubulacao === 'Não' ? (
             <SystemTypeField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
           ) : null}
@@ -1113,6 +1146,8 @@ export function ServiceFields({
   if (normalizedType === 'pressao') {
     const equipamentoTestado = pressureTestedEquipmentValue(data);
     const hoseUnits = isPressureHoseUnits(data);
+    const hoseUnitsFromScope = scopeMode === 'MANGOTE' && hoseUnits;
+    const hoseMetersFromScope = scopeMode === 'TUBULACAO' && !hoseUnits;
     const equipamentoTestadoOutro = getString(data.equipamentoTestadoOutro);
     const showMaterialField = equipamentoTestado === 'tubulacao';
     const tubeItemLabel = pressureTestedEquipmentLabel(data);
@@ -1126,7 +1161,7 @@ export function ServiceFields({
     return (
       <>
         <ServiceFormSection title="Escopo e equipamentos" appearance={appearance}>
-          <div className={fieldClass(invalidKey, 'equipamentoTestado')}>
+          {hoseUnitsFromScope ? <ScopeMeasurementNote text="Mangueiras (unidades)" /> : <div className={fieldClass(invalidKey, 'equipamentoTestado')}>
           <label>Equipamento testado {requiredMark()}</label>
           <div className="rdo-tag-group rdo-tested-equipment-options">
             {PRESSURE_TESTED_EQUIPMENT_OPTIONS.map(option => (
@@ -1151,7 +1186,7 @@ export function ServiceFields({
               </label>
             ))}
           </div>
-          </div>
+          </div>}
           {equipamentoTestado === 'outro' ? (
             <div className={fieldClass(invalidKey, 'equipamentoTestadoOutro')}>
             <label htmlFor={fieldId(groupKey, 'equipamento-testado-outro')}>Outro equipamento testado {requiredMark()}</label>
@@ -1170,7 +1205,8 @@ export function ServiceFields({
           {showMaterialField ? (
             <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
           ) : null}
-          {equipamentoTestado === 'mangueira' ? <div className="field-group">
+          {equipamentoTestado === 'mangueira' && hoseMetersFromScope ? <ScopeMeasurementNote text="Mangueiras (diâmetro e metragem)" /> : null}
+          {equipamentoTestado === 'mangueira' && !hoseUnitsFromScope && !hoseMetersFromScope ? <div className="field-group">
             <label id={`pressure-hose-mode-${groupKey}`}>Medição das mangueiras {requiredMark()}</label>
             <div className="rdo-tag-group" role="radiogroup" aria-labelledby={`pressure-hose-mode-${groupKey}`}>
               {([false, true] as const).map(units => <label className={radioOptionClass(hoseUnits === units)} key={String(units)}>
@@ -1250,12 +1286,13 @@ export function ServiceFields({
   if (normalizedType === 'flushing') {
     const tipoFlushing = getString(data.tipoFlushing) || 'primario';
     const flushingTubulacao = flushingTubulacaoValue(data);
+    const flushingModeFromScope = scopeMode === 'TUBULACAO' && flushingTubulacao === 'Sim';
     const unitCategories: Unit['category'][] = tipoFlushing === 'secundario' ? ['FILTRAGEM'] : ['FLUSHING'];
 
     return (
       <>
         <ServiceFormSection title="Escopo e equipamentos" appearance={appearance}>
-          <div className={fieldClass(invalidKey, 'flushingTubulacao')}>
+          {flushingModeFromScope ? <ScopeMeasurementNote text="Tubulação (diâmetro e comprimento)" /> : <div className={fieldClass(invalidKey, 'flushingTubulacao')}>
           <label>Flushing em tubulação? {requiredMark()}</label>
           <div className="rdo-tag-group">
             {['Sim', 'Não'].map(label => (
@@ -1265,19 +1302,13 @@ export function ServiceFields({
                   name={`flushing-tubulacao-${groupKey}`}
                   checked={flushingTubulacao === label}
                   disabled={disabled}
-                  onChange={() => onChange({
-                    flushingTubulacao: label,
-                    'Flushing em tubulação?': label,
-                    tipoSistema: '',
-                    'Tipo de sistema': '',
-                    ...(label === 'Não' ? { tubes: [] } : {})
-                  })}
+                  onChange={() => onChange(flushingModePatch(label as 'Sim' | 'Não'))}
                 />
                 <span>{label}</span>
               </label>
             ))}
           </div>
-          </div>
+          </div>}
           {flushingTubulacao === 'Não' ? (
             <SystemTypeField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
           ) : null}
