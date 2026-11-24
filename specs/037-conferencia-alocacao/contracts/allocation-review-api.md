@@ -12,6 +12,9 @@
 
 ## GET `/semanas/:weekStart`
 
+A grade inclui somente operacionais habilitados em Efetivo → Administração → Conferência,
+respeitando o vínculo na semana. A antiga matriz global não controla mais essa seleção.
+
 Retorna a semana completa para a grade. `weekStart` precisa ser uma segunda-feira; caso
 contrário, `400 INVALID_WEEK_START`.
 
@@ -34,6 +37,19 @@ contrário, `400 INVALID_WEEK_START`.
 ```
 
 `projects` traz os projetos citados pelas fontes da semana e os ativos, para o "outro projeto".
+
+## Administração da participação
+
+Base independente: `/efetivo/administracao/conferencia/colaboradores`.
+
+- `GET /`: sessão e acesso de consulta ao Efetivo. Lista apenas operacionais; retorna
+  `{ id, code, name, jobRole, isActive, rhStatus, allocationReviewEnabled, version }[]`.
+- `PATCH /:id`: sessão e gestor do Efetivo ou ADMIN. Corpo estrito
+  `{ allocationReviewEnabled: boolean, version: number }`, sem justificativa.
+  Retorna o colaborador atualizado; `409 PARTICIPATION_VERSION_CONFLICT` se desatualizado,
+  `409 COLLABORATOR_NOT_OPERATIONAL` se a pessoa foi reclassificada, `404` se não existir.
+  A atividade é registrada automaticamente. Repetir o mesmo valor com a versão atual não
+  cria uma alteração ou atividade adicional.
 
 ## PUT `/semanas/:weekStart/dias`
 

@@ -34,9 +34,6 @@ export function AdminWorkforcePage() {
   const [changeSector, setChangeSector] = useState(false);
   const [notice, setNotice] = useState('');
   const [history, setHistory] = useState<{ type: 'COLLABORATOR' | 'JOB_ROLE'; id: string; name: string } | null>(null);
-  const [reviewPeople, setReviewPeople] = useState<WorkforcePerson[] | null>(null);
-  const [reviewEnabled, setReviewEnabled] = useState('');
-  const [reviewReason, setReviewReason] = useState('');
   useEffect(() => { const timer = setTimeout(() => setQuery(search.trim()), 250); return () => clearTimeout(timer); }, [search]);
   useEffect(() => { setPage(1); setSelected([]); }, [query, classification, jobRoleId, sectorFilter, active, divergence]);
   const people = useQuery({ queryKey: ['workforce-classification', query, classification, jobRoleId, sectorFilter, active, divergence, page], queryFn: () => getWorkforce({
@@ -56,18 +53,6 @@ export function AdminWorkforcePage() {
     setEdit(null); setSelected([]);
     await client.invalidateQueries();
   } });
-  const saveReview = useMutation({ mutationFn: () => classifyWorkforce({
-    items: reviewPeople!.map(item => ({ id: item.id, version: item.classificationVersion })),
-    allocationReviewEnabled: reviewEnabled === 'true', reason: reviewReason
-  }), onSuccess: async () => {
-    setNotice('Participação na conferência salva.'); setReviewPeople(null); setSelected([]);
-    await client.invalidateQueries();
-  } });
-  function openReview(peopleToEdit: WorkforcePerson[]) {
-    saveReview.reset(); setReviewPeople(peopleToEdit); setReviewReason('');
-    const values = new Set(peopleToEdit.map(item => item.allocationReviewEnabled !== false));
-    setReviewEnabled(values.size === 1 ? String(values.has(true)) : '');
-  }
   function openEdit(value: NonNullable<typeof edit>) {
     save.reset(); setEdit(value); setReason(''); setChangeSector(false); setSector('');
     setNextClassification(value.kind === 'role' ? roleValue(value.role) : value.people.length === 1 ? value.people[0].workforceClassificationOverride || '' : '');
@@ -79,8 +64,7 @@ export function AdminWorkforcePage() {
     { key: 'status', header: 'Vínculo', render: item => item.rhStatus === 'PRE_ADMISSION' ? 'Pré-admitido' : item.isActive ? 'Ativo' : 'Inativo' },
     { key: 'source', header: 'Conecta', render: item => sourceLabel(item.sourceIsOperational) },
     { key: 'classification', header: 'Aplicada no filtroAPP', render: item => <><ClassificationBadge value={item.classification} /><small>{item.classificationSource === 'COLLABORATOR' ? 'Classificação individual' : 'Padrão do cargo'}</small>{item.classificationDiverges ? <Badge tone="warning">Diverge do Conecta</Badge> : null}</> },
-    { key: 'review', header: 'Conferência do efetivo', render: item => <Badge tone={item.allocationReviewEnabled === false ? 'neutral' : 'success'}>{item.allocationReviewEnabled === false ? 'Dispensado' : 'Habilitado'}</Badge> },
-    { key: 'actions', header: 'Ações', render: item => <div className="workforce-actions"><Button size="sm" variant="secondary" onClick={() => openEdit({ kind: 'people', people: [item] })}>Classificar</Button><Button size="sm" variant="secondary" onClick={() => openReview([item])}>Conferência</Button><Button size="sm" variant="ghost" onClick={() => setHistory({ type: 'COLLABORATOR', id: item.id, name: item.name })}>Histórico</Button></div> }
+    { key: 'actions', header: 'Ações', render: item => <div className="workforce-actions"><Button size="sm" variant="secondary" onClick={() => openEdit({ kind: 'people', people: [item] })}>Classificar</Button><Button size="sm" variant="ghost" onClick={() => setHistory({ type: 'COLLABORATOR', id: item.id, name: item.name })}>Histórico</Button></div> }
   ];
   const roleColumns: DataTableColumn<WorkforceRole>[] = [
     { key: 'name', header: 'Cargo', rowHeader: true, render: item => <>{item.name}{!item.isActive ? <small>Inativo</small> : null}</> },
@@ -103,8 +87,8 @@ export function AdminWorkforcePage() {
         <Field id="workforce-active" label="Situação"><Select value={active} onChange={event => setActive(event.target.value)}><option value="">Todas</option><option value="true">Ativo / pré-admitido</option><option value="false">Inativo</option></Select></Field>
         <label className="workforce-check"><input type="checkbox" checked={divergence} onChange={event => setDivergence(event.target.checked)} />Somente divergências com o Conecta</label>
       </div></Card>
-      <div className="workforce-actions"><span>{people.data?.total ?? 0} colaborador(es) · {selected.length} selecionado(s)</span><Button size="sm" disabled={!selected.length || people.isFetching} onClick={() => openEdit({ kind: 'people', people: (people.data?.items || []).filter(item => selected.includes(item.id)) })}>Classificar selecionados</Button><Button size="sm" variant="secondary" disabled={!selected.length || people.isFetching} onClick={() => openReview((people.data?.items || []).filter(item => selected.includes(item.id)))}>Conferência dos selecionados</Button></div>
-      {people.isLoading ? <Skeleton variant="card" /> : people.isError ? <EmptyState variant="error" title="Não foi possível carregar os colaboradores." action={{ label: 'Tentar novamente', onClick: () => void people.refetch() }} /> : <DataTable columns={personColumns} rows={people.data?.items || []} getRowId={item => item.id} caption="Classificação dos colaboradores" ariaLabel="Classificação dos colaboradores" mobile={{ renderItem: item => ({ title: item.name, subtitle: `${item.code} · ${item.jobRole.name}`, status: <ClassificationBadge value={item.classification} />, metadata: [{ label: 'Conecta', value: sourceLabel(item.sourceIsOperational) }, { label: 'Origem', value: item.classificationSource === 'COLLABORATOR' ? 'Classificação individual' : 'Padrão do cargo' }, { label: 'Conferência do efetivo', value: item.allocationReviewEnabled === false ? 'Dispensado' : 'Habilitado' }], actions: personColumns.at(-1)!.render!(item, 0) }) }} selection={{ selectedRowIds: selected, onSelectionChange: ids => setSelected(ids.map(String)), getRowLabel: item => item.name }} />}
+      <div className="workforce-actions"><span>{people.data?.total ?? 0} colaborador(es) · {selected.length} selecionado(s)</span><Button size="sm" disabled={!selected.length || people.isFetching} onClick={() => openEdit({ kind: 'people', people: (people.data?.items || []).filter(item => selected.includes(item.id)) })}>Classificar selecionados</Button></div>
+      {people.isLoading ? <Skeleton variant="card" /> : people.isError ? <EmptyState variant="error" title="Não foi possível carregar os colaboradores." action={{ label: 'Tentar novamente', onClick: () => void people.refetch() }} /> : <DataTable columns={personColumns} rows={people.data?.items || []} getRowId={item => item.id} caption="Classificação dos colaboradores" ariaLabel="Classificação dos colaboradores" mobile={{ renderItem: item => ({ title: item.name, subtitle: `${item.code} · ${item.jobRole.name}`, status: <ClassificationBadge value={item.classification} />, metadata: [{ label: 'Conecta', value: sourceLabel(item.sourceIsOperational) }, { label: 'Origem', value: item.classificationSource === 'COLLABORATOR' ? 'Classificação individual' : 'Padrão do cargo' }], actions: personColumns.at(-1)!.render!(item, 0) }) }} selection={{ selectedRowIds: selected, onSelectionChange: ids => setSelected(ids.map(String)), getRowLabel: item => item.name }} />}
       <div className="workforce-pagination"><Button variant="secondary" size="sm" disabled={page === 1 || people.isFetching} onClick={() => { setPage(page - 1); setSelected([]); }}>Anterior</Button><span>Página {page}</span><Button variant="secondary" size="sm" disabled={!people.data || page * people.data.limit >= people.data.total || people.isFetching} onClick={() => { setPage(page + 1); setSelected([]); }}>Próxima</Button></div>
     </> : roles.isLoading ? <Skeleton variant="card" /> : roles.isError ? <EmptyState variant="error" title="Não foi possível carregar os cargos." action={{ label: 'Tentar novamente', onClick: () => void roles.refetch() }} /> : <DataTable columns={roleColumns} rows={roles.data || []} getRowId={item => item.id} caption="Classificação padrão por cargo" ariaLabel="Classificação padrão por cargo" mobile={{ renderItem: item => ({ title: item.name, subtitle: `${item._count.collaborators} colaborador(es)`, status: <ClassificationBadge value={roleValue(item)} />, actions: roleColumns.at(-1)!.render!(item, 0) }) }} />}
     <Modal open={Boolean(edit)} onClose={() => { if (!save.isPending) setEdit(null); }} appearance="design-system" title={edit?.kind === 'role' ? `Padrão de ${edit.role.name}` : 'Classificar colaboradores'} size="md" footer={<><Button variant="secondary" disabled={save.isPending} onClick={() => setEdit(null)}>Cancelar</Button><Button loading={save.isPending} disabled={reason.trim().length < 3} onClick={() => save.mutate()}>Salvar classificação</Button></>}>
@@ -115,20 +99,6 @@ export function AdminWorkforcePage() {
         <Field id="workforce-reason" label="Motivo da alteração" required helperText="Descreva o motivo com pelo menos 3 caracteres."><Textarea value={reason} minLength={3} maxLength={1000} onChange={event => setReason(event.target.value)} /></Field>
         <p>A classificação será aplicada conforme as regras de visibilidade de cada módulo. Missões futuras ou em andamento serão sinalizadas para revisão.</p>
         {save.isError ? <Alert tone="danger">{save.error.message}</Alert> : null}
-      </div>
-    </Modal>
-    <Modal open={Boolean(reviewPeople)} onClose={() => { if (!saveReview.isPending) setReviewPeople(null); }} appearance="design-system" title="Participação na conferência do efetivo" size="md" footer={<><Button variant="secondary" disabled={saveReview.isPending} onClick={() => setReviewPeople(null)}>Cancelar</Button><Button loading={saveReview.isPending} disabled={!reviewEnabled || reviewReason.trim().length < 3} onClick={() => saveReview.mutate()}>Salvar participação</Button></>}>
-      <div className="workforce-editor">
-        <p>{reviewPeople?.length} colaborador(es): {reviewPeople?.map(item => item.name).join(', ')}.</p>
-        <Field id="workforce-review-enabled" label="Participa da conferência de alocação" required>
-          <Select value={reviewEnabled} disabled={saveReview.isPending} onChange={event => setReviewEnabled(event.target.value)}>
-            <option value="" disabled>Selecione para os colaboradores</option><option value="true">Sim</option><option value="false">Não</option>
-          </Select>
-        </Field>
-        <p>Ao escolher Não, a pessoa sai das grades semanal e mensal e deixa de ser exigida para fechar as semanas. A classificação operacional e a participação nos demais módulos continuam iguais. Registros já conferidos são preservados.</p>
-        <p>Ao escolher Sim, a participação segue também as regras de visibilidade por módulo e a situação do vínculo.</p>
-        <Field id="workforce-review-reason" label="Motivo da alteração" required helperText="O motivo e o autor serão registrados no histórico."><Textarea value={reviewReason} disabled={saveReview.isPending} minLength={3} maxLength={1000} onChange={event => setReviewReason(event.target.value)} /></Field>
-        {saveReview.isError ? <Alert tone="danger">{saveReview.error.message}</Alert> : null}
       </div>
     </Modal>
     <Modal open={Boolean(history)} onClose={() => setHistory(null)} appearance="design-system" title={`Histórico · ${history?.name || ''}`} size="md">

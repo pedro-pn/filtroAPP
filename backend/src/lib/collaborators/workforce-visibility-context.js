@@ -24,7 +24,10 @@ export function workforceVisibilityTarget(preferredTarget = 'RDO') {
 
 export function workforceVisibilityClasses(preferredTarget = 'RDO') {
   const configuration = scope.getStore()?.configuration || current;
-  return configuration.rules[workforceVisibilityTarget(preferredTarget)] || [];
+  const target = workforceVisibilityTarget(preferredTarget);
+  // A conferência usa operacionais + participação individual; não uma segunda matriz de classes.
+  if (target === 'ALLOCATION_REVIEW') return ['OPERATIONAL'];
+  return configuration.rules[target] || [];
 }
 
 export function workforceVisibilityCacheKey(preferredTarget = 'RDO') {

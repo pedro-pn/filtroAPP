@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import express from 'express';
 import { apiSimulationDatabase } from './helpers/api-simulation-db.js';
 import prisma from '../src/lib/prisma.js';
-import { createWorkforceClassificationRouter } from '../src/routes/resources/workforce-classification.js';
-import { listWorkforce, updateWorkforceBatch, workforceBatchInput } from '../src/lib/collaborators/workforce-classification.js';
+import { requireAuth } from '../src/middleware/auth.js';
+import { createReviewParticipationRouter } from '../src/routes/resources/efetivo-review-participation.js';
+import { listReviewParticipants, participationInputSchema, updateReviewParticipation } from '../src/lib/efetivo/allocation-review/participation.js';
 import { listCollaboratorsWithCurrentJobRole } from '../src/lib/collaborators/job-role-service.js';
 import { getReviewMonth, getReviewWeek, loadReviewWeekContext, weekDateKeys } from '../src/lib/efetivo/allocation-review/read-model.js';
 import { closeReviewWeek, confirmReviewRows, discardReviewDays, saveReviewDays, unconfirmReviewRows } from '../src/lib/efetivo/allocation-review/service.js';
@@ -23,24 +23,23 @@ test('participação individual na conferência: persistência, HTTP, fechamento
   const db = database.client;
   const role = await db.jobRole.create({ data: { name: 'Técnico', normalizedKey: 'tecnico', workforceClassification: 'OPERATIONAL' } });
   const [included, excluded] = await Promise.all(['Ana', 'Bruno'].map(name => db.collaborator.create({ data: {
-    code: name, name, jobRoleId: role.id, workforceSector: 'Campo', admissionDate: date('2026-01-01')
+    code: name, name, jobRoleId: role.id, workforceSector: 'Campo', admissionDate: date('2026-01-01'), allocationReviewEnabled: true
   } })));
   const admin = await db.user.create({ data: { username: 'participation-admin', name: 'Administrador', passwordHash: 'test', role: 'MANAGER', accountType: 'ADMIN' } });
   const deps = { database: db, getTrails: async () => new Map([[excluded.id, new Map([['2026-11-03', {
     date: '2026-11-03', normalHours: 8, he70Hours: 0, he100Hours: 0, tags: [], tagProjectIds: []
   }]])]]), loadEffectiveIndex: async () => new Map(), loadCalendar: async () => ({ holidays: [], holidayDates: new Set() }) };
   const current = id => db.collaborator.findUniqueOrThrow({ where: { id } });
-  const change = async (enabled, people = [excluded]) => updateWorkforceBatch(db, {
-    items: await Promise.all(people.map(async person => ({ id: person.id, version: (await current(person.id)).classificationVersion }))),
-    allocationReviewEnabled: enabled, reason: 'Revisão da participação na conferência.'
-  }, admin.id);
+  const change = async (enabled, people = [excluded]) => {
+    for (const person of people) await updateReviewParticipation(db, person.id, {
+      allocationReviewEnabled: enabled, version: (await current(person.id)).classificationVersion
+    }, { actorUserId: admin.id });
+  };
 
-  await t.test('migração habilita existentes e novos sem alterar classificação', async () => {
-    await database.db.exec('ALTER TABLE "Collaborator" DROP COLUMN "allocationReviewEnabled";');
-    await database.db.exec(await readFile(new URL('../prisma/migrations/20261124150000_allocation_review_participation/migration.sql', import.meta.url), 'utf8'));
-    assert.equal((await current(included.id)).allocationReviewEnabled, true);
+  await t.test('novos operacionais começam dispensados sem alterar classificação', async () => {
     const newcomer = await db.collaborator.create({ data: { code: 'new', name: 'Novo', jobRoleId: role.id, isActive: false, terminationDate: date('2025-01-01') } });
-    assert.equal(newcomer.allocationReviewEnabled, true);
+    assert.equal(newcomer.allocationReviewEnabled, false);
+    assert.equal((await listReviewParticipants(db)).find(item => item.id === newcomer.id).allocationReviewEnabled, false);
     assert.equal((await current(included.id)).workforceClassificationOverride, null);
   });
 
@@ -57,7 +56,7 @@ test('participação individual na conferência: persistência, HTTP, fechamento
   const rowsBefore = await db.allocationReviewRow.findMany({ orderBy: { id: 'asc' } });
   const daysBefore = await db.allocationReviewDay.findMany({ orderBy: { id: 'asc' } });
 
-  await t.test('dispensa preserva classificação e equipe, registra motivo e não sinaliza missões para revisão', async () => {
+  await t.test('toggle dispensa sem justificativa, preserva classificação e equipe e registra atividade no Efetivo', async () => {
     const plan = await db.efetivoPlan.create({ data: { name: 'Oficial', kind: 'OFFICIAL', status: 'ACTIVE' } });
     const project = await db.project.create({ data: { code: 'participation', name: 'Projeto', clientName: 'Cliente', clientCnpj: '00000000000000', contractCode: 'test', location: 'Sede' } });
     const mission = await db.efetivoMissionPlan.create({ data: { planId: plan.id, projectId: project.id,
@@ -65,22 +64,25 @@ test('participação individual na conferência: persistência, HTTP, fechamento
       mobilizationDate: date('2030-01-01'), executionStartDate: date('2030-01-01'), executionEndDate: date('2030-01-02'), returnDate: date('2030-01-02'),
       allocations: { create: { collaboratorId: excluded.id, jobRoleId: role.id, jobRoleNameSnapshot: role.name } }
     } });
-    const result = await change(false);
-    assert.deepEqual(result.affectedMissionIds, []);
+    await change(false);
     const person = await current(excluded.id);
     assert.equal(person.allocationReviewEnabled, false);
     assert.equal(person.workforceClassificationOverride, null);
     assert.equal(person.workforceSector, 'Campo');
-    assert.equal((await listWorkforce(db, {})).items.find(item => item.id === excluded.id).allocationReviewEnabled, false);
+    assert.equal((await listReviewParticipants(db)).find(item => item.id === excluded.id).allocationReviewEnabled, false);
     assert.ok((await listCollaboratorsWithCurrentJobRole(db)).some(item => item.id === excluded.id));
     assert.equal((await db.efetivoMissionPlan.findUniqueOrThrow({ where: { id: mission.id } })).needsReplanning, false);
     assert.equal(await db.efetivoMissionAllocation.count({ where: { missionId: mission.id } }), 1);
-    const event = await db.workforceClassificationEvent.findFirstOrThrow({ where: { entityId: excluded.id } });
+    const event = await db.efetivoAuditEvent.findFirstOrThrow({ where: { entityId: excluded.id } });
     assert.equal(event.actorUserId, admin.id);
-    assert.equal(event.reason, 'Revisão da participação na conferência.');
-    assert.equal(event.before.allocationReviewEnabled, true);
-    assert.equal(event.after.allocationReviewEnabled, false);
-    assert.equal(event.after.classification, event.before.classification);
+    assert.ok(event.summary.includes(excluded.name));
+    assert.equal(event.beforeData.allocationReviewEnabled, true);
+    assert.equal(event.afterData.allocationReviewEnabled, false);
+    const version = person.classificationVersion;
+    const auditCount = await db.efetivoAuditEvent.count();
+    await change(false);
+    assert.equal((await current(excluded.id)).classificationVersion, version);
+    assert.equal(await db.efetivoAuditEvent.count(), auditCount);
   });
 
   await t.test('semanas e mês excluem dispensados mesmo com ponto e rascunho; fechamento considera só participantes', async () => {
@@ -120,13 +122,13 @@ test('participação individual na conferência: persistência, HTTP, fechamento
     assert.ok(output.items.some(day => day.date === '2026-11-03' && day.id.startsWith('automatic:') && day.collaborator.id === excluded.id));
   });
 
-  await t.test('lote exige alteração, booleano, motivo e versão; conflito reverte tudo; reinclusão recupera o rascunho', async () => {
-    const base = { items: [{ id: excluded.id, version: 2 }], reason: 'Revisão.' };
-    for (const input of [base, { ...base, allocationReviewEnabled: 'false' }, { ...base, allocationReviewEnabled: false, reason: '' }]) {
-      assert.equal(workforceBatchInput.safeParse(input).success, false);
+  await t.test('toggle exige booleano e versão, aceita corpo sem motivo e reinclusão recupera o rascunho', async () => {
+    const base = { version: 2 };
+    for (const input of [base, { ...base, allocationReviewEnabled: 'false' }, { allocationReviewEnabled: false }]) {
+      assert.equal(participationInputSchema.safeParse(input).success, false);
     }
-    await assert.rejects(() => updateWorkforceBatch(db, { items: [{ id: included.id, version: 1 }, { id: excluded.id, version: 999 }],
-      allocationReviewEnabled: false, reason: 'Lote com conflito.' }, admin.id), error => error.code === 'CLASSIFICATION_VERSION_CONFLICT');
+    assert.equal(participationInputSchema.safeParse({ ...base, allocationReviewEnabled: false }).success, true);
+    await assert.rejects(() => updateReviewParticipation(db, excluded.id, { version: 999, allocationReviewEnabled: true }), error => error.code === 'PARTICIPATION_VERSION_CONFLICT');
     assert.equal((await current(included.id)).allocationReviewEnabled, true);
     await change(true, [included, excluded]);
     const result = await getReviewWeek({ weekStart: WEEK, now: NOW }, deps);
@@ -136,27 +138,34 @@ test('participação individual na conferência: persistência, HTTP, fechamento
     assert.equal((await current(excluded.id)).workforceClassificationOverride, null);
   });
 
-  await t.test('HTTP permite alterar participação só para administrador e aplica a auditoria', async () => {
+  await t.test('HTTP do Efetivo exige gestão para alterar participação sem justificativa', async () => {
     const original = prisma.userSession.findUnique;
     prisma.userSession.findUnique = args => db.userSession.findUnique(args);
     t.after(() => { prisma.userSession.findUnique = original; });
-    const viewer = await db.user.create({ data: { username: 'participation-viewer', name: 'Leitor', passwordHash: 'test', role: 'COLLABORATOR', accountType: 'INTERNAL' } });
-    for (const [user, token] of [[admin, 'admin-token'], [viewer, 'viewer-token']]) {
+    const users = await Promise.all([
+      ['viewer', 'EFETIVO_VIEWER'], ['manager', 'EFETIVO_MANAGER'], ['reviewer', 'EFETIVO_ALLOCATION_REVIEW']
+    ].map(([name, role]) => db.user.create({ data: { username: `participation-${name}`, name, passwordHash: 'test', role: 'COLLABORATOR', accountType: 'INTERNAL', moduleRoles: { create: { module: 'EFETIVO', role } } } })));
+    for (const [user, token] of [[admin, 'admin-token'], ...users.map(user => [user, `${user.name}-token`])]) {
       await db.userSession.create({ data: { userId: user.id, tokenHash: createHash('sha256').update(token).digest('hex'), expiresAt: new Date(Date.now() + 3600000) } });
     }
     const app = express(); app.use(express.json());
-    app.use('/admin', createWorkforceClassificationRouter({ database: db }));
+    app.use('/efetivo/administracao/conferencia/colaboradores', requireAuth, createReviewParticipationRouter({ database: db }));
     app.use((error, _req, res, _next) => res.status(error.name === 'ZodError' ? 400 : error.statusCode || error.status || 500).json({ code: error.code }));
     const server = app.listen(0, '127.0.0.1'); await new Promise(resolve => server.once('listening', resolve));
     t.after(() => new Promise(resolve => server.close(resolve)));
-    const url = `http://127.0.0.1:${server.address().port}/admin/collaborators`;
-    const body = { items: [{ id: excluded.id, version: (await current(excluded.id)).classificationVersion }], allocationReviewEnabled: false, reason: 'Dispensa pelo administrador.' };
+    const url = `http://127.0.0.1:${server.address().port}/efetivo/administracao/conferencia/colaboradores/${excluded.id}`;
+    const body = { version: (await current(excluded.id)).classificationVersion, allocationReviewEnabled: false };
     const patch = token => fetch(url, { method: 'PATCH', headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     assert.equal((await patch('')).status, 401);
     assert.equal((await patch('viewer-token')).status, 403);
+    assert.equal((await patch('reviewer-token')).status, 403);
+    assert.equal((await fetch(url.replace(`/${excluded.id}`, ''), { headers: { Authorization: 'Bearer viewer-token' } })).status, 200);
     assert.equal((await current(excluded.id)).allocationReviewEnabled, true);
-    assert.equal((await patch('admin-token')).status, 200);
+    assert.equal((await patch('manager-token')).status, 200);
     assert.equal((await current(excluded.id)).allocationReviewEnabled, false);
     assert.equal((await patch('admin-token')).status, 409);
+    body.version = (await current(excluded.id)).classificationVersion;
+    body.allocationReviewEnabled = true;
+    assert.equal((await patch('admin-token')).status, 200);
   });
 });

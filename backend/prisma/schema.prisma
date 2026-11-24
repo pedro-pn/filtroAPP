@@ -595,7 +595,7 @@ model Collaborator {
   jobRoleId                      String
   workforceClassificationOverride WorkforceClassification?
   workforceSector                String?
-  allocationReviewEnabled        Boolean                          @default(true)
+  allocationReviewEnabled        Boolean                          @default(false)
   sourceIsOperational            Boolean?
   classificationVersion          Int                              @default(1)
   efetivoNote                    String?

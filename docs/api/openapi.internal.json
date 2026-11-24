@@ -4406,6 +4406,256 @@
         }
       }
     },
+    "/api/efetivo/administracao/conferencia/colaboradores": {
+      "get": {
+        "operationId": "getApiEfetivoAdministracaoConferenciaColaboradores",
+        "summary": "Colaboradores operacionais e participação na conferência",
+        "tags": [],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "x-auth": "session",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "code": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "jobRole": {
+                        "type": "string"
+                      },
+                      "isActive": {
+                        "type": "boolean"
+                      },
+                      "rhStatus": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "allocationReviewEnabled": {
+                        "type": "boolean"
+                      },
+                      "version": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "code",
+                      "name",
+                      "jobRole",
+                      "isActive",
+                      "rhStatus",
+                      "allocationReviewEnabled",
+                      "version"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem permissão",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/efetivo/administracao/conferencia/colaboradores/{id}": {
+      "patch": {
+        "operationId": "patchApiEfetivoAdministracaoConferenciaColaboradoresId",
+        "summary": "Ativar ou desativar a participação na conferência",
+        "tags": [],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "x-auth": "session",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "allocationReviewEnabled": {
+                    "type": "boolean"
+                  },
+                  "version": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "allocationReviewEnabled",
+                  "version"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "jobRole": {
+                      "type": "string"
+                    },
+                    "isActive": {
+                      "type": "boolean"
+                    },
+                    "rhStatus": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "allocationReviewEnabled": {
+                      "type": "boolean"
+                    },
+                    "version": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "code",
+                    "name",
+                    "jobRole",
+                    "isActive",
+                    "rhStatus",
+                    "allocationReviewEnabled",
+                    "version"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem permissão",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflito",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/epi/records/{id}/returns": {
       "post": {
         "operationId": "postApiEpiRecordsIdReturns",

@@ -62,7 +62,7 @@ test('visibilidade configurável: persistência, seleção, API, cache, autoriza
     await save(rules);
     assert.deepEqual(await codesFor('RDO'), ['NON_OPERATIONAL', 'OPERATIONAL']);
     assert.deepEqual(await codesFor('EFETIVO'), ['NON_OPERATIONAL']);
-    assert.deepEqual(await codesFor('ALLOCATION_REVIEW'), ['PENDING']);
+    assert.deepEqual(await codesFor('ALLOCATION_REVIEW'), ['OPERATIONAL']);
     assert.deepEqual(await codesFor('EPI'), ['OPERATIONAL']);
     await withWorkforceVisibility('RDO', () => requireVisibleCollaborators(db, [people[1].id]));
     assert.equal(withWorkforceVisibility('EFETIVO', () => deriveSelectedMissionTeam([people[1]], 'CONFIRMED')).allocations[0].collaboratorId, people[1].id);

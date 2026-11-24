@@ -632,7 +632,7 @@ test('administração ganha a aba de e-mails de aviso por finalidade', () => {
   const board = fs.readFileSync(new URL('../src/pages/efetivo/components/AdministrationBoard.tsx', import.meta.url), 'utf8');
   const api = fs.readFileSync(new URL('../src/api/efetivoPlanning.ts', import.meta.url), 'utf8');
   const purposes = fs.readFileSync(new URL('../../shared/schemas/notification-email-settings.js', import.meta.url), 'utf8');
-  assert.match(page, /'regras', 'feriados', 'notificacoes', 'atividade'/);
+  assert.match(page, /'regras', 'conferencia', 'feriados', 'notificacoes', 'atividade'/);
   assert.match(board, /tab === 'notificacoes'/);
   assert.match(board, /listNotificationEmailSettings/);
   assert.match(board, /updateNotificationEmailSetting/);
