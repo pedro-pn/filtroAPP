@@ -564,10 +564,6 @@ export function EpiPage() {
       showToast('Selecione ao menos um EPI.', 'error');
       return;
     }
-    if (!archived && selected.some(record => record.signedAt)) {
-      showToast('EPI assinado não pode ser restaurado.', 'error');
-      return;
-    }
     const confirmed = await confirm({
       title: archived ? 'Arquivar EPIs selecionados?' : 'Restaurar EPIs selecionados?',
       description: archived
@@ -625,7 +621,6 @@ export function EpiPage() {
                 record.signatureRequest?.status === 'PENDING'
                 && new Date(record.signatureRequest.expiresAt).getTime() > Date.now()
               );
-              const hasSelectedArchivedSigned = selectedArchivedRecords.some(record => record.signedAt);
               const unsigned = activeRecords.filter(record => !record.signedAt).length;
               return (
                 <section className="page-card epi-collaborator-card" key={collaborator.id}>
@@ -824,7 +819,7 @@ export function EpiPage() {
                             variant="secondary"
                             size="sm"
                             className="epi-restore-button"
-                            disabled={!selectedArchivedRecordIds.size || hasSelectedArchivedSigned || archiveRecordsMutation.isPending}
+                            disabled={!selectedArchivedRecordIds.size || archiveRecordsMutation.isPending}
                             onClick={() => void confirmArchiveRecords(collaborator, archivedRecords, false)}
                           >
                             Restaurar selecionados
