@@ -23,6 +23,20 @@ pela alocação automática, exatamente como hoje.
 
 ## User Scenarios & Testing *(mandatory)*
 
+### Participação individual — ajuste de 24/11/2026
+
+Em **Efetivo → Administração → Conferência**, a lista contém somente colaboradores com
+classificação efetiva operacional, incluindo exceções individuais à classificação do cargo.
+O gestor do Efetivo ou administrador ativa/desativa um único toggle por colaborador; a
+alteração é salva ao clicar, sem modal nem justificativa. Demais usuários do Efetivo consultam
+a lista sem editar. O controle não fica em Gestão de Contas.
+
+Novos cadastros começam desabilitados. A migração preserva participações operacionais já
+habilitadas e dispensas existentes; corrige os valores habilitados para quem estava fora pela
+classificação ou pela antiga matriz global da conferência. A matriz deixa de controlar a
+conferência: a regra passa a ser operacional + participação individual, respeitando as datas
+do vínculo na semana consultada. Desativar não apaga dias, confirmações ou equipes.
+
 ### User Story 1 - Ver a semana já preenchida pelo app e entender o que não bate (Priority: P1)
 
 O responsável pela alocação abre a semana e vê, para cada colaborador e cada dia (segunda a

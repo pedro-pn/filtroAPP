@@ -18,7 +18,7 @@ test('resumo mensal inclui situações do Efetivo sem depender da confirmação 
     name: 'Técnica', normalizedKey: 'tecnica', isOperational: true, workforceClassification: 'OPERATIONAL'
   } });
   const person = name => client.collaborator.create({ data: {
-    code: name, name, jobRoleId: role.id, admissionDate: date('2026-10-26')
+    code: name, name, jobRoleId: role.id, admissionDate: date('2026-10-26'), allocationReviewEnabled: true
   } });
   const ana = await person('Ana');
   const bia = await person('Bia');

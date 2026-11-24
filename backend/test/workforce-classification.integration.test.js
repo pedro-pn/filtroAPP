@@ -17,6 +17,7 @@ import { deriveSelectedMissionTeam } from '../src/lib/efetivo/planning/mission-t
 import { loadConfirmedReviewDays } from '../src/lib/efetivo/allocation-review/confirmed-days.js';
 import { listReviewAllocations, ALLOCATION_REVIEW_SCOPE } from '../src/lib/api-credentials/allocation-review.js';
 import { reportCollaboratorCreateManyData } from '../src/lib/report-collaborators.js';
+import { updateReviewParticipation } from '../src/lib/efetivo/allocation-review/participation.js';
 
 test('classificação central: herança, exceções, RH, HTTP, migração e histórico em PostgreSQL real', { timeout: 180000 }, async t => {
   const database = await apiSimulationDatabase();
@@ -103,7 +104,9 @@ test('classificação central: herança, exceções, RH, HTTP, migração e hist
     assert.equal(mixed.workforceClassificationOverride, 'PENDING');
     assert.equal(isOperationalCollaborator(mixed), false);
     const currentPerson = await db.collaborator.findUniqueOrThrow({ where: { id: rhPerson.id } });
-    await updateWorkforceBatch(db, { items: [{ id: rhPerson.id, version: currentPerson.classificationVersion }], classification: 'OPERATIONAL', allocationReviewEnabled: false, reason: 'Liberação individual revisada.' }, adminUser.id);
+    await updateWorkforceBatch(db, { items: [{ id: rhPerson.id, version: currentPerson.classificationVersion }], classification: 'OPERATIONAL', reason: 'Liberação individual revisada.' }, adminUser.id);
+    await updateReviewParticipation(db, rhPerson.id, { allocationReviewEnabled: true, version: currentPerson.classificationVersion + 1 }, { actorUserId: adminUser.id });
+    await updateReviewParticipation(db, rhPerson.id, { allocationReviewEnabled: false, version: currentPerson.classificationVersion + 2 }, { actorUserId: adminUser.id });
     await receive(envelope('employment', employment, 3));
     assert.equal((await db.collaborator.findUniqueOrThrow({ where: { id: rhPerson.id } })).workforceClassificationOverride, 'OPERATIONAL');
     assert.equal((await db.collaborator.findUniqueOrThrow({ where: { id: rhPerson.id } })).allocationReviewEnabled, false);

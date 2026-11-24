@@ -408,3 +408,5 @@
   .efetivo-page-v2 .efetivo-administration-ds .efetivo-admin-tabs button { min-width: 0; padding-inline: var(--space-1); }
   .efetivo-page-v2 .efetivo-productivity-ds .efetivo-month { grid-template-columns: 40px minmax(0, 1fr) 64px; }
 }
+.efetivo-review-participant-name { display: grid; gap: .25rem; }
+.efetivo-review-participant-name small { color: var(--fv-color-text-muted, #64748b); }

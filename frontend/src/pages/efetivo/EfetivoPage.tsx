@@ -84,7 +84,7 @@ export function EfetivoPage() {
   const [workflowSearch, setWorkflowSearch] = usePersistentSearch(`efetivo-workflow-search:${userSearchKey}`, searchParams.get('busca') || '');
   const parsedWorkflowPage = Number(searchParams.get('pagina') || 1);
   const workflowPage = Number.isInteger(parsedWorkflowPage) && parsedWorkflowPage > 0 ? parsedWorkflowPage : 1;
-  const adminTab = (['regras', 'feriados', 'notificacoes', 'atividade'].includes(searchParams.get('adminTab') || '') ? searchParams.get('adminTab') : 'regras') as 'regras' | 'feriados' | 'notificacoes' | 'atividade';
+  const adminTab = (['regras', 'conferencia', 'feriados', 'notificacoes', 'atividade'].includes(searchParams.get('adminTab') || '') ? searchParams.get('adminTab') : 'regras') as 'regras' | 'conferencia' | 'feriados' | 'notificacoes' | 'atividade';
   const canManage = user?.accountType === 'ADMIN' || Boolean(user?.moduleRoles?.includes('efetivo:manager'));
   const needsPositionFilters = canView && ['visao-geral', 'calendario', 'colaboradores', 'disponibilidade'].includes(section);
   const roles = useQuery({ queryKey: ['efetivo-planning-job-roles'], queryFn: listPlanningJobRoles, enabled: needsPositionFilters });

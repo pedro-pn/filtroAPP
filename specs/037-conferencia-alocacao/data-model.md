@@ -16,6 +16,13 @@ ModuleRoleCode              + EFETIVO_ALLOCATION_REVIEW   (ALTER TYPE ... ADD VA
 `NONE` ("Sem informação") só existe na sugestão e nunca é gravado. Um dia não pode ser salvo
 como "sem informação".
 
+## Participação do colaborador
+
+`Collaborator.allocationReviewEnabled` é booleano com default `false`. O toggle da
+administração do Efetivo altera somente essa preferência e incrementa `classificationVersion`
+com verificação de concorrência. A alteração fica em `EfetivoAuditEvent`, sem justificativa
+obrigatória. Classificação, vínculo e histórico de conferência são preservados.
+
 ## AllocationReviewWeek
 
 | Campo | Tipo | Regra |

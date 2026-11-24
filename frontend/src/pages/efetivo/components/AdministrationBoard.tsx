@@ -17,6 +17,7 @@ import { Button, Card, EmptyState, Field, Input, Skeleton, Switch } from '../../
 import { useToast } from '../../../components/ui/ToastContext';
 import { EfetivoActivityList } from './EfetivoActivityList';
 import { HolidayManager } from './HolidayManager';
+import { AllocationReviewParticipants } from './AllocationReviewParticipants';
 
 const EFETIVO_ROLE_LABELS: Record<string, string> = {
   EFETIVO_MANAGER: 'Gestor',
@@ -32,6 +33,7 @@ const EFETIVO_ROLE_LABELS: Record<string, string> = {
 
 const ADMIN_TABS = [
   ['regras', 'Regras e acessos'],
+  ['conferencia', 'Conferência'],
   ['feriados', 'Feriados'],
   ['notificacoes', 'Notificações'],
   ['atividade', 'Atividade']
@@ -105,7 +107,7 @@ export function AdministrationBoard({ canManage, tab, onTabChange }: {
   const roles = useQuery({ queryKey: ['efetivo-planning-job-roles'], queryFn: listPlanningJobRoles });
   const settings = useQuery({ queryKey: ['efetivo-planning-settings'], queryFn: getPlanningSettings });
   const users = useQuery({ queryKey: ['efetivo-planning-users'], queryFn: listEfetivoRoleUsers });
-  useUsefulQueryContent('efetivo:administracao', 'AdministrationBoard', [roles, settings, users]);
+  useUsefulQueryContent('efetivo:administracao', 'AdministrationBoard', [roles, settings, users], tab !== 'conferencia');
   const notificationEmails = useQuery({ queryKey: ['efetivo-notification-emails'], queryFn: listNotificationEmailSettings, enabled: tab === 'notificacoes' });
   const [target, setTarget] = useState('80');
   useEffect(() => { if (settings.data) setTarget(String(settings.data.plannedUtilizationTarget)); }, [settings.data]);
@@ -142,6 +144,7 @@ export function AdministrationBoard({ canManage, tab, onTabChange }: {
       </Card>
     </> : null}
     {tab === 'feriados' ? <HolidayManager canManage={canManage} /> : null}
+    {tab === 'conferencia' ? <AllocationReviewParticipants canManage={canManage} /> : null}
     {tab === 'notificacoes' ? <Card className="efetivo-administration-section">
       <div className="efetivo-section-heading"><div><h2>E-mails de aviso</h2><p>Destinatário padrão de cada aviso automático da Gestão de Projetos. Pode ser corrigido pontualmente em cada projeto.</p></div></div>
       {notificationEmails.isLoading ? <Skeleton variant="card" /> : notificationEmails.isError ? <EmptyState variant="error" title="Não foi possível carregar os e-mails." action={{ label: 'Tentar novamente', onClick: () => void notificationEmails.refetch() }} /> : notificationEmails.data?.length ? <div className="efetivo-admin-role-list">{notificationEmails.data.map(setting => <NotificationEmailRow setting={setting} canManage={canManage} onSaved={() => void queryClient.invalidateQueries({ queryKey: ['efetivo-notification-emails'] })} key={setting.key} />)}</div> : <EmptyState title="Nenhum e-mail de aviso configurado." />}
