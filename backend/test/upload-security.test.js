@@ -372,6 +372,7 @@ test('collaborators cannot delete images from archived projects even when linked
     user: {
       id: 'user-archive', username: 'archive-collaborator', role: 'COLLABORATOR',
       accountType: 'INTERNAL', isActive: true, collaboratorId: 'collab-archive',
+      collaborator: null,
       moduleRoles: [{ role: 'RDO_COLLABORATOR' }]
     }
   });

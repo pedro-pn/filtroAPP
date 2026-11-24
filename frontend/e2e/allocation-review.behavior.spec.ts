@@ -1,10 +1,11 @@
 import { expect, test } from '@playwright/test';
 
-import { WEEK, expectNoHorizontalOverflow, mockApi } from './support/allocationReview';
+import { WEEK, expectNoHorizontalOverflow, mockApi, weekResponse } from './support/allocationReview';
 
 // Conferência semanal de alocação (feature 037). API simulada: nenhuma chamada sai do navegador.
 
 test('quem só confere alocação abre direto a Conferência e não chama APIs do resto do Efetivo', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-03T15:00:00.000Z'));
   await page.setViewportSize({ width: 1366, height: 900 });
   const { unexpected } = await mockApi(page, ['efetivo:allocation-review']);
   await page.goto('/efetivo');
@@ -49,6 +50,44 @@ test('"Outro projeto" sem projeto marca o campo em vermelho', async ({ page }) =
   await expect(dialog.locator('.field-invalid')).toBeVisible();
   await expect(dialog.getByText('Escolha o projeto.')).toBeVisible();
   expect(writes).toEqual([]);
+});
+
+test('Falta avisa de ponto normal ou extra e permite salvar e repetir a escolha', async ({ page }) => {
+  const { writes } = await mockApi(page, ['efetivo:allocation-review']);
+  const response = weekResponse();
+  response.rows[0].days[1].sources.ponto.normalHours = 0;
+  response.rows[0].days[1].sources.ponto.he70Hours = 1;
+  await page.route(`**/api/efetivo/conferencia-alocacao/semanas/${WEEK}`, route => route.fulfill({ json: response }));
+  await page.goto(`/efetivo?section=conferencia&semana=${WEEK}`);
+  await page.getByRole('button', { name: /Ana Teixeira, 26\/10/ }).first().click();
+  const dialog = page.getByRole('dialog', { name: 'Ana Teixeira' });
+  await dialog.getByRole('radio', { name: 'Falta', exact: true }).check();
+  const warning = dialog.locator('#allocation-review-falta-warning');
+  await expect(warning).toBeVisible();
+  await expect(warning).toContainText('26/10');
+  await dialog.getByText('Ter 27/10', { exact: true }).click();
+  await expect(warning).toContainText('26/10, 27/10');
+  await dialog.getByRole('button', { name: 'Salvar', exact: true }).click();
+  await expect.poll(() => writes.length).toBe(1);
+  expect((writes[0].body as { items: unknown[] }).items).toEqual([
+    { collaboratorId: 'c-ana', date: '2026-10-26', kind: 'FALTA', projectIds: [], note: null },
+    { collaboratorId: 'c-ana', date: '2026-10-27', kind: 'FALTA', projectIds: [], note: null }
+  ]);
+});
+
+test('Falta sem horas de ponto não exibe aviso, mesmo com etiqueta', async ({ page }) => {
+  await mockApi(page, ['efetivo:allocation-review']);
+  const response = weekResponse();
+  const ponto = response.rows[0].days[0].sources.ponto;
+  ponto.normalHours = 0; ponto.he70Hours = 0; ponto.he100Hours = 0;
+  ponto.tags = ['Falta injustificada'];
+  await page.route(`**/api/efetivo/conferencia-alocacao/semanas/${WEEK}`, route => route.fulfill({ json: response }));
+  await page.goto(`/efetivo?section=conferencia&semana=${WEEK}`);
+  await page.getByRole('button', { name: /Ana Teixeira, 26\/10/ }).first().click();
+  const dialog = page.getByRole('dialog', { name: 'Ana Teixeira' });
+  await dialog.getByRole('radio', { name: 'Falta', exact: true }).check();
+  await expect(dialog.getByRole('radio', { name: 'Falta', exact: true })).toBeChecked();
+  await expect(dialog.locator('#allocation-review-falta-warning')).toHaveCount(0);
 });
 
 test('seleção múltipla e conferir linhas sem pendência', async ({ page }) => {
