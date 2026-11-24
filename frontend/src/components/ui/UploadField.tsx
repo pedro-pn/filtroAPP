@@ -16,6 +16,7 @@ import { IconButton } from './ds/Button';
 import { DS_ICONS } from './ds/icons';
 import { stageUploadDeletion } from './photoDeletionStaging';
 import { UploadTransferContext } from './UploadTransferContext';
+import { UploadDownloadButton } from './UploadDownloadButton';
 import './UploadField.css';
 
 const PdfThumbnail = lazy(() => import('./PdfThumbnail').then(module => ({ default: module.PdfThumbnail })));
@@ -172,30 +173,33 @@ export function UploadPreviewListItem({ disabled, file, index, appearance = 'leg
         <span className="upload-list-name">{file.fileName}</span>
       )}
       {wasPreviouslyAdded(file) ? <span className="upload-previous-badge">Adicionada anteriormente</span> : null}
-      {!disabled ? removed ? (
-        appearance === 'design-system' ? (
-          <IconButton
-            className="upload-remove-button"
-            icon={RotateCcw}
-            label={`Restaurar ${file.fileName}`}
-            variant="secondary"
-            size="sm"
-            onClick={() => onRemove(index)}
-          />
+      <div className="upload-list-actions">
+        {href && isImageFile(file) ? <UploadDownloadButton href={href} fileName={file.fileName} /> : null}
+        {!disabled ? removed ? (
+          appearance === 'design-system' ? (
+            <IconButton
+              className="upload-remove-button"
+              icon={RotateCcw}
+              label={`Restaurar ${file.fileName}`}
+              variant="secondary"
+              size="sm"
+              onClick={() => onRemove(index)}
+            />
+          ) : (
+            <button
+              className="upload-remove-button"
+              type="button"
+              onClick={() => onRemove(index)}
+              aria-label={`Restaurar ${file.fileName}`}
+              title="Restaurar"
+            >
+              ↶
+            </button>
+          )
         ) : (
-          <button
-            className="upload-remove-button"
-            type="button"
-            onClick={() => onRemove(index)}
-            aria-label={`Restaurar ${file.fileName}`}
-            title="Restaurar"
-          >
-            ↶
-          </button>
-        )
-      ) : (
-        <RemoveIconButton label={`Remover ${file.fileName}`} onClick={() => onRemove(index)} />
-      ) : null}
+          <RemoveIconButton label={`Remover ${file.fileName}`} onClick={() => onRemove(index)} />
+        ) : null}
+      </div>
     </div>
   );
 }

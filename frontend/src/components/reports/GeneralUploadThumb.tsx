@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { UploadedFile } from '../../api/uploads';
 import { loadUploadAssetUrl } from '../../utils/uploadAssetUrl';
+import { UploadDownloadButton } from '../ui/UploadDownloadButton';
 
 export function GeneralUploadThumb({ file }: { file: UploadedFile }) {
   const [href, setHref] = useState('');
@@ -32,17 +33,20 @@ export function GeneralUploadThumb({ file }: { file: UploadedFile }) {
   if (!href) return null;
 
   return (
-    <a
-      className="report-upload-link"
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label={`Abrir ${displayName}`}
-      title={displayName}
-    >
-      <img src={href} alt="" className="upload-thumb" />
-      <span className="report-upload-name">{displayName}</span>
-    </a>
+    <div className="report-upload-item">
+      <a
+        className="report-upload-link"
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`Abrir ${displayName}`}
+        title={displayName}
+      >
+        <img src={href} alt="" className="upload-thumb" />
+        <span className="report-upload-name">{displayName}</span>
+      </a>
+      <UploadDownloadButton href={href} fileName={file.fileName || displayName} />
+    </div>
   );
 }
 
