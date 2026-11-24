@@ -114,7 +114,7 @@ import { MAX_MANUAL_REPORT_PDF_DATA_URL_LENGTH, decodeManualReportPdfDataUrl, ex
 import { hasManualReportPdf, manualPdfMultipart, manualReportPdfBytes, missingManualPdf, saveManualReportPdf } from '../../lib/reports/manual-pdf-upload.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
 import { EFETIVO_ACCESS_ROLES } from '../../lib/efetivo/access.js';
-import { createReportPdfAccessChecker, reportDateFromWhere, reportListUsesSummarySelect } from '../../lib/reports/report-route-helpers.js';
+import { createReportPdfAccessChecker, reportDateFromWhere, reportListSummary, reportListUsesSummarySelect } from '../../lib/reports/report-route-helpers.js';
 import { collaboratorCanAccessReportProject, collaboratorHasAuthorizedProjectLink, missionReportTeamQuery } from '../../lib/reports/collaborator-access.js';
 import { canEditMissionReports } from '../../../../shared/modules/mission-report-access.js';
 export { collaboratorCanAccessReportProject } from '../../lib/reports/collaborator-access.js';
@@ -1277,7 +1277,9 @@ const listSummarySelect = withReportPdfAttachmentCount({
       collaboratorId: true,
       jobRoleIdSnapshot: true,
       roleNameSnapshot: true,
-      collaborator: { include: { jobRole: true } }
+      // A imagem é necessária no detalhe/PDF, mas pode repetir centenas de KB
+      // por colaborador em cada card da listagem.
+      collaborator: { omit: { signatureImage: true }, include: { jobRole: true } }
     }
   },
   services: {
@@ -5433,6 +5435,7 @@ defineRoute(router, rdoRoute('GET /', { summary: 'Listar relatórios (paginado q
   }
 
   logSlowOperation('reports.list.query', Date.now() - tGet0, { count: items.length, role: req.auth.user.role });
+  if (useSummarySelect) items = items.map(reportListSummary);
   if (req.auth.user.role === 'CLIENT') {
     const needsProjectVisibilityContext = !!(req.query.projectId || req.query.reportType);
     const byId = needsProjectVisibilityContext

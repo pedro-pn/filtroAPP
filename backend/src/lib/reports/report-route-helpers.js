@@ -6,6 +6,14 @@ export function reportListUsesSummarySelect(query) {
   return value === 'true' || value === '1';
 }
 
+export function reportListSummary(report) {
+  const snapshot = report.specialConditions?.__leaderSnapshot;
+  if (!snapshot || typeof snapshot !== 'object' || !Object.hasOwn(snapshot, 'signatureImage')) return report;
+  const leader = { ...snapshot };
+  delete leader.signatureImage;
+  return { ...report, specialConditions: { ...report.specialConditions, __leaderSnapshot: leader } };
+}
+
 export function reportDateFromWhere(value) {
   if (value === undefined || value === null || value === '') return {};
   const day = typeof value === 'string' ? value.trim() : '';

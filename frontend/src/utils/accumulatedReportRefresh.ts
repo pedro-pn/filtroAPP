@@ -3,6 +3,36 @@ import type { ReportSummary } from '../types/domain';
 
 type PageLoader = (filters: ReportPageFilters, signal?: AbortSignal) => Promise<PaginatedReports>;
 
+// Cada página já consulta vários recursos. Limita a revalidação da janela
+// visível para não ocupar todo o pool da API ao voltar a uma lista longa.
+async function loadPages(
+  count: number,
+  load: (index: number) => Promise<PaginatedReports>,
+  signal?: AbortSignal
+): Promise<PaginatedReports[]> {
+  const results: PaginatedReports[] = new Array(count);
+  let next = 0;
+  let failed = false;
+  let failure: unknown;
+  async function worker() {
+    while (!failed && next < count) {
+      const index = next++;
+      try {
+        signal?.throwIfAborted();
+        results[index] = await load(index);
+        signal?.throwIfAborted();
+      } catch (error) {
+        failed = true;
+        failure = error;
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(2, count) }, () => worker()));
+  signal?.throwIfAborted();
+  if (failed) throw failure;
+  return results;
+}
+
 export interface LoadedReportGroup {
   projectId: string;
   reportType: string;
@@ -35,18 +65,20 @@ export async function refreshAccumulatedReportPages(
 ): Promise<PaginatedReports> {
   // Atualiza toda a janela visível. O resultado do servidor substitui também itens
   // removidos ou que deixaram de atender ao filtro (aprovação, arquivamento etc.).
+  signal?.throwIfAborted();
   const first = await loadPage({ ...filters, page: 1 }, signal);
+  signal?.throwIfAborted();
   const lastPage = Math.min(page, first.pagination.totalPages);
-  const pages = [first, ...await Promise.all(Array.from({ length: Math.max(0, lastPage - 1) }, (_, index) => loadPage({ ...filters, page: index + 2 }, signal)))];
+  const pages = [first, ...await loadPages(Math.max(0, lastPage - 1), index => loadPage({ ...filters, page: index + 2 }, signal), signal)];
   const items = new Map(pages.flatMap(result => result.items).map(item => [item.id, item]));
   const totals = new Map(pages.flatMap(result => result.groups || []).map(group => [`${group.projectId}-${group.reportType}`, group]));
   const refreshedGroups = new Set<string>();
   for (const group of groups()) {
-    if (signal?.aborted) throw signal.reason;
-    const results = await Promise.all(Array.from({ length: Math.ceil(group.loadedCount / group.pageSize) }, (_, index) => loadPage({
+    signal?.throwIfAborted();
+    const results = await loadPages(Math.ceil(group.loadedCount / group.pageSize), index => loadPage({
       ...filters, projectId: group.projectId, reportType: group.reportType,
       reportSort: group.sortDirection, page: index + 1, pageSize: group.pageSize
-    }, signal)));
+    }, signal), signal);
     // A consulta específica é a fonte atual de todos os itens desse grupo.
     const groupKey = `${group.projectId}-${group.reportType}`;
     if (!refreshedGroups.has(groupKey)) {
