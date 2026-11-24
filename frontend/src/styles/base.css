@@ -5407,6 +5407,15 @@ a.upload-list-name {
   border: 1px solid var(--br);
 }
 
+.report-upload-item {
+  display: grid;
+  width: 72px;
+  min-width: 0;
+  align-content: start;
+  justify-items: start;
+  gap: 6px;
+}
+
 .report-upload-link {
   display: grid;
   width: 72px;
@@ -5448,15 +5457,23 @@ a.upload-list-name {
     gap: 8px;
   }
 
-  .report-upload-link {
+  .report-upload-item {
+    display: flex;
     width: 100%;
-    grid-template-columns: 72px minmax(0, 1fr);
     align-items: center;
     gap: 12px;
     padding: 8px;
     border: 1px solid var(--br);
     border-radius: var(--rs);
     background: var(--wh);
+  }
+
+  .report-upload-link {
+    width: 100%;
+    flex: 1 1 auto;
+    grid-template-columns: 72px minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
   }
 
   .report-upload-name {

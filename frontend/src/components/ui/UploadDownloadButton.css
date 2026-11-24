@@ -1,0 +1,39 @@
+.upload-download-button {
+  display: inline-flex;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  width: var(--space-8);
+  min-width: var(--space-8);
+  height: var(--space-8);
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: var(--border-width) solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.upload-download-button:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: var(--control-border);
+}
+
+.upload-download-button:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.upload-download-button:disabled {
+  opacity: .6;
+  cursor: wait;
+}
+
+@media (max-width: 767.98px) {
+  .upload-download-button {
+    width: calc(var(--space-10) + var(--space-1));
+    min-width: calc(var(--space-10) + var(--space-1));
+    height: calc(var(--space-10) + var(--space-1));
+  }
+}

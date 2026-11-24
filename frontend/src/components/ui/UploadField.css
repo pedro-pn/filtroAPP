@@ -26,6 +26,13 @@
   font-size: var(--text-xs);
 }
 
+.upload-list-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-1);
+}
+
 .upload-list-item .upload-reorder-handle {
   display: flex;
   flex: 0 0 auto;

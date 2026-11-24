@@ -1089,7 +1089,7 @@
     white-space: normal;
   }
 
-  .rdo-form-stage .upload-remove-button {
+  .rdo-form-stage .upload-list-actions {
     grid-column: 3;
     grid-row: 1 / span 2;
   }
@@ -1111,7 +1111,7 @@
   .rdo-form-stage .upload-list-item--reorderable .upload-list-preview { grid-column: 2; }
   .rdo-form-stage .upload-list-item--reorderable .upload-list-name,
   .rdo-form-stage .upload-list-item--reorderable .upload-previous-badge { grid-column: 3; }
-  .rdo-form-stage .upload-list-item--reorderable .upload-remove-button { grid-column: 4; }
+  .rdo-form-stage .upload-list-item--reorderable .upload-list-actions { grid-column: 4; }
 
   /* Each service keeps one surface; thematic groups share its usable width. */
   .rdo-form-page .rdo-service-section {
