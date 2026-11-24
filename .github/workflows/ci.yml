@@ -180,8 +180,11 @@ jobs:
           sudo rm -rf ~/apt-archives/partial ~/apt-archives/lock
           sudo chown -R "$(id -u):$(id -g)" ~/apt-archives
 
+      # Os testes Python (~25 s) ficam fora da fatia 1: ela recebe os arquivos
+      # de maior peso no run-test-shard.js e já é a mais demorada (~110 s de
+      # testes contra ~85 s das outras em 2026-11-23).
       - name: Run Data Book generator tests
-        if: matrix.shard == 1
+        if: matrix.shard == 2
         working-directory: backend/databook
         run: python -m unittest discover -s tests -v
 
@@ -524,8 +527,52 @@ jobs:
 
   # Unitários/lint/build e navegador rodam em paralelo; o job "Frontend" abaixo
   # consolida o resultado, para o nome exigido na proteção da main continuar o mesmo.
+  # Job curto só com o build: o "E2E (real stack)" depende só dele e começa
+  # ~2 min antes do que se esperasse auditoria, testes e lint do frontend-unit.
+  frontend-build:
+    name: Frontend build
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      # node_modules inteiro em cache pelo lockfile: com cache, o `npm ci` (~1 min) é pulado.
+      - name: Restore frontend node_modules
+        id: nodemodules
+        uses: actions/cache@v6
+        with:
+          path: frontend/node_modules
+          key: frontend-node-modules-${{ runner.os }}-node24-${{ hashFiles('frontend/package-lock.json') }}
+
+      - name: Install dependencies
+        if: steps.nodemodules.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      # O job "E2E (real stack)" testa exatamente este bundle (spec 040, D3).
+      - name: Upload production bundle for the real e2e job
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Check page loading budgets
+        run: npm run performance:check
+
   frontend-unit:
-    name: Frontend unit, lint and build
+    name: Frontend unit and lint
     # Keep browser dependencies on the same fixed Ubuntu release.
     runs-on: ubuntu-24.04
     defaults:
@@ -571,21 +618,6 @@ jobs:
 
       - name: Run frontend lint
         run: npm run lint
-
-      - name: Build frontend
-        run: npm run build
-
-      # O job "E2E (real stack)" testa exatamente este bundle (spec 040, D3).
-      - name: Upload production bundle for the real e2e job
-        uses: actions/upload-artifact@v7
-        with:
-          name: frontend-dist
-          path: frontend/dist
-          retention-days: 1
-          if-no-files-found: error
-
-      - name: Check page loading budgets
-        run: npm run performance:check
 
   frontend-browser:
     name: Frontend browser (${{ matrix.group }})
@@ -739,12 +771,13 @@ jobs:
   frontend:
     name: Frontend
     if: always()
-    needs: [frontend-unit, frontend-browser]
+    needs: [frontend-build, frontend-unit, frontend-browser]
     runs-on: ubuntu-latest
     steps:
       - name: Require every Frontend job to succeed
         run: |
-          echo "frontend-unit: ${{ needs.frontend-unit.result }} / frontend-browser: ${{ needs.frontend-browser.result }}"
+          echo "frontend-build: ${{ needs.frontend-build.result }} / frontend-unit: ${{ needs.frontend-unit.result }} / frontend-browser: ${{ needs.frontend-browser.result }}"
+          test "${{ needs.frontend-build.result }}" = success
           test "${{ needs.frontend-unit.result }}" = success
           test "${{ needs.frontend-browser.result }}" = success
 
@@ -753,7 +786,7 @@ jobs:
     # Spec 040: navegador → bundle de produção → backend real → PostgreSQL real,
     # com o código do 2FA capturado pelo Mailpit. Informativo até 10 execuções
     # seguidas sem falha (decisão D1); não entra nos agregadores Frontend/Backend.
-    needs: frontend-unit
+    needs: frontend-build
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     services:
