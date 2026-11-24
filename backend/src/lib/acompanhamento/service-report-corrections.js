@@ -5,7 +5,7 @@ import { extractServiceMeasurements } from './realized-measurements.js';
 
 // A projeção mantém os campos que identificam o escopo/UG no RDO. Os
 // quantitativos vêm integralmente da correção, inclusive zeros e remoções.
-function correctedExtraData(source, corrected) {
+export function correctedExtraData(source, corrected) {
   const extra = { ...(corrected.extraData || {}) };
   for (const key of ['__scopeName', '__scopeKey', '__projectSystemId', '__proposalScope', 'equipmentId', 'Equipamento(s)', 'system', 'Sistema']) {
     if (!Object.hasOwn(extra, key) && Object.hasOwn(source.extraData || {}, key)) extra[key] = source.extraData[key];

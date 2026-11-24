@@ -96,6 +96,13 @@ com os campos de edição ao lado → `POST gerar` com `previaId` cria a revisã
 grava `<uploadDir>/Missão <código> - <nome>/DATABOOK/DB-…_Rev<n>.pdf`. Gerar de novo o mesmo intervalo cria a revisão
 seguinte, com a linha no "Registro de revisões".
 
+Cada nova geração pelo intervalo consulta os relatórios atuais aprovados/assinados. Edições
+manuais dos técnicos vinculados a RDOs assinados substituem os dados do serviço no Data Book,
+inclusive quantitativos zerados/removidos, textos, etapas, produtos e fotos. A correção mais
+recente prevalece e atualiza o avanço e o acumulado inicial, mesmo se a data do técnico ficar
+fora do intervalo escolhido. A proposta continua sendo a atribuída ao serviço original do RDO.
+Os RDOs assinados e as revisões anteriores do Data Book são preservados.
+
 O botão **Editar** de cada revisão concluída abre a mesma prévia usando a entrada salva daquela revisão,
 sem remontar os dados a partir dos relatórios atuais. É possível alterar todos os campos gerados do documento:
 indicadores (incluindo dias de execução), avanço, células das tabelas, medições, jornada, efetivo, DDS,
