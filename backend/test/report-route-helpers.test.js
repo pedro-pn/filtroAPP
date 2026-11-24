@@ -1,6 +1,27 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { reportDateFromWhere } from '../src/lib/reports/report-route-helpers.js';
+import { reportDateFromWhere, reportListSummary } from '../src/lib/reports/report-route-helpers.js';
+
+test('resumo da lista remove a assinatura histórica preservando identificação e dados usados na busca', () => {
+  const report = { id: 'r1', specialConditions: {
+    __leaderSnapshot: { name: 'Responsável', role: 'Técnico', signatureImage: 'data:image/png;base64,large' },
+    serviceData: { client: 'Cliente', system: 'Sistema' },
+    dds: [{ name: 'Segurança' }]
+  } };
+  const summary = reportListSummary(report);
+  assert.deepEqual(summary, { id: 'r1', specialConditions: {
+    __leaderSnapshot: { name: 'Responsável', role: 'Técnico' },
+    serviceData: report.specialConditions.serviceData,
+    dds: report.specialConditions.dds
+  } });
+  assert.equal(report.specialConditions.__leaderSnapshot.signatureImage, 'data:image/png;base64,large');
+});
+
+test('resumo tolera relatórios sem snapshot e sem condições especiais', () => {
+  for (const report of [{ id: 'r1' }, { specialConditions: null }, { specialConditions: {} }, { specialConditions: { __leaderSnapshot: null } }]) {
+    assert.equal(reportListSummary(report), report);
+  }
+});
 
 test('data inicial inclui todo o dia do escopo e os relatórios posteriores', () => {
   const where = reportDateFromWhere('2026-09-10');

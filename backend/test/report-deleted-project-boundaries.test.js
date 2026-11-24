@@ -433,8 +433,16 @@ test('GET /reports inclui o total de PDFs sem carregar os anexos, nas listas com
       assert.equal(args.select.project.select.name, true);
       assert.equal(args.select.services.select.attachments, undefined);
       assert.equal(args.select.versions, undefined);
+      assert.equal(args.select.collaborators.select.collaborator.omit.signatureImage, true);
+      assert.equal(args.select.collaborators.select.collaborator.include.jobRole, true);
+      assert.equal(args.select.collaborators.select.roleNameSnapshot, true);
+    } else {
+      assert.equal(args.include.collaborators.include.collaborator.omit, undefined);
     }
-    return [activeReport({ id: 'report-summary', _count: { pdfAttachments: 2 } })];
+    return [activeReport({ id: 'report-summary', _count: { pdfAttachments: 2 }, specialConditions: {
+      __leaderSnapshot: { name: 'Responsável', signatureImage: 'data:image/png;base64,' + 'A'.repeat(200_000) },
+      serviceData: { system: 'Sistema pesquisável' }
+    } })];
   };
   prisma.report.count = async () => 1;
   t.after(() => {
@@ -447,6 +455,10 @@ test('GET /reports inclui o total de PDFs sem carregar os anexos, nas listas com
     assert.equal(response.statusCode, 200);
     assert.deepEqual(response.json.items.map(item => item.id), ['report-summary']);
     assert.equal(response.json.items[0]._count.pdfAttachments, 2);
+    assert.equal(response.json.items[0].specialConditions.__leaderSnapshot.name, 'Responsável');
+    assert.equal(response.json.items[0].specialConditions.serviceData.system, 'Sistema pesquisável');
+    assert.equal(Object.hasOwn(response.json.items[0].specialConditions.__leaderSnapshot, 'signatureImage'), summary !== 'true');
+    if (summary === 'true') assert.ok(JSON.stringify(response.json).length < 2000);
     assert.deepEqual(response.json.pagination, { page: 1, pageSize: 10, total: 1, totalPages: 1 });
   }
 });

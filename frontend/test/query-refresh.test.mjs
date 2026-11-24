@@ -214,6 +214,59 @@ test('exclusões reduzem o número de páginas sem consultar páginas que deixar
   assert.deepEqual(calls, [1]); assert.deepEqual(result.items, []); assert.equal(result.pagination.page, 1);
 });
 
+test('revalidação de uma lista longa limita consultas simultâneas e preserva todas as páginas na ordem', async () => {
+  let active = 0, peak = 0;
+  const result = await accumulated.refreshAccumulatedReportPages({ search: 'missão', summary: true }, 8, () => [], async filters => {
+    assert.equal(filters.search, 'missão');
+    assert.equal(filters.summary, true);
+    peak = Math.max(peak, ++active);
+    await new Promise(resolve => setTimeout(resolve, filters.page % 2 ? 4 : 12));
+    active--;
+    return page([report(`r${filters.page}`)], filters.page, 8);
+  });
+  assert.equal(peak, 2);
+  assert.deepEqual(result.items.map(item => item.id), Array.from({ length: 8 }, (_, i) => `r${i + 1}`));
+  assert.equal(result.pagination.page, 8);
+});
+
+test('revalidação de grupo longo também limita consultas simultâneas sem perder relatórios', async () => {
+  let active = 0, peak = 0;
+  const groups = accumulated.loadedReportGroups([report('old')], { 'p1-RDO-2-desc': 12 });
+  const result = await accumulated.refreshAccumulatedReportPages({}, 1, () => groups, async filters => {
+    if (!filters.projectId) return page([report('old')], 1, 1);
+    peak = Math.max(peak, ++active);
+    await pause(); active--;
+    return page([report(`group-${filters.page}`)], filters.page, 6);
+  });
+  assert.equal(peak, 2);
+  assert.deepEqual(result.items.map(item => item.id), Array.from({ length: 6 }, (_, i) => `group-${i + 1}`));
+});
+
+test('falha de página interrompe a fila e permite tentar novamente a janela inteira', async () => {
+  const failure = new Error('falha temporária');
+  const calls = [];
+  await assert.rejects(accumulated.refreshAccumulatedReportPages({}, 8, () => [], async filters => {
+    calls.push(filters.page);
+    if (filters.page === 2) throw failure;
+    if (filters.page !== 1) await pause();
+    return page([report(`r${filters.page}`)], filters.page, 8);
+  }), error => error === failure);
+  assert.deepEqual(calls, [1, 2, 3]);
+  const result = await accumulated.refreshAccumulatedReportPages({}, 8, () => [], async filters => page([report(`r${filters.page}`)], filters.page, 8));
+  assert.equal(result.items.length, 8);
+});
+
+test('cancelamento para a fila mesmo quando o transporte entrega a primeira resposta antiga', async () => {
+  const controller = new AbortController();
+  const calls = [];
+  await assert.rejects(accumulated.refreshAccumulatedReportPages({}, 8, () => [], async filters => {
+    calls.push(filters.page);
+    controller.abort();
+    return page([report('stale')], 1, 8);
+  }, controller.signal), { name: 'AbortError' });
+  assert.deepEqual(calls, [1]);
+});
+
 test('gravação durante o primeiro GET impede que a resposta antiga permaneça no cache', async () => {
   const client = clients.createAppQueryClient();
   const dispose = clients.installQueryDataUpdates(client);
