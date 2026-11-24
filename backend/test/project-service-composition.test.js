@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { projectServiceComposition } from '../../shared/modules/project-service-composition.js';
+import { z } from 'zod';
+import { projectServiceItemSchema } from '../src/lib/api-credentials/project-services-contract.js';
+import { projectServicesArraySchema } from '../src/lib/api-credentials/project-services-schema.js';
+
+test('metadados puros do catálogo e contrato validado descrevem a mesma composição', () => {
+  const { $schema, ...schema } = z.toJSONSchema(z.array(projectServiceItemSchema));
+  assert.deepEqual(projectServicesArraySchema, schema);
+});
 
 const system = (systemType, plannedQty, realizedQty, extra = {}) => ({ systemType, plannedQty, realizedQty, unit: null, ...extra });
 const service = (systems, extra = {}) => ({ serviceType: 'LIMPEZA_QUIMICA', executionPct: 75, systems, ...extra });

@@ -40,6 +40,3 @@ export const projectServicesRouteContract = {
   }).strict() },
   errors: [400, 401, 403, 429]
 };
-
-const { $schema, ...arraySchema } = z.toJSONSchema(z.array(projectServiceItemSchema));
-export const projectServicesArraySchema = arraySchema;

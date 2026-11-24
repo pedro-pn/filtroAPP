@@ -27,6 +27,9 @@ import {
 import { getProjectMeasurement, validateProjectMeasurementRequest } from '../../../lib/api-credentials/project-measurement.js';
 import { createUnloading, validateUnloading } from '../../../lib/logistica/unloading.js';
 import { defineRoute } from '../../../lib/api-contract/registry.js';
+import { projectServicesRouteContract } from '../../../lib/api-credentials/project-services-contract.js';
+
+const operationalRouteContracts = { 'acompanhamento.projects.services.list': projectServicesRouteContract };
 
 export function createOperationalRouter({
   prismaClient = prisma,
@@ -181,8 +184,9 @@ export function createOperationalRouter({
   }));
   // Registra somente caminhos declarados no contrato; não recebe modelo/campos do cliente.
   for (const resource of OPERATIONAL_RESOURCES) {
-    const register = resource.routeContract
-      ? (path, ...handlers) => defineRoute(router, { method: 'get', path, ...resource.routeContract }, ...handlers)
+    const contract = operationalRouteContracts[resource.operationId];
+    const register = contract
+      ? (path, ...handlers) => defineRoute(router, { method: 'get', path, ...contract }, ...handlers)
       : router.get.bind(router);
     register(
       resource.path,
