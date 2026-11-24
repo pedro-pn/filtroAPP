@@ -270,7 +270,7 @@ export function EquipamentosPage() {
         element: '[data-equip-dashboard-table]',
         popover: {
           title: 'Informações exibidas',
-          description: 'A tabela mostra código, nome, categoria, data de calibração, vencimento e status. O CSV exporta exatamente a lista filtrada.',
+          description: 'A tabela mostra código, nome, categoria, data de calibração, vencimento e status. O CSV e a planilha exportam exatamente a lista filtrada.',
           side: 'top',
           align: 'start'
         }

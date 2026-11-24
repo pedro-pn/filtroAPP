@@ -2,9 +2,13 @@ import { SortableTable } from '../../components/ui/SortableTable';
 import { useMemo, useState } from 'react';
 
 import type { CompanyEquipment, EquipmentCategory } from '../../api/equipamentos';
+import { AppIcon } from '../../components/icons/AppIcon';
 import { SearchBar } from '../../components/ui/SearchBar';
+import { useToast } from '../../components/ui/ToastContext';
 import { Badge, Button, Field, Select } from '../../components/ui/ds';
-import { calibrationStatus, formatDate, statusLabel, statusTone, type CalibrationStatus } from './equipmentStatus';
+import { DS_ICONS } from '../../components/ui/ds/icons';
+import { downloadSpreadsheet } from '../../utils/spreadsheetExport';
+import { calibrationStatus, dateInputValue, formatDate, statusLabel, statusTone, type CalibrationStatus } from './equipmentStatus';
 
 interface Props {
   categories: EquipmentCategory[];
@@ -19,11 +23,17 @@ const statusFilters: Array<{ value: CalibrationStatus | 'all'; label: string }> 
   { value: 'none', label: 'Sem calibração' }
 ];
 
+function spreadsheetStatusLabel(value: CalibrationStatus) {
+  return value === 'none' ? 'Sem calibração' : statusLabel[value];
+}
+
 export function EquipmentDashboard({ categories, equipment }: Props) {
   const categoryById = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories]);
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState('all');
   const [status, setStatus] = useState<CalibrationStatus | 'all'>('all');
+  const [exportingSheet, setExportingSheet] = useState(false);
+  const showToast = useToast();
 
   const rows = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -59,11 +69,64 @@ export function EquipmentDashboard({ categories, equipment }: Props) {
     URL.revokeObjectURL(url);
   }
 
+  async function exportSpreadsheet() {
+    setExportingSheet(true);
+    try {
+      const toneByLabel = new Map(
+        (Object.keys(statusLabel) as CalibrationStatus[]).map(key => [spreadsheetStatusLabel(key), statusTone[key]])
+      );
+      await downloadSpreadsheet({
+        sheets: [{
+          name: 'Calibração',
+          title: 'Visão geral de calibração',
+          subtitle: 'Equipamentos',
+          meta: [
+            ['Categoria', categoryId === 'all' ? 'Todas' : categoryById.get(categoryId)?.name],
+            ['Calibração', statusFilters.find(filter => filter.value === status)?.label],
+            ['Busca', search.trim()]
+          ],
+          columns: [
+            { header: 'Código' },
+            { header: 'Nome' },
+            { header: 'Categoria' },
+            { header: 'Calibração', type: 'date' },
+            { header: 'Vencimento', type: 'date' },
+            { header: 'Status', tone: value => toneByLabel.get(String(value ?? '')) }
+          ],
+          rows: rows.map(item => [
+            item.code,
+            item.name,
+            categoryById.get(item.categoryId)?.name || '',
+            dateInputValue(item.calibratedAt),
+            dateInputValue(item.expiresAt),
+            spreadsheetStatusLabel(calibrationStatus(item))
+          ]),
+          emptyMessage: 'Nenhum equipamento encontrado.'
+        }]
+      }, 'equipamentos-calibracao.xlsx');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Não foi possível exportar a planilha.', 'error');
+    } finally {
+      setExportingSheet(false);
+    }
+  }
+
   return (
     <section className="page-card" data-equip-dashboard>
       <div className="admin-toolbar">
         <div className="sec">Visão geral de calibração</div>
-        <Button variant="secondary" size="sm" onClick={exportCsv}>Exportar CSV</Button>
+        <div className="fv-export-actions">
+          <Button variant="secondary" size="sm" onClick={exportCsv}>Exportar CSV</Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            iconLeft={<AppIcon icon={DS_ICONS.spreadsheet} size="sm" />}
+            loading={exportingSheet}
+            onClick={() => void exportSpreadsheet()}
+          >
+            Exportar planilha
+          </Button>
+        </div>
       </div>
       <div className="equip-dashboard-filters" role="group" aria-labelledby="equip-dashboard-filters-title" data-equip-dashboard-filters>
         <div id="equip-dashboard-filters-title" className="equip-dashboard-filters-title">Filtros do Dashboard</div>

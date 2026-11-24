@@ -22,6 +22,7 @@ import {
   type AllocationReportCollaborator,
   type AllocationReportDay,
   type AllocationReportRecipient,
+  type StatsExportFormat,
   type StatsExportSection,
   type StatsDailyReport,
   type StatsParams,
@@ -1678,7 +1679,7 @@ export function StatsDashboard({
     'hours'
   );
   const [exportingSection, setExportingSection] =
-    useState<StatsExportSection | null>(null);
+    useState<`${StatsExportSection}:${StatsExportFormat}` | null>(null);
   const [exportError, setExportError] = useState('');
   const projectFilterHighlightStarted = useRef(false);
 
@@ -1843,19 +1844,20 @@ export function StatsDashboard({
 
   async function handleExport(
     section: StatsExportSection,
-    params: StatsParams = statsParams
+    params: StatsParams = statsParams,
+    format: StatsExportFormat = 'csv'
   ) {
     setExportError('');
-    setExportingSection(section);
+    setExportingSection(`${section}:${format}`);
     try {
-      const exportParams = { ...params, section };
+      const exportParams = { ...params, section, format };
       const blob = await downloadProjectStatsCsv(exportParams);
       downloadBlob(blob, statsExportFileName(exportParams));
     } catch (error) {
       setExportError(
         error instanceof Error
           ? error.message
-          : 'Não foi possível exportar o CSV.'
+          : `Não foi possível exportar ${format === 'xlsx' ? 'a planilha' : 'o CSV'}.`
       );
     } finally {
       setExportingSection(null);
@@ -1865,12 +1867,15 @@ export function StatsDashboard({
   function ExportButton({
     section,
     children,
-    params
+    params,
+    format = 'csv'
   }: {
     section: StatsExportSection;
     children: string;
     params?: StatsParams;
+    format?: StatsExportFormat;
   }) {
+    const exporting = exportingSection === `${section}:${format}`;
     if (isDesignSystem) {
       return (
         <Button
@@ -1878,9 +1883,10 @@ export function StatsDashboard({
           variant="secondary"
           size="sm"
           disabled={exportingSection !== null}
-          onClick={() => void handleExport(section, params)}
+          iconLeft={format === 'xlsx' ? <AppIcon icon={DS_ICONS.spreadsheet} size="sm" /> : undefined}
+          onClick={() => void handleExport(section, params, format)}
         >
-          {exportingSection === section ? 'Exportando...' : children}
+          {exporting ? 'Exportando...' : children}
         </Button>
       );
     }
@@ -1890,9 +1896,9 @@ export function StatsDashboard({
         type="button"
         className="mini-btn alt"
         disabled={exportingSection !== null}
-        onClick={() => void handleExport(section, params)}
+        onClick={() => void handleExport(section, params, format)}
       >
-        {exportingSection === section ? 'Exportando...' : children}
+        {exporting ? 'Exportando...' : children}
       </button>
     );
   }
@@ -2280,7 +2286,7 @@ export function StatsDashboard({
         ))}
       {exportError &&
         (isDesignSystem ? (
-          <Alert tone="danger" title="Não foi possível exportar o CSV.">
+          <Alert tone="danger" title="Não foi possível exportar.">
             {exportError}
           </Alert>
         ) : (
@@ -2453,6 +2459,15 @@ export function StatsDashboard({
                     CSV Por projeto
                   </ExportButton>
                   <ExportButton section="services">CSV Serviços</ExportButton>
+                  <ExportButton section="summary" format="xlsx">Planilha Resumo</ExportButton>
+                  <ExportButton
+                    section="byProject"
+                    params={byProjectStatsParams}
+                    format="xlsx"
+                  >
+                    Planilha Por projeto
+                  </ExportButton>
+                  <ExportButton section="services" format="xlsx">Planilha Serviços</ExportButton>
                 </div>
               }
             >
@@ -2508,6 +2523,7 @@ export function StatsDashboard({
               actions={
                 <div className="stats-export-btns">
                   <ExportButton section="services">CSV Serviços</ExportButton>
+                  <ExportButton section="services" format="xlsx">Planilha Serviços</ExportButton>
                 </div>
               }
             >

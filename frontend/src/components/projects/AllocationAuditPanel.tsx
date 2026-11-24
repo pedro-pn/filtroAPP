@@ -10,7 +10,12 @@ import {
   type AllocationDay
 } from '../../api/acompanhamentoPonto';
 import { useUrlParamState } from '../../hooks/useUrlParamState';
+import { formatDateOnlyPtBr } from '../../utils/dateOnly';
+import { downloadSpreadsheet, type XlsxColumn } from '../../utils/spreadsheetExport';
+import { AppIcon } from '../icons/AppIcon';
 import { Badge, Button, Card, DataTable, Field, Input, Select, type DataTableColumn } from '../ui/ds';
+import { DS_ICONS } from '../ui/ds/icons';
+import { useToast } from '../ui/ToastContext';
 import { allocationReasonLabel, fmtHours } from './allocationReasons';
 
 type AuditMode = 'collaborator' | 'project';
@@ -127,6 +132,41 @@ function toCsv(collaborators: AllocationAuditCollaborator[]): string {
     .join('\n');
 }
 
+const HOURS_FORMAT = '#,##0.00 "h"';
+const NOT_ALLOCATED = 'Não alocado';
+
+const SPREADSHEET_COLUMNS: XlsxColumn[] = [
+  { header: 'Colaborador' },
+  { header: 'Cargo' },
+  { header: 'Data', type: 'date' },
+  { header: 'Normais', type: 'decimal', numFmt: HOURS_FORMAT, total: 'sum' },
+  { header: 'HE70', type: 'decimal', numFmt: HOURS_FORMAT, total: 'sum' },
+  { header: 'HE100', type: 'decimal', numFmt: HOURS_FORMAT, total: 'sum' },
+  { header: 'Etiquetas', width: 36, wrap: true },
+  { header: 'Etiqueta → Projeto' },
+  { header: 'RDO do dia' },
+  { header: 'Seleção manual' },
+  { header: 'Alocado', tone: value => (value === NOT_ALLOCATED ? 'warning' : 'success') },
+  { header: 'Motivo', width: 40, wrap: true }
+];
+
+function spreadsheetRows(collaborators: AllocationAuditCollaborator[]) {
+  return collaborators.flatMap(collaborator => collaborator.days.map(day => [
+    collaborator.name,
+    collaborator.role ?? '',
+    day.date.slice(0, 10),
+    day.normalHours,
+    day.he70Hours,
+    day.he100Hours,
+    day.tags.join(' | '),
+    projectList(day.tagProjects),
+    day.rdoProjects.map(item => `${item.code ?? item.projectId} (${item.hours.toFixed(1).replace('.', ',')} h)`).join(', '),
+    projectList(day.manualProjects),
+    day.allocations.length ? allocationList(day) : NOT_ALLOCATED,
+    allocationReasonLabel(day.reason)
+  ]));
+}
+
 function downloadCsv(content: string, fileName: string) {
   // BOM para o Excel abrir o CSV em UTF-8.
   const blob = new Blob([`\uFEFF${content}`], { type: 'text/csv;charset=utf-8' });
@@ -150,6 +190,8 @@ export function AllocationAuditPanel() {
   const [ate, setAte] = useState('');
   const [onlyUnallocated, setOnlyUnallocated] = useState(false);
   const [sort, setSort] = useState<{ key: SortKey; direction: 'asc' | 'desc' }>({ key: 'date', direction: 'asc' });
+  const [exportingSheet, setExportingSheet] = useState(false);
+  const showToast = useToast();
 
   function toggleSort(key: SortKey) {
     setSort(previous => (
@@ -190,6 +232,40 @@ export function AllocationAuditPanel() {
     const days = rows.reduce((sum, item) => sum + item.days.length, 0);
     return { hours, unallocated, days };
   }, [rows]);
+
+  async function exportSpreadsheet() {
+    setExportingSheet(true);
+    try {
+      const project = projects?.find(item => item.id === projectId);
+      const collaborator = collaborators?.find(item => item.id === collaboratorId);
+      const period = de || ate
+        ? `${de ? formatDateOnlyPtBr(de) : 'início'} a ${ate ? formatDateOnlyPtBr(ate) : 'hoje'}`
+        : 'Todo o período disponível';
+      await downloadSpreadsheet({
+        sheets: [{
+          name: 'Auditoria do ponto',
+          title: 'Auditoria da alocação do ponto',
+          subtitle: `Acompanhamento  ·  ${byProject ? 'Por projeto' : 'Por colaborador'}`,
+          meta: [
+            byProject
+              ? ['Missão', project ? `${project.code} — ${project.name}` : projectId]
+              : ['Colaborador', collaborator?.name ?? collaboratorId],
+            ['Período', period],
+            ['Somente dias não alocados', onlyUnallocated ? 'Sim' : 'Não'],
+            ['Horas no período', fmtHours(totals.hours)],
+            ['Horas não alocadas', fmtHours(totals.unallocated)]
+          ],
+          columns: SPREADSHEET_COLUMNS,
+          rows: spreadsheetRows(rows),
+          emptyMessage: 'Nenhum dia de ponto no período selecionado.'
+        }]
+      }, `auditoria-ponto-${byProject ? 'projeto' : 'colaborador'}.xlsx`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Não foi possível exportar a planilha.', 'error');
+    } finally {
+      setExportingSheet(false);
+    }
+  }
 
   return (
     <Card className="acp-cost-ds__panel" title="Auditoria da alocação do ponto" data-acp-auditoria>
@@ -266,6 +342,16 @@ export function AllocationAuditPanel() {
           onClick={() => downloadCsv(toCsv(rows), `auditoria-ponto-${byProject ? 'projeto' : 'colaborador'}.csv`)}
         >
           Exportar CSV
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={!rows.length}
+          loading={exportingSheet}
+          iconLeft={<AppIcon icon={DS_ICONS.spreadsheet} size="sm" />}
+          onClick={() => void exportSpreadsheet()}
+        >
+          Exportar planilha
         </Button>
       </div>
 
