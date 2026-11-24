@@ -686,6 +686,7 @@ projetos e escopos antes da paginação. Não alteram credenciais existentes.
 | GET (base `/api/integracoes/v1`) | Escopo | Sensibilidade |
 |---|---|---|
 | `/acompanhamento/projetos/semanas` | `acompanhamento.progresso.read` | INTERNAL |
+| `/acompanhamento/projetos/servicos` | `acompanhamento.progresso.read` | INTERNAL |
 | `/acompanhamento/projetos/custos` | `acompanhamento.custos.read` | FINANCIAL |
 | `/projetos/condicoes` | `projetos.condicoes.read` | INTERNAL |
 | Diária e moeda nas condições | `projetos.condicoes.valores.read` (depende do anterior) | FINANCIAL |
@@ -804,3 +805,43 @@ evento por projeto, sem lista de membros. Edição apenas de nota de revisão n�
 republica conclusão. Sem eventos novos de custos/ponto.
 
 Contrato: [delivery-b6.md](../specs/034-api-omni-fase2/contracts/delivery-b6.md).
+
+## Omni — composição do avanço por serviço (24/11/2026)
+
+`GET /api/integracoes/v1/acompanhamento/projetos/servicos` retorna uma linha por
+projeto autorizado, no envelope paginado habitual (`items`, `page`,
+`generatedAt`, `schemaVersion: "1.0"`, `requestId`). Disponível no Playground,
+catálogo `2026-11-24.1` e OpenAPI `1.16.0`. Usa o escopo existente
+`acompanhamento.progresso.read`.
+
+Aceita `projectId` OU `projectCode`, `limit`, `cursor`, `snapshotAt` e
+`updatedSince` (também `updated_since`, como alias; envie somente um deles).
+Datas inválidas, filtros incompatíveis e cursores de outro token/filtros
+retornam 400. O acesso a projetos fora do recorte retorna 403.
+
+```json
+{"projectId":"projeto-ficticio","projectCode":"5850","avancoTotal":62.5,"servicos":[{"escopo":"Escopo 1","servico":"LIMPEZA_QUIMICA","rotuloServico":"Limpeza química","equipamento":"UH-01","avancoPct":80,"unidade":"UN","rotuloUnidade":"un","previsto":5,"realizado":4,"sistemas":2}],"updatedAt":"2026-11-24T12:00:00.000Z"}
+```
+
+`servicos` usa a mesma projeção compartilhada com os cartões de **Composição do
+avanço** do detalhe, com recorte por grupo de escopo e por equipamento quando
+há unidades SISTEMA/MANGOTE ligadas. Os demais sistemas permanecem em um cartão
+por serviço; sem unidades ligadas, usa os totais do serviço. `escopo` e
+`equipamento` são null quando não se aplicam. `sistemas` é a quantidade de linhas
+usadas pelo cartão, como na tela.
+
+`avancoPct` conserva o percentual do cartão, inclusive valores acima de 100%,
+ou null quando não há base. `unidade`, `rotuloUnidade`, `previsto` e `realizado`
+são null quando as quantidades estão incompletas ou usam unidades incompatíveis.
+`avancoTotal` é o percentual oficial do detalhe, incluindo a opção de avanço
+manual e o modelo por dias trabalhados; não é uma média dos cartões. Sem
+composição calculada, `servicos: []`; sem percentual oficial, `avancoTotal: null`.
+Não publica nomes de pessoas, notas, descrições livres nem sistemas individuais.
+
+Como nos demais agregados de Gestão, `updatedAt` é o watermark da leitura, igual
+a `page.snapshotAt`. `updatedSince`/`updated_since` pode repetir projetos, para
+capturar também alterações apenas no RDO ou no escopo sem mudança em
+`Project.updatedAt`. O consumidor deve substituir a composição do projeto a cada
+leitura. O cursor mantém o watermark e a política de acesso; o snapshot não
+reconstrói versões históricas das fontes. Releia periodicamente os projetos de
+interesse para atualizar os cartões.

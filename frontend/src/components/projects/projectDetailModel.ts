@@ -4,22 +4,10 @@ import type { Resolver } from 'react-hook-form';
 import type { BudgetBreakdownSlice, DayStatus, ManualProjectCostPayload, RequiredWeeklyProgress } from '../../api/acompanhamentoComercial';
 import { formatDateOnly } from '../../utils/dateOnly';
 
-export const SERVICE_LABELS: Record<string, string> = {
-  DIAS_TRABALHADOS: 'Dias trabalhados',
-  LIMPEZA_QUIMICA: 'Limpeza química',
-  TESTE_PRESSAO: 'Teste de pressão',
-  FLUSHING: 'Flushing',
-  FILTRAGEM: 'Filtragem',
-  LIMPEZA_MECANICA: 'Limpeza mecânica',
-  LOCACAO: 'Locação'
-};
-export const SYSTEM_LABELS: Record<string, string> = { DIAS_TRABALHADOS: 'Trabalho da equipe', TUBULACAO: 'Tubulações', OLEO: 'Óleo', SISTEMA: 'Sistemas completos', MANGOTE: 'Mangueiras' };
-export const UNIT_LABELS: Record<string, string> = { M: 'm', KG: 'kg', T: 't', UN: 'un', L: 'L', DIA: 'dias', PESSOA_DIA: 'pessoas-dia' };
+import { UNIT_LABELS, physicalUnit } from '../../../../shared/modules/project-service-composition.js';
+export { SERVICE_LABELS, UNIT_LABELS, physicalUnit } from '../../../../shared/modules/project-service-composition.js';
 
-export function physicalUnit(systemType: string, unit?: string | null) {
-  const bySystem: Record<string, string> = { TUBULACAO: 'M', SISTEMA: 'UN', MANGOTE: 'UN', OLEO: 'L' };
-  return bySystem[systemType] ?? unit ?? null;
-}
+export const SYSTEM_LABELS: Record<string, string> = { DIAS_TRABALHADOS: 'Trabalho da equipe', TUBULACAO: 'Tubulações', OLEO: 'Óleo', SISTEMA: 'Sistemas completos', MANGOTE: 'Mangueiras' };
 
 export function physicalQuantityLabel(unit: string) {
   return unit === 'UN' ? 'unidades' : unit === 'L' ? 'L de óleo' : UNIT_LABELS[unit] ?? unit;

@@ -19,6 +19,8 @@ import { computeProjectProgressDetails } from '../src/lib/acompanhamento/avanco.
 import { clearProjectDerivedCaches } from '../src/lib/resource-list-cache.js';
 import { executePlaygroundOperation } from '../src/lib/api-credentials/playground.js';
 import { listOperationalResources } from '../src/lib/api-credentials/operational-service.js';
+import { projectServiceComposition } from '../../shared/modules/project-service-composition.js';
+import { projectServicesRouteContract } from '../src/lib/api-credentials/project-services-contract.js';
 
 const key = 'synthetic-management-b6-key-with-at-least-32-characters';
 const envConfig = { apiTokenGlobalMaxPageSize: 500, apiTokenHashKeys: { 1: key }, apiTokenActiveKeyVersion: 1 };
@@ -135,6 +137,36 @@ test('B6: HTTP, paridade com painel, privacidade e gatilhos transacionais em Pos
     const inherited = (await request(`/acompanhamento/projetos/semanas?weekStart=${week}&projectId=${p1.id}`, operational)).body.items[0];
     assert.equal(inherited.metaPontos, 9); assert.equal(inherited.metaDefinidaPor, 'GRUPO');
     assert.equal(inherited.meta.itens[0].valorCadastrado, 9); assert.equal(inherited.meta.itens[0].realizado, 35);
+  });
+  await t.test('composição vazia, paginação e autorização com escopo de progresso existente', async () => {
+    const result = await request('/acompanhamento/projetos/servicos?limit=1', operational);
+    assert.equal(result.status, 200);
+    projectServicesRouteContract.responses[200].parse(result.body);
+    assert.deepEqual(result.body.items[0].servicos, []);
+    assert.equal(result.body.items[0].avancoTotal, 60);
+    assert.equal(result.body.items[0].projectId, p1.id);
+    assert.equal(result.body.page.hasMore, true);
+    const nextPath = '/acompanhamento/projetos/servicos?limit=1&cursor=' + encodeURIComponent(result.body.page.nextCursor);
+    const next = await request(nextPath, operational);
+    assert.equal(next.body.items[0].projectId, p2.id);
+    assert.equal(next.body.page.hasMore, false);
+    assert.equal(next.body.page.snapshotAt, result.body.page.snapshotAt);
+    await prisma.project.update({ where: { id: p2.id }, data: { manualProgressPct: null } });
+    const unavailable = (await request('/acompanhamento/projetos/servicos?projectId=' + p2.id, operational)).body.items[0];
+    assert.equal(unavailable.avancoTotal, null); assert.deepEqual(unavailable.servicos, []);
+    await prisma.project.update({ where: { id: p2.id }, data: { manualProgressPct: 60 } });
+    assert.equal((await request(nextPath)).status, 400);
+    assert.equal((await request(nextPath + '&projectCode=' + p1.code, operational)).status, 400);
+    assert.equal((await request('/acompanhamento/projetos/servicos?weekStart=' + week, operational)).status, 400);
+    assert.equal((await request('/acompanhamento/projetos/servicos?updated_since=inválido', operational)).status, 400);
+    assert.equal((await request('/acompanhamento/projetos/servicos?updated_since=2099-01-01T00:00:00Z', operational)).status, 400);
+    const since = encodeURIComponent(result.body.page.snapshotAt);
+    assert.equal((await request('/acompanhamento/projetos/servicos?updated_since=' + since + '&updatedSince=' + since, operational)).status, 400);
+    const playground = await executePlaygroundOperation(prisma, operational.credential.id, {
+      operationId: 'acompanhamento.projects.services.list', query: { projectCode: p1.code }
+    }, { cursorKey: key });
+    assert.equal(playground.response.status, 200);
+    assert.deepEqual(playground.response.body.items[0].servicos, []);
   });
   await t.test('G3 mínimo independente de comercial; valores somente com escopo financeiro', async () => {
     let row = (await request('/projetos/condicoes?projectCode=00501', operational)).body.items[0];
@@ -275,6 +307,65 @@ test('B6: HTTP, paridade com painel, privacidade e gatilhos transacionais em Pos
     clearProjectDerivedCaches();
     const unlinked = (await request('/acompanhamento/projetos/custos?projectCode=00502')).body.items[0];
     assert.equal(unlinked.orcamento, null); assert.equal(unlinked.avancoFisico, 85);
+  });
+  await t.test('composição por escopo/equipamento igual ao detalhe e releitura de alteração apenas no RDO', async () => {
+    const makeSystem = (equipment, name) => prisma.projectServiceSystem.create({ data: { projectId: p2.id,
+      equipment, name, equipmentKey: equipment.toLowerCase(), nameKey: name.toLowerCase() } });
+    const s1 = await makeSystem('UH-01', 'Circuito A'), s2 = await makeSystem('UH-01', 'Circuito B'),
+      s3 = await makeSystem('UH-02', 'Circuito C');
+    await prisma.projectPlannedService.deleteMany({ where: { projectId: p2.id } });
+    await prisma.projectPlannedService.create({ data: { projectId: p2.id, serviceType: 'LIMPEZA_QUIMICA', scopeName: 'Escopo 1',
+      order: 1, note: 'PRIVATE_SCOPE_NOTE', systems: { create: [
+        { systemType: 'TUBULACAO', quantity: 100, unit: 'M', description: 'PRIVATE_DESCRIPTION', order: 0 },
+        { systemType: 'SISTEMA', quantity: 3, unit: 'UN', projectSystemId: s1.id, order: 1 },
+        { systemType: 'SISTEMA', quantity: 2, unit: 'UN', projectSystemId: s2.id, order: 2 },
+        { systemType: 'SISTEMA', quantity: 1, unit: 'UN', projectSystemId: s3.id, order: 3 }
+      ] } } });
+    await prisma.projectPlannedService.create({ data: { projectId: p2.id, serviceType: 'FLUSHING', scopeName: 'Escopo 2', order: 2,
+      systems: { create: [{ systemType: 'TUBULACAO', quantity: 100, unit: 'M' }, { systemType: 'OLEO', quantity: 20, unit: 'L' }] } } });
+    const report = await prisma.report.create({ data: { projectId: p2.id, reportType: 'RDO', status: 'APPROVED', reportDate: new Date('2026-10-02'),
+      arrivalTime: '08:00', departureTime: '17:00', lunchBreak: '01:00', daytimeCount: 0, reviewNotes: 'PRIVATE_REPORT' } });
+    let source;
+    for (const [system, quantity] of [[s1,2],[s2,1],[s3,2]]) {
+      source = await prisma.reportService.create({ data: { reportId: report.id, serviceType: 'limpeza', finalized: true,
+        system: system.name, extraData: { note: 'PRIVATE_SERVICE_NOTE', __projectSystemId: system.id, __scopeName: 'Escopo 1',
+          equipmentId: system.equipment, limpezaTubulacao: 'Não', tipoSistema: system.name, quantidadeSistemas: quantity, tubes: [] } } });
+    }
+    clearProjectDerivedCaches();
+    const read = query => request('/acompanhamento/projetos/servicos?projectCode=' + p2.code + (query || ''), operational);
+    const result = await read(); assert.equal(result.status, 200);
+    const row = result.body.items[0]; projectServicesRouteContract.responses[200].parse(result.body);
+    const detail = await getProjectDetail(p2.id, { projectChannel: 'api', includeUnlinked: true });
+    assert.equal(row.avancoTotal, detail.avancoPct);
+    assert.deepEqual(row.servicos, projectServiceComposition({ target: detail.requiredWeeklyProgress, fallbackProgress: detail.progressBreakdown }));
+    assert.deepEqual(row.servicos.map(item => [item.escopo, item.equipamento]), [
+      ['Escopo 1', null], ['Escopo 1', 'UH-01'], ['Escopo 1', 'UH-02'], ['Escopo 2', null]
+    ]);
+    assert.deepEqual(row.servicos.map(item => [item.avancoPct, item.previsto, item.realizado, item.unidade]), [
+      [85, 100, 85, 'M'], [60, 5, 3, 'UN'], [200, 1, 2, 'UN'], [0, null, null, null]
+    ]);
+    assert.equal(row.servicos[1].sistemas, 2);
+    assert.equal(JSON.stringify(row).includes('PRIVATE'), false);
+    const weekly = (await request(`/acompanhamento/projetos/semanas?projectCode=${p2.code}&weekStart=${week}`, operational)).body.items[0];
+    assert.equal(row.avancoTotal, weekly.avancoFim);
+    const projectStamp = +(await prisma.project.findUnique({ where: { id: p2.id } })).updatedAt;
+    const extraData = { ...source.extraData, quantidadeSistemas: 3 };
+    await prisma.reportService.update({ where: { id: source.id }, data: { extraData } });
+    const changed = (await read('&updated_since=' + encodeURIComponent(row.updatedAt))).body.items[0];
+    assert.equal(changed.servicos[2].avancoPct, 300);
+    assert.equal(+(await prisma.project.findUnique({ where: { id: p2.id } })).updatedAt, projectStamp);
+    const canonical = await read('&updatedSince=' + encodeURIComponent(row.updatedAt));
+    assert.deepEqual(canonical.body.items[0].servicos, changed.servicos);
+    await prisma.project.update({ where: { id: p2.id }, data: { forceManualProgress: true, manualProgressPct: 62.5 } });
+    const manual = (await read()).body.items[0];
+    assert.equal(manual.avancoTotal, 62.5); assert.deepEqual(manual.servicos, changed.servicos);
+    await prisma.project.update({ where: { id: p1.id }, data: { progressModel: 'WORKED_DAYS', plannedCollaborators: 2 } });
+    const workedDays = (await request('/acompanhamento/projetos/servicos?projectId=' + p1.id, operational)).body.items[0];
+    const workedDetail = await getProjectDetail(p1.id, { projectChannel: 'api', includeUnlinked: true });
+    assert.equal(workedDays.avancoTotal, workedDetail.avancoPct);
+    assert.deepEqual(workedDays.servicos, projectServiceComposition({ target: workedDetail.requiredWeeklyProgress }));
+    assert.equal(workedDays.servicos[0].servico, 'DIAS_TRABALHADOS');
+    assert.equal(workedDays.servicos[0].unidade, 'PESSOA_DIA');
   });
   await t.test('escopos e recorte em todas as operações, datas inválidas, feed por família e rollback', async () => {
     for (const resource of MANAGEMENT_RESOURCES) {

@@ -5,6 +5,7 @@ import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { SERVICE_LABELS, UNIT_LABELS, physicalUnit } from '../../shared/modules/project-service-composition.js';
 
 async function functionsFrom(path, names, context = {}) {
   const source = await readFile(new URL(path, import.meta.url), 'utf8');
@@ -115,8 +116,9 @@ test('scope save does not write without permission, loaded data or a current rev
 
 test('scope hierarchy is rendered in planned scope and weekly pace, with an accessible local scroll area', async () => {
   const { groupServicesByScope } = await functionsFrom('../src/utils/plannedScopeGroups.ts', ['groupServicesByScope']);
-  const labels = await functionsFrom('../src/components/projects/projectDetailModel.ts',
-    ['SERVICE_LABELS', 'SYSTEM_LABELS', 'UNIT_LABELS', 'fmtPct', 'physicalUnit', 'physicalQuantityLabel', 'weeklyPhysicalProgress']);
+  const sharedLabels = { SERVICE_LABELS, UNIT_LABELS, physicalUnit };
+  const labels = { ...sharedLabels, ...await functionsFrom('../src/components/projects/projectDetailModel.ts',
+    ['SYSTEM_LABELS', 'fmtPct', 'physicalQuantityLabel', 'weeklyPhysicalProgress'], sharedLabels) };
   const { RequiredWeeklyProgressCard, PlannedScopeView } = await functionsFrom('../src/components/projects/ProjectDetailVisuals.tsx',
     ['fmtQuantity', 'weeklyTargetText', 'RequiredWeeklyProgressCard', 'PlannedScopeView'],
     { React, groupServicesByScope, ...labels, Badge: ({ children }) => React.createElement('span', null, children) });

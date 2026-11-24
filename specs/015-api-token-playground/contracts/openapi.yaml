@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: FiltroApp - Administração e API de Integrações
-  version: "1.15.0"
+  version: "1.16.0"
   description: >-
     Contrato da gestão administrativa de credenciais, consultas externas e escrita
     contratada do CRM Prisma no Efetivo. Tokens de integração e sessões humanas
@@ -438,6 +438,7 @@ paths:
                     - projects.conditions.list
                     - acompanhamento.projects.costs.list
                     - acompanhamento.projects.weeks.list
+                    - acompanhamento.projects.services.list
                 pathParams:
                   type: object
                   additionalProperties:
@@ -4371,6 +4372,264 @@ paths:
           $ref: "#/components/responses/RateLimited"
       x-optional-scopes:
         - efetivo.projetos.medicao.valores.read
+
+  /integracoes/v1/acompanhamento/projetos/servicos:
+    get:
+      tags:
+        - IntegrationOperational
+      operationId: listIntegrationProjectServices
+      summary: Composição do avanço por serviço e equipamento
+      description: "Mesmos cartões do detalhe por escopo e equipamento, sem pessoas, notas ou sistemas individuais.
+        Avanço total do detalhe. Agregado usa watermark de leitura; updatedSince/updated_since pode repetir
+        linhas. Snapshot não reconstrói fontes históricas. Quantidades, rótulos e percentuais iguais ao detalhe,
+        inclusive excedentes acima de 100%. Sem composição: servicos: []. Unidades incompatíveis ou quantidades
+        incompletas: unidade, rotuloUnidade, previsto e realizado nulos. Use projectId OU projectCode;
+        updatedSince OU updated_since."
+      security:
+        - IntegrationToken: []
+      x-required-scopes:
+        - acompanhamento.progresso.read
+      parameters:
+        - $ref: "#/components/parameters/IntegrationLimit"
+        - $ref: "#/components/parameters/IntegrationCursor"
+        - name: updatedSince
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: snapshotAt
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: projectId
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+        - name: projectCode
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+        - name: updated_since
+          in: query
+          description: Alias de updatedSince; não combine os dois.
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Uma linha por projeto autorizado; composição calculada pelo filtroAPP.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                  - page
+                  - generatedAt
+                  - schemaVersion
+                  - requestId
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        projectId:
+                          type: string
+                        projectCode:
+                          type: string
+                        avancoTotal:
+                          type:
+                            - number
+                            - "null"
+                        servicos:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              escopo:
+                                type:
+                                  - string
+                                  - "null"
+                              servico:
+                                type: string
+                              rotuloServico:
+                                type: string
+                              equipamento:
+                                type:
+                                  - string
+                                  - "null"
+                              avancoPct:
+                                type:
+                                  - number
+                                  - "null"
+                              unidade:
+                                type:
+                                  - string
+                                  - "null"
+                              rotuloUnidade:
+                                type:
+                                  - string
+                                  - "null"
+                              previsto:
+                                type:
+                                  - number
+                                  - "null"
+                              realizado:
+                                type:
+                                  - number
+                                  - "null"
+                              sistemas:
+                                type: integer
+                                minimum: 0
+                                maximum: 9007199254740991
+                            required:
+                              - escopo
+                              - servico
+                              - rotuloServico
+                              - equipamento
+                              - avancoPct
+                              - unidade
+                              - rotuloUnidade
+                              - previsto
+                              - realizado
+                              - sistemas
+                            additionalProperties: false
+                        updatedAt:
+                          type: string
+                          format: date-time
+                          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|([+-](?:[01]\d|2[0-3]):[0-5]\d)))$
+                      required:
+                        - projectId
+                        - projectCode
+                        - avancoTotal
+                        - servicos
+                        - updatedAt
+                      additionalProperties: false
+                  page:
+                    $ref: "#/components/schemas/IntegrationPageMeta"
+                  generatedAt:
+                    type: string
+                    format: date-time
+                  schemaVersion:
+                    type: string
+                    const: "1.0"
+                  requestId:
+                    type: string
+              examples:
+                porServico:
+                  value:
+                    items:
+                      - projectId: projeto-ficticio
+                        projectCode: "5850"
+                        avancoTotal: 62.5
+                        servicos:
+                          - escopo: Escopo 1
+                            servico: FLUSHING
+                            rotuloServico: Flushing
+                            equipamento: null
+                            avancoPct: 80
+                            unidade: M
+                            rotuloUnidade: m
+                            previsto: 120
+                            realizado: 96
+                            sistemas: 3
+                        updatedAt: 2026-11-24T12:00:00.000Z
+                    page:
+                      limit: 100
+                      hasMore: false
+                      nextCursor: null
+                      snapshotAt: 2026-11-24T12:00:00.000Z
+                    generatedAt: 2026-11-24T12:00:00.000Z
+                    schemaVersion: "1.0"
+                    requestId: exemplo-ficticio
+                porEquipamento:
+                  value:
+                    items:
+                      - projectId: projeto-ficticio
+                        projectCode: "5850"
+                        avancoTotal: 62.5
+                        servicos:
+                          - escopo: Escopo 1
+                            servico: LIMPEZA_QUIMICA
+                            rotuloServico: Limpeza química
+                            equipamento: UH-01
+                            avancoPct: 120
+                            unidade: UN
+                            rotuloUnidade: un
+                            previsto: 5
+                            realizado: 6
+                            sistemas: 2
+                        updatedAt: 2026-11-24T12:00:00.000Z
+                    page:
+                      limit: 100
+                      hasMore: false
+                      nextCursor: null
+                      snapshotAt: 2026-11-24T12:00:00.000Z
+                    generatedAt: 2026-11-24T12:00:00.000Z
+                    schemaVersion: "1.0"
+                    requestId: exemplo-ficticio
+                unidadesIncompativeis:
+                  value:
+                    items:
+                      - projectId: projeto-ficticio
+                        projectCode: "5850"
+                        avancoTotal: 62.5
+                        servicos:
+                          - escopo: null
+                            servico: LIMPEZA_QUIMICA
+                            rotuloServico: Limpeza química
+                            equipamento: null
+                            avancoPct: 75
+                            unidade: null
+                            rotuloUnidade: null
+                            previsto: null
+                            realizado: null
+                            sistemas: 2
+                        updatedAt: 2026-11-24T12:00:00.000Z
+                    page:
+                      limit: 100
+                      hasMore: false
+                      nextCursor: null
+                      snapshotAt: 2026-11-24T12:00:00.000Z
+                    generatedAt: 2026-11-24T12:00:00.000Z
+                    schemaVersion: "1.0"
+                    requestId: exemplo-ficticio
+                semComposicao:
+                  value:
+                    items:
+                      - projectId: projeto-ficticio
+                        projectCode: "5850"
+                        avancoTotal: null
+                        servicos: []
+                        updatedAt: 2026-11-24T12:00:00.000Z
+                    page:
+                      limit: 100
+                      hasMore: false
+                      nextCursor: null
+                      snapshotAt: 2026-11-24T12:00:00.000Z
+                    generatedAt: 2026-11-24T12:00:00.000Z
+                    schemaVersion: "1.0"
+                    requestId: exemplo-ficticio
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/InvalidIntegrationToken"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
 
   /integracoes/v1/acompanhamento/projetos/semanas:
     get:
