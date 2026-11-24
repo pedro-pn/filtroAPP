@@ -39,7 +39,9 @@ export function projectServiceReportCorrections(reports, serviceReports, {
 
     const replacement = replaceService(source, corrected);
     const key = `${parent.id}:${source.id}`;
-    if (measurementKey(source) === measurementKey(replacement)) {
+    // Consumidores de quantitativos podem ignorar edições sem mudança de medição;
+    // documentos precisam também das alterações de texto, material, etapas e fotos.
+    if (measurementKey && measurementKey(source) === measurementKey(replacement)) {
       corrections.delete(key);
       continue;
     }

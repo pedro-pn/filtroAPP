@@ -7,6 +7,7 @@ import { calcularAvanco } from './progresso.js';
 import { dataPt, montarServico, tipoDataBook } from './servicos.js';
 import { quebrarAtividades, rascunharTextos, revisarTextoLivre, tituloServico } from './textos.js';
 import { sugerirCertificados, sugerirFds, etapasProdutoDosRlqs } from './anexos.js';
+import { corrigirRelatoriosDatabook } from './correcoes.js';
 
 export const EMPRESA = 'Filtrovali Serviços de Filtragem de Óleos Industriais e Limpeza de Tubulações Ltda';
 export const TIPOS_TECNICOS = ['RLQ', 'RCPU', 'RTP', 'RLM'];
@@ -83,9 +84,10 @@ export function ligarRelatoriosTecnicos(rdos, derivados, { strict = false } = {}
   const livres = new Set(derivados.map(r => r.id));
   const porServico = new Map();
   const mesmoDia = (r, rdo) => dayKey(r.reportDate) === dayKey(rdo.reportDate);
-  // Os dois primeiros critérios são vínculos registrados; os dois últimos são inferências e só
-  // valem quando apontam um único relatório.
+  // A correção vigente e os vínculos registrados precedem as inferências;
+  // estas só valem quando apontam um único relatório.
   const criterios = [
+    { unico: false, casa: (r, rdo, s) => r.id === s.correction?.reportId },
     { unico: false, casa: (r, rdo, s) => r.specialConditions?.parentRdoId === rdo.id && r.specialConditions?.serviceId === s.id },
     { unico: false, casa: (r, rdo, s) => mesmoDia(r, rdo) && chavesDoDerivado(r).some(k => chavesDoServico(s).includes(k)) },
     { unico: true, casa: (r, rdo, s) => {
@@ -94,7 +96,8 @@ export function ligarRelatoriosTecnicos(rdos, derivados, { strict = false } = {}
     } },
     { unico: true, casa: (r, rdo) => mesmoDia(r, rdo) }
   ];
-  for (const { unico, casa } of (strict ? criterios.slice(0, 2) : criterios)) {
+  const registrados = criterios.slice(0, 3);
+  for (const { unico, casa } of (strict ? registrados : criterios)) {
     for (const rdo of rdos) {
       for (const service of rdo.services || []) {
         const tipo = tipoDataBook(service.serviceType);
@@ -103,6 +106,15 @@ export function ligarRelatoriosTecnicos(rdos, derivados, { strict = false } = {}
         if (!candidatos.length || (unico && candidatos.length > 1)) continue;
         porServico.set(service.id, candidatos[0]);
         livres.delete(candidatos[0].id);
+      }
+    }
+  }
+  // Versões anteriores do mesmo vínculo não viram serviços independentes.
+  for (const rdo of rdos) {
+    for (const service of rdo.services || []) {
+      if (!service.correction?.reportId || !porServico.has(service.id)) continue;
+      for (const report of derivados) {
+        if (report.reportType === tipoDataBook(service.serviceType) && registrados.some(({ casa }) => casa(report, rdo, service))) livres.delete(report.id);
       }
     }
   }
@@ -224,7 +236,7 @@ async function carregar(client, projetoId, inicio, fim) {
     }),
     client.report.findMany({
       where: { projectId: projetoId, reportType: 'RDO', deletedAt: null, status: { in: STATUS_INCLUIDOS }, reportDate: { lte: ate } },
-      select: { id: true, reportType: true, sequenceNumber: true, reportDate: true, createdAt: true, services: true, measurementLinks: true, contributionAssignments: true, updatedAt: true }
+      select: { id: true, projectId: true, reportType: true, status: true, specialConditions: true, sequenceNumber: true, reportDate: true, createdAt: true, services: true, measurementLinks: true, contributionAssignments: true, updatedAt: true }
     }),
     client.report.findMany({
       where: { projectId: projetoId, reportType: 'RDO', deletedAt: null, status: { in: STATUS_INCLUIDOS }, reportDate: { gte: desde, lte: ate } },
@@ -241,16 +253,7 @@ async function carregar(client, projetoId, inicio, fim) {
       include: { services: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] } }
     })
   ]);
-  const codigos = [...new Set(derivados.map(r => r.specialConditions?.resolvedCounter?.code).filter(Boolean))];
-  const contadores = codigos.length
-    ? await client.particleCounter.findMany({ where: { code: { in: codigos } }, include: currentCalibrationCertificateInclude })
-    : [];
-  return {
-    projeto, rdosAvanco, rdos, derivados,
-    contadores: new Map(contadores.map(c => [c.code, {
-      expiresAt: c.expiresAt, calibratedAt: c.calibratedAt, certificateId: c.calibrationCertificates?.[0]?.id || null
-    }]))
-  };
+  return { projeto, rdosAvanco, rdos, derivados };
 }
 
 /** Datas padrão do diálogo: primeiro e último RDO aprovado do projeto. */
@@ -272,7 +275,7 @@ export async function montarDadosDatabook(projetoId, inicio, fim, { client = pri
   if (client === prisma && !consistent) return client.$transaction(tx => montarDadosDatabook(projetoId, inicio, fim, {
     client: tx, documento, agora, vinculosFds, contributionKey, scopeContext, scopeVersion, consistent: true
   }), { isolationLevel: 'RepeatableRead', timeout: 30000 });
-  let { projeto, rdosAvanco, rdos, derivados, contadores } = await carregar(client, projetoId, inicio, fim);
+  let { projeto, rdosAvanco, rdos, derivados } = await carregar(client, projetoId, inicio, fim);
   if (!projeto) throw Object.assign(new Error('Projeto não encontrado.'), { status: 404 });
   const avisos = [];
   let proposta = null;
@@ -288,10 +291,21 @@ export async function montarDadosDatabook(projetoId, inicio, fim, { client = pri
     projeto = { ...projeto, plannedServices,
       contractCode: `${proposta.proposalCode || 'Escopo principal'}${proposta.revision != null ? ` REV ${proposta.revision}` : ''}` };
   }
+  // A proposta é atribuída sobre o serviço original: corrigir sua medição antes
+  // desse recorte invalidaria o hash do vínculo cadastrado no acompanhamento.
+  ({ rdosAvanco, rdos, derivados } = await corrigirRelatoriosDatabook(client, projetoId, rdosAvanco, rdos, derivados));
   const avanco = calcularAvanco(rdosAvanco, projeto.plannedServices, { dataInicio: inicio, dataFim: fim });
   const { porServico, semRdo } = ligarRelatoriosTecnicos(rdos, derivados, { strict: Boolean(proposta) });
+  derivados = [...porServico.values(), ...semRdo];
+  const codigos = [...new Set(derivados.map(r => r.specialConditions?.resolvedCounter?.code).filter(Boolean))];
+  const cadastros = codigos.length
+    ? await client.particleCounter.findMany({ where: { code: { in: codigos } }, include: currentCalibrationCertificateInclude })
+    : [];
+  const contadores = new Map(cadastros.map(c => [c.code, {
+    expiresAt: c.expiresAt, calibratedAt: c.calibratedAt, certificateId: c.calibrationCertificates?.[0]?.id || null
+  }]));
 
-  const datas = [...new Set([...rdos, ...derivados].map(r => dayKey(r.reportDate)))].sort();
+  const datas = [...new Set([...rdos, ...semRdo].map(r => dayKey(r.reportDate)))].sort();
   const dias = datas.map(data => {
     const rdosDoDia = rdos.filter(r => dayKey(r.reportDate) === data);
     const servicos = [];
