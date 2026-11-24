@@ -2,7 +2,7 @@ import { apiClient } from './client';
 
 // Conferência semanal de alocação (feature 037). Contrato em specs/037-conferencia-alocacao/contracts.
 
-export type AllocationReviewKind = 'PROJECT' | 'TRAVEL' | 'SEDE' | 'FOLGA' | 'FERIAS' | 'AFASTAMENTO' | 'TREINAMENTO';
+export type AllocationReviewKind = 'PROJECT' | 'TRAVEL' | 'SEDE' | 'FOLGA' | 'FERIAS' | 'AFASTAMENTO' | 'TREINAMENTO' | 'FALTA';
 export type AllocationReviewValueKind = AllocationReviewKind | 'NONE';
 export type SourceState = 'confirms' | 'diverges' | 'none';
 export type PendingReason = 'DIVERGENCE' | 'NO_INFORMATION' | 'PLAN_ONLY';
@@ -25,6 +25,7 @@ export interface ReviewDayView {
   note: string | null;
   pending: boolean;
   pendingReason: PendingReason | null;
+  attendanceWarning: boolean;
   reasons: string[];
   sources: {
     ponto: { state: SourceState; normalHours: number; he70Hours: number; he100Hours: number; tags: string[] };
@@ -151,6 +152,7 @@ export interface ReviewMonthDay {
   value: AllocationReviewValue | null;
   pending: boolean;
   pendingReason: PendingReason | null;
+  attendanceWarning: boolean;
   edited: boolean;
   confirmed: boolean;
   weekStart: string;

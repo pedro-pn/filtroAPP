@@ -87,7 +87,8 @@ export async function listReviewAllocations(client, input, context, deps = {}) {
   // deve recomeçar o período para não aplicar uma importação parcial/inconsistente.
   return client.$transaction(async database => {
     const [contexts, savedDays] = await withAllocationReviewSources(() => Promise.all([
-      loadReviewRangeContexts({ from: query.from, to: query.to,
+      // A dispensa da conferência manual não altera as alocações exportadas ao RH.
+      loadReviewRangeContexts({ from: query.from, to: query.to, includeExcluded: true,
         collaboratorIds: query.collaboratorId ? [query.collaboratorId] : null }, {
         ...deps, database,
         getTrails: deps.getTrails || (range => getAllocationTrailsForRange(range, { database }))

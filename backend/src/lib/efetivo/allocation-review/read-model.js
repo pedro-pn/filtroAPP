@@ -29,7 +29,7 @@ const SAO_PAULO_DATE = new Intl.DateTimeFormat('en-CA', {
 const REVIEW_WEEK_INCLUDE = { rows: { include: { days: { include: { projects: { select: { projectId: true } } } } } } };
 const COLLABORATOR_SELECT = {
   id: true, name: true, isActive: true, admissionDate: true, terminationDate: true,
-  workforceClassificationOverride: true,
+  workforceClassificationOverride: true, allocationReviewEnabled: true,
   jobRole: { select: { id: true, name: true, isActive: true, isOperational: true, workforceClassification: true } }
 };
 const PROJECT_SELECT = { id: true, code: true, name: true, clientName: true, clientCnpj: true, isActive: true, deletedAt: true };
@@ -184,7 +184,7 @@ function sourcesForWeek(sources, from, to) {
   };
 }
 
-export async function loadReviewWeekContext({ weekStart, collaboratorIds = null }, deps = {}) {
+export async function loadReviewWeekContext({ weekStart, collaboratorIds = null, includeExcluded = false }, deps = {}) {
   const database = deps.database || prisma;
   const dates = weekDateKeys(weekStart);
   const [from, to] = [dates[0], dates[6]];
@@ -203,9 +203,10 @@ export async function loadReviewWeekContext({ weekStart, collaboratorIds = null 
 
   const extraIds = reviewExtraCollaboratorIds({ ...sources, savedWeek, from, to });
   const collaborators = deps.reviewSources
-    ? deps.reviewSources.collaborators.filter(item => collaboratorMatchesWeek(item, { from, to, collaboratorIds, extraIds }))
+    ? deps.reviewSources.collaborators.filter(item => collaboratorMatchesWeek(item, { from, to, collaboratorIds, extraIds, includeExcluded }))
     : await database.collaborator.findMany({
-      where: { AND: [collaboratorVisibilityWhere('ALLOCATION_REVIEW'), reviewCollaboratorWhere({ from, to, collaboratorIds, extraIds })] },
+      where: { AND: [collaboratorVisibilityWhere('ALLOCATION_REVIEW'), reviewCollaboratorWhere({ from, to, collaboratorIds, extraIds }),
+        ...(includeExcluded ? [] : [{ allocationReviewEnabled: true }])] },
       select: COLLABORATOR_SELECT,
       orderBy: { name: 'asc' }
     });
@@ -275,7 +276,8 @@ function reviewCollaboratorWhere({ from, to, extraIds, collaboratorIds = null })
     };
 }
 
-function collaboratorMatchesWeek(item, { from, to, collaboratorIds, extraIds }) {
+function collaboratorMatchesWeek(item, { from, to, collaboratorIds, extraIds, includeExcluded }) {
+  if (!includeExcluded && item.allocationReviewEnabled === false) return false;
   if (!isCollaboratorVisible(item, 'ALLOCATION_REVIEW')) return false;
   if (collaboratorIds) return collaboratorIds.includes(item.id);
   if (extraIds.has(item.id)) return true;
@@ -297,7 +299,7 @@ function reviewProjectIds({ reports, trails, overrides, effectiveIndex, savedWee
   return referencedProjectIds;
 }
 
-async function loadReviewMonthSources(weekStarts, deps, collaboratorIds = null) {
+async function loadReviewMonthSources(weekStarts, deps, collaboratorIds = null, includeExcluded = false) {
   const database = deps.database || prisma;
   const from = weekStarts[0];
   const to = shiftKey(weekStarts.at(-1), 6);
@@ -311,7 +313,8 @@ async function loadReviewMonthSources(weekStarts, deps, collaboratorIds = null) 
   const userIds = [...new Set(savedWeeks.map(week => week.closedByUserId).filter(Boolean))];
   const [collaborators, projects, users] = await Promise.all([
     database.collaborator.findMany({
-      where: { AND: [collaboratorVisibilityWhere('ALLOCATION_REVIEW'), reviewCollaboratorWhere({ from, to, extraIds, collaboratorIds })] },
+      where: { AND: [collaboratorVisibilityWhere('ALLOCATION_REVIEW'), reviewCollaboratorWhere({ from, to, extraIds, collaboratorIds }),
+        ...(includeExcluded ? [] : [{ allocationReviewEnabled: true }])] },
       select: COLLABORATOR_SELECT,
       orderBy: { name: 'asc' }
     }),
@@ -452,6 +455,9 @@ export function assembleReviewWeek(context, { now = new Date(), user = null } = 
       const value = eligible ? (savedValue(saved) || result.suggestion) : null;
       const edited = Boolean(saved) && !sameAllocation(savedValue(saved), result.suggestion);
       const pending = eligible && !dayMeta.isFuture && !confirmed && !saved && result.pending;
+      // Falta é uma decisão manual. Ponto no mesmo dia gera aviso, sem bloquear a conferência.
+      const attendanceWarning = value?.kind === 'FALTA'
+        && (Number(input.ponto?.normalHours || 0) + Number(input.ponto?.he70Hours || 0) + Number(input.ponto?.he100Hours || 0)) > 0;
       return {
         date: dayMeta.date,
         eligible,
@@ -465,10 +471,11 @@ export function assembleReviewWeek(context, { now = new Date(), user = null } = 
         note: saved?.note || null,
         pending,
         pendingReason: pending ? result.pendingReason : null,
+        attendanceWarning,
         reasons: result.reasons,
         sources: {
           ponto: {
-            state: result.sources.ponto.state,
+            state: attendanceWarning ? 'diverges' : result.sources.ponto.state,
             normalHours: input.ponto?.normalHours || 0,
             he70Hours: input.ponto?.he70Hours || 0,
             he100Hours: input.ponto?.he100Hours || 0,
@@ -556,11 +563,11 @@ export async function getReviewWeek({ weekStart, now = new Date(), user = null }
 
 // A API e a visão mensal compartilham as mesmas regras e leem cada fonte uma
 // única vez por intervalo, inclusive nas semanas ainda não persistidas.
-export async function loadReviewRangeContexts({ from, to, collaboratorIds = null }, deps = {}) {
+export async function loadReviewRangeContexts({ from, to, collaboratorIds = null, includeExcluded = false }, deps = {}) {
   const weekStarts = [];
   for (let monday = mondayOf(from); monday <= to; monday = shiftKey(monday, 7)) weekStarts.push(monday);
-  const reviewSources = await loadReviewMonthSources(weekStarts, deps, collaboratorIds);
-  return Promise.all(weekStarts.map(weekStart => loadReviewWeekContext({ weekStart, collaboratorIds }, { ...deps, reviewSources })));
+  const reviewSources = await loadReviewMonthSources(weekStarts, deps, collaboratorIds, includeExcluded);
+  return Promise.all(weekStarts.map(weekStart => loadReviewWeekContext({ weekStart, collaboratorIds, includeExcluded }, { ...deps, reviewSources })));
 }
 
 // Contagem para o badge: semanas já encerradas, desde a primeira semana com conferência registrada
@@ -632,6 +639,7 @@ export async function getReviewMonth({ yearMonth, now = new Date(), user = null 
           value: day.value,
           pending: day.pending,
           pendingReason: day.pendingReason,
+          attendanceWarning: day.attendanceWarning,
           edited: day.edited,
           confirmed: row.confirmed,
           weekStart: week.week.weekStart
@@ -645,7 +653,7 @@ export async function getReviewMonth({ yearMonth, now = new Date(), user = null 
     const totals = new Map();
     const monthDays = days.map(meta => entry.days.get(meta.date) || {
       date: meta.date, eligible: false, isFuture: meta.isFuture, value: null, pending: false,
-      pendingReason: null, edited: false, confirmed: false, weekStart: mondayOf(meta.date)
+      pendingReason: null, attendanceWarning: false, edited: false, confirmed: false, weekStart: mondayOf(meta.date)
     });
     for (const day of monthDays) {
       if (!day.eligible || !day.value || day.isFuture) continue;

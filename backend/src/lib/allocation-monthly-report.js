@@ -256,7 +256,8 @@ export const REVIEW_KIND_LABELS = Object.freeze({
   FOLGA: 'Folga',
   FERIAS: 'Férias',
   AFASTAMENTO: 'Afastamento',
-  TREINAMENTO: 'Treinamento'
+  TREINAMENTO: 'Treinamento',
+  FALTA: 'Falta'
 });
 
 /*

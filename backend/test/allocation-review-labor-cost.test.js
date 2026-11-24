@@ -46,6 +46,20 @@ test('dia conferido fora de projeto tira as horas de qualquer projeto e não vir
   assert.equal(allocationDecisionRequiresAction(decision), false);
 });
 
+test('Falta conferida preserva horas do ponto sem atribuí-las ao projeto do RDO', () => {
+  const manual = manualProjectsByCollaborator([], [
+    { collaboratorId: 'c1', date: '2026-10-26', kind: 'FALTA', projectIds: [] }
+  ]).get('c1');
+  const result = classifyProjectHours(
+    [{ date: '2026-10-26', normalHours: 8, he70Horas: 1, he100Horas: 0, tags: [] }],
+    { dayProjects: new Map([['2026-10-26', rdo([['pA', 8]])]]), byProject: new Map() },
+    () => null, new Map(), manual
+  );
+  assert.equal(result.costNormalHours, 8);
+  assert.equal(result.dayTrail[0].reason, 'REVIEW_IDLE');
+  assert.deepEqual(result.dayTrail[0].allocations, []);
+});
+
 test('ajuste manual comum continua com o motivo de sempre', () => {
   assert.equal(buildDailyProjectWeights({ manualProjectIds: ['pA'] }).reason, 'MANUAL_OVERRIDE');
 });

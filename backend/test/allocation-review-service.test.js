@@ -194,6 +194,23 @@ test('recusa dia futuro, dia fora da semana, projeto inativo e colaborador fora 
   await rejectsCode(saveReviewDays({ ...base, now: AFTER, items: [{ collaboratorId: 'c1', date: '2026-10-29', kind: 'PROJECT', projectIds: ['nope'] }] }, deps(db)), 'PROJECT_NOT_FOUND');
 });
 
+test('Falta com ponto é salva e confirmada sem criar aviso de ausência', async () => {
+  const db = createDb({ reports: rdoWeek() });
+  const dependencies = { ...deps(db), getTrails: async () => new Map([['c1', new Map([['2026-10-26', {
+    normalHours: 8.8, he70Hours: 0, he100Hours: 0, tags: [], tagProjectIds: []
+  }]])]]) };
+  const draft = await saveReviewDays({ weekStart: WEEK, expectedVersion: 0, user: REVIEWER, now: AFTER,
+    items: [{ collaboratorId: 'c1', date: WEEK, kind: 'FALTA', projectIds: [] }]
+  }, dependencies);
+  assert.equal(draft.rows[0].days[0].attendanceWarning, true);
+  assert.equal(draft.rows[0].canConfirm, true);
+  const confirmed = await confirmReviewRows({ weekStart: WEEK, expectedVersion: draft.version, collaboratorIds: ['c1'], user: REVIEWER, now: AFTER }, dependencies);
+  assert.equal(confirmed.confirmed, 1);
+  assert.equal(confirmed.rows[0].days[0].value.kind, 'FALTA');
+  assert.equal(confirmed.rows[0].days[0].attendanceWarning, true);
+  assert.equal(confirmed.alertsCreated, 0);
+});
+
 test('conferir: pendência bloqueia; sem pendência grava os 7 dias com fingerprint; linha conferida trava edição', async () => {
   const db = createDb({ reports: rdoWeek('c1', 'pA', ['2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29']) });
   await rejectsCode(confirmReviewRows({ weekStart: WEEK, collaboratorIds: ['c1'], expectedVersion: 0, user: REVIEWER, now: AFTER }, deps(db)), 'ROW_HAS_PENDING');

@@ -103,9 +103,10 @@ test('classificação central: herança, exceções, RH, HTTP, migração e hist
     assert.equal(mixed.workforceClassificationOverride, 'PENDING');
     assert.equal(isOperationalCollaborator(mixed), false);
     const currentPerson = await db.collaborator.findUniqueOrThrow({ where: { id: rhPerson.id } });
-    await updateWorkforceBatch(db, { items: [{ id: rhPerson.id, version: currentPerson.classificationVersion }], classification: 'OPERATIONAL', reason: 'Liberação individual revisada.' }, adminUser.id);
+    await updateWorkforceBatch(db, { items: [{ id: rhPerson.id, version: currentPerson.classificationVersion }], classification: 'OPERATIONAL', allocationReviewEnabled: false, reason: 'Liberação individual revisada.' }, adminUser.id);
     await receive(envelope('employment', employment, 3));
     assert.equal((await db.collaborator.findUniqueOrThrow({ where: { id: rhPerson.id } })).workforceClassificationOverride, 'OPERATIONAL');
+    assert.equal((await db.collaborator.findUniqueOrThrow({ where: { id: rhPerson.id } })).allocationReviewEnabled, false);
   });
 
   await t.test('reclassificação inclui missão terminando hoje sem excluir equipe nem dias conferidos; exportação operacional respeita a restrição', async () => {

@@ -127,15 +127,25 @@ test('resumo mensal inclui situações do Efetivo sem depender da confirmação 
       weekStart: date('2026-10-26'),
       rows: { create: {
         collaboratorId: ana.id, confirmedAt: now,
-        days: { create: { collaboratorId: ana.id, workDate: date('2026-10-26'), kind: 'SEDE' } }
+        days: { create: { collaboratorId: ana.id, workDate: date('2026-10-26'), kind: 'FALTA' } }
       } }
     } });
     const data = await buildMonthlyAllocationSummary({ yearMonth: '2026-10', client, now });
     const days = data.entries.filter(day => day.collaboratorId === ana.id && day.date === '2026-10-26');
     assert.equal(days.length, 1);
-    assert.equal(days[0].kind, 'SEDE');
+    assert.equal(days[0].kind, 'FALTA');
+    assert.equal(days[0].projectName, 'Falta');
+    assert.equal(days[0].projectId, null);
+    assert.equal(days[0].clientCnpj, '');
     assert.equal(days[0].source, 'REVIEW');
     assert.equal(days[0].reviewed, true);
     assert.equal(data.summary.reviewedDayCount, 1);
+    const review = await getReviewMonth({ yearMonth: '2026-10', now }, {
+      database: client, getTrails: range => getAllocationTrailsForRange(range, { database: client })
+    });
+    const day = review.rows.find(row => row.collaborator.id === ana.id).days.find(day => day.date === '2026-10-26');
+    assert.equal(day.value.kind, 'FALTA');
+    assert.equal(day.attendanceWarning, true);
+    assert.equal(day.confirmed, true);
   });
 });

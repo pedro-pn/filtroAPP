@@ -6,7 +6,7 @@ anterior à implantação fica conferida.
 ## Enums novos
 
 ```text
-AllocationReviewKind        PROJECT | TRAVEL | SEDE | FOLGA | FERIAS | AFASTAMENTO | TREINAMENTO
+AllocationReviewKind        PROJECT | TRAVEL | SEDE | FOLGA | FERIAS | AFASTAMENTO | TREINAMENTO | FALTA
 AllocationReviewWeekStatus  OPEN | CLOSED
 AllocationReviewEventType   CLOSED | REOPENED
 AllocationReviewAlertStatus OPEN | RESOLVED | CANCELLED
@@ -137,7 +137,10 @@ na leitura com a mesma regra do ajuste manual (`labor-cost.js:1033-1042`).
 ```
 
 **ReviewDayView** = DaySuggestion + gravado
-`{ kind, projectIds, note, differsFromSuggestion, sourceChangedAfterReview, absenceAlert }`.
+`{ kind, projectIds, note, differsFromSuggestion, sourceChangedAfterReview, absenceAlert, attendanceWarning }`.
+
+`attendanceWarning` indica Falta com horas normais ou extras no ponto do mesmo dia.
+É recalculado das fontes atuais e permanece após a confirmação, sem bloquear a linha.
 
 ## Relação com dados existentes
 

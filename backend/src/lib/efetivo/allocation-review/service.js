@@ -286,7 +286,12 @@ export async function unconfirmReviewRows({ weekStart, collaboratorIds, expected
   const week = await currentWeek(database, weekStart);
   assertOpen(week);
   assertVersion(week, expectedVersion);
-  if (!week) return { ...result(week, await assembleFor(weekStart, collaboratorIds, { now, user }, deps)), alertsCancelled: 0 };
+  const assembled = await assembleFor(weekStart, collaboratorIds, { now, user }, deps);
+  const rows = rowsByCollaborator(assembled);
+  if (collaboratorIds.some(id => !rows.has(id))) {
+    throw new AllocationReviewError('COLLABORATOR_NOT_ACTIVE', 'Colaborador fora da semana ou dispensado da conferência.', 400);
+  }
+  if (!week) return { ...result(week, assembled), alertsCancelled: 0 };
   let alertsCancelled = 0;
   const updated = await database.$transaction(async tx => {
     const saved = await bumpWeek(tx, weekStart, week, expectedVersion);

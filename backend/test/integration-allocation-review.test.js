@@ -105,7 +105,7 @@ test('PostgreSQL: Conecta export, Bearer, quotas, pagination, corrections and pl
   await Promise.all([
     day(arow, '2026-09-30', 'SEDE'), day(arow, '2026-10-01', 'PROJECT', [p1.id, archived.id]),
     day(brow, '2026-10-01', 'PROJECT', [archived.id]), day(arow, '2026-10-02', 'TRAVEL', [p1.id]),
-    day(arow, '2026-10-03', 'SEDE'), day(arow, '2026-10-04', 'FOLGA'), day(drow, '2026-10-02', 'SEDE'),
+    day(arow, '2026-10-03', 'FALTA'), day(arow, '2026-10-04', 'FOLGA'), day(drow, '2026-10-02', 'SEDE'),
     day(nextRow, '2026-10-05', 'FERIAS'), day(nextRow, '2026-10-06', 'AFASTAMENTO'), day(nextRow, '2026-10-07', 'TREINAMENTO'),
     day(nextRow, '2026-10-08', 'PROJECT', [p1.id, hidden.id]), day(nextRow, '2026-10-09', 'TRAVEL', [deleted.id]),
     day(nextRow, '2026-10-10', 'PROJECT', [invalidCnpj.id])
@@ -164,7 +164,7 @@ test('PostgreSQL: Conecta export, Bearer, quotas, pagination, corrections and pl
     assert.equal(first.projects[0].clientCnpj, '04988669000194');
     assert.equal(first.collaborator.registrationNumber, '000123');
     assert.deepEqual(items.find(item => item.kind === 'TRAVEL').projects.map(item => item.id), [p1.id]);
-    for (const kind of ['SEDE', 'FOLGA', 'FERIAS', 'AFASTAMENTO', 'TREINAMENTO']) {
+    for (const kind of ['SEDE', 'FOLGA', 'FERIAS', 'AFASTAMENTO', 'TREINAMENTO', 'FALTA']) {
       assert.deepEqual(items.find(item => item.kind === kind).projects, []);
     }
     assert.equal(items.at(-1).date, query.to);

@@ -58,3 +58,21 @@ test('allocation review migration is safe to re-run the enum value step', async 
   const { rows } = await db.query(`SELECT count(*)::int AS n FROM unnest(enum_range(NULL::"ModuleRoleCode")) v WHERE v::text = 'EFETIVO_ALLOCATION_REVIEW'`);
   assert.equal(rows[0].n, 1);
 });
+
+test('migração acrescenta Falta sem alterar dias existentes e permite reexecução', async t => {
+  const db = new PGlite();
+  t.after(() => db.close());
+  await prepare(db);
+  await db.exec(`
+    INSERT INTO "AllocationReviewWeek" ("id", "weekStart", "updatedAt") VALUES ('w1', '2026-10-26', CURRENT_TIMESTAMP);
+    INSERT INTO "AllocationReviewRow" ("id", "weekId", "collaboratorId", "updatedAt") VALUES ('r1', 'w1', 'col-1', CURRENT_TIMESTAMP);
+    INSERT INTO "AllocationReviewDay" ("id", "rowId", "collaboratorId", "workDate", "kind", "updatedAt")
+      VALUES ('d1', 'r1', 'col-1', '2026-10-26', 'SEDE', CURRENT_TIMESTAMP);
+  `);
+  const migration = await readFile(new URL('../prisma/migrations/20261124160000_allocation_review_falta/migration.sql', import.meta.url), 'utf8');
+  await db.exec(migration);
+  await db.exec(migration);
+  assert.equal((await db.query('SELECT "kind" FROM "AllocationReviewDay" WHERE "id" = $1', ['d1'])).rows[0].kind, 'SEDE');
+  await db.exec(`UPDATE "AllocationReviewDay" SET "kind" = 'FALTA' WHERE "id" = 'd1';`);
+  assert.equal((await db.query('SELECT "kind" FROM "AllocationReviewDay" WHERE "id" = $1', ['d1'])).rows[0].kind, 'FALTA');
+});

@@ -17,7 +17,7 @@ const LEGEND: Array<[string, string]> = [
   ['travel', 'Viagem'],
   ['sede', 'Sede'],
   ['folga', 'Folga'],
-  ['absence', 'Férias / afastamento'],
+  ['absence', 'Falta / férias / afastamento'],
   ['pending', 'Divergência'],
   ['none', 'Sem informação']
 ];

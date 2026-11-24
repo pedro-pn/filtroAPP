@@ -136,6 +136,28 @@ test('semana fechada: só admin pode reabrir', () => {
   assert.equal(assembleReviewWeek(context({ savedWeek }), { now: NOW_AFTER, user: { accountType: 'ADMIN' } }).week.canReopen, true);
 });
 
+test('Falta avisa de horas normais ou extras, inclusive depois de conferida, sem bloquear a linha', () => {
+  const dates = weekDateKeys(WEEK);
+  const trails = new Map([['c1', new Map([
+    [dates[0], trail(dates[0])],
+    [dates[1], trail(dates[1], { normalHours: 0, he70Hours: 1 })],
+    [dates[2], trail(dates[2], { normalHours: 0, he100Hours: 2 })],
+    [dates[3], trail(dates[3], { normalHours: 0, tags: ['Falta injustificada'] })]
+  ])]]);
+  const savedWeek = { status: 'OPEN', version: 1, rows: [{ collaboratorId: 'c1', confirmedAt: null,
+    days: dates.map(date => ({ workDate: new Date(`${date}T00:00:00.000Z`), kind: 'FALTA', projects: [] })) }] };
+  for (const confirmed of [false, true]) {
+    savedWeek.rows[0].confirmedAt = confirmed ? NOW_AFTER : null;
+    const result = assembleReviewWeek(context({ trails, savedWeek }), { now: NOW_AFTER });
+    const row = result.rows[0];
+    assert.deepEqual(row.days.map(day => day.attendanceWarning), [true, true, true, false, false, false, false]);
+    assert.ok(row.days.slice(0, 3).every(day => day.sources.ponto.state === 'diverges'));
+    assert.equal(row.pendingCount, 0);
+    assert.equal(row.canConfirm, !confirmed);
+    assert.ok(row.days.every(day => !day.absenceAlert && day.value.kind === 'FALTA'));
+  }
+});
+
 test('loadReviewWeekContext restringe a operacionais mesmo quando há ponto ou RDO na semana, e lê 7 dias de folga para os vizinhos', async () => {
   const calls = {};
   const database = {
@@ -162,6 +184,7 @@ test('loadReviewWeekContext restringe a operacionais mesmo quando há ponto ou R
   assert.deepEqual(extra, ['cP', 'cR']);
   assert.deepEqual(calls.collaborator.where.AND[1].OR[0].AND[0], { jobRole: { isActive: true } });
   assert.deepEqual(calls.collaborator.where.AND[0], operationalCollaboratorWhere());
+  assert.deepEqual(calls.collaborator.where.AND[2], { allocationReviewEnabled: true });
   assert.deepEqual(calls.project.where.OR[0].id.in, ['pA']);
 });
 
