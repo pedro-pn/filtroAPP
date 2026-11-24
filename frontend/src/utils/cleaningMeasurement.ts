@@ -4,12 +4,20 @@ export function isSystemCleaning(data: Record<string, unknown>) {
     .replace(/[\u0300-\u036f]/g, '').trim().toLowerCase() === 'nao';
 }
 
-export function requiresSystemType(serviceType: string, data: Record<string, unknown>) {
-  if (serviceType === 'limpeza') return isSystemCleaning(data);
-  if (serviceType !== 'flushing') return false;
+export function flushingMode(data: Record<string, unknown>): 'Sim' | 'Não' {
   const raw = data.flushingTubulacao || data['Flushing em tubulação?'] || data['Flushing em tubulacao?'];
   return String(Array.isArray(raw) ? raw[0] : raw ?? '').normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '').trim().toLowerCase() === 'nao';
+    .replace(/[\u0300-\u036f]/g, '').trim().toLowerCase() === 'nao' ? 'Não' : 'Sim';
+}
+
+export function flushingModePatch(mode: 'Sim' | 'Não'): Record<string, unknown> {
+  return { flushingTubulacao: mode, 'Flushing em tubulação?': mode, tipoSistema: '', 'Tipo de sistema': '',
+    ...(mode === 'Não' ? { tubes: [] } : {}) };
+}
+
+export function requiresSystemType(serviceType: string, data: Record<string, unknown>) {
+  if (serviceType === 'limpeza') return isSystemCleaning(data);
+  return serviceType === 'flushing' && flushingMode(data) === 'Não';
 }
 
 export function systemTypeValue(data: Record<string, unknown>) {
