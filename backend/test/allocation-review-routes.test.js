@@ -119,6 +119,15 @@ test('escritas exigem If-Match-Version e corpo válido', async () => {
     method: 'PUT', ...write('reviewer', { items: [{ ...item, kind: 'SEDE' }] })
   });
   assert.equal(sede.status, 400);
+  const invalidFalta = await dispatch(router, '/semanas/2026-10-26/dias', {
+    method: 'PUT', ...write('reviewer', { items: [{ ...item, kind: 'FALTA' }] })
+  });
+  assert.equal(invalidFalta.status, 400);
+  const falta = await dispatch(router, '/semanas/2026-10-26/dias', {
+    method: 'PUT', ...write('reviewer', { items: [{ ...item, kind: 'FALTA', projectIds: [] }] })
+  });
+  assert.equal(falta.status, 200);
+  assert.equal(calls.at(-1)[1].items[0].kind, 'FALTA');
   const ok = await dispatch(router, '/semanas/2026-10-26/dias', { method: 'PUT', ...write('reviewer', { items: [item] }, '3') });
   assert.equal(ok.status, 200);
   assert.equal(calls.at(-1)[0], 'save');

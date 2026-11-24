@@ -55,6 +55,7 @@ function collaboratorSession() {
       accountType: 'INTERNAL',
       isActive: true,
       collaboratorId: 'collab-1',
+      collaborator: null,
       moduleRoles: [{ role: 'RDO_COLLABORATOR' }]
     }
   };

@@ -734,6 +734,10 @@ jobs:
         if: matrix.group == 'others'
         run: npx playwright test --config=playwright.conecta.config.ts
 
+      - name: Verify allocation review and absence warnings in the browser
+        if: matrix.group == 'others'
+        run: npx playwright test --config=playwright.allocation-review.config.ts
+
       - name: Upload page performance browser regression report
         if: failure()
         uses: actions/upload-artifact@v7
@@ -756,6 +760,14 @@ jobs:
         with:
           name: conecta-rh-browser-report
           path: output/playwright/conecta
+          if-no-files-found: warn
+
+      - name: Upload allocation review browser regression report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: allocation-review-browser-report
+          path: output/playwright/allocation-review
           if-no-files-found: warn
 
       - name: Upload EPI browser regression report

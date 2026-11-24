@@ -32,6 +32,7 @@ import {
   filterRows,
   formatDayMonth,
   groupRows,
+  hasRecordedWork,
   isoWeekNumber,
   pendingText,
   sourcesText,
@@ -158,6 +159,8 @@ export function AllocationReviewBoard({ weekStart, show, group, search, onWeekCh
   const grid = useAllocationReviewGrid(gridKeys);
   const panelRow = panel ? data?.rows.find(row => row.collaborator.id === panel.collaboratorId) || null : null;
   const panelDay = panelRow?.days.find(day => day.date === panel?.date) || null;
+  const selectedDaysWithPoint = (data?.rows || []).flatMap(row => row.days.filter(day =>
+    selected.has(dayCellKey(row.collaborator.id, day.date)) && hasRecordedWork(day))).length;
 
   function toggleSelection(row: ReviewRowView, day: ReviewDayView) {
     if (row.confirmed || weekClosed || day.isFuture || !day.eligible) {
@@ -221,14 +224,15 @@ export function AllocationReviewBoard({ weekStart, show, group, search, onWeekCh
       !day.eligible ? 'is-ineligible' : '',
       compact ? 'is-compact' : ''
     ].filter(Boolean).join(' ');
-    const label = `${row.collaborator.name}, ${formatDayMonth(day.date)}: ${valueText(day.value, projectsById)}${day.pending ? `, pendente (${pendingText(day)})` : ''}${day.edited ? ', ajustado' : ''}`;
+    const warning = day.attendanceWarning ? ', aviso: Falta com ponto batido' : '';
+    const label = `${row.collaborator.name}, ${formatDayMonth(day.date)}: ${valueText(day.value, projectsById)}${day.pending ? `, pendente (${pendingText(day)})` : ''}${day.edited ? ', ajustado' : ''}${warning}`;
     const gridKey = position ? gridCellKey(position[0], position[1]) : null;
     return (
       <button
         type="button"
         className={classes}
         aria-label={label}
-        title={day.eligible ? `${valueText(day.value, projectsById)}\n${sourcesText(day)}` : undefined}
+        title={day.eligible ? `${valueText(day.value, projectsById)}${warning}\n${sourcesText(day)}` : undefined}
         aria-pressed={selected.has(key) || undefined}
         disabled={!day.eligible}
         onClick={event => handleCellClick(event, row, day)}
@@ -240,6 +244,7 @@ export function AllocationReviewBoard({ weekStart, show, group, search, onWeekCh
         <span className="allocation-review-cell__title">{display.title}</span>
         {display.subtitle ? <span className="allocation-review-cell__subtitle" title={display.subtitle}>{display.subtitle}</span> : null}
         {day.absenceAlert ? <span className="allocation-review-cell__alert">avisa o Efetivo</span> : null}
+        {day.attendanceWarning ? <span className="allocation-review-cell__alert">ponto batido</span> : null}
         {day.eligible ? <SourceDots day={day} /> : null}
       </button>
     );
@@ -450,7 +455,7 @@ export function AllocationReviewBoard({ weekStart, show, group, search, onWeekCh
 
       <p id="allocation-review-grid-hint" className="sr-only">Use as setas para andar entre os dias e Enter para abrir o dia.</p>
 
-      <AllocationReviewBulkBar count={selected.size} projects={data.projects} saving={busy} onApply={applyBulk} onClear={() => setSelected(new Set())} />
+      <AllocationReviewBulkBar count={selected.size} daysWithPointCount={selectedDaysWithPoint} projects={data.projects} saving={busy} onApply={applyBulk} onClear={() => setSelected(new Set())} />
       <AllocationReviewDayPanel
         open={Boolean(panelRow && panelDay)}
         row={panelRow}

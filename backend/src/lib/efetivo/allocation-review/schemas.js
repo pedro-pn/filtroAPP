@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 // Schemas Zod da API de conferência de alocação (contracts/allocation-review-api.md).
 
-export const REVIEW_KINDS = ['PROJECT', 'TRAVEL', 'SEDE', 'FOLGA', 'FERIAS', 'AFASTAMENTO', 'TREINAMENTO'];
+export const REVIEW_KINDS = ['PROJECT', 'TRAVEL', 'SEDE', 'FOLGA', 'FERIAS', 'AFASTAMENTO', 'TREINAMENTO', 'FALTA'];
 export const PROJECT_KINDS = new Set(['PROJECT', 'TRAVEL']);
 export const ABSENCE_ALERT_KINDS = new Set(['FOLGA', 'FERIAS', 'AFASTAMENTO']);
 export const MAX_ITEMS = 200;

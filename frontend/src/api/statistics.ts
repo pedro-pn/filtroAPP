@@ -136,7 +136,7 @@ export interface AllocationReportRecipientPayload {
   isActive?: boolean;
 }
 
-export type AllocationReportKind = 'PROJECT' | 'TRAVEL' | 'SEDE' | 'FOLGA' | 'FERIAS' | 'AFASTAMENTO' | 'TREINAMENTO';
+export type AllocationReportKind = 'PROJECT' | 'TRAVEL' | 'SEDE' | 'FOLGA' | 'FERIAS' | 'AFASTAMENTO' | 'TREINAMENTO' | 'FALTA';
 
 export interface AllocationReportDay {
   date: string;

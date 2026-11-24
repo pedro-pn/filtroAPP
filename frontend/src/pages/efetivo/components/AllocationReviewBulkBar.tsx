@@ -1,10 +1,11 @@
 import { useState } from 'react';
 
 import type { AllocationReviewKind, ReviewProject } from '../../../api/allocationReview';
-import { Button, Select } from '../../../components/ui/ds';
+import { Alert, Button, Select } from '../../../components/ui/ds';
 
 interface Props {
   count: number;
+  daysWithPointCount: number;
   projects: ReviewProject[];
   saving: boolean;
   onApply: (kind: AllocationReviewKind, projectIds: string[]) => void;
@@ -12,7 +13,7 @@ interface Props {
 }
 
 // Barra de ações para os dias selecionados (Shift/Ctrl + clique no desktop, modo de seleção no celular).
-export function AllocationReviewBulkBar({ count, projects, saving, onApply, onClear }: Props) {
+export function AllocationReviewBulkBar({ count, daysWithPointCount, projects, saving, onApply, onClear }: Props) {
   const [projectId, setProjectId] = useState('');
   if (!count) return null;
   return (
@@ -21,6 +22,7 @@ export function AllocationReviewBulkBar({ count, projects, saving, onApply, onCl
       <div className="allocation-review-bulk__actions">
         <Button size="sm" variant="secondary" disabled={saving} onClick={() => onApply('SEDE', [])}>Sede</Button>
         <Button size="sm" variant="secondary" disabled={saving} onClick={() => onApply('FOLGA', [])}>Folga</Button>
+        <Button size="sm" variant="secondary" disabled={saving} onClick={() => onApply('FALTA', [])}>Falta</Button>
         <Button size="sm" variant="secondary" disabled={saving} onClick={() => onApply('FERIAS', [])}>Férias</Button>
         <Select
           size="sm"
@@ -40,6 +42,9 @@ export function AllocationReviewBulkBar({ count, projects, saving, onApply, onCl
         </Select>
         <Button size="sm" variant="ghost" disabled={saving} onClick={onClear}>Limpar seleção</Button>
       </div>
+      {daysWithPointCount ? <Alert tone="warning" className="allocation-review-bulk__warning">
+        Ao marcar Falta, revise: há ponto batido em {daysWithPointCount} dia{daysWithPointCount > 1 ? 's' : ''} da seleção.
+      </Alert> : null}
     </div>
   );
 }

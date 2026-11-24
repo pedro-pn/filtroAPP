@@ -63,7 +63,7 @@ export function AllocationReviewMonthView({ yearMonth, search, onMonthChange, on
       day.confirmed ? 'is-confirmed' : '',
       compact ? 'is-compact' : ''
     ].filter(Boolean).join(' ');
-    const label = `${row.collaborator.name}, ${formatDayMonth(day.date)}: ${day.eligible ? valueText(day.value, projectsById) : 'fora do vínculo'}${day.pending ? `, pendente (${pendingText(day)})` : ''}${day.confirmed ? ', conferido' : ''}. Abrir a semana.`;
+    const label = `${row.collaborator.name}, ${formatDayMonth(day.date)}: ${day.eligible ? valueText(day.value, projectsById) : 'fora do vínculo'}${day.pending ? `, pendente (${pendingText(day)})` : ''}${day.confirmed ? ', conferido' : ''}${day.attendanceWarning ? ', aviso: Falta com ponto batido' : ''}. Abrir a semana.`;
     return (
       <button
         type="button"
@@ -76,6 +76,7 @@ export function AllocationReviewMonthView({ yearMonth, search, onMonthChange, on
         tabIndex={position ? grid.tabIndexFor(gridCellKey(position[0], position[1])) : undefined}
       >
         {day.eligible ? monthCellLabel(day.value, projectsById) : '–'}
+        {day.attendanceWarning ? <span className="allocation-review-mcell__warning" aria-hidden="true">!</span> : null}
       </button>
     );
   }

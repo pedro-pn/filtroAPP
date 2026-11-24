@@ -10,7 +10,7 @@ export interface WorkforcePerson {
   isActive: boolean; rhStatus: string | null; workforceSector: string | null;
   sourceIsOperational: boolean | null; workforceClassificationOverride: WorkforceClassification | null;
   classification: WorkforceClassification; classificationSource: 'COLLABORATOR' | 'JOB_ROLE';
-  classificationDiverges: boolean; classificationVersion: number;
+  classificationDiverges: boolean; classificationVersion: number; allocationReviewEnabled: boolean;
   jobRole: { id: string; name: string; workforceClassification: WorkforceClassification | null; isOperational: boolean };
 }
 export interface WorkforceRole {
@@ -29,7 +29,8 @@ export async function getWorkforce(params: Record<string, string | number | unde
 }
 export async function getWorkforceRoles() { return (await apiClient.get<WorkforceRole[]>(`${base}/job-roles`)).data; }
 export async function classifyWorkforce(payload: {
-  items: Array<{ id: string; version: number }>; classification: WorkforceClassification | null; sector?: string | null; reason: string;
+  items: Array<{ id: string; version: number }>; classification?: WorkforceClassification | null; sector?: string | null;
+  allocationReviewEnabled?: boolean; reason: string;
 }) { return (await apiClient.patch<{ updated: number; affectedMissionIds: string[] }>(`${base}/collaborators`, payload)).data; }
 export async function classifyWorkforceRole(id: string, payload: { classification: WorkforceClassification; version: number; reason: string }) {
   return (await apiClient.patch<{ affectedMissionIds: string[] }>(`${base}/job-roles/${id}`, payload)).data;

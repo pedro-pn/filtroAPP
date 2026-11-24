@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useMemo } from 'react';
+import { Fragment, useEffect, useMemo } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -22,6 +22,7 @@ import {
   formatDayMonth,
   formatFullDate,
   formatHours,
+  hasRecordedWork,
   pendingText,
   projectFullLabel,
   sameValue
@@ -143,7 +144,11 @@ export function AllocationReviewDayPanel({ open, row, day, weekClosed, projects,
     if (open) reset({ choice: initialChoice, otherProjectId: '', extraProjectId: '', travelProjectId: '', repeat: [], note: day?.note || '' });
   }, [day, initialChoice, open, reset]);
   const choice = useWatch({ control, name: 'choice' });
+  const repeat = useWatch({ control, name: 'repeat' });
   const selected = options.find(option => option.key === choice) || null;
+  const selectedDates = new Set([day?.date, ...(repeat || [])]);
+  const faltaDaysWithPoint = selected?.value?.kind === 'FALTA'
+    ? (row?.days || []).filter(item => selectedDates.has(item.date) && hasRecordedWork(item)) : [];
 
   const activeProjects = useMemo(() => projects
     .filter(project => project.isActive || day?.candidateProjectIds.includes(project.id))
@@ -254,14 +259,22 @@ export function AllocationReviewDayPanel({ open, row, day, weekClosed, projects,
         <fieldset className="allocation-review-options" disabled={readOnly}>
           <legend>Onde ele esteve</legend>
           {options.map(option => (
-            <label key={option.key} className={`allocation-review-option${choice === option.key ? ' is-checked' : ''}`}>
-              <input type="radio" value={option.key} {...register('choice')} />
-              <span className="allocation-review-option__label">
-                {option.label}
-                {option.tags.map(tag => <Badge key={tag} tone="brand">{tag}</Badge>)}
-              </span>
-              {option.detail ? <span className="allocation-review-option__detail">{option.detail}</span> : null}
-            </label>
+            <Fragment key={option.key}>
+              <label className={`allocation-review-option${choice === option.key ? ' is-checked' : ''}`}>
+                <input type="radio" value={option.key} {...register('choice')}
+                  aria-describedby={choice === option.key && option.value?.kind === 'FALTA' && faltaDaysWithPoint.length ? 'allocation-review-falta-warning' : undefined} />
+                <span className="allocation-review-option__label">
+                  {option.label}
+                  {option.tags.map(tag => <Badge key={tag} tone="brand">{tag}</Badge>)}
+                </span>
+                {option.detail ? <span className="allocation-review-option__detail">{option.detail}</span> : null}
+              </label>
+              {choice === option.key && option.value?.kind === 'FALTA' && faltaDaysWithPoint.length ? (
+                <Alert id="allocation-review-falta-warning" tone="warning" title="Falta com ponto batido">
+                  Há horas registradas no ponto em {faltaDaysWithPoint.map(item => formatDayMonth(item.date)).join(', ')}. Revise a marcação de Falta antes de conferir. O aviso não impede salvar ou confirmar.
+                </Alert>
+              ) : null}
+            </Fragment>
           ))}
           {errors.choice ? <p className="field-error" role="alert">{errors.choice.message}</p> : null}
         </fieldset>

@@ -154,7 +154,8 @@ test('API autenticada bloqueia criar e editar rascunhos de arquivados para opera
   });
   let writes = 0;
   prisma.reportDraft.create = prisma.reportDraft.update = async () => { writes += 1; throw new Error('Gravação indevida'); };
-  const user = { ...coordinatorSession().user, role: 'COLLABORATOR', collaboratorId: 'collaborator-1', moduleRoles: [{ role: 'RDO_COLLABORATOR' }] };
+  // A sessão já inclui a relação: a autenticação não deve consultar um banco real neste teste.
+  const user = { ...coordinatorSession().user, role: 'COLLABORATOR', collaboratorId: 'collaborator-1', collaborator: null, moduleRoles: [{ role: 'RDO_COLLABORATOR' }] };
   prisma.userSession.findUnique = async () => ({ ...coordinatorSession(), user });
   prisma.reportDraft.findMany = async () => [];
   prisma.reportDraft.findUniqueOrThrow = async () => ({ id: 'draft-1', userId: user.id, projectId: 'archived', payload: {} });

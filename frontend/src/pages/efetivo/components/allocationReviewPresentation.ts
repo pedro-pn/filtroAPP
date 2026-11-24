@@ -19,13 +19,14 @@ export const KIND_LABELS: Record<AllocationReviewValueKind, string> = {
   TRAVEL: 'Viagem',
   SEDE: 'Sede',
   FOLGA: 'Folga',
+  FALTA: 'Falta',
   FERIAS: 'Férias',
   AFASTAMENTO: 'Afastamento',
   TREINAMENTO: 'Treinamento',
   NONE: 'Sem informação'
 };
 
-export const IDLE_KINDS: AllocationReviewKind[] = ['SEDE', 'FOLGA', 'FERIAS', 'AFASTAMENTO', 'TREINAMENTO'];
+export const IDLE_KINDS: AllocationReviewKind[] = ['SEDE', 'FOLGA', 'FALTA', 'FERIAS', 'AFASTAMENTO', 'TREINAMENTO'];
 export const ABSENCE_ALERT_KINDS = new Set<AllocationReviewValueKind>(['FOLGA', 'FERIAS', 'AFASTAMENTO']);
 
 export const SOURCE_LABELS = { ponto: 'Ponto Mais', rdo: 'RDO', efetivo: 'Efetivo' } as const;
@@ -68,7 +69,12 @@ export function monthCellLabel(value: AllocationReviewValue | null, projectsById
     if (value.projectIds.length > 1) return `${value.projectIds.length}p`;
     return projectsById.get(value.projectIds[0])?.code || '?';
   }
-  return { SEDE: 'S', FOLGA: 'F', FERIAS: 'Fé', AFASTAMENTO: 'Af', TREINAMENTO: 'Tr', NONE: '?' }[value.kind] || '?';
+  return { SEDE: 'S', FOLGA: 'F', FALTA: 'Fa', FERIAS: 'Fé', AFASTAMENTO: 'Af', TREINAMENTO: 'Tr', NONE: '?' }[value.kind] || '?';
+}
+
+export function hasRecordedWork(day: Pick<ReviewDayView, 'sources'>) {
+  const { normalHours, he70Hours, he100Hours } = day.sources.ponto;
+  return normalHours + he70Hours + he100Hours > 0;
 }
 
 const DAY_MS = 86400000;

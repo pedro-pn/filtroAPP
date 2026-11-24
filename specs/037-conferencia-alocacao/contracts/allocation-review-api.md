@@ -42,11 +42,17 @@ seguintes" e pela edição em massa.
 
 ```text
 body {
-  items: [{ collaboratorId, date, kind: PROJECT|TRAVEL|SEDE|FOLGA|FERIAS|AFASTAMENTO|TREINAMENTO,
+  items: [{ collaboratorId, date, kind: PROJECT|TRAVEL|SEDE|FOLGA|FERIAS|AFASTAMENTO|TREINAMENTO|FALTA,
             projectIds: string[], note?: string }]   // 1..200
 }
 200 { version, rows: [RowView] }   // só as linhas afetadas
 ```
+
+`FALTA` é uma escolha manual sem projetos. `ReviewDayView.attendanceWarning` e o campo
+homônimo na visão mensal são `true` quando a situação é Falta e existem horas normais ou
+extras no ponto do mesmo dia. O aviso permanece após a confirmação e não bloqueia salvar,
+conferir ou fechar a semana. Etiquetas sem horas não são consideradas ponto batido.
+Falta não gera solicitação de cadastro de ausência.
 
 As requisições abaixo são recusadas:
 
@@ -124,7 +130,7 @@ Alimenta o badge da navegação do Efetivo.
 Cada `AllocationReportDay` e `AllocationReportEntry` passa a ter:
 
 ```text
-kind: PROJECT|TRAVEL|SEDE|FOLGA|FERIAS|AFASTAMENTO|TREINAMENTO   // RDO = PROJECT
+kind: PROJECT|TRAVEL|SEDE|FOLGA|FERIAS|AFASTAMENTO|TREINAMENTO|FALTA   // RDO = PROJECT
 source: 'RDO' | 'REVIEW'
 projectId: string | null
 projectCode: string          // '' quando não há projeto

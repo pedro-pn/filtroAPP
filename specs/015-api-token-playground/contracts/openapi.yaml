@@ -6389,7 +6389,7 @@ components:
       properties:
         id: { type: string, description: ID persistido ou sintético automatic; usar collaborator.id e date como chave lógica. }
         date: { type: string, format: date }
-        kind: { type: string, enum: [PROJECT, TRAVEL, SEDE, FOLGA, FERIAS, AFASTAMENTO, TREINAMENTO, NONE] }
+        kind: { type: string, enum: [PROJECT, TRAVEL, SEDE, FOLGA, FERIAS, AFASTAMENTO, TREINAMENTO, FALTA, NONE] }
         collaborator:
           type: object
           additionalProperties: false

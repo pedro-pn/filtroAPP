@@ -18,10 +18,12 @@ export const workforceListQuery = z.object({
 }).strict();
 export const workforceBatchInput = z.object({
   items: z.array(z.object({ id: z.string().min(1).max(100), version: z.number().int().positive() }).strict()).min(1).max(200),
-  classification: classification.nullable(),
+  classification: classification.nullable().optional(),
   sector: z.string().trim().max(100).nullable().optional(),
+  allocationReviewEnabled: z.boolean().optional(),
   reason
-}).strict().refine(input => new Set(input.items.map(item => item.id)).size === input.items.length, 'Seleção duplicada.');
+}).strict().refine(input => new Set(input.items.map(item => item.id)).size === input.items.length, 'Seleção duplicada.')
+  .refine(input => input.classification !== undefined || input.sector !== undefined || input.allocationReviewEnabled !== undefined, 'Informe uma alteração.');
 export const workforceRoleInput = z.object({ classification, version: z.number().int().positive(), reason }).strict();
 
 function conflict() {
@@ -66,7 +68,7 @@ export async function listWorkforce(database, input) {
     const items = await tx.collaborator.findMany({ where, orderBy: [{ name: 'asc' }, { id: 'asc' }],
       skip: (query.page - 1) * query.limit, take: query.limit,
       select: { id: true, code: true, name: true, registrationNumber: true, isActive: true, rhStatus: true,
-        workforceSector: true, sourceIsOperational: true, workforceClassificationOverride: true, classificationVersion: true,
+        workforceSector: true, sourceIsOperational: true, workforceClassificationOverride: true, classificationVersion: true, allocationReviewEnabled: true,
         jobRole: { select: { id: true, name: true, isOperational: true, workforceClassification: true } } }
     });
     return { items: items.map(item => ({ ...item, ...workforcePolicySummary(item) })), total, page: query.page, limit: query.limit };
@@ -84,16 +86,21 @@ export async function updateWorkforceBatch(database, input, actorUserId) {
     for (const selected of [...payload.items].sort((a, b) => a.id.localeCompare(b.id))) {
       const previous = byId.get(selected.id);
       const changed = await tx.collaborator.updateMany({ where: { id: selected.id, classificationVersion: selected.version }, data: {
-        workforceClassificationOverride: payload.classification,
+        ...(payload.classification !== undefined ? { workforceClassificationOverride: payload.classification } : {}),
+        ...(payload.allocationReviewEnabled !== undefined ? { allocationReviewEnabled: payload.allocationReviewEnabled } : {}),
         ...(payload.sector !== undefined ? { workforceSector: payload.sector || null } : {}), classificationVersion: { increment: 1 }
       } });
       if (changed.count !== 1) throw conflict();
-      const before = { classification: previous.workforceClassificationOverride, sector: previous.workforceSector };
-      const after = { classification: payload.classification, sector: payload.sector === undefined ? previous.workforceSector : payload.sector || null };
+      const before = { classification: previous.workforceClassificationOverride, sector: previous.workforceSector, allocationReviewEnabled: previous.allocationReviewEnabled };
+      const after = {
+        classification: payload.classification === undefined ? previous.workforceClassificationOverride : payload.classification,
+        sector: payload.sector === undefined ? previous.workforceSector : payload.sector || null,
+        allocationReviewEnabled: payload.allocationReviewEnabled ?? previous.allocationReviewEnabled
+      };
       await tx.workforceClassificationEvent.create({ data: { entityType: 'COLLABORATOR', entityId: previous.id, actorUserId, reason: payload.reason, before, after } });
       changes.push(previous.id);
     }
-    const affectedMissionIds = await markWorkforceForReplanning(tx, changes);
+    const affectedMissionIds = payload.classification !== undefined ? await markWorkforceForReplanning(tx, changes) : [];
     return { updated: changes.length, affectedMissionIds };
   }, { timeout: 20000 });
   clearCollaboratorDerivedCaches();
