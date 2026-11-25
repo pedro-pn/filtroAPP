@@ -178,3 +178,25 @@ test('deploy problems name the status, the version still running and the reason;
   const second = { ...first, problems: [deployProblem('c'.repeat(40))] };
   assert.notEqual(operationalAlertSignature(first), operationalAlertSignature(second));
 });
+
+test('sendOperationalAlert sends an HTML e-mail with readable job names', async () => {
+  const emails = [];
+  await sendOperationalAlert({
+    ok: false,
+    generatedAt: '2026-11-23T16:10:53.407Z',
+    problems: [{ message: 'Job recorrente sem execução recente.', job: 'calibration-reminders', ageMs: 4 * 3_600_000, maxAgeMs: 3 * 3_600_000 }]
+  }, {
+    recipients: ['ops@example.test'],
+    webhookUrl: '',
+    config: { nodeEnv: 'production', appUrl: 'https://app.example.test', operationsAlertRepeatMs: 6 * 3_600_000 },
+    emailSender: async message => { emails.push(message); return { sent: true }; }
+  });
+
+  assert.equal(emails.length, 1);
+  assert.match(emails[0].subject, /Alerta operacional: 1 problema\(s\) — Lembretes de calibração$/);
+  assert.match(emails[0].html, /cid:filtrovali-logo-colorido/);
+  assert.match(emails[0].html, /Lembretes de calibração/);
+  assert.match(emails[0].html, /há 4 h \(limite 3 h\)/);
+  assert.match(emails[0].html, /23\/11\/2026, 13:10 \(Brasília\)/);
+  assert.match(emails[0].html, /href="https:\/\/app\.example\.test\/operacoes"/);
+});

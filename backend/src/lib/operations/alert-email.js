@@ -1,4 +1,5 @@
 import env from '../../config/env.js';
+import { buildOperationalEmailTemplate } from '../email-templates.js';
 import { sendMail } from '../mailer.js';
 
 // Canal de e-mail para alertas operacionais (erros 5xx, falhas de processo e de
@@ -113,6 +114,45 @@ function environmentLabel(config) {
   return config.nodeEnv || 'unknown';
 }
 
+export function environmentDisplayName(config = env) {
+  const value = environmentLabel(config);
+  if (value === 'production') return 'Produção';
+  if (value === 'staging') return 'Homologação';
+  if (value === 'development') return 'Desenvolvimento';
+  return value;
+}
+
+// Data/hora no fuso de Brasília para o corpo HTML (o texto mantém ISO).
+export function formatAlertDateTime(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value ?? '');
+  const formatted = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(date);
+  return `${formatted} (Brasília)`;
+}
+
+export function panelUrl(config = env) {
+  return config.appUrl ? `${String(config.appUrl).replace(/\/+$/, '')}/operacoes` : '';
+}
+
+const ERROR_SOURCE_LABELS = {
+  'backend.http': 'Requisição HTTP (API)',
+  'job.database-unavailable': 'Banco de dados indisponível'
+};
+
+function errorSourceLabel(source) {
+  if (!source) return 'Backend';
+  if (ERROR_SOURCE_LABELS[source]) return ERROR_SOURCE_LABELS[source];
+  if (source.startsWith('job.')) return `Job ${source.slice(4)}`;
+  return source;
+}
+
 export function operationalErrorEmailMessage(payload, { suppressed = 0, throttleMs, config = env } = {}) {
   const message = redactPersonalData(truncate(firstLine(payload.message), MAX_MESSAGE_LINE));
   const name = redactPersonalData(truncate(payload.name || 'Error', 120));
@@ -141,10 +181,60 @@ export function operationalErrorEmailMessage(payload, { suppressed = 0, throttle
   }
   lines.push('', 'Detalhes completos ficam no log do container. Este e-mail não inclui dados enviados pelo usuário.');
 
-  return {
+  const contextRows = EMAIL_CONTEXT_FIELDS
+    .filter(([field]) => context[field] !== undefined && context[field] !== null && context[field] !== '')
+    .map(([field, label]) => [label, redactPersonalData(truncate(context[field], 300))]);
+  const suppressedNote = suppressed > 0
+    ? `${suppressed} ocorrência(s) igual(is) suprimida(s) desde o último e-mail (janela de ${Math.round((throttleMs ?? config.operationsAlertEmailThrottleMs) / 60000)} min).`
+    : '';
+
+  return buildOperationalEmailTemplate({
     subject: `[filtroAPP ${environmentLabel(config)}] Erro: ${truncate(`${name}: ${message}`, MAX_SUBJECT_DETAIL)}`,
-    text: lines.join('\n')
-  };
+    text: lines.join('\n'),
+    tone: 'error',
+    title: 'Erro operacional capturado',
+    intro: `${errorSourceLabel(payload.source)} — ${environmentDisplayName(config)}`,
+    summaryRows: [
+      ['Quando', formatAlertDateTime(payload.occurredAt)],
+      ['Ambiente', environmentDisplayName(config)],
+      ['Versão', String(payload.version || 'unknown').slice(0, 12)]
+    ],
+    sections: [{
+      title: `${name}: ${message}`,
+      rows: [['Origem', payload.source || 'backend'], ...contextRows],
+      note: suppressedNote,
+      code: frames
+    }],
+    actionUrl: panelUrl(config),
+    footer: 'Detalhes completos ficam no log do container. Este e-mail não inclui dados enviados pelo usuário.'
+  });
+}
+
+// Converte um alerta de texto livre (abuso, teto da OpenAI) no layout padrão:
+// linhas "Rótulo: valor" viram tabela; as demais, descrição.
+export function plainAlertEmailTemplate({ subject, text }, { config = env } = {}) {
+  const title = String(subject || 'Alerta operacional').replace(/^\[[^\]]*\]\s*/, '');
+  const paragraphs = String(text || '').split(/\n\s*\n/);
+  const intro = paragraphs.shift()?.replace(/\s*\n\s*/g, ' ').trim() || title;
+  const rows = [];
+  const description = [];
+  for (const line of paragraphs.join('\n').split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const match = trimmed.match(/^([^:]{1,40}):\s+(.+)$/);
+    if (match && !/^https?$/i.test(match[1])) rows.push([match[1], match[2]]);
+    else description.push(trimmed.replace(/^-\s*/, ''));
+  }
+  return buildOperationalEmailTemplate({
+    subject,
+    text,
+    tone: 'alert',
+    title,
+    intro,
+    summaryRows: [['Ambiente', environmentDisplayName(config)]],
+    sections: rows.length || description.length ? [{ description: description.join(' '), rows }] : [],
+    actionUrl: panelUrl(config)
+  });
 }
 
 function deliveryResult(result) {
@@ -170,7 +260,8 @@ export async function sendOperationalErrorEmail(payload, {
     const result = deliveryResult(await sendMailFn({
       to: recipients.join(', '),
       subject: message.subject,
-      text: message.text
+      text: message.text,
+      html: message.html
     }));
     if (!result.sent) throttle.forget(fingerprint);
     return result;
@@ -197,7 +288,8 @@ export async function sendThrottledAlertEmail({ fingerprint, subject, text }, {
     ? `${text}\n\nAlertas iguais suprimidos desde o último e-mail: ${decision.suppressed}.`
     : text;
   try {
-    const result = deliveryResult(await sendMailFn({ to: recipients.join(', '), subject, text: body }));
+    const message = plainAlertEmailTemplate({ subject, text: body });
+    const result = deliveryResult(await sendMailFn({ to: recipients.join(', '), subject, text: body, html: message.html }));
     if (!result.sent) throttle.forget(fingerprint);
     return result;
   } catch (error) {
@@ -207,14 +299,14 @@ export async function sendThrottledAlertEmail({ fingerprint, subject, text }, {
   }
 }
 
-export async function sendOperationalStatusEmail({ subject, text }, {
+export async function sendOperationalStatusEmail({ subject, text, html }, {
   recipients = alertEmailRecipients(),
   sendMailFn = sendMail,
   logger = console
 } = {}) {
   if (!recipients.length) return { sent: false, reason: 'not-configured' };
   try {
-    return deliveryResult(await sendMailFn({ to: recipients.join(', '), subject, text }));
+    return deliveryResult(await sendMailFn({ to: recipients.join(', '), subject, text, ...(html ? { html } : {}) }));
   } catch (error) {
     logger.warn?.('Falha ao enviar e-mail de status operacional.', error?.message || error);
     return { sent: false, reason: 'send-error' };

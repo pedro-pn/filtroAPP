@@ -417,3 +417,76 @@ test('getOperationalStatus accepts a successful deploy and an absent deploy file
   });
   assert.deepEqual(required.problems.map(item => item.message), ['Status de deploy obrigatório está ausente.']);
 });
+
+function quietStatusClient(jobRuns) {
+  return {
+    jobRun: {
+      async findMany({ where, orderBy, take }) {
+        return jobRuns
+          .filter(run => run.name === where.name)
+          .sort((a, b) => (orderBy.startedAt === 'desc' ? b.startedAt - a.startedAt : a.startedAt - b.startedAt))
+          .slice(0, take);
+      }
+    },
+    dataRetentionRun: { async findFirst() { return null; } },
+    reportApprovalPostProcessingJob: {
+      async groupBy() { return []; },
+      async findFirst() { return null; }
+    },
+    jobLock: { async findMany() { return []; } },
+    integrationSyncRun: { async findMany() { return []; } },
+    accessImport: { async findFirst() { return null; } }
+  };
+}
+
+const quietStatusConfig = {
+  operationsBackupStatusFile: '',
+  operationsRestoreStatusFile: '',
+  operationsRequireBackupStatus: false,
+  operationsRequireRestoreStatus: false,
+  operationsBackupMaxAgeHours: 24,
+  operationsRestoreMaxAgeDays: 30,
+  operationsAlertJobEnabled: true,
+  operationsAlertWebhookUrl: '',
+  operationsAlertIntervalMs: 60 * 60 * 1000,
+  errorTrackingWebhookUrl: '',
+  errorTrackingProvider: 'webhook',
+  commercialImportToken: '',
+  omieAppKey: '',
+  omieAppSecret: '',
+  omieSyncEnabled: false
+};
+
+test('getOperationalStatus does not flag the daily calibration window as stale', async () => {
+  // Produção, 2026-11: o job checa de hora em hora, mas só grava execução na
+  // janela das 9h (Brasília). Às 13h10 virava "sem execução recente" todo dia.
+  const now = new Date('2026-11-23T16:10:53.000Z');
+  const ranAt = new Date('2026-11-23T12:10:53.000Z');
+  const status = await getOperationalStatus({
+    prismaClient: quietStatusClient([
+      { id: 'cal', name: 'calibration-reminders', status: 'COMPLETED', startedAt: ranAt, finishedAt: ranAt, metadata: { intervalMs: 3_600_000 } }
+    ]),
+    now,
+    config: quietStatusConfig
+  });
+
+  assert.equal(status.jobs.recurring.find(job => job.name === 'calibration-reminders').latestRun.id, 'cal');
+  assert.deepEqual(status.problems, []);
+});
+
+test('getOperationalStatus still sees an infrequent job behind many frequent runs', async () => {
+  const now = new Date('2026-11-25T12:00:00.000Z');
+  const runs = [];
+  for (let index = 0; index < 200; index += 1) {
+    const startedAt = new Date(now.getTime() - index * 15 * 60_000);
+    runs.push({ id: `p-${index}`, name: 'pontomais-sync', status: 'COMPLETED', startedAt, finishedAt: startedAt, metadata: { intervalMs: 900_000 } });
+  }
+  const oldRun = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+  runs.push({ id: 'cal-old', name: 'calibration-reminders', status: 'COMPLETED', startedAt: oldRun, finishedAt: oldRun, metadata: { intervalMs: 3_600_000 } });
+
+  const status = await getOperationalStatus({ prismaClient: quietStatusClient(runs), now, config: quietStatusConfig });
+
+  assert.deepEqual(status.problems.map(item => [item.message, item.job]), [
+    ['Job recorrente sem execução recente.', 'calibration-reminders']
+  ]);
+});
