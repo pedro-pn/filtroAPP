@@ -21,6 +21,8 @@ import { normalizeReportEmissionPermissions } from '../../lib/operational-report
 import { PROJECT_TAXES_AND_BILLING, canReceiveAcompanhamentoExtraPermissions, normalizeAcompanhamentoExtraPermissions } from '../../../../shared/modules/acompanhamento-permissions.js';
 import { REVIEW_REPORTS, CREATE_SERVICE_ONLY_REPORTS, canReceiveRdoExtraPermissions, normalizeRdoExtraPermissions } from '../../../../shared/modules/rdo-permissions.js';
 
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { opsRoute, EMPTY, jsonResponseSchema, libValidatedBodySchema } from '../../lib/api-contract/domains/operacoes.js';
 const router = Router();
 const ACCOUNT_ROLE_LABELS = {
   [UserRole.MANAGER]: 'gestor',
@@ -266,8 +268,7 @@ function queueAccountSetupMail(user, message, meta) {
 
 router.use(requireAuth, requireHubAdmin);
 
-router.get(
-  '/',
+defineRoute(router, opsRoute('GET /', { tag: 'admin', summary: 'Contas: Listar contas', responses: { 200: jsonResponseSchema }, errors: [401, 403] }),
   asyncHandler(async (req, res) => {
     const group = String(req.query.group || '')
       .trim()
@@ -379,8 +380,7 @@ router.get(
   })
 );
 
-router.post(
-  '/',
+defineRoute(router, opsRoute('POST /', { tag: 'admin', summary: 'Contas: Criar conta', body: schema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403] }),
   asyncHandler(async (req, res) => {
     const data = schema.parse(req.body);
 
@@ -458,8 +458,7 @@ router.post(
   })
 );
 
-router.put(
-  '/:id',
+defineRoute(router, opsRoute('PUT /:id', { tag: 'admin', summary: 'Contas: Atualizar conta', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }),
   asyncHandler(async (req, res) => {
     const data = schema.partial().parse(req.body);
     const currentUser = await prisma.user.findUniqueOrThrow({
@@ -527,8 +526,7 @@ router.put(
   })
 );
 
-router.get(
-  '/:id/impacto',
+defineRoute(router, opsRoute('GET /:id/impacto', { tag: 'admin', summary: 'Contas: Impacto de excluir a conta', responses: { 200: jsonResponseSchema }, errors: [401, 403] }),
   asyncHandler(async (req, res) => {
     await prisma.user.findUniqueOrThrow({
       where: { id: req.params.id },
@@ -539,8 +537,7 @@ router.get(
   })
 );
 
-router.delete(
-  '/:id',
+defineRoute(router, opsRoute('DELETE /:id', { tag: 'admin', summary: 'Contas: Excluir conta', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 204: EMPTY }, errors: [401, 403] }),
   asyncHandler(async (req, res) => {
     await deleteUserWithSignatureDocuments(prisma, req.params.id, {
       actorUserId: req.user?.id || null
@@ -549,8 +546,7 @@ router.delete(
   })
 );
 
-router.post(
-  '/:id/resend-client-access',
+defineRoute(router, opsRoute('POST /:id/resend-client-access', { tag: 'admin', summary: 'Contas: Reenviar acesso do cliente', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }),
   asyncHandler(async (req, res) => {
     const user = await prisma.user.findUniqueOrThrow({
       where: { id: req.params.id }

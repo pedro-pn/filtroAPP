@@ -10,6 +10,8 @@ import { executePlaygroundOperation, validatePlaygroundRequest } from '../../lib
 import prisma from '../../lib/prisma.js';
 import { requireAuth, requireHubAdmin } from '../../middleware/auth.js';
 
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { opsRoute, jsonResponseSchema, libValidatedBodySchema } from '../../lib/api-contract/domains/operacoes.js';
 const router = Router();
 
 router.use(requireAuth, requireHubAdmin);
@@ -31,7 +33,7 @@ const scopeCatalogQuerySchema = z.object({
   availability: z.enum(['AVAILABLE', 'PLANNED', 'SENSITIVE', 'RESERVED', 'PROHIBITED']).optional()
 }).strict();
 
-router.get('/api-scopes', (req, res) => {
+defineRoute(router, opsRoute('GET /api-scopes', { tag: 'admin', summary: 'Credenciais de API: Catálogo de escopos', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), (req, res) => {
   const query = scopeCatalogQuerySchema.parse(req.query);
   const definitions = [...API_SCOPES.map(({ status, dependencies, ...scope }) => ({
     ...scope,
@@ -57,11 +59,11 @@ router.get('/api-scopes', (req, res) => {
   });
 });
 
-router.get('/api-credentials', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /api-credentials', { tag: 'admin', summary: 'Credenciais de API: Listar credenciais', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), asyncHandler(async (req, res) => {
   res.json(await listCredentials(prisma, listSchema.parse(req.query)));
 }));
 
-router.post('/api-credentials', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /api-credentials', { tag: 'admin', summary: 'Credenciais de API: Criar credencial', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 201: jsonResponseSchema }, errors: [400, 401, 403] }), asyncHandler(async (req, res) => {
   const result = await createCredential(prisma, req.body, {
     actorUserId: req.auth.user.id,
     idempotencyKey: String(req.headers['idempotency-key'] || ''),
@@ -73,11 +75,11 @@ router.post('/api-credentials', asyncHandler(async (req, res) => {
   res.status(201).json(result);
 }));
 
-router.get('/api-credentials/:id', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /api-credentials/:id', { tag: 'admin', summary: 'Credenciais de API: Consultar credencial', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), asyncHandler(async (req, res) => {
   res.json(await getCredential(prisma, req.params.id));
 }));
 
-router.patch('/api-credentials/:id', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PATCH /api-credentials/:id', { tag: 'admin', summary: 'Credenciais de API: Atualizar credencial', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), asyncHandler(async (req, res) => {
   const update = Object.hasOwn(req.body || {}, 'writeMode') ? updateCredentialWriteMode : reduceCredential;
   res.json(await update(prisma, req.params.id, req.body, {
     actorUserId: req.auth.user.id,
@@ -86,7 +88,7 @@ router.patch('/api-credentials/:id', asyncHandler(async (req, res) => {
   }));
 }));
 
-router.post('/api-credentials/:id/test', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /api-credentials/:id/test', { tag: 'admin', summary: 'Credenciais de API: Testar credencial', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), asyncHandler(async (req, res) => {
   const operation = API_OPERATIONS.find(item => item.operationId === req.body?.operationId);
   if (operation?.method === 'POST') {
     const credential = await getCredential(prisma, req.params.id);
@@ -102,7 +104,7 @@ router.post('/api-credentials/:id/test', asyncHandler(async (req, res) => {
   }));
 }));
 
-router.post('/api-credentials/:id/rotate', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /api-credentials/:id/rotate', { tag: 'admin', summary: 'Credenciais de API: Gerar novo token (rotação)', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 201: jsonResponseSchema }, errors: [400, 401, 403] }), asyncHandler(async (req, res) => {
   const result = await rotateCredential(prisma, req.params.id, req.body, {
     actorUserId: req.auth.user.id,
     idempotencyKey: String(req.headers['idempotency-key'] || ''),
@@ -114,7 +116,7 @@ router.post('/api-credentials/:id/rotate', asyncHandler(async (req, res) => {
   res.status(201).json(result);
 }));
 
-router.post('/api-credentials/:id/revoke', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /api-credentials/:id/revoke', { tag: 'admin', summary: 'Credenciais de API: Revogar credencial', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), asyncHandler(async (req, res) => {
   res.json(await revokeCredential(prisma, req.params.id, req.body, {
     actorUserId: req.auth.user.id,
     idempotencyKey: String(req.headers['idempotency-key'] || ''),
@@ -123,14 +125,14 @@ router.post('/api-credentials/:id/revoke', asyncHandler(async (req, res) => {
   }));
 }));
 
-router.get('/api-credentials/:id/events', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /api-credentials/:id/events', { tag: 'admin', summary: 'Credenciais de API: Eventos da credencial', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), asyncHandler(async (req, res) => {
   const query = z.object({ cursor: z.string().max(2048).optional(), limit: z.coerce.number().int().min(1).max(100).optional() }).strict().parse(req.query);
   parseAdminCursor(query.cursor);
   await getCredential(prisma, req.params.id);
   res.json(await listCredentialEvents(prisma, req.params.id, query));
 }));
 
-router.get('/api-credentials/:id/usage', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /api-credentials/:id/usage', { tag: 'admin', summary: 'Credenciais de API: Uso da credencial', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), asyncHandler(async (req, res) => {
   const query = z.object({ from: z.string().datetime({ offset: true }), to: z.string().datetime({ offset: true }) }).strict()
     .refine(value => new Date(value.from) < new Date(value.to), 'Informe um intervalo de uso válido.').parse(req.query);
   await getCredential(prisma, req.params.id);

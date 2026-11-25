@@ -6,12 +6,14 @@ import { seedInhibitionOptions } from '../../lib/inhibition-options.js';
 import { inhibitionOptionsCache } from '../../lib/resource-list-cache.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
 
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { opsRoute, jsonResponseSchema } from '../../lib/api-contract/domains/operacoes.js';
 const router = Router();
 const requireRdoAccess = requireModuleRole(...RDO_ACCESS_ROLES);
 
 router.use(requireAuth, requireRdoAccess);
 
-router.get('/', asyncHandler(async (_req, res) => {
+defineRoute(router, opsRoute('GET /', { tag: 'cadastros-rdo', summary: 'Opções de inibição: Listar opções do serviço de inibição', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), asyncHandler(async (_req, res) => {
   const { vessels, systems } = await inhibitionOptionsCache.get(async () => {
     await seedInhibitionOptions(prisma);
     const [cachedVessels, cachedSystems] = await Promise.all([

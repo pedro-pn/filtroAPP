@@ -12,7 +12,7 @@ import { defineRoute, isWriteMethod } from '../src/lib/api-contract/registry.js'
 // Contrato da API interna (spec 042). As rotas reais do Express precisam estar
 // no registro (defineRoute) ou na lista de rotas ainda não migradas, que só
 // pode diminuir: ao migrar um domínio, remova as linhas dele e baixe o número.
-const UNMIGRATED_ROUTES_BASELINE = 306;
+const UNMIGRATED_ROUTES_BASELINE = 64;
 
 const allowlistFile = new URL('../src/lib/api-contract/unmigrated-routes.json', import.meta.url);
 const openApiFile = new URL('../../docs/api/openapi.internal.json', import.meta.url);
@@ -61,6 +61,20 @@ test('equipment, EPI, stock, quality, romaneio and logistics routes are fully mi
   assert.deepEqual(domainRoutes.filter(route => !route.contract).map(routeKey), []);
   const publicSign = byKey.get('POST /api/epi/public-sign/:token/confirm')?.contract;
   assert.equal(publicSign?.auth, 'publicToken', 'assinatura pública de EPI não usa sessão');
+});
+
+test('acompanhamento, assinaturas, pesquisas, cadastros, admin, privacy and operations routes are fully migrated (phase 5)', () => {
+  const internal = routes.filter(route => !route.path.startsWith('/api/integracoes/v1/'));
+  assert.deepEqual(internal.filter(route => !route.contract).map(routeKey), [],
+    'fora da API de integração v1, toda rota interna precisa de contrato');
+  const authOf = key => byKey.get(key)?.contract?.auth;
+  assert.equal(authOf('POST /api/assinaturas/publico/assinar'), 'publicToken', 'assinatura avulsa pública não usa sessão');
+  assert.equal(authOf('POST /api/rdo/surveys/respond/:token'), 'publicToken', 'resposta da pesquisa usa o token do link');
+  assert.equal(authOf('POST /api/acompanhamento/comercial/comercialapp/propostas'), 'apiToken', 'ponte do ComercialAPP usa token de serviço');
+  assert.equal(authOf('POST /api/privacy/requests'), 'public', 'solicitação do titular é aberta sem login');
+  for (const key of ['GET /api/admin/api-credentials', 'GET /api/admin/accounts', 'GET /api/operations/status', 'PUT /api/acompanhamento/comercial/projetos/:projectId/metas-semanais']) {
+    assert.equal(authOf(key), 'session', `${key} exige sessão`);
+  }
 });
 
 test('the PrismaCRM webhook is versioned and the old path is documented as deprecated (7.6)', () => {

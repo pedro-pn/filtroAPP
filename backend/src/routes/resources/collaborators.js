@@ -19,6 +19,8 @@ import { clearCollaboratorDerivedCaches } from '../../lib/resource-list-cache.js
 import { ensureCollaboratorSignatureDataUrl, isSignatureDataUrl, normalizeSignatureValue } from '../../lib/signature-image.js';
 import { requireAuth, requireInternalUser, requireManager } from '../../middleware/auth.js';
 
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { opsRoute, EMPTY, jsonResponseSchema, libValidatedBodySchema } from '../../lib/api-contract/domains/operacoes.js';
 const router = Router();
 router.use(requireAuth);
 
@@ -180,7 +182,7 @@ async function normalizeCollaboratorInput(data) {
   };
 }
 
-router.get('/', requireInternalUser, asyncHandler(async (_req, res) => {
+defineRoute(router, opsRoute('GET /', { tag: 'cadastros-rdo', summary: 'Colaboradores: Listar colaboradores', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireInternalUser, asyncHandler(async (_req, res) => {
   const normalized = await collaboratorsCache.get(() => listCollaboratorsWithCurrentJobRole(
     prisma,
     item => ensureCollaboratorSignatureDataUrl(prisma, item)
@@ -188,7 +190,7 @@ router.get('/', requireInternalUser, asyncHandler(async (_req, res) => {
   res.json(normalized);
 }));
 
-router.post('/', requireManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /', { tag: 'cadastros-rdo', summary: 'Colaboradores: Criar colaborador', body: collaboratorSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403, 409] }), requireManager, asyncHandler(async (req, res) => {
   const parsed = collaboratorSchema.parse(req.body);
   const code = parsed.code || await generateCollaboratorCode();
   const { jobRoleEffectiveDate, ...collaboratorInput } = parsed;
@@ -253,7 +255,7 @@ router.post('/', requireManager, asyncHandler(async (req, res) => {
   res.status(201).json(item);
 }));
 
-router.put('/:id', requireManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PUT /:id', { tag: 'cadastros-rdo', summary: 'Colaboradores: Atualizar colaborador', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireManager, asyncHandler(async (req, res) => {
   const parsed = collaboratorSchema.partial().parse(req.body);
   const { jobRoleEffectiveDate, ...collaboratorInput } = parsed;
   const data = await normalizeCollaboratorInput(collaboratorInput);
@@ -292,7 +294,7 @@ router.put('/:id', requireManager, asyncHandler(async (req, res) => {
   res.json(item);
 }));
 
-router.put('/:id/job-role-history/:historyId', requireManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PUT /:id/job-role-history/:historyId', { tag: 'cadastros-rdo', summary: 'Colaboradores: Corrigir registro do histórico de cargos', body: jobRoleHistorySchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireManager, asyncHandler(async (req, res) => {
   const input = jobRoleHistorySchema.parse(req.body);
   const item = await prisma.$transaction(async tx => {
     const collaborator = await tx.collaborator.findUniqueOrThrow({ where: { id: req.params.id } });
@@ -304,7 +306,7 @@ router.put('/:id/job-role-history/:historyId', requireManager, asyncHandler(asyn
   res.json(item);
 }));
 
-router.delete('/:id/job-role-history/:historyId', requireManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('DELETE /:id/job-role-history/:historyId', { tag: 'cadastros-rdo', summary: 'Colaboradores: Excluir registro do histórico de cargos', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireManager, asyncHandler(async (req, res) => {
   const item = await prisma.$transaction(async tx => {
     const collaborator = await tx.collaborator.findUniqueOrThrow({ where: { id: req.params.id } });
     const history = await tx.collaboratorJobRoleHistory.findFirst({
@@ -325,7 +327,7 @@ router.delete('/:id/job-role-history/:historyId', requireManager, asyncHandler(a
   res.json(item);
 }));
 
-router.delete('/:id', requireManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('DELETE /:id', { tag: 'cadastros-rdo', summary: 'Colaboradores: Excluir colaborador', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 204: EMPTY }, errors: [401, 403] }), requireManager, asyncHandler(async (req, res) => {
   await prisma.collaborator.update({ where: { id: req.params.id }, data: { isActive: false } });
   clearCollaboratorDerivedCaches();
   res.status(204).end();

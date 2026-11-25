@@ -19,6 +19,8 @@ import { efetivoProjectWhere } from '../../lib/efetivo/project-visibility.js';
 import { SURVEY_NOTICE_VERSION, validatePrivacyNoticeAcknowledgement } from '../../lib/privacy-consent.js';
 import { requireAuth, requireManager, requireModuleRole } from '../../middleware/auth.js';
 
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { opsRoute, jsonResponseSchema, libValidatedBodySchema } from '../../lib/api-contract/domains/operacoes.js';
 const router = Router();
 const requireRdoClient = requireModuleRole('rdo:client');
 const SURVEY_DAYS = 30;
@@ -316,12 +318,12 @@ function questionAnswers(survey) {
   }));
 }
 
-router.get('/questions', requireAuth, requireManagerOrCoordinator, asyncHandler(async (_req, res) => {
+defineRoute(router, opsRoute('GET /questions', { tag: 'pesquisas', summary: 'Pesquisa de satisfação: Consultar perguntas', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireAuth, requireManagerOrCoordinator, asyncHandler(async (_req, res) => {
   const questions = await activeSurveyQuestions();
   res.json(questions.map(safeQuestion));
 }));
 
-router.put('/questions', requireAuth, requireManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PUT /questions', { tag: 'pesquisas', summary: 'Pesquisa de satisfação: Salvar perguntas', body: questionsPayloadSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requireManager, asyncHandler(async (req, res) => {
   const { questions } = questionsPayloadSchema.parse(req.body);
   const normalized = questions.map((question, index) => ({
     id: question.id && !question.id.startsWith('new-') ? question.id : null,
@@ -402,7 +404,7 @@ export async function requireProjectSurveySender(req, res, next) {
   return next();
 }
 
-router.post('/:projectId/send', requireAuth, asyncHandler(requireProjectSurveySender), asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /:projectId/send', { tag: 'pesquisas', summary: 'Pesquisa de satisfação: Enviar pesquisa do projeto', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, asyncHandler(requireProjectSurveySender), asyncHandler(async (req, res) => {
   const project = await prisma.project.findUniqueOrThrow({
     where: { id: req.params.projectId }
   });
@@ -420,7 +422,7 @@ router.post('/:projectId/send', requireAuth, asyncHandler(requireProjectSurveySe
   res.status(reused ? 200 : 201).json({ survey: safeSurvey(survey), reused });
 }));
 
-router.post('/:surveyId/resend', requireAuth, requireManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /:surveyId/resend', { tag: 'pesquisas', summary: 'Pesquisa de satisfação: Reenviar pesquisa', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requireManager, asyncHandler(async (req, res) => {
   const survey = await prisma.satisfactionSurvey.findUniqueOrThrow({
     where: { id: req.params.surveyId },
     include: { project: true, sentBy: true }
@@ -453,7 +455,7 @@ router.post('/:surveyId/resend', requireAuth, requireManager, asyncHandler(async
   res.json({ survey: safeSurvey(updated), reused: true });
 }));
 
-router.patch('/:surveyId/follow-up', requireAuth, requireManagerOrCoordinator, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PATCH /:surveyId/follow-up', { tag: 'pesquisas', summary: 'Pesquisa de satisfação: Registrar acompanhamento da resposta', body: followUpSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requireManagerOrCoordinator, asyncHandler(async (req, res) => {
   const payload = followUpSchema.parse(req.body);
   const updated = await prisma.satisfactionSurvey.update({
     where: {
@@ -469,7 +471,7 @@ router.patch('/:surveyId/follow-up', requireAuth, requireManagerOrCoordinator, a
   res.json(safeSurvey(updated));
 }));
 
-router.get('/dashboard', requireAuth, requireManagerOrCoordinator, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /dashboard', { tag: 'pesquisas', summary: 'Pesquisa de satisfação: Painel de resultados', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireAuth, requireManagerOrCoordinator, asyncHandler(async (req, res) => {
   const reqYear = parseInt(req.query.year, 10);
   const year = Number.isFinite(reqYear) ? reqYear : new Date().getFullYear();
   const yearStart = new Date(year, 0, 1);
@@ -578,7 +580,7 @@ router.get('/dashboard', requireAuth, requireManagerOrCoordinator, asyncHandler(
   res.json({ year, years: availableYears, months });
 }));
 
-router.get('/projects/:projectId', requireAuth, requireManagerOrCoordinator, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /projects/:projectId', { tag: 'pesquisas', summary: 'Pesquisa de satisfação: Pesquisas do projeto', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireAuth, requireManagerOrCoordinator, asyncHandler(async (req, res) => {
   const items = await prisma.satisfactionSurvey.findMany({
     where: {
       ...managerOnlyProjectFilter(req.auth.user.role),
@@ -589,7 +591,7 @@ router.get('/projects/:projectId', requireAuth, requireManagerOrCoordinator, asy
   res.json(items.map(safeSurvey));
 }));
 
-router.get('/', requireAuth, requireManagerOrCoordinator, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /', { tag: 'pesquisas', summary: 'Pesquisa de satisfação: Listar pesquisas', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireAuth, requireManagerOrCoordinator, asyncHandler(async (req, res) => {
   const items = await prisma.satisfactionSurvey.findMany({
     where: {
       ...managerOnlyProjectFilter(req.auth.user.role)
@@ -611,7 +613,7 @@ router.get('/', requireAuth, requireManagerOrCoordinator, asyncHandler(async (re
   })));
 }));
 
-router.get('/client/projects/:projectId/active-link', requireAuth, requireRdoClient, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /client/projects/:projectId/active-link', { tag: 'pesquisas', summary: 'Pesquisa de satisfação: Link ativo da pesquisa (cliente)', responses: { 200: jsonResponseSchema }, errors: [401, 403, 404] }), requireAuth, requireRdoClient, asyncHandler(async (req, res) => {
   if (req.auth.user.role !== 'CLIENT') {
     return res.status(403).json({ error: 'Acesso restrito ao cliente.' });
   }
@@ -625,14 +627,14 @@ router.get('/client/projects/:projectId/active-link', requireAuth, requireRdoCli
   res.json({ url: surveyResponseUrl(token), expiresAt: survey.expiresAt });
 }));
 
-router.get('/respond/:token', publicLimiter, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /respond/:token', { tag: 'pesquisas', summary: 'Pesquisa de satisfação: Abrir pesquisa pelo link', auth: 'publicToken', responses: { 200: jsonResponseSchema }, errors: [429] }), publicLimiter, asyncHandler(async (req, res) => {
   const survey = await surveyFromToken(req.params.token, { project: true });
   if (!survey) return res.json(publicSurveyPayload(survey));
   const questions = await questionsForSurvey(survey);
   res.json(publicSurveyPayload({ ...survey, questions }));
 }));
 
-router.post('/respond/:token', publicLimiter, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /respond/:token', { tag: 'pesquisas', summary: 'Pesquisa de satisfação: Enviar respostas', auth: 'publicToken', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 429] }), publicLimiter, asyncHandler(async (req, res) => {
   const survey = await surveyFromToken(req.params.token, { project: true, sentBy: true });
   const status = responseStatus(survey);
   if (status !== 'ACTIVE') {
@@ -691,7 +693,7 @@ async function optOut(req, res) {
   res.json({ success: true });
 }
 
-router.post('/reminders/:token/opt-out', publicLimiter, asyncHandler(optOut));
-router.get('/reminders/:token/opt-out', publicLimiter, asyncHandler(optOut));
+defineRoute(router, opsRoute('POST /reminders/:token/opt-out', { tag: 'pesquisas', summary: 'Pesquisa de satisfação: Parar de receber lembretes', auth: 'publicToken', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 200: jsonResponseSchema }, errors: [429] }), publicLimiter, asyncHandler(optOut));
+defineRoute(router, opsRoute('GET /reminders/:token/opt-out', { tag: 'pesquisas', summary: 'Pesquisa de satisfação: Parar lembretes pelo link do e-mail (HTML se Accept: text/html)', auth: 'publicToken', responses: { 200: jsonResponseSchema }, errors: [429] }), publicLimiter, asyncHandler(optOut));
 
 export default router;

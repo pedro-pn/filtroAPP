@@ -21,9 +21,11 @@ import prisma from '../../lib/prisma.js';
 import { clearProjectDerivedCaches } from '../../lib/resource-list-cache.js';
 import { requireAcompanhamentoAccess, requireAcompanhamentoManager, requireAuth, requireHubAdmin } from '../../middleware/auth.js';
 
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { opsRoute, jsonResponseSchema, libValidatedBodySchema } from '../../lib/api-contract/domains/operacoes.js';
 const router = Router();
 
-router.get('/colaboradores/:collaboratorId/valor-hora', requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /colaboradores/:collaboratorId/valor-hora', { tag: 'acompanhamento-custo', summary: 'Acompanhamento de custo: Valor-hora do colaborador', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res) => {
   const referenceDate = z.iso.date().optional().parse(req.query.date) || new Date().toISOString().slice(0, 10);
   const collaborator = await prisma.collaborator.findUnique({
     where: { id: req.params.collaboratorId },
@@ -102,7 +104,7 @@ function normalizeCostParams(params) {
 const dateOnlySchema = z.iso.date('Informe uma data de vigência válida no formato YYYY-MM-DD.')
   .transform(value => new Date(`${value}T00:00:00.000Z`));
 
-router.get('/perfis', requireAuth, requireAcompanhamentoManager, asyncHandler(async (_req, res) => {
+defineRoute(router, opsRoute('GET /perfis', { tag: 'acompanhamento-custo', summary: 'Acompanhamento de custo: Listar perfis de custo', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireAuth, requireAcompanhamentoManager, asyncHandler(async (_req, res) => {
   // Apenas os perfis-modelo (planilhas base). Perfis por cargo (jobRoleId != null) ficam em /cargos.
   const profiles = await prisma.costProfile.findMany({
     where: { isActive: true, jobRoleId: null },
@@ -129,7 +131,7 @@ const paramsSchema = z.object({
   note: z.string().optional()
 });
 
-router.put('/perfis/:key/parametros', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PUT /perfis/:key/parametros', { tag: 'acompanhamento-custo', summary: 'Acompanhamento de custo: Salvar parâmetros do perfil de custo', body: paramsSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
   const { params, effectiveDate, note } = paramsSchema.parse(req.body);
   const current = await latestParams(req.params.key);
   if (!current) return res.status(404).json({ error: 'Perfil de custo não encontrado.' });
@@ -153,7 +155,7 @@ const simulateSchema = z.object({
   inputs: z.record(z.any()).default({})
 });
 
-router.post('/simular', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /simular', { tag: 'acompanhamento-custo', summary: 'Acompanhamento de custo: Simular custo', body: simulateSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
   const { profileKey, params, inputs } = simulateSchema.parse(req.body);
   let effectiveParams = params;
   if (!effectiveParams && profileKey) {
@@ -167,7 +169,7 @@ router.post('/simular', requireAuth, requireAcompanhamentoManager, asyncHandler(
 
 // === Perfil de custo por cargo (um CostProfile por JobRole, criado sob demanda) ===
 
-router.get('/cargos', requireAuth, requireAcompanhamentoManager, asyncHandler(async (_req, res) => {
+defineRoute(router, opsRoute('GET /cargos', { tag: 'acompanhamento-custo', summary: 'Acompanhamento de custo: Listar cargos com parâmetros de custo', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireAuth, requireAcompanhamentoManager, asyncHandler(async (_req, res) => {
   const roles = await prisma.jobRole.findMany({
     where: { isActive: true },
     orderBy: { name: 'asc' },
@@ -218,7 +220,7 @@ async function createCargoParameterSet(database, role, params, effectiveDate, no
   return { jobRoleId: role.id, profileId: profile.id, effectiveDate: created.effectiveDate, params: created.params };
 }
 
-router.put('/cargos/reajuste-hh', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PUT /cargos/reajuste-hh', { tag: 'acompanhamento-custo', summary: 'Acompanhamento de custo: Aplicar reajuste de HH aos cargos', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
   const { jobRoleIds, reajusteHhPct, effectiveDate } = z.object({
     jobRoleIds: z.array(z.string().min(1)).min(1).max(500).transform(ids => [...new Set(ids)]),
     reajusteHhPct: reajusteHhSchema,
@@ -253,7 +255,7 @@ router.put('/cargos/reajuste-hh', requireAuth, requireAcompanhamentoManager, asy
   res.status(result.status).json(result.body);
 }));
 
-router.put('/cargos/:jobRoleId/parametros', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PUT /cargos/:jobRoleId/parametros', { tag: 'acompanhamento-custo', summary: 'Acompanhamento de custo: Salvar parâmetros de custo do cargo', body: cargoParamsSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
   const { params, effectiveDate, note } = cargoParamsSchema.parse(req.body);
   const saved = await prisma.$transaction(async database => {
     const role = await database.jobRole.findUnique({
@@ -273,7 +275,7 @@ router.put('/cargos/:jobRoleId/parametros', requireAuth, requireAcompanhamentoMa
 
 // === Configuração global de custos anuais por colaborador ===
 
-router.get('/config', requireAuth, requireAcompanhamentoManager, asyncHandler(async (_req, res) => {
+defineRoute(router, opsRoute('GET /config', { tag: 'acompanhamento-custo', summary: 'Acompanhamento de custo: Consultar configuração', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireAuth, requireAcompanhamentoManager, asyncHandler(async (_req, res) => {
   res.json(await getAnnualCollaboratorCosts());
 }));
 
@@ -283,7 +285,7 @@ const configSchema = z.object({
   offshoreExamsTrainingAnnualCost: z.number().min(0).max(1000000).optional()
 });
 
-router.put('/config', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PUT /config', { tag: 'acompanhamento-custo', summary: 'Acompanhamento de custo: Salvar configuração', body: configSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
   const current = await getAnnualCollaboratorCosts();
   const values = configSchema.parse(req.body);
   const updated = await setAnnualCollaboratorCosts({ ...current, ...values }, req.auth?.user?.id ?? null);
@@ -293,7 +295,7 @@ router.put('/config', requireAuth, requireAcompanhamentoManager, asyncHandler(as
 
 // === Categorias Omie consideradas nos cálculos do acompanhamento ===
 
-router.get('/categorias-omie', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /categorias-omie', { tag: 'acompanhamento-custo', summary: 'Acompanhamento de custo: Listar categorias do Omie', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
   const isAdmin = req.auth?.user?.accountType === 'ADMIN';
   const [categories, purchaseStats] = await Promise.all([
     prisma.omieCategory.findMany({
@@ -324,7 +326,7 @@ router.get('/categorias-omie', requireAuth, requireAcompanhamentoManager, asyncH
 
 const omieCategorySchema = z.object({ includeInAcompanhamentoCosts: z.boolean() });
 
-router.put('/categorias-omie/:codigo', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PUT /categorias-omie/:codigo', { tag: 'acompanhamento-custo', summary: 'Acompanhamento de custo: Classificar categoria do Omie', body: omieCategorySchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
   const { includeInAcompanhamentoCosts } = omieCategorySchema.parse(req.body);
   const current = await prisma.omieCategory.findUnique({ where: { codigo: req.params.codigo } });
   if (!current || (current.adminOnly && req.auth?.user?.accountType !== 'ADMIN')) {
@@ -347,7 +349,7 @@ router.put('/categorias-omie/:codigo', requireAuth, requireAcompanhamentoManager
 
 const omieCategoryVisibilitySchema = z.object({ adminOnly: z.boolean() });
 
-router.patch('/categorias-omie/:codigo/visibilidade', requireAuth, requireHubAdmin, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PATCH /categorias-omie/:codigo/visibilidade', { tag: 'acompanhamento-custo', summary: 'Acompanhamento de custo: Mostrar ou ocultar categoria do Omie', body: omieCategoryVisibilitySchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireAuth, requireHubAdmin, asyncHandler(async (req, res) => {
   const { adminOnly } = omieCategoryVisibilitySchema.parse(req.body);
   const current = await prisma.omieCategory.findUnique({ where: { codigo: req.params.codigo } });
   if (!current) return res.status(404).json({ error: 'Categoria Omie não encontrada.' });

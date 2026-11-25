@@ -125,7 +125,9 @@ test('all administrative, quality and operational operations have unique IDs and
     const handler = handlers[operation.operationId];
     assert.ok(handler, `Handler não mapeado: ${operation.operationId}`);
     const [routeSource, method, path] = handler;
-    assert.ok(routeSource.includes(`router.${method}('${path}'`), `Rota real ausente para ${operation.operationId}`);
+    // Rota declarada direto no router ou pelo registro de contratos (spec 042).
+    const declared = routeSource.includes(`router.${method}('${path}'`) || routeSource.includes(`Route('${method.toUpperCase()} ${path}'`);
+    assert.ok(declared, `Rota real ausente para ${operation.operationId}`);
   }
 });
 
