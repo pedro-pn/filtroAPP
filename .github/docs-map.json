@@ -1,0 +1,46 @@
+{
+  "$comment": "Critério 13.8: código que muda o comportamento destes temas muda a documentação no mesmo PR. Sem mudança de documentação, a descrição do PR precisa da linha 'Documentação: não se aplica — <motivo>'. Conferido por scripts/check-docs-sync.mjs (workflow Docs in sync). `ignore`: arquivos do tema que não mudam o que está documentado (ex.: classificação de tabelas novas no catálogo de dados).",
+  "rules": [
+    {
+      "name": "API de integração v1",
+      "code": ["backend/src/routes/integrations/**", "backend/src/lib/api-credentials/**", "backend/src/middleware/api-token-auth.js", "backend/src/middleware/api-request-context.js"],
+      "ignore": ["backend/src/lib/api-credentials/data-catalog.js"],
+      "docs": ["docs/API_INTEGRACOES.md", "specs/015-api-token-playground/contracts/openapi.yaml"]
+    },
+    {
+      "name": "Ponte do ComercialAPP",
+      "code": ["backend/src/lib/acompanhamento/comercialapp-bridge.js"],
+      "docs": ["docs/comercialapp-bridge.md", "docs/COMERCIALAPP_EXTRA_ESCOPO.md"]
+    },
+    {
+      "name": "PrismaCRM (oportunidades e planejamento)",
+      "code": ["backend/src/lib/projects/crm-*.js", "backend/src/lib/projects/project-intake.js"],
+      "docs": ["docs/PRISMACRM_OPORTUNIDADES.md", "docs/API_INTEGRACOES.md", "docs/prisma-planning.schema.json"]
+    },
+    {
+      "name": "Conecta RH",
+      "code": ["backend/src/lib/conecta-rh/**"],
+      "docs": ["docs/INTEGRACAO_CONECTA_RH.md", "docs/INTEGRACAO_CONECTA_ALOCACOES.md", "docs/integracoes/conecta/**"]
+    },
+    {
+      "name": "LGPD (retenção, titulares, consentimento)",
+      "code": ["backend/src/lib/privacy/**", "backend/src/lib/data-retention.js", "backend/src/lib/data-subject-requests.js", "backend/src/lib/privacy-consent.js", "deploy/db/anonymize-staging.sql"],
+      "docs": ["LGPD_ROPA.md", "LGPD_COMPLIANCE.md", "LGPD_PROCEDIMENTO_TITULARES_INCIDENTES.md"]
+    },
+    {
+      "name": "Login, sessão e 2FA",
+      "code": ["backend/src/lib/accounts/session-cookie.js", "backend/src/lib/accounts/two-factor.js", "backend/src/lib/auth.js", "backend/src/middleware/auth.js"],
+      "docs": ["README.md", "deploy/PRODUCTION.md", "docs/RUNBOOK_INCIDENTES.md", "docs/seguranca/**"]
+    },
+    {
+      "name": "Deploy, backup e operação",
+      "code": ["deploy/**/*.sh", "deploy/**/*.sql", "deploy/nginx/**", "docker-compose.prod.yml", "docker-compose.staging.yml"],
+      "docs": ["deploy/PRODUCTION.md", "docs/OPERACOES.md", "docs/RUNBOOK_INCIDENTES.md", "deploy/*.md"]
+    },
+    {
+      "name": "Data Book",
+      "code": ["backend/src/lib/databook/**"],
+      "docs": ["docs/DATABOOK_*.md"]
+    }
+  ]
+}

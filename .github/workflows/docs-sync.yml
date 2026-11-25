@@ -1,0 +1,46 @@
+name: Docs in sync
+
+# Critério 13.8 da régua: código que muda o comportamento de um tema mapeado em
+# .github/docs-map.json muda a documentação no mesmo PR, ou a descrição do PR
+# explica por que não precisa ("Documentação: não se aplica — <motivo>").
+# Roda também quando a descrição é editada, para a dispensa valer sem novo push.
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - edited
+      - ready_for_review
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-sync-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  docs-sync:
+    name: Docs in sync
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Test the checker
+        run: node --test scripts/check-docs-sync.test.mjs
+
+      - name: Check documentation changed with the code
+        run: node scripts/check-docs-sync.mjs

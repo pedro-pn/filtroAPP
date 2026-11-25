@@ -1,0 +1,23 @@
+# Documentação muda no mesmo PR que muda o código
+
+- **Data:** 2026-11-25
+- **Decisão:** o check **Docs in sync** (`.github/workflows/docs-sync.yml`) confere cada PR para a `main`. Se o PR muda código de um tema mapeado em `.github/docs-map.json` sem mudar a documentação desse tema, o check falha. A exceção é a descrição do PR trazer a linha `Documentação: não se aplica — <motivo>`. O modelo de PR (`.github/pull_request_template.md`) já traz essa linha para preencher.
+- **Temas mapeados:**
+  - API de integração v1;
+  - ponte do ComercialAPP;
+  - PrismaCRM;
+  - Conecta RH;
+  - LGPD;
+  - login, sessão e 2FA;
+  - deploy, backup e operação;
+  - Data Book.
+- **Rotas e variáveis de ambiente:** já eram conferidas automaticamente. O `openapi.internal.json` é gerado do código e precisa estar atualizado; o `.env.example` precisa listar toda variável lida pelo `env.js`.
+- **Critério da régua:** 13.8 ("documentação muda no mesmo PR que muda o código; documentação desatualizada barra o PR").
+- **Calibração:** rodei o check nos 60 PRs mais recentes já mesclados. Ele teria barrado 3, todos mudanças de comportamento no Conecta RH (#600, #657) ou no Data Book (#639). Ou seja, casos em que a documentação ou a justificativa deveriam estar no PR. A classificação de tabelas novas no catálogo de dados (`api-credentials/data-catalog.js`) fica de fora, porque é mecânica e não muda o que o cliente da API vê.
+- **Riscos aceitos:**
+  - o check vê o arquivo, não o conteúdo: uma mudança de documentação irrelevante passa;
+  - a dispensa depende da honestidade do motivo, que o revisor (ou o agente que abre o PR) confere;
+  - temas fora do mapa não são cobrados.
+- **Como manter:** ao criar documentação para um tema novo, acrescente a regra em `.github/docs-map.json`. O teste do check reprova uma regra que aponte para arquivo inexistente.
+- **Obrigatório?** Começa informativo. Vira check obrigatório da `main` depois de alguns PRs sem falso positivo, com o OK do mantenedor.
+- **Quando revisar:** se o check barrar PRs sem motivo real, ou se surgir documentação gerada do código para outros temas.
