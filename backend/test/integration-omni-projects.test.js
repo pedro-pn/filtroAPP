@@ -345,7 +345,7 @@ for (const op of [projectOp, responsibleOp, statusOp]) test(`${op}: real route a
   const router = createOperationalRouter({ prismaClient: db, envConfig: { crmPlanningTenantId: 'custom-tenant', apiTokenGlobalMaxPageSize: 500, apiTokenHashKeys: { 1: cursorKey }, apiTokenActiveKeyVersion: 1 } });
   const route = router.stack.find(layer => layer.route?.path === resource.path).route;
   const req = { query: { limit: '1' }, requestId: 'synthetic-request', headers: {}, apiAuth: { credential, scopeCodes: ctx().scopes, projectIds: ctx().projectIds, projectCodes: ctx().projectCodes } };
-  const result = await new Promise((resolve, reject) => route.stack[0].handle(req, {}, () => route.stack[1].handle(req, { json: resolve }, reject)));
+  const result = await new Promise((resolve, reject) => route.stack[0].handle(req, {}, () => route.stack.at(-1).handle(req, { json: resolve }, reject)));
   assert.equal(result.items.length, 1);
   assert.equal(result.schemaVersion, '1.0');
   assert.equal(result.requestId, req.requestId);

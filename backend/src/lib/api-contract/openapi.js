@@ -89,7 +89,8 @@ export function buildInternalOpenApi(routes, { version = '0' } = {}) {
   const paths = {};
   for (const route of routes) {
     const contract = route.contract;
-    if (!contract) continue;
+    // Sem contrato, ou com contrato público próprio (API de integração v1).
+    if (!contract || contract.externalContract) continue;
     const pathKey = openApiPath(route.path);
     paths[pathKey] ||= {};
     const operation = {

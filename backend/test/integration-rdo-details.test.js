@@ -192,7 +192,7 @@ test('real HTTP route handler and administrative playground return the same enri
   const router = createOperationalRouter({ prismaClient: db, envConfig: { apiTokenGlobalMaxPageSize: 500, apiTokenHashKeys: { 1: ctx().cursorKey }, apiTokenActiveKeyVersion: 1 } });
   const route = router.stack.find(layer => layer.route?.path === '/rdo/servicos').route;
   const req = { query: { projectCode: '05776', reportType: 'RDO' }, requestId: 'rdo-details-request', headers: {}, apiAuth: { credential, scopeCodes: ctx().scopes, projectIds: new Set(), projectCodes: new Set() } };
-  const response = await new Promise((resolve, reject) => route.stack[0].handle(req, {}, () => route.stack[1].handle(req, { json: resolve }, reject)));
+  const response = await new Promise((resolve, reject) => route.stack[0].handle(req, {}, () => route.stack.at(-1).handle(req, { json: resolve }, reject)));
   assert.deepEqual(response.items, result.response.body.items);
   assert.equal(response.items[0].totalLengthMeters, '10');
 });

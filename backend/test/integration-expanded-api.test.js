@@ -331,7 +331,7 @@ test('download route streams bounded bytes, meters quota/audit, sends attachment
     await new Promise((resolve, reject) => {
       res.on('finish', resolve);
       res.on('error', reject);
-      route.stack[0].handle(req, res, () => route.stack[1].handle(req, res, reject));
+      route.stack[0].handle(req, res, () => route.stack.at(-1).handle(req, res, reject));
     });
     assert.equal(Buffer.concat(chunks).toString(), 'synthetic-pdf');
     assert.equal(headers['Content-Length'], '13');

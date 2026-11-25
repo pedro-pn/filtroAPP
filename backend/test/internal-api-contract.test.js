@@ -6,13 +6,13 @@ import test from 'node:test';
 import { z } from 'zod';
 
 import { collectApiRoutes, routeKey } from '../src/lib/api-contract/inventory.js';
-import { buildInternalOpenApi } from '../src/lib/api-contract/openapi.js';
+import { buildInternalOpenApi, openApiPath } from '../src/lib/api-contract/openapi.js';
 import { defineRoute, isWriteMethod } from '../src/lib/api-contract/registry.js';
 
 // Contrato da API interna (spec 042). As rotas reais do Express precisam estar
 // no registro (defineRoute) ou na lista de rotas ainda não migradas, que só
 // pode diminuir: ao migrar um domínio, remova as linhas dele e baixe o número.
-const UNMIGRATED_ROUTES_BASELINE = 64;
+const UNMIGRATED_ROUTES_BASELINE = 0;
 
 const allowlistFile = new URL('../src/lib/api-contract/unmigrated-routes.json', import.meta.url);
 const openApiFile = new URL('../../docs/api/openapi.internal.json', import.meta.url);
@@ -75,6 +75,31 @@ test('acompanhamento, assinaturas, pesquisas, cadastros, admin, privacy and oper
   for (const key of ['GET /api/admin/api-credentials', 'GET /api/admin/accounts', 'GET /api/operations/status', 'PUT /api/acompanhamento/comercial/projetos/:projectId/metas-semanais']) {
     assert.equal(authOf(key), 'session', `${key} exige sessão`);
   }
+});
+
+test('every v1 integration route points to its operation in the public contract (phase 5b)', async () => {
+  const { default: YAML } = await import('yaml');
+  const publicContract = YAML.parse(fs.readFileSync(new URL('../../specs/015-api-token-playground/contracts/openapi.yaml', import.meta.url), 'utf8'));
+  const publicOperations = new Map();
+  for (const [publicPath, item] of Object.entries(publicContract.paths)) {
+    for (const [method, operation] of Object.entries(item)) {
+      // O nome do parâmetro de caminho não muda a URL ({evidenceId} × :id).
+      if (operation?.operationId) publicOperations.set(operation.operationId, `${method} /api${publicPath.replace(/\{[^}]+\}/g, '{}')}`);
+    }
+  }
+  const integration = routes.filter(route => route.path.startsWith('/api/integracoes/v1/'));
+  assert.ok(integration.length >= 60, `esperava as rotas da integração v1 (achei ${integration.length})`);
+  for (const route of integration) {
+    const contract = route.contract;
+    assert.equal(contract?.auth, 'apiToken', `${routeKey(route)} usa token de integração`);
+    assert.ok(contract.scopes?.length, `${routeKey(route)} declara os escopos exigidos`);
+    const expected = publicOperations.get(contract.externalContract?.operationId);
+    assert.equal(expected, `${route.method} ${openApiPath(route.path).replace(/\{[^}]+\}/g, '{}')}`,
+      `${routeKey(route)} aponta para ${contract.externalContract?.operationId}, que no contrato público é ${expected}`);
+  }
+  const generated = JSON.parse(fs.readFileSync(new URL('../../docs/api/openapi.internal.json', import.meta.url), 'utf8'));
+  assert.deepEqual(Object.keys(generated.paths).filter(key => key.startsWith('/api/integracoes/v1/')), [],
+    'a integração v1 fica só no contrato público, sem duplicar no OpenAPI interno');
 });
 
 test('the PrismaCRM webhook is versioned and the old path is documented as deprecated (7.6)', () => {

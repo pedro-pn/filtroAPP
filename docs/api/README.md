@@ -5,8 +5,17 @@ frontend). Ele é **gerado** a partir do código (spec 042): cada rota migrada �
 `defineRoute` (`backend/src/lib/api-contract/registry.js`) e os schemas zod que validam a
 entrada são os mesmos que documentam. Não edite o arquivo à mão.
 
-A API pública de integração (v1) tem contrato próprio em
-`specs/015-api-token-playground/contracts/openapi.yaml`.
+A API pública de integração (v1, `/api/integracoes/v1`) tem contrato próprio em
+`specs/015-api-token-playground/contracts/openapi.yaml`. As rotas dela também passam por
+`defineRoute`, com `integrationRoute('MÉTODO caminho', operationId)` de
+`backend/src/lib/api-contract/domains/integracoes.js`: o contrato interno amarra a rota à
+operação do catálogo (`lib/api-credentials/catalog.js`, com escopos e rótulo) e aponta para a
+operação do contrato público (`externalContract`). Por isso a v1 não aparece em
+`openapi.internal.json`; o teste de contrato confere que cada rota v1 existe no YAML com o
+mesmo método e caminho.
+
+**Toda rota da API tem contrato** desde a fase 5b: a lista de rotas sem contrato está vazia e
+o teste reprova rota nova sem `defineRoute`.
 
 ## Comandos (no `backend/`)
 
@@ -73,6 +82,6 @@ Handlers novos usam `sendError(res, status, code, message, details)` de
 
 1. **auth** ✅ (22 rotas)
 2. **RDO e relatórios** ✅ (95 rotas, nos caminhos `/api/rdo/...` e na raiz; upload manual em multipart)
-3. Efetivo, workforce e conferência de alocação
-4. Equipamentos, EPI, estoque, qualidade, romaneio e logística
-5. Acompanhamento, operações, privacidade, admin, notificações, assinaturas e webhooks
+3. **Efetivo, workforce e conferência de alocação** ✅
+4. **Equipamentos, EPI, estoque, qualidade, romaneio e logística** ✅
+5. **Acompanhamento, assinaturas, pesquisas, cadastros, admin, privacidade, operação e notificações** ✅ (5a, 242 rotas) e **integração v1** ✅ (5b, 65 rotas, contrato público em specs/015)

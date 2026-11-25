@@ -267,7 +267,7 @@ test('download route sends bounded buffer, records bytes and exposes retry heade
   const res = new Writable({ write(chunk, _encoding, callback) { chunks.push(chunk); callback(); } });
   res.setHeader = (key, value) => { headers[key] = value; };
   await new Promise((resolve, reject) => { res.on('finish', resolve); res.on('error', reject);
-    route.stack[0].handle(req, res, () => route.stack[1].handle(req, res, reject)); });
+    route.stack[0].handle(req, res, () => route.stack.at(-1).handle(req, res, reject)); });
   assert.deepEqual(Buffer.concat(chunks), pdf);
   assert.equal(headers['Content-Length'], String(pdf.length)); assert.equal(headers['Cache-Control'], 'no-store');
   assert.equal(headers['X-Content-Type-Options'], 'nosniff'); assert.equal(headers['Content-Type'], 'application/pdf');
