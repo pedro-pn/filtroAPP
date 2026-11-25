@@ -238,13 +238,20 @@
 }
 
 .efetivo-page-v2 .efetivo-administration-ds .efetivo-admin-role {
-  grid-template-columns: minmax(150px, 1fr) minmax(110px, auto) minmax(110px, auto) minmax(160px, .6fr) auto;
+  grid-template-columns: minmax(150px, 1fr) minmax(110px, auto) minmax(110px, auto) minmax(160px, .6fr);
   align-items: end;
   gap: var(--space-3);
 }
 
 .efetivo-page-v2 .efetivo-administration-ds .efetivo-admin-role--email {
-  grid-template-columns: minmax(190px, 1fr) minmax(220px, 1fr) auto;
+  grid-template-columns: minmax(190px, 1fr) minmax(220px, 1fr);
+}
+
+.efetivo-page-v2 .efetivo-administration-ds .efetivo-admin-autosave-status {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-xs);
 }
 
 .efetivo-page-v2 .efetivo-administration-ds .efetivo-admin-role__name {
