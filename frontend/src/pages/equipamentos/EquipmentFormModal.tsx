@@ -241,7 +241,7 @@ export function EquipmentFormModal({ open, category, equipment, saving, isManage
               <div className="equip-toggle-block">
                 <div className="admin-toolbar">
                   <div>
-                    <div className="sec">Checklist</div>
+                    <div className="sec">Checklist de romaneio</div>
                     <div className="rel-meta">{hasChecklistOverride ? 'Lista própria do equipamento' : 'Herdado da categoria'}</div>
                   </div>
                   <Button
@@ -289,7 +289,7 @@ export function EquipmentFormModal({ open, category, equipment, saving, isManage
       <ConfirmDialog
         open={restoreChecklistConfirm}
         appearance="design-system"
-        title="Restaurar checklist"
+        title="Restaurar checklist de romaneio"
         description="A lista própria deste equipamento será substituída pelo padrão da categoria."
         confirmLabel="Restaurar"
         danger={false}

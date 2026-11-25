@@ -27,6 +27,7 @@ import { requestSourceContext } from './lib/operations/request-sources.js';
 import apiRouter from './routes/index.js';
 import { publicErrorCode } from './lib/http/public-error-code.js';
 import { requestIdMiddleware, standardErrorBodyMiddleware } from './lib/http/error-response.js';
+import { expensiveRouteLimit } from './lib/rate-limit.js';
 import {
   authorizeStoredFile,
   normalizeRelativeUploadPath,
@@ -191,16 +192,34 @@ app.get('/api/equipamentos-qr/:token', asyncHandler(async (req, res) => {
   return res.json(page);
 }));
 // Download de documento "exige login": só colaboradores (contas internas/admin), não clientes.
+function sendQrDocument(res, resolved) {
+  res.type(resolved.attachment.mimeType || 'application/pdf');
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Content-Disposition', inlineContentDisposition(resolved.fileName || equipmentAttachmentFileName(resolved.attachment)));
+  return resolved.bytes ? res.send(resolved.bytes) : res.sendFile(resolved.targetPath);
+}
+
+app.get('/api/equipamentos-qr/:token/documentos/:key/publico', ...expensiveRouteLimit('generation'), asyncHandler(async (req, res) => {
+  const resolved = await resolveQrDownload(prisma, req.params.token, req.params.key, { publicOnly: true });
+  if (!resolved) return res.status(404).json({ error: 'Documento não encontrado.' });
+  return sendQrDocument(res, resolved);
+}));
+
+// A planilha nunca tem download anônimo, mesmo quando o PDF é público.
+app.get('/api/equipamentos-qr/:token/documentos/checklist/planilha', requireAuth, ...expensiveRouteLimit('generation'), asyncHandler(async (req, res) => {
+  if (req.auth?.user?.accountType === 'CLIENT') return res.status(403).json({ error: 'Este documento é restrito a colaboradores.' });
+  const resolved = await resolveQrDownload(prisma, req.params.token, 'checklist', { spreadsheet: true });
+  if (!resolved) return res.status(404).json({ error: 'Documento não encontrado.' });
+  return sendQrDocument(res, resolved);
+}));
+
 app.get('/api/equipamentos-qr/:token/documentos/:key/arquivo', requireAuth, asyncHandler(async (req, res) => {
   if (req.auth?.user?.accountType === 'CLIENT') {
     return res.status(403).json({ error: 'Este documento é restrito a colaboradores.' });
   }
   const resolved = await resolveQrDownload(prisma, req.params.token, req.params.key);
   if (!resolved) return res.status(404).json({ error: 'Documento não encontrado.' });
-  res.type(resolved.attachment.mimeType || 'application/pdf');
-  res.setHeader('Cache-Control', 'no-store');
-  res.setHeader('Content-Disposition', inlineContentDisposition(equipmentAttachmentFileName(resolved.attachment)));
-  return res.sendFile(resolved.targetPath);
+  return sendQrDocument(res, resolved);
 }));
 app.get('/api/estoque-anexos/:token', asyncHandler(async (req, res) => {
   const resolved = await resolvePublicStockAttachment(req.params.token);

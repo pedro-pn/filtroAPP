@@ -6,6 +6,7 @@ import { Badge, Button } from '../../components/ui/ds';
 import { calibrationStatus, formatDate, statusLabel, statusTone } from './equipmentStatus';
 import { useEquipmentDocumentUpload, type EquipmentDocumentKind } from './useEquipmentDocumentUpload';
 import { EquipmentDocuments } from './EquipmentDocuments';
+import { FunctioningChecklist } from './FunctioningChecklist';
 
 interface Props {
   item: CompanyEquipment;
@@ -146,13 +147,14 @@ export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onO
           )}
         </div>
       )}
-      {(isManager || (category.technicalDocEnabled && onOpenTechnical) || (category.operationManualEnabled && onOpenManual) || (item.romaneioCatalogItemId && onOpenQr) || onOpenMaintenanceHistory) && (
+      {(
         <div className="report-card-actions">
           {onOpenMaintenanceHistory ? (
             <Button variant="secondary" size="sm" multiline className="equip-maintenance-action" onClick={onOpenMaintenanceHistory}>
               Manutenções
             </Button>
           ) : null}
+          <FunctioningChecklist item={item} category={category} isManager={isManager} />
           {category.technicalDocEnabled && onOpenTechnical && (
             <Button variant="secondary" size="sm" multiline className="equip-technical-action" onClick={onOpenTechnical} title={isManager ? 'Editar dados técnicos' : 'Ver dados técnicos'} data-equip-technical-button>
               {isManager ? 'Dados' : 'Ver dados'}

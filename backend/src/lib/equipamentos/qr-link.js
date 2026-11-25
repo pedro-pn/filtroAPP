@@ -10,6 +10,10 @@
 
 import { publicUrlForPath } from '../documents/storage.js';
 import { resolvePublicEquipmentAttachment, withCurrentAttachments } from '../equipment-attachments.js';
+import { functioningChecklistFileName, hasFunctioningChecklist, resolveFunctioningChecklist } from './functioning-checklist.js';
+import { buildFunctioningChecklistPdf } from './functioning-checklist-pdf.js';
+import { buildFunctioningChecklistXlsx, CHECKLIST_XLSX_MIME } from './functioning-checklist-xlsx.js';
+import { resolveMaintenanceAttachmentPath } from '../operational-reports/maintenance-attachments.js';
 
 export const QrAccess = { PUBLIC: 'PUBLIC', LOGIN: 'LOGIN', HIDDEN: 'HIDDEN' };
 const ACCESS_VALUES = new Set(Object.values(QrAccess));
@@ -24,20 +28,24 @@ export function qrPageUrl(token) {
   return publicUrlForPath(`/q/${encodeURIComponent(String(token || ''))}`);
 }
 
-// Guarda só o que foge do padrão (LOGIN/HIDDEN) e só chaves em formato conhecido.
+// Guarda só o que foge do padrão e só chaves em formato conhecido.
 export function normalizeQrAccess(value) {
   const out = {};
   if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
   for (const [key, mode] of Object.entries(value).slice(0, MAX_ACCESS_KEYS)) {
-    const validKey = ['manual', 'datasheet', 'certificate'].includes(key) || /^doc:[A-Za-z0-9_-]{1,64}$/.test(key);
-    if (validKey && ACCESS_VALUES.has(mode) && mode !== QrAccess.PUBLIC) out[key] = mode;
+    const validKey = ['manual', 'datasheet', 'certificate', 'checklist', 'maintenance'].includes(key) || /^doc:[A-Za-z0-9_-]{1,64}$/.test(key);
+    if (validKey && ACCESS_VALUES.has(mode) && mode !== defaultAccessOf(key)) out[key] = mode;
   }
   return out;
 }
 
 export function accessOf(accessMap, key) {
   const mode = accessMap?.[key];
-  return ACCESS_VALUES.has(mode) ? mode : QrAccess.PUBLIC;
+  return ACCESS_VALUES.has(mode) ? mode : defaultAccessOf(key);
+}
+
+function defaultAccessOf(key) {
+  return key.startsWith('doc:') ? QrAccess.HIDDEN : QrAccess.PUBLIC;
 }
 
 // Documentos vigentes do equipamento, na ordem em que aparecem na página.
@@ -62,7 +70,7 @@ export async function resolveQrTarget(client, token) {
   if (item.sourceType !== 'EQUIPAMENTOS' || !item.sourceId) return { item, equipment: null };
   const equipment = await client.companyEquipment.findUnique({
     where: { id: item.sourceId },
-    include: { attachments: true, category: { select: { name: true } } }
+    include: { attachments: true, category: true }
   });
   if (!equipment?.isActive) return null;
   return { item, equipment };
@@ -70,6 +78,33 @@ export async function resolveQrTarget(client, token) {
 
 export function downloadPathFor(token, key) {
   return `/api/equipamentos-qr/${encodeURIComponent(token)}/documentos/${encodeURIComponent(key)}/arquivo`;
+}
+
+function publicDownloadPathFor(token, key) {
+  return `/api/equipamentos-qr/${encodeURIComponent(token)}/documentos/${encodeURIComponent(key)}/publico`;
+}
+
+// Consulta o documento do último registro aprovado, sem copiar anexos nem incluir
+// fotos, notas internas ou manutenção ainda pendente de revisão.
+async function listQrDocuments(client, equipment, token) {
+  const docs = listEquipmentQrDocuments(equipment.attachments);
+  if (hasFunctioningChecklist(resolveFunctioningChecklist(equipment, equipment.category))) {
+    docs.push({ key: 'checklist', group: 'Checklist de funcionamento', label: 'Checklist de funcionamento', attachment: {
+      fileName: functioningChecklistFileName(equipment), mimeType: 'application/pdf',
+      createdAt: equipment.functioningChecklist ? equipment.updatedAt : equipment.category?.updatedAt,
+      publicUrl: publicDownloadPathFor(token, 'checklist')
+    } });
+  }
+  const maintenance = await client.maintenanceRecord.findFirst({
+    where: { equipmentId: equipment.id, status: 'APPROVED' },
+    orderBy: [{ maintenanceDate: 'desc' }, { approvedAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
+    select: { attachments: { where: { kind: 'DOCUMENT' }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 1 } }
+  });
+  const attachment = maintenance?.attachments?.[0];
+  if (attachment) docs.push({ key: 'maintenance', group: 'Última manutenção', label: 'Última manutenção realizada', attachment: {
+    ...attachment, publicUrl: publicDownloadPathFor(token, 'maintenance')
+  } });
+  return docs;
 }
 
 // Conteúdo da página pública (sem ids internos): documentos ocultos não aparecem; os que exigem login
@@ -80,7 +115,7 @@ export async function buildPublicQrPage(client, token) {
   const { item, equipment } = target;
   const accessMap = equipment?.qrDocumentAccess || {};
   const documents = equipment
-    ? listEquipmentQrDocuments(equipment.attachments)
+    ? (await listQrDocuments(client, equipment, item.publicToken))
       .map(doc => ({ doc, access: accessOf(accessMap, doc.key) }))
       .filter(({ access }) => access !== QrAccess.HIDDEN)
       .map(({ doc, access }) => ({
@@ -92,7 +127,9 @@ export async function buildPublicQrPage(client, token) {
         createdAt: doc.attachment.createdAt,
         requiresLogin: access === QrAccess.LOGIN,
         url: access === QrAccess.PUBLIC ? doc.attachment.publicUrl : null,
-        downloadPath: access === QrAccess.LOGIN ? downloadPathFor(item.publicToken, doc.key) : null
+        downloadPath: access === QrAccess.LOGIN ? downloadPathFor(item.publicToken, doc.key) : null,
+        spreadsheetDownloadPath: doc.key === 'checklist'
+          ? `/api/equipamentos-qr/${encodeURIComponent(item.publicToken)}/documentos/checklist/planilha` : null
       }))
     : [];
   return {
@@ -105,12 +142,25 @@ export async function buildPublicQrPage(client, token) {
 }
 
 // Download autenticado de um documento com acesso LOGIN (ou PUBLIC): devolve anexo e caminho no disco.
-export async function resolveQrDownload(client, token, key) {
+export async function resolveQrDownload(client, token, key, { publicOnly = false, spreadsheet = false } = {}) {
   const target = await resolveQrTarget(client, token);
   if (!target?.equipment) return null;
-  const doc = listEquipmentQrDocuments(target.equipment.attachments).find(entry => entry.key === key);
+  const access = accessOf(target.equipment.qrDocumentAccess, key);
+  if (access === QrAccess.HIDDEN || (publicOnly && access !== QrAccess.PUBLIC) || (publicOnly && spreadsheet)) return null;
+  const doc = (await listQrDocuments(client, target.equipment, token)).find(entry => entry.key === key);
   if (!doc) return null;
-  if (accessOf(target.equipment.qrDocumentAccess, key) === QrAccess.HIDDEN) return null;
+  if (spreadsheet && key !== 'checklist') return null;
+  if (key === 'checklist') {
+    const equipment = target.equipment;
+    const bytes = spreadsheet ? buildFunctioningChecklistXlsx(equipment, equipment.category) : await buildFunctioningChecklistPdf(equipment, equipment.category);
+    return { bytes, fileName: functioningChecklistFileName(equipment, spreadsheet ? 'xlsx' : 'pdf'), attachment: {
+      ...doc.attachment, mimeType: spreadsheet ? CHECKLIST_XLSX_MIME : 'application/pdf'
+    } };
+  }
+  if (key === 'maintenance') {
+    const targetPath = resolveMaintenanceAttachmentPath(doc.attachment);
+    return targetPath ? { attachment: doc.attachment, targetPath, fileName: doc.attachment.fileName } : null;
+  }
   return resolvePublicEquipmentAttachment(doc.attachment.publicToken);
 }
 
@@ -118,7 +168,7 @@ export async function resolveQrDownload(client, token, key) {
 export async function buildQrLinkSettings(client, equipmentId) {
   const equipment = await client.companyEquipment.findUnique({
     where: { id: equipmentId },
-    include: { attachments: true }
+    include: { attachments: true, category: true }
   });
   if (!equipment) return null;
   const item = await client.romaneioCatalogItem.findFirst({
@@ -127,7 +177,7 @@ export async function buildQrLinkSettings(client, equipmentId) {
   });
   return {
     qrUrl: item ? qrPageUrl(item.publicToken) : null,
-    documents: listEquipmentQrDocuments(equipment.attachments).map(doc => ({
+    documents: (await listQrDocuments(client, equipment, item?.publicToken || '')).map(doc => ({
       key: doc.key,
       group: doc.group,
       label: doc.label,

@@ -2712,6 +2712,7 @@ model EquipmentCategory {
   technicalStandardId     String?
   checklistEnabled        Boolean                                @default(false)
   checklistItems          Json                                   @default("[]") // pontos de checagem herdados pelos equipamentos da categoria
+  functioningChecklist    Json                                   @default("{\"format\":\"MONTHLY\",\"items\":[]}") // modelo impresso de funcionamento, independente do romaneio
   operationManualEnabled  Boolean                                @default(false) // liga o botão "Manual" (Manual de Operação) nos equipamentos da categoria
   operationSteps          Json                                   @default("[]") // Manual de Operação: passos-modelo herdados pelos equipamentos da categoria
   checklistDisplayMode    String                                 @default("AUTO") // AUTO | TAG | NAME para <<nomeoutag>>
@@ -2746,8 +2747,9 @@ model CompanyEquipment {
   technicalData              Json                  @default("{}") // valores do datasheet, keyed por technicalSchema.key
   technicalFieldOverrides    Json                  @default("{}") // inclusão/exclusão de campos optionalPerEquipment, keyed por key -> bool
   checklistItems             Json? // null = herda da categoria; array = override integral
+  functioningChecklist       Json? // null = herda da categoria; objeto = modelo próprio de funcionamento
   operationSteps             Json? // Manual de Operação: null = herda da categoria; array = passos próprios
-  qrDocumentAccess           Json                  @default("{}") // página do QR: acesso por documento (PUBLIC | LOGIN | HIDDEN), chave = manual|datasheet|certificate|doc:<id>
+  qrDocumentAccess           Json                  @default("{}") // página do QR: PUBLIC | LOGIN | HIDDEN; manual|datasheet|checklist|maintenance|certificate|doc:<id>. Arquivos são ocultos por padrão.
   operationRevision          Int                   @default(0)
   operationUpdatedAt         DateTime?
   technicalRevision          Int                   @default(0)

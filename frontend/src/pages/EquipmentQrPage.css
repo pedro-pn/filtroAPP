@@ -15,6 +15,7 @@
 .equipment-qr-doc__info strong { overflow-wrap: anywhere; }
 .equipment-qr-doc__info span, .equipment-qr-doc__note { color: var(--muted); font-size: var(--text-sm, 0.875rem); }
 .equipment-qr-doc > :last-child { flex: 0 0 auto; }
+.equipment-qr-doc__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .equipment-qr-empty {
   padding: var(--space-5, 1.25rem);
   border: 1px dashed var(--line-strong, var(--line));

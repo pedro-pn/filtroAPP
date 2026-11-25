@@ -131,16 +131,18 @@ test('modelo de passos da categoria guarda fotos; equipamento copia ao ter passo
   assert.equal((await publicGet('00000000-0000-4000-8000-000000000000')).status, 404);
   assert.equal((await publicGet('nao-e-token')).status, 404);
 
-  // Documento adicionado depois aparece no MESMO link.
+  // Arquivos anexados ficam ocultos por padrão; o gestor pode publicá-los.
   const doc = await createGeneratedEquipmentAttachment(prisma, { equipmentId: equipment.id, kind: 'DOCUMENT', fileName: 'procedimento.pdf', bytes: Buffer.from('%PDF-1.4 teste') });
   const key = `doc:${doc.id}`;
   const withDoc = (await (await publicGet(fresh.publicToken)).json()).documents;
-  assert.equal(withDoc.length, 1);
-  assert.equal(withDoc[0].requiresLogin, false);
-  assert.ok(withDoc[0].url, 'documento público traz URL de download');
+  assert.equal(withDoc.length, 0);
 
   // Exigir login: aparece, mas sem URL pública; baixar só com sessão de colaborador.
   const setAccess = mode => request(`/equipamentos/${equipment.id}/qr-access`, 'PUT', { access: { [key]: mode } });
+  assert.equal((await setAccess('PUBLIC')).status, 200);
+  const publishedDoc = (await (await publicGet(fresh.publicToken)).json()).documents[0];
+  assert.equal(publishedDoc.requiresLogin, false);
+  assert.ok(publishedDoc.url, 'documento explicitamente publicado traz URL');
   assert.equal((await request(`/equipamentos/${equipment.id}/qr-access`, 'PUT', { access: { [key]: 'LOGIN' } }, viewer)).status, 403);
   assert.equal((await setAccess('LOGIN')).status, 200);
   const locked = (await (await publicGet(fresh.publicToken)).json()).documents[0];

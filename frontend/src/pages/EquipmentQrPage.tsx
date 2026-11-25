@@ -32,12 +32,13 @@ export function EquipmentQrPage() {
   const isEmployee = isAuthenticated && user?.accountType !== 'CLIENT';
   const loginHref = `/login?next=${encodeURIComponent(`/q/${token}`)}`;
 
-  async function downloadRestricted(document: PublicQrDocument) {
-    if (!document.downloadPath) return;
-    setBusyKey(document.key);
+  async function downloadRestricted(document: PublicQrDocument, spreadsheet = false) {
+    const path = spreadsheet ? document.spreadsheetDownloadPath : document.downloadPath;
+    if (!path) return;
+    setBusyKey(`${document.key}${spreadsheet ? ':xlsx' : ''}`);
     setDownloadError('');
     try {
-      await downloadQrDocument(document.downloadPath, document.fileName);
+      await downloadQrDocument(path, spreadsheet ? document.fileName.replace(/\.pdf$/i, '.xlsx') : document.fileName);
     } catch {
       setDownloadError('Não foi possível baixar o documento. Entre novamente e tente de novo.');
     } finally {
@@ -62,7 +63,7 @@ export function EquipmentQrPage() {
       {groups.length === 0 ? (
         <div className="equipment-qr-empty" data-equipment-qr-empty>
           <strong>Nenhum documento disponível por enquanto.</strong>
-          <p>Este link continua válido: quando houver manual, dados técnicos, certificado ou arquivos para {page.isEquipment ? 'este equipamento' : 'este item'}, eles aparecerão aqui.</p>
+          <p>Este link continua válido: os documentos públicos de {page.isEquipment ? 'este equipamento' : 'este item'} aparecerão aqui quando estiverem disponíveis.</p>
         </div>
       ) : groups.map(group => (
         <section className="equipment-qr-group" key={group.title} aria-label={group.title}>
@@ -74,8 +75,9 @@ export function EquipmentQrPage() {
                   <strong>{document.fileName}</strong>
                   <span>Atualizado em {formatTimestampDate(document.createdAt)}{document.requiresLogin ? ' · requer login' : ''}</span>
                 </div>
+                <div className="equipment-qr-doc__actions">
                 {document.url ? (
-                  <a className="fv-button fv-button--primary fv-button--sm" href={document.url} download target="_blank" rel="noreferrer">Baixar</a>
+                  <a className="fv-button fv-button--primary fv-button--sm" href={document.url} download target="_blank" rel="noreferrer">Baixar PDF</a>
                 ) : isEmployee ? (
                   <Button size="sm" variant="primary" loading={busyKey === document.key} onClick={() => void downloadRestricted(document)}>Baixar</Button>
                 ) : isAuthenticated ? (
@@ -83,6 +85,8 @@ export function EquipmentQrPage() {
                 ) : (
                   <Link className="fv-button fv-button--secondary fv-button--sm" to={loginHref}>Entrar para baixar</Link>
                 )}
+                {isEmployee && document.spreadsheetDownloadPath && <Button size="sm" variant="secondary" loading={busyKey === `${document.key}:xlsx`} onClick={() => void downloadRestricted(document, true)}>Baixar XLSX</Button>}
+                </div>
               </li>
             ))}
           </ul>

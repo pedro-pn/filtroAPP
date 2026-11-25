@@ -7,6 +7,11 @@ import type {
 export type EquipmentFieldType =
   'text' | 'number' | 'date' | 'select' | 'textarea';
 export type ChecklistDisplayMode = 'AUTO' | 'TAG' | 'NAME';
+export interface FunctioningChecklistTemplate {
+  format: 'MONTHLY' | 'INSPECTION';
+  items: string[];
+  responsibleLabels?: string[];
+}
 
 export interface EquipmentFieldDefinition {
   key: string;
@@ -83,6 +88,7 @@ export interface EquipmentCategory {
   checklistEnabled: boolean;
   checklistDisplayMode: ChecklistDisplayMode;
   checklistItems: string[];
+  functioningChecklist?: FunctioningChecklistTemplate;
   /** Manual de Operação: passos-modelo herdados pelos equipamentos da categoria. */
   operationManualEnabled?: boolean;
   operationSteps?: OperationStoredStep[];
@@ -134,6 +140,7 @@ export interface CompanyEquipment {
   technicalData: Record<string, unknown>;
   technicalFieldOverrides: Record<string, boolean>;
   checklistItems?: string[] | null;
+  functioningChecklist?: FunctioningChecklistTemplate | null;
   /** Manual de Operação: null = herda o modelo da categoria; array = passos próprios. */
   operationSteps?: OperationStoredStep[] | null;
   operationPhotos?: EquipmentAttachment[];
@@ -189,6 +196,7 @@ export interface EquipmentCategoryPayload {
   checklistEnabled?: boolean;
   checklistDisplayMode?: ChecklistDisplayMode;
   checklistItems?: string[];
+  functioningChecklist?: FunctioningChecklistTemplate;
   operationManualEnabled?: boolean;
   operationSteps?: OperationStepPayload[];
   technicalDocEnabled?: boolean;
@@ -225,6 +233,14 @@ export interface EquipmentPayload {
 
 export async function listEquipmentDocuments(equipmentId: string) {
   return (await apiClient.get<EquipmentAttachment[]>(equipamentosApiPath(`/${equipmentId}/documents`))).data;
+}
+
+export async function saveFunctioningChecklist(id: string, template: FunctioningChecklistTemplate | null) {
+  return (await apiClient.put<CompanyEquipment>(equipamentosApiPath(`/${id}/functioning-checklist`), { template })).data;
+}
+
+export function functioningChecklistDownloadPath(id: string, format: 'pdf' | 'xlsx') {
+  return equipamentosApiPath(`/${id}/functioning-checklist/${format}`);
 }
 
 export async function uploadEquipmentDocument(equipmentId: string, upload: PdfUpload) {
