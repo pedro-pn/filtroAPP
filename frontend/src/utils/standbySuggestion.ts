@@ -4,6 +4,22 @@ export interface StandbyFields {
   standby: boolean;
   standbyDuration: string;
   standbyMotivo: string;
+  standbySuggestionReview?: StandbyReviewReceipt | null;
+}
+
+export interface StandbyReviewReceipt {
+  version: 1;
+  sourceKey: string;
+  standby: boolean;
+  totalMinutes: number;
+  deductedBreakMinutes: number;
+}
+
+export interface StandbyBreak {
+  id: 'day' | 'night';
+  label: string;
+  minutes: number;
+  maxOverlapMinutes: number;
 }
 
 export interface StandbyReportInput extends StandbyFields {
@@ -31,6 +47,7 @@ export interface StandbySuggestion {
   reason: string;
   evidence: StandbyEvidence[];
   warnings: string[];
+  breaks: StandbyBreak[];
 }
 
 type Interval = [number, number];
@@ -60,7 +77,7 @@ const numberPattern = `(?:\\d+(?:[.,]\\d+)?|${Object.keys(numbers).join('|')})`;
 const compactDurationPattern = new RegExp(`\\b(${numberPattern})h(\\d{1,2})(?:min(?:utos)?|m)?\\b`, 'g');
 const durationPattern = new RegExp(`\\b(?:(${numberPattern})\\s*(?:horas?|hrs?|h)\\b(?:\\s*(?:e\\s*)?(meia\\b|(${numberPattern})\\s*(?:minutos?|mins?|min|m)\\b))?|(${numberPattern})\\s*(?:minutos?|mins?|min)\\b|meia\\s+hora\\b)`, 'g');
 const clockPattern = '\\d{1,2}(?:\\s*[:h]\\s*\\d{2}(?::00)?\\s*h?|\\s*h(?:oras?)?)?';
-const intervalPattern = new RegExp(`(?<![\\d:.,/])(?:(das?|entre)\\s+)?(${clockPattern})\\s*(as|a|ate|e|-)\\s*(${clockPattern})(?![\\d:h/]|[.,]\\d)`, 'g');
+const intervalPattern = new RegExp(`(?<![\\d:.,/])(?:(das?|entre)(?:\\s+as)?\\s+)?(${clockPattern})\\s*(as|a|ate|e|-)\\s*(?:as\\s+)?(${clockPattern})(?![\\d:h/]|[.,]\\d)`, 'g');
 
 function numberValue(value: string) {
   return numbers[value] ?? Number(value.replace(',', '.'));
@@ -121,6 +138,67 @@ function durationsIn(text: string) {
 function workedMinutes(input: StandbyReportInput) {
   return calculateWorkedMinutes(input.arrivalTime, input.departureTime, input.lunchBreak)
     + (input.noturno ? calculateWorkedMinutes(input.noturnoStart, input.noturnoEnd, input.noturnoInterval) : 0);
+}
+
+function possibleBreaks(input: StandbyReportInput, intervals: Interval[]): StandbyBreak[] {
+  const shifts = [
+    { id: 'day' as const, label: 'Intervalo de almoço', duration: input.lunchBreak, start: input.arrivalTime, end: input.departureTime },
+    ...(input.noturno ? [{ id: 'night' as const, label: 'Intervalo noturno', duration: input.noturnoInterval, start: input.noturnoStart, end: input.noturnoEnd }] : [])
+  ];
+  return shifts.flatMap(shift => {
+    const minutes = parseDurationToMinutes(shift.duration);
+    if (!Number.isInteger(minutes) || minutes <= 0 || minutes >= 1440) return [];
+    const start = clockMinutes(shift.start);
+    const end = clockMinutes(shift.end);
+    const windows: Interval[] = start === null || end === null ? [[0, 1440]]
+      : end >= start ? [[start, end]] : [[start, 1440], [0, end]];
+    const overlaps: Interval[] = intervals.flatMap(([from, to]) => windows
+      .map(([shiftStart, shiftEnd]): Interval => [Math.max(from, shiftStart), Math.min(to, shiftEnd)])
+      .filter(([from, to]) => to > from));
+    const maxOverlapMinutes = Math.min(minutes, unionMinutes(overlaps));
+    return maxOverlapMinutes > 0 ? [{ id: shift.id, label: shift.label, minutes, maxOverlapMinutes }] : [];
+  });
+}
+
+function sourceFingerprint(value: string) {
+  let hash = 14695981039346656037n;
+  for (let index = 0; index < value.length; index++) {
+    hash = BigInt.asUintN(64, (hash ^ BigInt(value.charCodeAt(index))) * 1099511628211n);
+  }
+  return hash.toString(16).padStart(16, '0');
+}
+
+export function readStandbyReviewReceipt(value: unknown): StandbyReviewReceipt | null {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  if (record.version !== 1 || typeof record.sourceKey !== 'string' || !/^[0-9a-f]{16}$/.test(record.sourceKey)
+    || typeof record.standby !== 'boolean' || !Number.isInteger(record.totalMinutes)
+    || Number(record.totalMinutes) < 0 || Number(record.totalMinutes) >= 1440
+    || !Number.isInteger(record.deductedBreakMinutes) || Number(record.deductedBreakMinutes) < 0
+    || Number(record.deductedBreakMinutes) >= 1440 || record.standby !== (Number(record.totalMinutes) > 0)) return null;
+  return record as unknown as StandbyReviewReceipt;
+}
+
+/** Missing choices and impossible overlaps never produce an automatic net duration. */
+export function standbyMinutesAfterBreaks(suggestion: StandbySuggestion, deductions: Partial<Record<StandbyBreak['id'], number>>) {
+  if (suggestion.totalMinutes === null) return null;
+  let deducted = 0;
+  for (const option of suggestion.breaks) {
+    const value = deductions[option.id];
+    if (value === undefined || !Number.isInteger(value) || value < 0 || value > option.maxOverlapMinutes) return null;
+    deducted += value;
+  }
+  return deducted <= suggestion.totalMinutes ? suggestion.totalMinutes - deducted : null;
+}
+
+export function reviewedStandbyFields(suggestion: StandbySuggestion, duration: string, reason: string, deductedBreakMinutes: number): StandbyFields {
+  const totalMinutes = parseDurationToMinutes(duration);
+  return {
+    standby: totalMinutes > 0,
+    standbyDuration: totalMinutes > 0 ? duration : '',
+    standbyMotivo: totalMinutes > 0 ? reason.trim() : '',
+    standbySuggestionReview: { version: 1, sourceKey: suggestion.key, standby: totalMinutes > 0, totalMinutes, deductedBreakMinutes }
+  };
 }
 
 /** Local and deterministic: stored annotations are reanalysed independently for every editor. */
@@ -192,23 +270,33 @@ export function suggestStandby(input: StandbyReportInput): StandbySuggestion | n
     warnings.push('O total descrito diverge das pausas identificadas. Confira o tempo total antes de aplicar.');
     totalMinutes = null;
   }
-  if (totalMinutes !== null && (totalMinutes <= 0 || totalMinutes >= 1440 || (worked > 0 && totalMinutes > worked))) {
+  const breaks = totalMinutes !== null && intervals.length > 0 && durations.length === 0 && !counted.some(item => item.fullDay)
+    ? possibleBreaks(input, intervals) : [];
+  const possibleDeduction = breaks.reduce((sum, option) => sum + option.maxOverlapMinutes, 0);
+  if (totalMinutes !== null && (totalMinutes <= 0 || totalMinutes >= 1440 || (worked > 0 && totalMinutes - possibleDeduction > worked))) {
     warnings.push('O tempo identificado excede a jornada informada ou o limite do campo. Confira horários e duração.');
     totalMinutes = null;
   }
   if (totalMinutes === null && !warnings.length) warnings.push('Confira os tempos descritos e informe o total das pausas.');
 
+  const evidence = occurrences.map(({ source, text, minutes }) => ({ source, text, minutes }));
+  const key = sourceFingerprint(JSON.stringify([evidence, totalMinutes, breaks, clockMinutes(input.arrivalTime), clockMinutes(input.departureTime),
+    parseDurationToMinutes(input.lunchBreak), input.noturno,
+    ...(input.noturno ? [clockMinutes(input.noturnoStart), clockMinutes(input.noturnoEnd), parseDurationToMinutes(input.noturnoInterval)] : [])]));
   const registered = input.standby ? parseDurationToMinutes(input.standbyDuration) : 0;
+  const receipt = readStandbyReviewReceipt(input.standbySuggestionReview);
+  if (receipt?.sourceKey === key && receipt.standby === input.standby && receipt.totalMinutes === registered
+    && (!input.standby || input.standbyMotivo.trim())) return null;
   // A complete manual entry already covering the detected total takes precedence.
   if (registered > 0 && input.standbyMotivo.trim() && (totalMinutes === null || registered >= totalMinutes)) return null;
 
-  const evidence = occurrences.map(({ source, text, minutes }) => ({ source, text, minutes }));
   return {
-    key: JSON.stringify([evidence, totalMinutes]),
+    key,
     totalMinutes,
     duration: totalMinutes === null ? '' : formatReportMinutes(totalMinutes),
     reason: `Paralisações registradas: ${occurrences.map(item => item.text).join('; ')}.`,
     evidence,
-    warnings
+    warnings,
+    breaks: totalMinutes === null ? [] : breaks
   };
 }

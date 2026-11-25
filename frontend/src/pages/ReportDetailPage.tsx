@@ -84,6 +84,7 @@ import './ReportDetailPage.css';
 import { AdequarAnotacaoButton } from '../components/anotacoes/AdequarAnotacaoButton';
 import { ReportDateWarning } from '../components/reports/ReportDateWarning';
 import { reportDateDescribedBy } from '../utils/reportDateWarning';
+import { readStandbyReviewReceipt, type StandbyReviewReceipt } from '../utils/standbySuggestion';
 
 const serviceTypeModalOptions = [
   { type: 'limpeza', icon: DS_ICONS.serviceChemical, name: 'Limpeza química' },
@@ -117,6 +118,7 @@ interface RdoFormState {
   standby: boolean;
   standbyDuration: string;
   standbyMotivo: string;
+  standbySuggestionReview: StandbyReviewReceipt | null;
   noturno: boolean;
   noturnoStart: string;
   noturnoEnd: string;
@@ -305,6 +307,7 @@ function reportToForm(report: ReportSummary): RdoFormState {
     standby: Boolean(specialConditions.standby),
     standbyDuration: getString(standbyDetails.total),
     standbyMotivo: getString(standbyDetails.motivo),
+    standbySuggestionReview: readStandbyReviewReceipt(specialConditions.standbySuggestionReview),
     noturno: Boolean(specialConditions.noturno || noturnoDetails.enabled || nightCollaboratorIds.length),
     noturnoStart: getString(noturnoDetails.inicio),
     noturnoEnd: getString(noturnoDetails.termino),
@@ -402,6 +405,7 @@ function buildPayload(
           ...manualServiceData,
           workLocation: reportWorkLocation(resources.project || report.project, form.workLocation),
           standby: form.standby,
+          standbySuggestionReview: form.standbySuggestionReview,
           noturno: form.noturno,
           standbyDetails: {
             total: form.standbyDuration,

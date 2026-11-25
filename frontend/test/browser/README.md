@@ -5,7 +5,10 @@ Run `playwright-cli run-code --filename frontend/test/browser/rdo-standby-sugges
 from the repository root. All API requests are simulated. It covers live detection, cancelling,
 ignoring and rediscovering the suggestion in a pending review, editing the proposed duration
 and reason, applying during submission/approval, legacy service observations, unclear durations,
-and 390 px layout. Screenshots are saved under `output/playwright/standby-review-*.png`.
+and 390 px layout. It also covers "entre as 10h e 13h", full/partial/no meal overlap, the explicit
+5h total, zero standby when the period was only a meal, and preserving the accepted discount
+when the reviewer reopens the report. Screenshots are saved under
+`output/playwright/standby-review-*.png` and `output/playwright/standby-break-*.png`.
 Calculation and false-positive regressions are in `frontend/test/rdo-standby-suggestion.test.mjs`.
 
 For the app update notice, build the frontend and start `npm run preview -- --port 4187`.
