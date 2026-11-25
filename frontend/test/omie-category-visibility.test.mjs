@@ -14,6 +14,6 @@ test('lista Omie permite ao admin ocultar categorias das demais contas', () => {
   assert.match(panel, /setOmieCostCategoryAdminOnly/);
   assert.match(api, /categorias-omie\/\$\{encodeURIComponent\(codigo\)\}\/visibilidade/);
   assert.match(route, /where: isAdmin \? undefined : \{ adminOnly: false \}/);
-  assert.match(route, /categorias-omie\/:codigo\/visibilidade', requireAuth, requireHubAdmin/);
+  assert.match(route, /categorias-omie\/:codigo\/visibilidade',.*?\}\), requireAuth, requireHubAdmin/);
   assert.match(commercialRoute, /includeAdminOnlyCategories = req\.auth\?\.user\?\.accountType === 'ADMIN'/);
 });
