@@ -4,7 +4,15 @@ import env from '../../config/env.js';
 import { appVersion } from './app-version.js';
 import { runTrackedJob } from '../jobs/runner.js';
 import prisma from '../prisma.js';
-import { alertEmailRecipients, sendOperationalStatusEmail } from './alert-email.js';
+import { buildOperationalEmailTemplate } from '../email-templates.js';
+import {
+  alertEmailRecipients,
+  environmentDisplayName,
+  formatAlertDateTime,
+  panelUrl,
+  redactPersonalData,
+  sendOperationalStatusEmail
+} from './alert-email.js';
 import { getOperationalStatus } from './status.js';
 
 export const OPERATIONAL_ALERT_JOB_NAME = 'operational-alert-check';
@@ -12,6 +20,7 @@ const WEBHOOK_TIMEOUT_MS = 5000;
 
 function problemLine(problem) {
   const parts = [problem.message];
+  if (problem.job && JOB_LABELS[problem.job]) parts.push(`(${JOB_LABELS[problem.job]})`);
   if (problem.job) parts.push(`job=${problem.job}`);
   if (problem.integration) parts.push(`integration=${problem.integration}`);
   if (problem.scope) parts.push(`scope=${problem.scope}`);
@@ -90,7 +99,116 @@ function emailSubject(status, kind, config) {
   const environment = config.nodeEnv || 'unknown';
   if (kind === 'recovered') return `[filtroAPP ${environment}] Status operacional normalizado`;
   const count = status.problems?.length || 0;
-  return `[filtroAPP ${environment}] Alerta operacional: ${count} problema(s)`;
+  const first = status.problems?.[0];
+  const detail = count === 1 && first ? ` — ${problemTitle(first)}` : '';
+  return `[filtroAPP ${environment}] Alerta operacional: ${count} problema(s)${detail}`;
+}
+
+const JOB_LABELS = {
+  'assinaturas:finalization': 'Finalização de assinaturas avulsas',
+  'assinaturas:file-purge': 'Limpeza de arquivos de assinaturas avulsas',
+  'survey-reminders': 'Lembretes de pesquisa de satisfação',
+  'signature-reminders': 'Lembretes de assinatura de RDO',
+  'calibration-reminders': 'Lembretes de calibração',
+  'monthly-allocation-report': 'Relatório mensal de alocação',
+  'legacy-zapsign-reconciliation': 'Conciliação ZapSign',
+  'pontomais-sync': 'Sincronização Pontomais',
+  'omie-sync': 'Sincronização Omie',
+  'data-retention': 'Retenção de dados (LGPD)',
+  'report-approval-post-processing': 'Pós-processamento de aprovação de RDO',
+  'commercial-access-import': 'Recebimento do banco comercial'
+};
+
+const OMIE_SCOPE_LABELS = {
+  projects: 'Projetos',
+  categories: 'Categorias',
+  purchases: 'Compras (contas a pagar)',
+  invoices: 'Notas fiscais de serviço',
+  receivables: 'Contas a receber'
+};
+
+function jobLabel(job) {
+  return JOB_LABELS[job] || job;
+}
+
+function formatDuration(ms) {
+  const value = Number(ms);
+  if (!Number.isFinite(value) || value < 0) return '';
+  const minutes = Math.round(value / 60000);
+  if (minutes < 90) return `${minutes} min`;
+  const hours = Math.round(value / 3_600_000);
+  if (hours < 48) return `${hours} h`;
+  return `${Math.round(value / 86_400_000)} dias`;
+}
+
+function fileStatusRows(label, data) {
+  if (!data?.status) return [];
+  const rows = [[label, data.status]];
+  if (data.finishedAt) rows.push([`${label} — fim`, formatAlertDateTime(data.finishedAt)]);
+  if (data.message) rows.push([`${label} — detalhe`, redactPersonalData(String(data.message).slice(0, 200))]);
+  return rows;
+}
+
+function problemTitle(problem) {
+  if (problem.job) return jobLabel(problem.job);
+  if (problem.scope === 'abuse') return 'Uso fora do normal';
+  if (problem.scope === 'openai-budget') return 'Teto da OpenAI';
+  if (problem.scope === 'database-role') return 'Papel do banco de dados';
+  if (problem.backup) return 'Backup';
+  if (problem.restore) return 'Teste de restore';
+  if (problem.deploy) return 'Deploy';
+  return 'Problema operacional';
+}
+
+export function operationalProblemSection(problem) {
+  const rows = [];
+  if (problem.integration === 'OMIE' && problem.scope) {
+    rows.push(['Escopo', OMIE_SCOPE_LABELS[problem.scope] || problem.scope]);
+  }
+  if (problem.job) rows.push(['Identificador', problem.job]);
+  if (Number.isFinite(problem.ageMs)) {
+    rows.push(['Última execução', `há ${formatDuration(problem.ageMs)} (limite ${formatDuration(problem.maxAgeMs)})`]);
+  }
+  if (Number.isFinite(problem.runningForMs)) {
+    rows.push(['Rodando há', `${formatDuration(problem.runningForMs)} (limite ${formatDuration(problem.maxAgeMs)})`]);
+  }
+  if (problem.failed) rows.push(['Itens com falha', String(problem.failed)]);
+  if (problem.source && problem.scope !== 'abuse') rows.push(['Origem', problem.source]);
+  rows.push(...fileStatusRows('Backup', problem.backup));
+  rows.push(...fileStatusRows('Restore', problem.restore));
+  if (problem.deploy?.status) {
+    rows.push(['Deploy', problem.deploy.status]);
+    if (problem.deploy.shortSha) rows.push(['Versão tentada', problem.deploy.shortSha]);
+    if (problem.deploy.shortPreviousSha) rows.push(['Versão no ar', problem.deploy.shortPreviousSha]);
+    if (problem.deploy.finishedAt) rows.push(['Quando', formatAlertDateTime(problem.deploy.finishedAt)]);
+    if (problem.deploy.message) rows.push(['Motivo', redactPersonalData(String(problem.deploy.message).slice(0, 200))]);
+  }
+  if (problem.error) rows.push(['Mensagem', redactPersonalData(String(problem.error).split('\n')[0].slice(0, 300))]);
+  return { title: problemTitle(problem), description: problem.message, rows };
+}
+
+function emailHtmlTemplate(status, kind, config, { subject, text }) {
+  const problems = status.problems || [];
+  const recovered = kind === 'recovered';
+  return buildOperationalEmailTemplate({
+    subject,
+    text,
+    tone: recovered ? 'ok' : 'alert',
+    title: recovered ? 'Status operacional normalizado' : 'Alerta operacional',
+    intro: recovered
+      ? 'Os problemas do alerta anterior não aparecem mais no status operacional. Nenhuma ação é necessária.'
+      : `${problems.length} problema(s) encontrado(s) na verificação periódica do filtroAPP.`,
+    summaryRows: [
+      ['Verificado em', formatAlertDateTime(status.generatedAt)],
+      ['Ambiente', environmentDisplayName(config)],
+      ['Versão', String(appVersion()).slice(0, 12)]
+    ],
+    sections: problems.map(operationalProblemSection),
+    actionUrl: panelUrl(config),
+    footer: recovered
+      ? 'Aviso gerado automaticamente pelo filtroAPP.'
+      : `Enquanto o problema persistir, o aviso se repete a cada ${formatDuration(config.operationsAlertRepeatMs) || 'intervalo configurado'}. Ao normalizar, você recebe um e-mail de confirmação.`
+  });
 }
 
 function emailText(status, kind, config) {
@@ -142,7 +260,10 @@ export async function sendOperationalAlert(status, {
   const [webhook, email] = await Promise.all([
     postAlertWebhook(status, kind, { webhookUrl, fetchFn, logger }),
     recipients.length
-      ? emailSender({ subject: emailSubject(status, kind, config), text: emailText(status, kind, config) }, { recipients, logger })
+      ? emailSender(emailHtmlTemplate(status, kind, config, {
+        subject: emailSubject(status, kind, config),
+        text: emailText(status, kind, config)
+      }), { recipients, logger })
       : Promise.resolve({ sent: false, reason: 'not-configured' })
   ]);
   const sent = webhook.sent === true || email.sent === true;

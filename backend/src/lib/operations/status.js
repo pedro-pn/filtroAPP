@@ -22,6 +22,11 @@ const REPORT_APPROVAL_STATUSES = ['PENDING', 'RUNNING', 'FAILED', 'COMPLETED', '
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
+// Idade máxima aceitável da última execução, por job. Vale como piso sobre a
+// regra "3× o intervalo": jobs que só rodam numa janela do dia (lembretes de
+// calibração, 9h–10h em Brasília) checam de hora em hora, mas só gravam
+// execução uma vez por dia — sem o piso, viravam "sem execução recente" todo
+// dia ~3h depois da janela.
 const RECURRING_JOB_MAX_AGE_MS = {
   'assinaturas:finalization': 5 * 60_000,
   'assinaturas:file-purge': 5 * 60_000,
@@ -118,24 +123,30 @@ function latestRunAgeMs(run, now) {
 }
 
 function jobMaxAgeMs(job) {
+  const configuredMs = RECURRING_JOB_MAX_AGE_MS[job.name] || 0;
   const intervalMs = Number(job.latestRun?.metadata?.intervalMs || 0);
-  if (Number.isFinite(intervalMs) && intervalMs > 0) return Math.max(intervalMs * 3, 30 * 60 * 1000);
-  return RECURRING_JOB_MAX_AGE_MS[job.name] || 3 * HOUR_MS;
+  if (Number.isFinite(intervalMs) && intervalMs > 0) {
+    return Math.max(intervalMs * 3, 30 * 60 * 1000, configuredMs);
+  }
+  return configuredMs || 3 * HOUR_MS;
 }
 
+// Uma consulta por job (índice name+startedAt). Antes era uma única listagem
+// das últimas N execuções de todos os jobs: os de 15 em 15 min empurravam os
+// diários para fora da janela, o job "sumia" do status e o alerta aberto era
+// dado como normalizado sem nada ter mudado.
 async function latestRecurringJobRuns(prismaClient) {
-  const rows = await prismaClient.jobRun.findMany({
-    where: { name: { in: RECURRING_JOB_NAMES } },
-    orderBy: { startedAt: 'desc' },
-    take: RECURRING_JOB_NAMES.length * 10
-  });
-  const latestByName = new Map();
-  for (const row of rows) {
-    if (!latestByName.has(row.name)) latestByName.set(row.name, row);
-  }
-  return RECURRING_JOB_NAMES.map(name => ({
+  const latestRuns = await Promise.all(RECURRING_JOB_NAMES.map(async name => {
+    const rows = await prismaClient.jobRun.findMany({
+      where: { name },
+      orderBy: { startedAt: 'desc' },
+      take: 1
+    });
+    return (rows || []).find(row => row.name === name) || null;
+  }));
+  return RECURRING_JOB_NAMES.map((name, index) => ({
     name,
-    latestRun: publicJobRun(latestByName.get(name) || null)
+    latestRun: publicJobRun(latestRuns[index])
   }));
 }
 

@@ -1551,3 +1551,69 @@ export function buildProjectWorkflowClientRegistrationEmailTemplate({
     html: wrapEmailHtml({ title, intro, body, footer })
   };
 }
+
+// ---------------------------------------------------------------------------
+// Alertas operacionais (status, erros, abuso). Mesmo layout dos demais e-mails;
+// o conteúdo (rótulos, problemas) vem montado de lib/operations.
+const OPERATIONAL_TONES = {
+  alert: { label: 'Requer atenção', color: '#9a3412', background: '#fff7ed', border: '#fdba74', accent: '#ea580c' },
+  error: { label: 'Erro', color: '#991b1b', background: '#fef2f2', border: '#fca5a5', accent: '#dc2626' },
+  ok: { label: 'Normalizado', color: '#30503a', background: '#eef4ef', border: '#b7cfbe', accent: '#30503a' }
+};
+
+function operationalRowsHtml(rows) {
+  const safeRows = (rows || []).filter(row => row && row[1] !== undefined && row[1] !== null && row[1] !== '');
+  if (!safeRows.length) return '';
+  return `
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;font-size:13px;line-height:1.5">
+        ${safeRows.map(([label, value]) => `
+        <tr>
+          <td valign="top" style="padding:4px 12px 4px 0;color:#6b7280;white-space:nowrap;width:1%">${escapeHtml(label)}</td>
+          <td valign="top" style="padding:4px 0;color:#1a1a1a;word-break:break-word">${escapeHtml(value)}</td>
+        </tr>`).join('')}
+      </table>`;
+}
+
+function operationalSectionHtml(section, tone) {
+  const code = (section.code || []).length
+    ? `<pre style="margin:10px 0 0;padding:10px 12px;background:#f3f4f6;border-radius:8px;font-family:Consolas,Menlo,monospace;font-size:11px;line-height:1.5;color:#374151;white-space:pre-wrap;word-break:break-word">${escapeHtml(section.code.join('\n'))}</pre>`
+    : '';
+  const note = section.note
+    ? `<p style="margin:8px 0 0;font-size:12px;line-height:1.6;color:#6b7280">${escapeHtml(section.note)}</p>`
+    : '';
+  return `
+    <div style="border:1px solid #d7dfda;border-left:4px solid ${section.accent || tone.accent};border-radius:10px;padding:14px 16px;margin:0 0 12px;background:#ffffff">
+      ${section.title ? `<div style="font-size:14px;font-weight:700;color:#1a1a1a;margin:0 0 6px">${escapeHtml(section.title)}</div>` : ''}
+      ${section.description ? `<div style="font-size:13px;line-height:1.6;color:#374151;margin:0 0 6px">${escapeHtml(section.description)}</div>` : ''}
+      ${operationalRowsHtml(section.rows)}
+      ${note}
+      ${code}
+    </div>`;
+}
+
+export function buildOperationalEmailTemplate({
+  subject,
+  text,
+  tone = 'alert',
+  title,
+  intro,
+  summaryRows = [],
+  sections = [],
+  actionUrl,
+  actionLabel = 'Abrir painel de operações',
+  footer = 'Alerta operacional gerado automaticamente pelo filtroAPP.'
+}) {
+  const palette = OPERATIONAL_TONES[tone] || OPERATIONAL_TONES.alert;
+  const safeActionUrl = /^https?:\/\//i.test(String(actionUrl || '')) ? escapeHtml(actionUrl) : '';
+  const body = `
+    <p style="margin:0 0 16px"><span style="display:inline-block;padding:4px 10px;border-radius:999px;background:${palette.background};border:1px solid ${palette.border};color:${palette.color};font-size:12px;font-weight:700;letter-spacing:0.02em">${escapeHtml(palette.label)}</span></p>
+    ${summaryRows.length ? `<div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:12px 16px;margin:0 0 16px">${operationalRowsHtml(summaryRows)}</div>` : ''}
+    ${sections.map(section => operationalSectionHtml(section, palette)).join('')}
+    ${safeActionUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0"><a href="${safeActionUrl}" style="display:inline-block;background:#30503a;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:8px;font-weight:700">${escapeHtml(actionLabel)}</a></p>` : ''}
+  `;
+  return {
+    subject,
+    text,
+    html: wrapEmailHtml({ title: escapeHtml(title), intro: escapeHtml(intro), body, footer: escapeHtml(footer) })
+  };
+}
