@@ -382,14 +382,19 @@ test('etapa Serviços abre o seletor sozinha e confirma antes de seguir sem serv
   await page.getByRole('button', { name: 'Próximo', exact: true }).click();
   const prompt = page.getByRole('dialog', { name: 'Qual serviço foi executado hoje?' });
   await expect(prompt).toContainText('Escrever apenas em "Atividades do dia" não substitui o registro do serviço.');
+  // O modal transfere o foco no próximo frame; só então o Escape deve ser enviado.
+  await expect(prompt.getByRole('button', { name: 'Fechar', exact: true })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(prompt).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Próximo', exact: true }).click();
   const confirmation = page.getByRole('dialog', { name: 'Seguir sem registrar serviço?' });
   await confirmation.getByRole('button', { name: 'Adicionar serviço', exact: true }).click();
-  await expect(page.getByRole('dialog', { name: 'Tipo de serviço' })).toBeVisible();
+  const typePicker = page.getByRole('dialog', { name: 'Tipo de serviço' });
+  await expect(typePicker).toBeVisible();
+  await expect(typePicker.getByRole('button', { name: 'Fechar', exact: true })).toBeFocused();
   await page.keyboard.press('Escape');
+  await expect(typePicker).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Próximo', exact: true }).click();
   await confirmation.getByRole('button', { name: 'Seguir sem serviço', exact: true }).click();
