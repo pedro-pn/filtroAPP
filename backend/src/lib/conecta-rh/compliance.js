@@ -1,6 +1,7 @@
 import env from '../../config/env.js';
 import { planningError } from '../efetivo/planning/errors.js';
 import { complianceStatusAt } from './schema.js';
+import { RETRYABLE_HTTP_STATUS, withRetry } from '../http/outbound.js';
 
 const clinical = data => ['ASO', 'TOXICOLOGICO'].includes(data.typeCode.toUpperCase());
 const unavailable = () => planningError('Não foi possível consultar o comprovante no CONECTA. Tente novamente.', { statusCode: 502, code: 'RH_EVIDENCE_SOURCE_UNAVAILABLE' });
@@ -48,7 +49,7 @@ export async function getConectaComplianceBatch(database, { collaboratorIds, dat
 
 // Resolve um link novo a cada clique. O token e o caminho autenticado da origem
 // nunca integram o DTO de conformidade nem a URL de navegação da aplicação.
-export async function resolveConectaEvidence(database, { collaboratorId, itemId, revision }, { config = env, fetchImpl = fetch, now = new Date() } = {}) {
+export async function resolveConectaEvidence(database, { collaboratorId, itemId, revision }, { config = env, fetchImpl = fetch, now = new Date(), retry = {} } = {}) {
   const mapping = await database.conectaRhPerson.findFirst({ where: { collaboratorId, companyId: config.conectaRhCompanyId || '' } });
   const row = mapping && await database.conectaRhAggregate.findFirst({ where: {
     companyId: mapping.companyId, aggregateType: 'compliance', externalId: itemId, localId: collaboratorId, status: 'APPLIED'
@@ -67,7 +68,13 @@ export async function resolveConectaEvidence(database, { collaboratorId, itemId,
     const url = new URL(base.href.replace(/\/$/, '') + '/evidence/' + encodeURIComponent(evidence.id));
     url.searchParams.set('companyId', mapping.companyId);
     url.searchParams.set('version', evidence.version);
-    const response = await fetchImpl(url, { headers: { Authorization: `Bearer ${config.conectaRhReadToken}`, Accept: 'application/json' }, redirect: 'error', signal: AbortSignal.timeout(15_000) });
+    // Consulta sob demanda (o usuário espera): uma nova tentativa curta só em
+    // falha transitória (rede, prazo, 429/502/503/504).
+    const response = await withRetry(
+      () => fetchImpl(url, { headers: { Authorization: `Bearer ${config.conectaRhReadToken}`, Accept: 'application/json' }, redirect: 'error', signal: AbortSignal.timeout(15_000) }),
+      { attempts: 2, baseMs: 300, maxMs: 1000, retryOnResult: result => RETRYABLE_HTTP_STATUS.has(result?.status),
+        discardResult: result => result?.body?.cancel?.().catch(() => {}), ...retry }
+    );
     if ([404, 410].includes(response.status)) throw planningError('O comprovante não está mais disponível. Atualize a consulta do RH.', { statusCode: response.status, code: 'RH_EVIDENCE_UNAVAILABLE' });
     if (!response.ok) throw unavailable();
     const body = await response.json();

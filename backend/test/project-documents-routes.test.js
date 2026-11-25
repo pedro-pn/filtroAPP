@@ -10,15 +10,15 @@ import { allowedProjectDocumentTypes, serializeProjectDocument } from '../src/li
 test('rotas do catálogo exigem viewer e expõem toda a superfície validada', async () => {
   const source = await fs.readFile(new URL('../src/routes/efetivo-project-workflow.js', import.meta.url), 'utf8');
   for (const route of [
-    "get('/:projectId/documents'",
-    "post('/:projectId/documents'",
-    "patch('/:projectId/documents/:documentId'",
-    "post('/:projectId/documents/:documentId/versions'",
-    "get('/:projectId/documents/:documentId/versions/:versionId/file'",
-    "post('/:projectId/documents/:documentId/acceptance'",
-    "post('/:projectId/documents/:documentId/signature'",
-    "post('/:projectId/documents/:documentId/archive'",
-    "post('/:projectId/documents/:documentId/restore'"
+    "'GET /:projectId/documents'",
+    "'POST /:projectId/documents'",
+    "'PATCH /:projectId/documents/:documentId'",
+    "'POST /:projectId/documents/:documentId/versions'",
+    "'GET /:projectId/documents/:documentId/versions/:versionId/file'",
+    "'POST /:projectId/documents/:documentId/acceptance'",
+    "'POST /:projectId/documents/:documentId/signature'",
+    "'POST /:projectId/documents/:documentId/archive'",
+    "'POST /:projectId/documents/:documentId/restore'"
   ]) assert.ok(source.includes(route), route);
   assert.equal((source.match(/requireEfetivoViewer/g) || []).length >= 12, true);
   assert.equal(source.includes('upsertCrmProjectDocument'), false, 'o adaptador CRM não deve virar webhook público');

@@ -62,7 +62,8 @@ test('lista todos os projetos pendentes sem truncar após duzentos registros', a
 
 test('rota de pendentes precede a rota por id da missão', () => {
   const routes = fs.readFileSync(new URL('../src/routes/efetivo-planning.js', import.meta.url), 'utf8');
-  assert.ok(routes.indexOf("'/missions/pending'") < routes.indexOf("'/missions/:missionId'"));
+  const pending = routes.indexOf("'GET /missions/pending'");
+  assert.ok(pending >= 0 && pending < routes.indexOf("'GET /missions/:missionId'"));
 });
 
 test('contrato documenta a origem das missões pendentes', () => {

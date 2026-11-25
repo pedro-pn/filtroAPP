@@ -23,6 +23,8 @@ import {
   unconfirmReviewRows
 } from '../../lib/efetivo/allocation-review/service.js';
 import { requireAuth } from '../../middleware/auth.js';
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { efetivoRoute, jsonResponseSchema } from '../../lib/api-contract/domains/efetivo.js';
 
 // API da conferência semanal de alocação (feature 037, contracts/allocation-review-api.md).
 
@@ -87,31 +89,31 @@ export function createAllocationReviewRouter({ authenticate = requireAuth, servi
     });
   }
 
-  router.get('/pendencias/contagem', asyncHandler(async (req, res) => {
+  defineRoute(router, efetivoRoute('GET /pendencias/contagem', { summary: 'Quantidade de semanas com conferência pendente', tag: 'efetivo-conferencia', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), asyncHandler(async (req, res) => {
     res.json(await services.getReviewPendingCount({}));
   }));
 
-  router.get('/meses/:yearMonth', asyncHandler(async (req, res) => {
+  defineRoute(router, efetivoRoute('GET /meses/:yearMonth', { summary: 'Conferência de alocação do mês', tag: 'efetivo-conferencia', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }), asyncHandler(async (req, res) => {
     const parsed = yearMonthParamSchema.safeParse(req.params.yearMonth);
     if (!parsed.success) return invalid(res, parsed, 'INVALID_YEAR_MONTH');
     return res.json(await services.getReviewMonth({ yearMonth: parsed.data, user: req.auth?.user }));
   }));
 
-  router.get('/semanas/:weekStart', asyncHandler(async (req, res) => {
+  defineRoute(router, efetivoRoute('GET /semanas/:weekStart', { summary: 'Conferência de alocação da semana', tag: 'efetivo-conferencia', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }), asyncHandler(async (req, res) => {
     const weekStart = weekStartOf(req, res);
     if (!weekStart) return undefined;
     return res.json(await services.getReviewWeek({ weekStart, user: req.auth?.user }));
   }));
 
-  router.put('/semanas/:weekStart/dias', write(saveDaysBodySchema, ({ weekStart, body, expectedVersion, user }) => (
+  defineRoute(router, efetivoRoute('PUT /semanas/:weekStart/dias', { summary: 'Salvar dias conferidos da semana (exige If-Match-Version)', tag: 'efetivo-conferencia', body: saveDaysBodySchema, validatedBy: 'handler (write(): mesmo schema do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404, 409, 428] }), write(saveDaysBodySchema, ({ weekStart, body, expectedVersion, user }) => (
     services.saveReviewDays({ weekStart, items: body.items, expectedVersion, user })
   )));
 
-  router.delete('/semanas/:weekStart/dias', write(discardDaysBodySchema, ({ weekStart, body, expectedVersion, user }) => (
+  defineRoute(router, efetivoRoute('DELETE /semanas/:weekStart/dias', { summary: 'Descartar ajustes de dias da semana (exige If-Match-Version)', tag: 'efetivo-conferencia', body: discardDaysBodySchema, validatedBy: 'handler (write(): mesmo schema do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404, 409, 428] }), write(discardDaysBodySchema, ({ weekStart, body, expectedVersion, user }) => (
     services.discardReviewDays({ weekStart, items: body.items, expectedVersion, user })
   )));
 
-  router.post('/semanas/:weekStart/linhas/conferir', write(confirmRowsBodySchema, ({ weekStart, body, expectedVersion, user }) => (
+  defineRoute(router, efetivoRoute('POST /semanas/:weekStart/linhas/conferir', { summary: 'Conferir linhas de colaboradores da semana (exige If-Match-Version)', tag: 'efetivo-conferencia', body: confirmRowsBodySchema, validatedBy: 'handler (write(): mesmo schema do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404, 409, 428] }), write(confirmRowsBodySchema, ({ weekStart, body, expectedVersion, user }) => (
     services.confirmReviewRows({
       weekStart,
       collaboratorIds: body.collaboratorIds || null,
@@ -121,15 +123,15 @@ export function createAllocationReviewRouter({ authenticate = requireAuth, servi
     })
   )));
 
-  router.post('/semanas/:weekStart/linhas/desconferir', write(unconfirmRowsBodySchema, ({ weekStart, body, expectedVersion, user }) => (
+  defineRoute(router, efetivoRoute('POST /semanas/:weekStart/linhas/desconferir', { summary: 'Desfazer conferência de linhas da semana (exige If-Match-Version)', tag: 'efetivo-conferencia', body: unconfirmRowsBodySchema, validatedBy: 'handler (write(): mesmo schema do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404, 409, 428] }), write(unconfirmRowsBodySchema, ({ weekStart, body, expectedVersion, user }) => (
     services.unconfirmReviewRows({ weekStart, collaboratorIds: body.collaboratorIds, expectedVersion, user })
   )));
 
-  router.post('/semanas/:weekStart/fechar', write(reopenBodySchema.partial(), ({ weekStart, expectedVersion, user }) => (
+  defineRoute(router, efetivoRoute('POST /semanas/:weekStart/fechar', { summary: 'Fechar a conferência da semana (exige If-Match-Version)', tag: 'efetivo-conferencia', body: reopenBodySchema.partial(), validatedBy: 'handler (write(): mesmo schema do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404, 409, 428] }), write(reopenBodySchema.partial(), ({ weekStart, expectedVersion, user }) => (
     services.closeReviewWeek({ weekStart, expectedVersion, user })
   )));
 
-  router.post('/semanas/:weekStart/reabrir', write(reopenBodySchema, ({ weekStart, body, expectedVersion, user }) => (
+  defineRoute(router, efetivoRoute('POST /semanas/:weekStart/reabrir', { summary: 'Reabrir a conferência da semana (exige If-Match-Version)', tag: 'efetivo-conferencia', body: reopenBodySchema, validatedBy: 'handler (write(): mesmo schema do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404, 409, 428] }), write(reopenBodySchema, ({ weekStart, body, expectedVersion, user }) => (
     services.reopenReviewWeek({ weekStart, expectedVersion, note: body.note || null, user })
   )));
 

@@ -128,7 +128,7 @@ function isDatabaseUnavailableError(error) {
   return error?.name === 'PrismaClientInitializationError' || DATABASE_UNAVAILABLE_CODES.has(error?.code);
 }
 
-function reportJobFailure(error, { name, logger }) {
+export function reportJobFailure(error, { name, logger }) {
   // Com o banco fora, todos os jobs falham juntos: agrupa num único alerta.
   const databaseDown = isDatabaseUnavailableError(error);
   captureOperationalError(error, {

@@ -12,7 +12,7 @@ import { defineRoute, isWriteMethod } from '../src/lib/api-contract/registry.js'
 // Contrato da API interna (spec 042). As rotas reais do Express precisam estar
 // no registro (defineRoute) ou na lista de rotas ainda não migradas, que só
 // pode diminuir: ao migrar um domínio, remova as linhas dele e baixe o número.
-const UNMIGRATED_ROUTES_BASELINE = 571;
+const UNMIGRATED_ROUTES_BASELINE = 457;
 
 const allowlistFile = new URL('../src/lib/api-contract/unmigrated-routes.json', import.meta.url);
 const openApiFile = new URL('../../docs/api/openapi.internal.json', import.meta.url);
@@ -44,6 +44,13 @@ test('RDO and reports routes are fully migrated (phase 2)', () => {
   const rdoDomain = /^\/api(?:\/rdo)?\/(?:reports|operational-reports|bootstrap|drafts|uploads|databook|statistics)(?:\/|$)/;
   const domainRoutes = routes.filter(route => rdoDomain.test(route.path));
   assert.ok(domainRoutes.length >= 180, `esperava as rotas do RDO nos dois caminhos (achei ${domainRoutes.length})`);
+  assert.deepEqual(domainRoutes.filter(route => !route.contract).map(routeKey), []);
+});
+
+test('Efetivo and workforce routes are fully migrated (phase 3)', () => {
+  const efetivoDomain = /^\/api\/(?:efetivo|workforce|admin\/workforce-classification)(?:\/|$)/;
+  const domainRoutes = routes.filter(route => efetivoDomain.test(route.path));
+  assert.ok(domainRoutes.length >= 115, `esperava as rotas do Efetivo (achei ${domainRoutes.length})`);
   assert.deepEqual(domainRoutes.filter(route => !route.contract).map(routeKey), []);
 });
 

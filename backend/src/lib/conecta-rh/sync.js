@@ -1,26 +1,35 @@
 import { receiveConectaEvent } from './service.js';
 import { requireConectaCompany } from './schema.js';
+import { retryAfterMs, withRetry } from '../http/outbound.js';
 
 const resources = ['job-roles', 'employments', 'role-changes', 'compliance', 'job-role-salaries'];
 
 // Não registra URLs, tokens ou corpos da origem. O mesmo receptor atende push e recuperação.
-export async function syncConectaRh({ database, companyId, apiUrl, token, fetchImpl = fetch, production = true }) {
+export async function syncConectaRh({ database, companyId, apiUrl, token, fetchImpl = fetch, production = true, retry = {} }) {
   requireConectaCompany(companyId, companyId);
   const origin = new URL(apiUrl);
   if (origin.username || origin.password || origin.search || origin.hash || (production && origin.protocol !== 'https:')
     || !['https:', 'http:'].includes(origin.protocol)) throw new Error('CONECTA_RH_API_URL inválida.');
   if (!token) throw new Error('Configure a credencial de leitura do Conecta.');
   const base = origin.href.replace(/\/$/, '');
-  const request = async (path, query = {}, method = 'GET') => {
-    const url = new URL(base + path);
-    for (const [name, value] of Object.entries({ companyId, ...query })) if (value != null) url.searchParams.set(name, value);
+  const requestOnce = async (url, method) => {
     const response = await fetchImpl(url, { method, redirect: 'error', signal: AbortSignal.timeout(15_000), headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
     if (!response.ok) {
       const error = new Error('Não foi possível ler a integração de RH do Conecta.');
       error.statusCode = response.status;
+      const hint = retryAfterMs(response.headers?.get?.('retry-after'));
+      if (hint !== null) error.retryAfterMs = hint;
       throw error;
     }
     return response.json();
+  };
+  const request = async (path, query = {}, method = 'GET') => {
+    const url = new URL(base + path);
+    for (const [name, value] of Object.entries({ companyId, ...query })) if (value != null) url.searchParams.set(name, value);
+    // Leituras (snapshot paginado e feed) são idempotentes: falha transitória
+    // (rede, prazo, 429/502/503/504) ganha nova tentativa. A criação do snapshot
+    // (POST) não é repetida aqui; o próximo ciclo do job recomeça.
+    return method === 'GET' ? withRetry(() => requestOnce(url, method), retry) : requestOnce(url, method);
   };
   const apply = async items => {
     if (!Array.isArray(items)) throw new Error('Página de RH incompatível com o contrato.');

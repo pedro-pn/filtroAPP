@@ -25,6 +25,8 @@ import { requireAuth } from '../../middleware/auth.js';
 import efetivoPlanningRouter from '../efetivo-planning.js';
 import efetivoProjectWorkflowRouter from '../efetivo-project-workflow.js';
 import { createReviewParticipationRouter } from './efetivo-review-participation.js';
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { EMPTY, efetivoRoute, jsonResponseSchema } from '../../lib/api-contract/domains/efetivo.js';
 
 const router = Router();
 
@@ -70,16 +72,16 @@ router.use('/planning', efetivoPlanningRouter);
 router.use('/project-workflow', efetivoProjectWorkflowRouter);
 router.use('/administracao/conferencia/colaboradores', createReviewParticipationRouter());
 
-router.get('/status', requireEfetivoViewer, (_req, res) => {
+defineRoute(router, efetivoRoute('GET /status', { summary: 'Disponibilidade do módulo Efetivo', tag: 'efetivo', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireEfetivoViewer, (_req, res) => {
   res.json(efetivoStatus());
 });
 
-router.get('/produtividade', requireEfetivoViewer, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('GET /produtividade', { summary: 'Produtividade individual da equipe', tag: 'efetivo', query: productivityQuerySchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireEfetivoViewer, asyncHandler(async (req, res) => {
   const filters = productivityQuerySchema.parse(req.query);
   res.json(await getEfetivoProductivity(filters));
 }));
 
-router.get('/produtividade/:collaboratorId', requireEfetivoViewer, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('GET /produtividade/:collaboratorId', { summary: 'Produtividade de um colaborador', tag: 'efetivo', query: productivityQuerySchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireEfetivoViewer, asyncHandler(async (req, res) => {
   const filters = productivityQuerySchema.parse(req.query);
   const collaboratorId = collaboratorIdSchema.parse(req.params.collaboratorId);
   const detail = await getEfetivoCollaboratorProductivity(collaboratorId, filters);
@@ -87,37 +89,37 @@ router.get('/produtividade/:collaboratorId', requireEfetivoViewer, asyncHandler(
   res.json(detail);
 }));
 
-router.get('/parametros', requireEfetivoViewer, asyncHandler(async (_req, res) => {
+defineRoute(router, efetivoRoute('GET /parametros', { summary: 'Parâmetros de referência da produtividade', tag: 'efetivo', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireEfetivoViewer, asyncHandler(async (_req, res) => {
   res.json(await getEfetivoReferenceSetting());
 }));
 
-router.put('/parametros', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('PUT /parametros', { summary: 'Atualizar parâmetros de referência da produtividade', tag: 'efetivo', body: referenceSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   const payload = referenceSchema.parse(req.body);
   res.json(await setEfetivoReferenceSetting(payload.referenciaMensalHH, req.auth.user.id));
 }));
 
-router.get('/colaboradores', requireEfetivoManager, asyncHandler(async (_req, res) => {
+defineRoute(router, efetivoRoute('GET /colaboradores', { summary: 'Colaboradores do Efetivo', tag: 'efetivo', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireEfetivoManager, asyncHandler(async (_req, res) => {
   res.json(await listEfetivoCollaborators());
 }));
 
-router.get('/ausencias', requireEfetivoViewer, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('GET /ausencias', { summary: 'Ausências do Efetivo', tag: 'efetivo', query: absenceQuerySchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireEfetivoViewer, asyncHandler(async (req, res) => {
   const query = absenceQuerySchema.parse(req.query);
   res.json(await listEfetivoAbsences({ ano: query.ano, collaboratorId: query.colaborador }));
 }));
 
-router.post('/ausencias', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('POST /ausencias', { summary: 'Registrar ausência pelo Efetivo', tag: 'efetivo', body: absenceCreateSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   const payload = absenceCreateSchema.parse(req.body);
   res.status(201).json(await createWorkforceAbsence(prisma, payload, planningContext(req)));
 }));
 
-router.patch('/ausencias/:id', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('PATCH /ausencias/:id', { summary: 'Atualizar ausência pelo Efetivo', tag: 'efetivo', body: absenceUpdateSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404, 409] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   const id = collaboratorIdSchema.parse(req.params.id);
   const payload = absenceUpdateSchema.parse(req.body);
   const expectedVersion = z.coerce.number().int().min(1).parse(req.get('If-Match-Version'));
   res.json(await updateWorkforceAbsence(prisma, id, payload, { ...planningContext(req), expectedVersion }));
 }));
 
-router.delete('/ausencias/:id', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('DELETE /ausencias/:id', { summary: 'Excluir ausência pelo Efetivo', tag: 'efetivo', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 204: EMPTY }, errors: [400, 401, 403, 404, 409] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   const id = collaboratorIdSchema.parse(req.params.id);
   const expectedVersion = z.coerce.number().int().min(1).parse(req.get('If-Match-Version'));
   await deleteWorkforceAbsence(prisma, id, { ...planningContext(req), expectedVersion });

@@ -1,6 +1,7 @@
 import { projectAllowsChannel, projectChannelWhere } from './distribution.js';
 import { createHash } from 'node:crypto';
 import { commercialAppConnection, readLimitedCommercialResponse } from './commercialapp-client.js';
+import { RETRYABLE_HTTP_STATUS, withRetry } from '../http/outbound.js';
 export { commercialAppConnection, readLimitedCommercialResponse } from './commercialapp-client.js';
 import { queueCommercialReceipt, processCommercialReceipts } from './commercialapp-receipts.js';
 import { z } from 'zod';
@@ -38,9 +39,17 @@ export async function fetchCommercialProposal(project, state, options = {}) {
   const connection = commercialAppConnection(options);
   const transport = options.transport || fetch;
   const base = `${connection.origin}/api/integrations/filtroapp/propostas/${encodeURIComponent(state.proposalCode)}/revisoes/${state.revisionNumber}`;
-  const get = url => transport(url, {
+  // Leituras (pacote da proposta e PDFs) são idempotentes: falha transitória
+  // ganha nova tentativa no mesmo ciclo. Na última tentativa a resposta segue
+  // como veio e vira o mesmo código de erro de sempre (COMERCIALAPP_HTTP_<status>),
+  // e a espera exponencial por proposta (nextAttemptAt) continua valendo.
+  const get = url => withRetry(() => transport(url, {
     headers: { Authorization: `Bearer ${connection.token}`, 'X-Comercial-Contract': '3' },
     redirect: 'error', signal: AbortSignal.timeout(15_000)
+  }), {
+    ...options.retry,
+    retryOnResult: response => RETRYABLE_HTTP_STATUS.has(response?.status),
+    discardResult: response => response?.body?.cancel?.().catch(() => {})
   });
   const body = await readLimitedCommercialResponse(await get(base), MAX_JSON_BYTES);
   let bundle;
