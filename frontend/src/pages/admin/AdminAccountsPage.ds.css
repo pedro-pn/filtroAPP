@@ -200,10 +200,12 @@
   table-layout: fixed;
 }
 
-.admin-account-table .fv-data-table__table th:nth-child(1) { width: 26%; }
-.admin-account-table .fv-data-table__table th:nth-child(2) { width: 16%; }
-.admin-account-table .fv-data-table__table th:nth-child(3) { width: 32%; }
-.admin-account-table .fv-data-table__table th:nth-child(4) { width: 26%; }
+/* Conta · Perfil · 2 etapas · Acessos e vínculos · Ações — somam 100%. */
+.admin-account-table .fv-data-table__table th:nth-child(1) { width: 21%; }
+.admin-account-table .fv-data-table__table th:nth-child(2) { width: 13%; }
+.admin-account-table .fv-data-table__table th:nth-child(3) { width: 14%; }
+.admin-account-table .fv-data-table__table th:nth-child(4) { width: 28%; }
+.admin-account-table .fv-data-table__table th:nth-child(5) { width: 24%; }
 
 .admin-account-table .fv-data-table__table :where(td, th) {
   overflow-wrap: anywhere;
@@ -243,6 +245,8 @@
 }
 
 .admin-account-table .fv-data-table__actions {
+  display: flex;
+  width: 100%;
   min-width: 0;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -293,8 +297,9 @@
 }
 
 @media (min-width: 768px) and (max-width: 1023.98px) {
-  .admin-account-table .fv-data-table__table th:nth-child(3) { width: 28%; }
-  .admin-account-table .fv-data-table__table th:nth-child(4) { width: 30%; }
+  .admin-account-table .fv-data-table__table th:nth-child(3) { width: 16%; }
+  .admin-account-table .fv-data-table__table th:nth-child(4) { width: 22%; }
+  .admin-account-table .fv-data-table__table th:nth-child(5) { width: 28%; }
 }
 
 @media (max-width: 767.98px) {

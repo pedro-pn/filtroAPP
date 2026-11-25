@@ -56,6 +56,7 @@ async function useAccount(page: Page, accountType: 'ADMIN' | 'INTERNAL', theme: 
     if (path === '/api/auth/me') body = { user };
     else if (path === '/api/admin/accounts') body = accounts;
     else if (path === '/api/rdo/collaborators') body = [];
+    else if (path === '/api/notifications') body = { items: [], criticalItems: [], unreadCount: 0, snapshotAt: '2026-11-25T12:00:00Z', nextCursor: null };
     else if (path === '/api/admin/accounts/internal-1/impacto') body = {
       assinaturas: { toDelete: 1, toPreserve: 2, finalizing: 0 }
     };

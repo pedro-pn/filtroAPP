@@ -627,7 +627,7 @@ export function AdminAccountsPage() {
         <Badge tone={user.isActive ? 'success' : 'neutral'} dot>{user.isActive ? 'Ativo' : 'Inativo'}</Badge>
       </div>
     },
-    { key: 'twoFactor', header: '2 etapas', render: user => <Badge tone={user.twoFactor?.enabled ? 'success' : 'neutral'}>{twoFactorLabel(user)}</Badge> },
+    { key: 'twoFactor', header: '2 etapas', render: user => <Badge multiline tone={user.twoFactor?.enabled ? 'success' : 'neutral'}>{twoFactorLabel(user)}</Badge> },
     { key: 'access', header: 'Acessos e vínculos', render: accountAccess }
   ];
 
