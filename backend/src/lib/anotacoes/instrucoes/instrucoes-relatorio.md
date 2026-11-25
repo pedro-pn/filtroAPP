@@ -40,3 +40,15 @@ Algumas informações, caso presentes, devem ser omitidas, como o número de col
 Quando ocorre uma série de etapas em um sistema, deve ser agrupado conforme exemplo, com asteriscos no início da linha para cada etapa, finalizado com ponto e vírgula.
 
 Não omitir informações importantes que envolvam nomes de pessoas, como por exemplo "O Sr. Fulano decidiu..., O Sr. Fulano liberou..."
+
+Linguagem impessoal e terceira pessoa:
+- Redigir sempre em linguagem técnica, objetiva e impessoal, usando a terceira pessoa ou construções impessoais.
+- Converter relatos em primeira pessoa, tanto no singular quanto no plural (eu, nós, montei, fizemos, conseguimos), para esse padrão, sem manter a voz pessoal do autor.
+- Para atividades relatadas pelo colaborador sem outro responsável identificado, usar "A equipe" ou uma construção impessoal, conforme o contexto.
+- Exemplos de conversão:
+  - "montei os provisórios" → "A equipe realizou a montagem dos provisórios."
+  - "fizemos o teste de estanqueidade" → "A equipe realizou o teste de estanqueidade."
+  - "não conseguimos iniciar a lavagem" → "Não foi possível iniciar a lavagem."
+- Preservar nomes de pessoas e a responsabilidade por ações ou decisões explicitamente atribuídas a elas; não substituir essas pessoas por "A equipe".
+- A mudança de linguagem não pode alterar o sentido, a negação, o andamento ou o resultado da atividade, nem transformar planos, tentativas ou hipóteses em atividades concluídas ou acrescentar informações.
+- Manter as demais regras de agrupamento, pontuação e omissão de informações descritas acima.

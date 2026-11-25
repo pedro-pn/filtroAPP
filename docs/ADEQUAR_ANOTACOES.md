@@ -35,6 +35,10 @@ Ficam em `backend/src/lib/anotacoes/instrucoes/`:
 - `instrucoes-relatorio.md`: as instruções originais (fonte principal das regras).
 - `exemplos-relatorio.md`: anotações e versões aprovadas, enviadas como referência de estilo.
 
+As instruções incluem a regra explícita de linguagem impessoal e terceira pessoa, para relatos tanto no singular
+quanto no plural. Por exemplo, "montei os provisórios" passa a "A equipe realizou a montagem dos provisórios." A
+reescrita preserva os responsáveis citados, as negações e o andamento das atividades, sem acrescentar fatos.
+
 Para atualizar, edite os arquivos e faça o deploy. O backend relê o arquivo quando ele muda, sem alteração de código. O
 conteúdo nunca vai para o navegador. A chamada monta o parâmetro `instructions` nesta ordem: instruções originais,
 exemplos e um bloco curto de **regras do sistema** (`REGRAS_DO_SISTEMA` em `instrucoes.js`). Esse bloco trata a
@@ -43,7 +47,7 @@ números, tags e nomes. Ele não muda o estilo das instruções.
 
 ### Conflitos e ambiguidades encontrados nas instruções (decidir antes de ajustar)
 
-Os arquivos foram usados **sem alteração**. Pontos em que as instruções e os exemplos divergem:
+Na integração inicial, os arquivos foram usados **sem alteração**. Pontos em que as instruções e os exemplos divergem:
 
 1. **Negrito e título** (resolvido em 2026-10-13: negrito e título com data removidos dos exemplos). O exemplo 1 começa com `**Relatório de atividades – 06/10/2026**`, e os dois exemplos usam
    títulos em `**negrito**`. O exemplo das instruções não tem título nem negrito. O campo do RDO é texto simples, então
