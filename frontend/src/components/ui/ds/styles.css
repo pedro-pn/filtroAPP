@@ -67,10 +67,12 @@
   color: var(--on-brand);
 }
 
+/* Preserve the button foreground when foundation's a:hover also matches. */
 :where(.fv-ds, [data-fv-ds]) .fv-button--primary:hover:not(:disabled),
 :where(.fv-ds, [data-fv-ds]) .fv-button--primary:active:not(:disabled) {
   border-color: var(--brand-hover);
   background: var(--brand-hover);
+  color: var(--on-brand);
 }
 
 :where(.fv-ds, [data-fv-ds]) .fv-button--secondary {

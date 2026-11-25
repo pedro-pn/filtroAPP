@@ -480,8 +480,17 @@
   padding-top: var(--space-4, 1rem);
   border-top: 1px solid var(--line);
 }
-.equip-qr-access__link { display: flex; flex-wrap: wrap; gap: var(--space-2, 0.5rem); align-items: center; }
-.equip-qr-access__link input { flex: 1 1 220px; min-width: 0; }
+.equip-qr-access__link {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: var(--space-2);
+  align-items: center;
+}
+.equip-qr-access__url { min-width: 0; }
+@media (max-width: 640px) {
+  .equip-qr-access__link { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .equip-qr-access__url { grid-column: 1 / -1; }
+}
 .equip-qr-access__docs { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2, 0.5rem); }
 .equip-qr-access__docs li {
   display: flex;

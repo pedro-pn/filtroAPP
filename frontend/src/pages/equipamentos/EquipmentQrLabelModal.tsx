@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import { Link2 } from 'lucide-react';
 
 import { getQrLink, saveQrAccess, type CompanyEquipment, type EquipmentCategory, type QrAccessMode } from '../../api/equipamentos';
 import type { RomaneioCatalogItem } from '../../api/romaneio';
 import { useToast } from '../../components/ui/ToastContext';
-import { Button } from '../../components/ui/ds';
+import { Button, Input } from '../../components/ui/ds';
 import { RomaneioQrLabelModal } from '../romaneio/RomaneioQrLabelModal';
 // A prévia e a folha de etiquetas usam o estilo do módulo Romaneio.
 import '../romaneio/RomaneioPage.ds.css';
@@ -62,7 +63,9 @@ function QrAccessPanel({ equipment, isManager }: { equipment: CompanyEquipment; 
       <div className="sec">Página do QR code</div>
       <p className="rel-meta">O QR code abre esta página, sem login. Ela continua valendo se o equipamento ainda não tiver documentos: quando forem adicionados, aparecem no mesmo link.</p>
       <div className="equip-qr-access__link">
-        <input type="text" readOnly value={settings.qrUrl} aria-label="Link da página do QR code" onFocus={event => event.currentTarget.select()} />
+        <Input type="url" size="sm" readOnly value={settings.qrUrl} title={settings.qrUrl}
+          containerClassName="equip-qr-access__url" prefix={<Link2 size={16} />}
+          aria-label="Link da página do QR code" onFocus={event => event.currentTarget.select()} />
         <Button size="sm" variant="secondary" onClick={() => void copyLink()}>{copied ? 'Copiado' : 'Copiar link'}</Button>
         <a className="fv-button fv-button--secondary fv-button--sm" href={settings.qrUrl} target="_blank" rel="noreferrer">Abrir página</a>
       </div>

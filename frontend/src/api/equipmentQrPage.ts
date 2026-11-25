@@ -12,6 +12,8 @@ export interface PublicQrDocument {
   url: string | null;
   /** Caminho autenticado (documentos que exigem login). */
   downloadPath: string | null;
+  /** XLSX do checklist: download exclusivo para colaboradores autenticados. */
+  spreadsheetDownloadPath?: string | null;
 }
 
 export interface PublicQrPage {

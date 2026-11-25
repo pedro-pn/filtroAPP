@@ -25,8 +25,14 @@ import { requireAuth, requireEquipamentosAccess, requireEquipamentosManager } fr
 import { maintenanceConfigSchema, maintenanceProfileSchema, maintenanceRecordInclude } from '../../lib/operational-reports/domain.js';
 import { serializeMaintenanceAttachment } from '../../lib/operational-reports/maintenance-attachments.js';
 import { hasModuleRole } from '../../lib/module-roles.js';
-import { removeEquipmentDocument } from '../../lib/equipment-attachments.js';
+import { inlineContentDisposition, removeEquipmentDocument } from '../../lib/equipment-attachments.js';
 import { expensiveRouteLimit } from '../../lib/rate-limit.js';
+import { functioningChecklistSchema, functioningChecklistFileName } from '../../lib/equipamentos/functioning-checklist.js';
+import { buildFunctioningChecklistPdf } from '../../lib/equipamentos/functioning-checklist-pdf.js';
+import { buildFunctioningChecklistXlsx, CHECKLIST_XLSX_MIME } from '../../lib/equipamentos/functioning-checklist-xlsx.js';
+import { defineRoute } from '../../lib/api-contract/registry.js';
+
+const functioningChecklistPayloadSchema = z.object({ template: functioningChecklistSchema.nullable() });
 
 const router = Router();
 router.use(requireAuth);
@@ -88,6 +94,7 @@ const categorySchema = z.object({
   checklistEnabled: z.boolean().optional(),
   checklistDisplayMode: z.enum(['AUTO', 'TAG', 'NAME']).optional(),
   checklistItems: checklistItemsSchema.optional(),
+  functioningChecklist: functioningChecklistSchema.optional(),
   operationManualEnabled: z.boolean().optional(),
   operationSteps: equipmentOperationStepsSchema.optional(),
   supportsCalibration: z.boolean().optional(),
@@ -356,6 +363,7 @@ router.post(
       checklistEnabled: data.checklistEnabled ?? false,
       checklistDisplayMode: normalizeChecklistDisplayMode(data.checklistDisplayMode),
       checklistItems: normalizeChecklistItems(data.checklistItems),
+      ...(data.functioningChecklist !== undefined ? { functioningChecklist: data.functioningChecklist } : {}),
       operationManualEnabled: data.operationManualEnabled ?? false,
       operationSteps: [], // gravados abaixo, depois de existir a categoria (as fotos pertencem a ela)
       technicalDocEnabled: data.technicalDocEnabled ?? false,
@@ -409,6 +417,7 @@ router.put(
           }
         : {}),
       ...(data.checklistItems !== undefined ? { checklistItems: normalizeChecklistItems(data.checklistItems) } : {}),
+      ...(data.functioningChecklist !== undefined ? { functioningChecklist: data.functioningChecklist } : {}),
       ...(data.operationManualEnabled !== undefined ? { operationManualEnabled: data.operationManualEnabled } : {}),
       ...(data.technicalDocEnabled !== undefined ? { technicalDocEnabled: data.technicalDocEnabled } : {}),
       ...(data.supportsCalibration !== undefined ? { supportsCalibration: data.supportsCalibration } : {}),
@@ -1102,8 +1111,44 @@ router.post(
   })
 );
 
-// Link da página pública do QR code e acesso de cada documento (todos os usuários do módulo veem;
-// só o gestor altera).
+// Checklist impresso de funcionamento: modelo próprio ou herança da categoria.
+defineRoute(router, {
+  method: 'put', path: '/:id/functioning-checklist', auth: 'session', tags: ['Equipamentos'],
+  summary: 'Salvar modelo próprio de funcionamento ou restaurar a herança da categoria',
+  params: z.object({ id: z.string().min(1) }), body: functioningChecklistPayloadSchema,
+  responses: { 200: z.looseObject({ id: z.string(), functioningChecklist: functioningChecklistSchema.nullable() }) },
+  errors: [400, 401, 403, 404], validateInput: 'handler', validatedBy: 'functioningChecklistPayloadSchema'
+}, requireEquipamentosManager, asyncHandler(async (req, res) => {
+  const { template } = functioningChecklistPayloadSchema.parse(req.body);
+  const equipment = await prisma.companyEquipment.findUnique({ where: { id: req.params.id } });
+  if (!equipment?.isActive) return res.status(404).json({ error: 'Equipamento não encontrado.' });
+  await prisma.companyEquipment.update({
+    where: { id: equipment.id },
+    data: { functioningChecklist: template === null ? Prisma.DbNull : template }
+  });
+  invalidateCaches();
+  return res.json(await loadEquipmentWithAttachments(equipment.id));
+}));
+
+defineRoute(router, {
+  method: 'get', path: '/:id/functioning-checklist/:format', auth: 'session', tags: ['Equipamentos'],
+  summary: 'Baixar o modelo vigente de funcionamento para impressão (PDF ou XLSX)',
+  params: z.object({ id: z.string().min(1), format: z.enum(['pdf', 'xlsx']) }),
+  responses: { 200: null }, errors: [400, 401, 403, 404, 429]
+}, ...expensiveRouteLimit('generation'), asyncHandler(async (req, res) => {
+  const format = z.enum(['pdf', 'xlsx']).parse(req.params.format);
+  const equipment = await prisma.companyEquipment.findUnique({ where: { id: req.params.id }, include: { category: true } });
+  if (!equipment?.isActive) return res.status(404).json({ error: 'Equipamento não encontrado.' });
+  const bytes = format === 'xlsx'
+    ? buildFunctioningChecklistXlsx(equipment, equipment.category)
+    : await buildFunctioningChecklistPdf(equipment, equipment.category);
+  res.type(format === 'xlsx' ? CHECKLIST_XLSX_MIME : 'application/pdf');
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Content-Disposition', inlineContentDisposition(functioningChecklistFileName(equipment, format)));
+  return res.send(bytes);
+}));
+
+// Link da página pública e acesso de cada documento; só o gestor altera o acesso.
 router.get('/:id/qr-link', asyncHandler(async (req, res) => {
   const settings = await buildQrLinkSettings(prisma, req.params.id);
   if (!settings) return res.status(404).json({ error: 'Equipamento não encontrado.' });

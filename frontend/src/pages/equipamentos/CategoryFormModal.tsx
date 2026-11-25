@@ -12,6 +12,7 @@ import { Modal } from '../../components/ui/Modal';
 import { RemoveIconButton } from '../../components/ui/RemoveIconButton';
 import { Button } from '../../components/ui/ds';
 import { ChecklistItemsEditor } from './ChecklistItemsEditor';
+import { FunctioningChecklistEditor } from './FunctioningChecklistEditor';
 import { OperationStepsEditor } from './OperationStepsEditor';
 import { hasPhotoWithoutText, toDrafts, toPayload, type OperationStepDraft } from './operationSteps';
 
@@ -54,6 +55,7 @@ export function CategoryFormModal({ open, category, saving, technicalStandards, 
   const [checklistEnabled, setChecklistEnabled] = useState(Boolean(category?.checklistEnabled));
   const [checklistDisplayMode, setChecklistDisplayMode] = useState<ChecklistDisplayMode>(category?.checklistDisplayMode || 'AUTO');
   const [checklistItems, setChecklistItems] = useState<string[]>(category?.checklistItems?.length ? category.checklistItems : []);
+  const [functioningChecklist, setFunctioningChecklist] = useState(category?.functioningChecklist || { format: 'MONTHLY' as const, items: [] });
   const [operationManualEnabled, setOperationManualEnabled] = useState(Boolean(category?.operationManualEnabled));
   const [operationSteps, setOperationSteps] = useState<OperationStepDraft[]>(() => toDrafts(category?.operationSteps, category?.operationPhotos));
   const [fields, setFields] = useState<EquipmentFieldDefinition[]>(category?.fieldSchema?.length ? category.fieldSchema : []);
@@ -79,6 +81,7 @@ export function CategoryFormModal({ open, category, saving, technicalStandards, 
       checklistEnabled,
       checklistDisplayMode,
       checklistItems: checklistItems.map(item => item.trim()).filter(Boolean),
+      functioningChecklist: { ...functioningChecklist, items: functioningChecklist.items.map(item => item.trim()).filter(Boolean) },
       operationManualEnabled,
       operationSteps: toPayload(operationSteps),
       technicalDocEnabled,
@@ -147,13 +150,13 @@ export function CategoryFormModal({ open, category, saving, technicalStandards, 
           </label>
           <label className="equip-toggle">
             <input type="checkbox" checked={checklistEnabled} onChange={e => setChecklistEnabled(e.target.checked)} />
-            <span>Tem checklist</span>
+            <span>Checklist de romaneio</span>
           </label>
         </div>
 
         <div className="equip-fields-builder">
           <div className="admin-toolbar">
-            <div className="sec">Pontos do checklist</div>
+            <div className="sec">Pontos do checklist de romaneio</div>
           </div>
           <div className="field-group">
             <label htmlFor="cat-checklist-display">Identificação no checklist</label>
@@ -169,6 +172,12 @@ export function CategoryFormModal({ open, category, saving, technicalStandards, 
             </select>
           </div>
           <ChecklistItemsEditor appearance="design-system" value={checklistItems} onChange={setChecklistItems} disabled={!checklistEnabled} />
+        </div>
+
+        <div className="equip-fields-builder">
+          <div className="sec">Checklist de funcionamento — modelo da categoria</div>
+          <p className="form-hint">Documento para imprimir e preencher em campo. Todos os equipamentos herdam este modelo e podem ter uma versão própria.</p>
+          <FunctioningChecklistEditor value={functioningChecklist} onChange={setFunctioningChecklist} disabled={saving} />
         </div>
 
         <div className="equip-fields-builder">

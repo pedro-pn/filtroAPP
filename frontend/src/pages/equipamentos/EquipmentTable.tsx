@@ -8,6 +8,7 @@ import { Badge, Button } from '../../components/ui/ds';
 import { calibrationStatus, formatDate, statusLabel, statusTone } from './equipmentStatus';
 import { useEquipmentDocumentUpload, type EquipmentDocumentKind } from './useEquipmentDocumentUpload';
 import { EquipmentDocuments } from './EquipmentDocuments';
+import { FunctioningChecklist } from './FunctioningChecklist';
 
 export interface EquipmentTableActions {
   isManager: boolean;
@@ -108,6 +109,7 @@ function EquipmentRow({ category, item, showCategory, isManager, onEdit, onRemov
       </td>
       <td>
         <div className="equip-category-table__actions">
+          <FunctioningChecklist item={item} category={category} isManager={isManager} />
           <Button size="sm" multiline variant="secondary" onClick={() => onOpenMaintenanceHistory(item)}>Manutenções</Button>
           {category.technicalDocEnabled ? (
             <Button size="sm" multiline variant="secondary" onClick={() => onOpenTechnical(item)} title={isManager ? 'Editar dados técnicos' : 'Ver dados técnicos'} data-equip-technical-button>
