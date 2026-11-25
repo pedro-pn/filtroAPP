@@ -15,6 +15,7 @@ import { ProjectSortButton } from '../../utils/ProjectSortButton';
 import { reportDownloadFileName } from '../../utils/reportFileName';
 import { canRegenerateReport, reportRegenerationMessage } from '../../utils/reportRegeneration';
 import { SITE_RDO_DRAFT_FORM_PATH } from '../../utils/reportDraft';
+import { readStandbyReviewReceipt } from '../../utils/standbySuggestion';
 import { matchesSearch, reportSearchParts } from '../../utils/search';
 import { isReportManuallyReleased, toggleReportClientRelease } from '../../utils/reportClientRelease';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
@@ -593,6 +594,7 @@ export function GestorPage() {
       standby: asBoolean(payload.standby),
       standbyDuration: asString(payload.standbyDuration),
       standbyMotivo: asString(payload.standbyMotivo),
+      standbySuggestionReview: readStandbyReviewReceipt(payload.standbySuggestionReview),
       noturno: asBoolean(payload.noturno),
       noturnoStart: asString(payload.noturnoStart),
       noturnoEnd: asString(payload.noturnoEnd),

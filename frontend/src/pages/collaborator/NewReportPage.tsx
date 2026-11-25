@@ -200,6 +200,7 @@ function SiteRdoFormPage() {
     noturno,
     standbyDuration,
     standbyMotivo,
+    standbySuggestionReview,
     noturnoStart,
     noturnoEnd,
     noturnoInterval,
@@ -246,7 +247,7 @@ function SiteRdoFormPage() {
   const canReview = canReviewRdoReports(user);
   const effectiveServiceOnly = canCreateServiceOnly && serviceOnly;
   const standbyReview = useStandbySuggestion({
-    input: { dailyDescription, services, arrivalTime, departureTime, lunchBreak, noturno, noturnoStart, noturnoEnd, noturnoInterval, standby, standbyDuration, standbyMotivo },
+    input: { dailyDescription, services, arrivalTime, departureTime, lunchBreak, noturno, noturnoStart, noturnoEnd, noturnoInterval, standby, standbyDuration, standbyMotivo, standbySuggestionReview },
     scope: `new:${projectId}:${reportDate}`,
     enabled: !effectiveServiceOnly,
     disabled: isSubmitting,
@@ -826,6 +827,7 @@ function SiteRdoFormPage() {
       noturno,
       standbyDuration,
       standbyMotivo,
+      standbySuggestionReview,
       noturnoStart,
       noturnoEnd,
       noturnoInterval,
@@ -843,7 +845,7 @@ function SiteRdoFormPage() {
       generalUploads,
       services
     };
-  }, [projectId, effectiveServiceOnly, reportDate, effectiveWorkLocation, arrivalTime, departureTime, lunchBreak, collaboratorIds, nightCollaboratorIds, standby, noturno, standbyDuration, standbyMotivo, noturnoStart, noturnoEnd, noturnoInterval, ddsDay, ddsDayStart, ddsDayEnd, ddsDayThemes, ddsNight, ddsNightStart, ddsNightEnd, ddsNightThemes, overtimeReason, workforceJustification, dailyDescription, generalUploads, services]);
+  }, [projectId, effectiveServiceOnly, reportDate, effectiveWorkLocation, arrivalTime, departureTime, lunchBreak, collaboratorIds, nightCollaboratorIds, standby, noturno, standbyDuration, standbyMotivo, standbySuggestionReview, noturnoStart, noturnoEnd, noturnoInterval, ddsDay, ddsDayStart, ddsDayEnd, ddsDayThemes, ddsNight, ddsNightStart, ddsNightEnd, ddsNightThemes, overtimeReason, workforceJustification, dailyDescription, generalUploads, services]);
 
   const draftProjectDateKey = useCallback((draft: { projectId?: string | null; reportDate?: string | null; payload?: Record<string, unknown> }) => {
     const payload = draft.payload || {};
@@ -975,7 +977,7 @@ function SiteRdoFormPage() {
     }
     // Applying from the dialog and sending happen in the same event: use its values directly.
     const submissionStandby = typeof standbyDecision === 'object'
-      ? standbyDecision : { standby, standbyDuration, standbyMotivo };
+      ? standbyDecision : { standby, standbyDuration, standbyMotivo, standbySuggestionReview };
 
     if (effectiveServiceOnly && user.role === 'COORDINATOR') {
       const confirmed = await confirm({
@@ -1049,6 +1051,7 @@ function SiteRdoFormPage() {
           specialConditions: {
             workLocation: effectiveWorkLocation,
             standby: submissionStandby.standby,
+            standbySuggestionReview: submissionStandby.standbySuggestionReview,
             standbyDetails: {
               total: submissionStandby.standbyDuration,
               motivo: submissionStandby.standbyMotivo

@@ -16,6 +16,7 @@ import type { ReportDraft } from '../../types/domain';
 import { collectOngoingServices } from '../../utils/ongoingServices';
 import { RdoAppShell } from '../RdoAppShell';
 import { SITE_RDO_DRAFT_FORM_PATH } from '../../utils/reportDraft';
+import { readStandbyReviewReceipt } from '../../utils/standbySuggestion';
 
 const TEXT = {
   archived: 'Arquivados',
@@ -134,6 +135,7 @@ export function HomePage() {
       standby: asBoolean(payload.standby),
       standbyDuration: asString(payload.standbyDuration),
       standbyMotivo: asString(payload.standbyMotivo),
+      standbySuggestionReview: readStandbyReviewReceipt(payload.standbySuggestionReview),
       noturno: asBoolean(payload.noturno),
       noturnoStart: asString(payload.noturnoStart),
       noturnoEnd: asString(payload.noturnoEnd),

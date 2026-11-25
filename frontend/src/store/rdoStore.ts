@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { StandbyReviewReceipt } from '../utils/standbySuggestion';
 
 interface RdoServiceDraft {
   id: string;
@@ -28,6 +29,7 @@ export interface RdoStoreState {
   noturno: boolean;
   standbyDuration: string;
   standbyMotivo: string;
+  standbySuggestionReview: StandbyReviewReceipt | null;
   noturnoStart: string;
   noturnoEnd: string;
   noturnoInterval: string;
@@ -74,6 +76,7 @@ const initialState = {
   noturno: false,
   standbyDuration: '',
   standbyMotivo: '',
+  standbySuggestionReview: null,
   noturnoStart: '',
   noturnoEnd: '',
   noturnoInterval: '01:00:00',

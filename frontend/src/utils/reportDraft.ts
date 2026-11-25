@@ -1,4 +1,5 @@
 import type { ReportDraft } from '../types/domain';
+import { readStandbyReviewReceipt } from './standbySuggestion';
 
 export const SITE_RDO_DRAFT_FORM_PATH = '/relatorio/novo?tipo=obra';
 
@@ -66,6 +67,7 @@ export function reportDraftToRdoState(draft: ReportDraft) {
     standby: asBoolean(payload.standby),
     standbyDuration: asString(payload.standbyDuration),
     standbyMotivo: asString(payload.standbyMotivo),
+    standbySuggestionReview: readStandbyReviewReceipt(payload.standbySuggestionReview),
     noturno: asBoolean(payload.noturno),
     noturnoStart: asString(payload.noturnoStart),
     noturnoEnd: asString(payload.noturnoEnd),

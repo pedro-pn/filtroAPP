@@ -4,10 +4,13 @@ import { createServer } from 'vite';
 
 let server;
 let suggestStandby;
+let standbyMinutesAfterBreaks;
+let reviewedStandbyFields;
+let readStandbyReviewReceipt;
 before(async () => {
   server = await createServer({ configFile: false, root: new URL('..', import.meta.url).pathname,
     server: { middlewareMode: true, hmr: false }, optimizeDeps: { noDiscovery: true }, appType: 'custom' });
-  ({ suggestStandby } = await server.ssrLoadModule('/src/utils/standbySuggestion.ts'));
+  ({ suggestStandby, standbyMinutesAfterBreaks, reviewedStandbyFields, readStandbyReviewReceipt } = await server.ssrLoadModule('/src/utils/standbySuggestion.ts'));
 });
 after(async () => { await server?.close(); });
 
@@ -21,6 +24,10 @@ for (const [text, minutes] of [
   ['Equipe parada das 08:00 às 10:30 por falta de energia.', 150],
   ['Das 8h às 10h aguardando liberação da área.', 120],
   ['Aguardamos liberação entre 8 e 10.', 120],
+  ['A equipe ficou parada aguardando serviço entre as 10h e 13h atividade ocorreu normal depois', 180],
+  ['Equipe parada entre às 10h e às 13h.', 180],
+  ['Equipe parada entre 10h e 13h.', 180],
+  ['Equipe parada entre as 10:00 e as 13:00.', 180],
   ['Stand-by: 08h30 - 10h15, por chuva.', 105],
   ['Paralisação de 2 horas e 15 minutos por chuva.', 135],
   ['Aguardando material por 1h30.', 90],
@@ -160,4 +167,122 @@ test('dispensa local não afeta o revisor: o relatório original continua gerand
   const initial = suggestStandby(input);
   assert.equal(initial.key, suggestStandby({ ...input, standby: true, standbyDuration: '00:30' }).key);
   assert.notEqual(initial.key, suggestStandby({ ...input, dailyDescription: 'Parados por 3 horas.' }).key);
+});
+
+test('10h a 13h pede confirmação e desconta 1h de almoço somente após o aceite', () => {
+  const result = suggestStandby(report('A equipe ficou parada aguardando serviço entre as 10h e 13h atividade ocorreu normal depois'));
+  assert.equal(result.duration, '03:00');
+  assert.deepEqual(result.breaks, [{ id: 'day', label: 'Intervalo de almoço', minutes: 60, maxOverlapMinutes: 60 }]);
+  assert.equal(standbyMinutesAfterBreaks(result, {}), null);
+  assert.equal(standbyMinutesAfterBreaks(result, { day: 60 }), 120);
+  assert.equal(standbyMinutesAfterBreaks(result, { day: 0 }), 180);
+  assert.equal(standbyMinutesAfterBreaks(result, { day: 30 }), 150);
+});
+
+test('tempo total escrito não recebe desconto nem pergunta sobre almoço', () => {
+  for (const text of ['A equipe ficou aguardando por 5h.', 'Total de standby: 05:00.', 'Equipe parada por cinco horas.']) {
+    const result = suggestStandby(report(text));
+    assert.equal(result.totalMinutes, 300);
+    assert.deepEqual(result.breaks, []);
+    assert.equal(standbyMinutesAfterBreaks(result, {}), 300);
+  }
+});
+
+test('o mesmo intervalo é descontado apenas uma vez entre anotações e serviços sobrepostos', () => {
+  const result = suggestStandby(report('Parados das 10h às 13h.', { services: [
+    { data: { notes: 'Equipe parada das 11h às 14h.' } }
+  ] }));
+  assert.equal(result.totalMinutes, 240);
+  assert.equal(result.breaks.length, 1);
+  assert.equal(standbyMinutesAfterBreaks(result, { day: 60 }), 180);
+});
+
+test('dia inteiro já desconta os intervalos e não solicita novo desconto', () => {
+  const result = suggestStandby(report('Parados o dia inteiro.'));
+  assert.equal(result.totalMinutes, 600);
+  assert.deepEqual(result.breaks, []);
+});
+
+test('período da jornada inteira mantém o bruto para confirmar o desconto, sem aviso incorreto de excesso', () => {
+  const result = suggestStandby(report('Parados das 07h às 18h.'));
+  assert.equal(result.totalMinutes, 660);
+  assert.deepEqual(result.warnings, []);
+  assert.equal(standbyMinutesAfterBreaks(result, { day: 60 }), 600);
+});
+
+test('período menor que o almoço permite apenas a parte efetivamente sobreposta', () => {
+  const result = suggestStandby(report('Parados entre as 12h30 e 13h.'));
+  assert.equal(result.breaks[0].maxOverlapMinutes, 30);
+  assert.equal(standbyMinutesAfterBreaks(result, { day: 60 }), null);
+  assert.equal(standbyMinutesAfterBreaks(result, { day: 30 }), 0);
+  for (const value of [-1, 1.5, NaN, Infinity]) assert.equal(standbyMinutesAfterBreaks(result, { day: value }), null);
+});
+
+test('sem intervalo cadastrado não há pergunta ou desconto', () => {
+  const result = suggestStandby(report('Parados entre as 10h e 13h.', { lunchBreak: '00:00' }));
+  assert.deepEqual(result.breaks, []);
+  assert.equal(standbyMinutesAfterBreaks(result, {}), 180);
+});
+
+test('pausa noturna pergunta somente sobre o intervalo do turno noturno', () => {
+  const result = suggestStandby(report('Parados entre as 23h e 02h.', {
+    noturno: true, noturnoStart: '22:00', noturnoEnd: '06:00', noturnoInterval: '01:00'
+  }));
+  assert.deepEqual(result.breaks.map(option => option.id), ['night']);
+  assert.equal(standbyMinutesAfterBreaks(result, { night: 60 }), 120);
+});
+
+test('intervalos diurno e noturno exigem respostas independentes', () => {
+  const result = suggestStandby(report('Parados das 10h às 13h; parados das 23h às 02h.', {
+    noturno: true, noturnoStart: '22:00', noturnoEnd: '06:00', noturnoInterval: '00:30'
+  }));
+  assert.equal(result.breaks.length, 2);
+  assert.equal(standbyMinutesAfterBreaks(result, { day: 60 }), null);
+  assert.equal(standbyMinutesAfterBreaks(result, { day: 60, night: 30 }), 270);
+});
+
+test('aceite com desconto permanece válido ao reabrir; mudar a anotação ou a jornada exige nova revisão', () => {
+  const input = report('Parados entre as 10h e 13h.');
+  const result = suggestStandby(input);
+  const fields = reviewedStandbyFields(result, '02:00', 'Espera de liberação, descontada uma hora de almoço.', 60);
+  assert.equal(fields.standbySuggestionReview.deductedBreakMinutes, 60);
+  const saved = JSON.parse(JSON.stringify({ ...input, ...fields }));
+  assert.equal(suggestStandby(saved), null);
+  assert.equal(suggestStandby({ ...saved, arrivalTime: '07:00:00', departureTime: '18:00:00', lunchBreak: '01:00:00' }), null);
+  assert.ok(suggestStandby({ ...saved, dailyDescription: 'Parados entre as 10h e 14h.' }));
+  assert.ok(suggestStandby({ ...saved, lunchBreak: '00:30' }));
+  assert.ok(suggestStandby({ ...saved, standby: false, standbyDuration: '' }));
+});
+
+test('se o período era só intervalo, confirma sem standby e não reapresenta a mesma sugestão', () => {
+  const input = report('Equipe parada entre as 12h e 13h.');
+  const result = suggestStandby(input);
+  const fields = reviewedStandbyFields(result, '00:00', result.reason, 60);
+  assert.equal(fields.standby, false);
+  assert.equal(fields.standbyDuration, '');
+  assert.equal(fields.standbyMotivo, '');
+  assert.equal(suggestStandby({ ...input, ...fields }), null);
+});
+
+test('recibos antigos, incompletos ou inválidos não ocultam uma sugestão pendente', () => {
+  for (const value of [undefined, null, {}, { version: 1, sourceKey: 'invalid' },
+    { version: 1, sourceKey: 'a'.repeat(16), standby: false, totalMinutes: 60, deductedBreakMinutes: 0 }]) {
+    assert.equal(readStandbyReviewReceipt(value), null);
+    assert.ok(suggestStandby(report('Parados entre as 10h e 13h.', { standbySuggestionReview: value })));
+  }
+});
+
+test('o aceite do desconto sobrevive ao rascunho e não é herdado por um rascunho antigo', async () => {
+  const { reportDraftToRdoState } = await server.ssrLoadModule('/src/utils/reportDraft.ts');
+  const { useRdoStore } = await server.ssrLoadModule('/src/store/rdoStore.ts');
+  const input = report('Parados entre as 10h e 13h.');
+  const fields = reviewedStandbyFields(suggestStandby(input), '02:00', 'Aguardando liberação.', 60);
+  const draft = JSON.parse(JSON.stringify({ id: 'break-draft', payload: { ...input, ...fields } }));
+  useRdoStore.getState().reset();
+  useRdoStore.getState().hydrate(reportDraftToRdoState(draft));
+  assert.equal(suggestStandby(useRdoStore.getState()), null);
+  useRdoStore.getState().hydrate(reportDraftToRdoState({ ...draft, payload: { ...draft.payload, standbySuggestionReview: undefined, standby: false } }));
+  assert.equal(useRdoStore.getState().standbySuggestionReview, null);
+  assert.ok(suggestStandby(useRdoStore.getState()));
+  useRdoStore.getState().reset();
 });
