@@ -13,5 +13,5 @@
 - [ ] T011 Frontend: teste de `extractApiErrorMessage` com o formato novo; mostrar `requestId` em erro inesperado
 - [x] T012 7.5 `withRetry()` em `lib/http/outbound.js`; Conecta RH (sync/compliance) e leitura em lote do ComercialAPP; alerta após N ciclos (`CONECTA_RH_ALERT_AFTER_FAILURES`)
 - [x] T013 7.6 `/api/webhooks/v1/projects` + `Deprecation`/`Sunset` no caminho antigo + contador de uso no painel; política de versão em `docs/comercialapp-bridge.md` e `docs/API_INTEGRACOES.md`
-- [ ] T014 Coordenar com o ComercialAPP a troca para `/v1`; remover o caminho antigo após o prazo (D5) — responsável: operação
+- [ ] T014 Coordenar com o PrismaCRM a troca para `/v1`; remover o caminho antigo após o prazo (D5) — responsável: operação
 - [ ] T015 Docs: README (onde está o contrato), `docs/PADRAO_MODULO.md` (toda rota nova usa `defineRoute`), revisão de segurança (7.x)

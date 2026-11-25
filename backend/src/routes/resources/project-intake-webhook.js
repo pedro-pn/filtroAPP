@@ -54,7 +54,7 @@ export function requireProjectIntakeToken(req, res, next) {
 // Spec 042, 7.6: o caminho versionado é /api/webhooks/v1/projects. O antigo
 // /api/webhooks/projects segue aceito (mesmo handler e mesmo token), descontinuado:
 // responde com Deprecation (RFC 9745) e Link para a v1, e o uso é contado por dia
-// para confirmar quando o ComercialAPP parou de chamá-lo. Sunset (RFC 8594) só sai
+// para confirmar quando o PrismaCRM parou de chamá-lo. Sunset (RFC 8594) só sai
 // quando PROJECT_WEBHOOK_LEGACY_SUNSET estiver definido (D5: 60 dias após a migração).
 export const PROJECT_WEBHOOK_V1_PATH = '/api/webhooks/v1/projects';
 export const LEGACY_PROJECT_WEBHOOK_DEPRECATED_AT = new Date('2026-11-25T00:00:00Z');
@@ -94,8 +94,8 @@ export function createProjectIntakeWebhookRouter({ legacy = false, countUse = co
     method: 'post',
     path: '/',
     summary: legacy
-      ? 'Webhook de projetos do ComercialAPP (caminho antigo, descontinuado: use /api/webhooks/v1/projects)'
-      : 'Webhook de projetos do ComercialAPP (v1): cria ou atualiza o projeto a partir da proposta',
+      ? 'Webhook de projetos do PrismaCRM (caminho antigo, descontinuado: use /api/webhooks/v1/projects)'
+      : 'Webhook de projetos do PrismaCRM (v1): cria ou atualiza o projeto com os dados do negócio no CRM',
     auth: 'apiToken',
     tags: ['integracoes'],
     body: libValidatedBodySchema,

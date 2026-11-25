@@ -2,8 +2,8 @@ import { COUNTER_KINDS } from '../abuse/usage-counters.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-// Uso do caminho antigo do webhook do ComercialAPP (/api/webhooks/projects), para
-// decidir quando desligá-lo (spec 042, 7.6, D5: 60 dias depois que o ComercialAPP
+// Uso do caminho antigo do webhook do PrismaCRM (/api/webhooks/projects), para
+// decidir quando desligá-lo (spec 042, 7.6, D5: 60 dias depois que o PrismaCRM
 // passar a chamar /api/webhooks/v1/projects). Informativo: não vira problema nem alerta.
 export async function legacyProjectWebhookStatus(prismaClient, config, now = new Date()) {
   const sunset = config.projectWebhookLegacySunset instanceof Date ? config.projectWebhookLegacySunset.toISOString() : null;

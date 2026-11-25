@@ -17,7 +17,7 @@ export const COUNTER_KINDS = Object.freeze({
   OPENAI_TOKENS_DAY: 'openai.tokens.day',
   OPENAI_TOKENS_MONTH: 'openai.tokens.month',
   OPENAI_CALLS_DAY: 'openai.calls.day',
-  // Uso do caminho antigo do webhook do ComercialAPP (spec 042, 7.6), por dia.
+  // Uso do caminho antigo do webhook do PrismaCRM (spec 042, 7.6), por dia.
   LEGACY_PROJECT_WEBHOOK_DAY: 'webhook.legacy-projects.day'
 });
 

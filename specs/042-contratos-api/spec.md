@@ -43,7 +43,7 @@ fora da LGPD.
   (`commercial-proposal-sync.js`: `nextAttemptAt` de 1 a 60 min). O Conecta RH roda a cada 5 min
   (`lib/conecta-rh/job.js`); falha vira `JobRun` FAILED e alerta (#588), mas **não há nova
   tentativa dentro do ciclo** para falhas passageiras (502/503/504/timeout).
-- **Webhook do ComercialAPP (7.6)**: `POST /api/webhooks/projects` (token, rate limit, idempotência)
+- **Webhook do PrismaCRM (7.6)**: `POST /api/webhooks/projects` (token, rate limit, idempotência)
   **sem versão** no caminho; compatibilidade feita com campos opcionais
   (`docs/comercialapp-bridge.md`). O ComercialAPP é outro repositório.
 
@@ -101,7 +101,7 @@ tentativas e espera crescente com jitter; falha que persiste por N ciclos gera u
 
 ### US5 — Webhook versionado (Priority: P3) — 7.6
 
-O ComercialAPP chama `POST /api/webhooks/v1/projects`. O caminho antigo continua funcionando
+O PrismaCRM chama `POST /api/webhooks/v1/projects`. O caminho antigo continua funcionando
 durante a transição, respondendo com `Deprecation`/`Sunset` no cabeçalho, e é desligado com aviso.
 
 **Acceptance**:

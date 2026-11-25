@@ -287,7 +287,7 @@ const rawEnvSchema = z.object({
   COMERCIALAPP_ADDITIONAL_CONTRACT: z.enum(['', '3']).default(''),
   PROJECT_INTAKE_WEBHOOK_TOKEN: stringWithDefault(''),
   // Data de desligamento do caminho antigo do webhook (/api/webhooks/projects), enviada no
-  // cabeçalho Sunset. Vazio até o ComercialAPP migrar para /v1 (D5: +60 dias depois).
+  // cabeçalho Sunset. Vazio até o PrismaCRM migrar para /v1 (D5: +60 dias depois).
   PROJECT_WEBHOOK_LEGACY_SUNSET: z.preprocess(
     value => { const v = emptyToUndefined(value); return v === undefined ? undefined : String(v).trim(); },
     z.string().refine(v => !Number.isNaN(Date.parse(v)), {

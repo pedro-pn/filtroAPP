@@ -293,7 +293,7 @@ precisam de uma rotina específica de atualização para receber o novo campo.
 
 ## Webhook de projetos: versão e migração
 
-O ComercialAPP cria e atualiza projetos no FiltroAPP pelo webhook de projetos
+O **PrismaCRM** (não o ComercialAPP) cria e atualiza projetos no FiltroAPP pelo webhook de projetos — ver "Origem dos dados do projeto e da proposta" acima; o ComercialAPP usa só `/api/acompanhamento/comercial/comercialapp/*`
 (spec 042, critério 7.6). A partir de 2026-11-25 o caminho é versionado:
 
 | Caminho | Situação |
@@ -308,18 +308,18 @@ dados divergentes, `401` para token ausente ou inválido, `503` se o token não 
 configurado, `429` acima de 60 envios por minuto. Documentado em
 `docs/api/openapi.internal.json` (operação marcada `deprecated` no caminho antigo).
 
-### O que muda no ComercialAPP
+### O que muda no PrismaCRM
 
-1. Trocar a URL do envio para `https://<filtroapp>/api/webhooks/v1/projects`. Nada mais
+1. Na configuração do webhook/automação de projetos do PrismaCRM, trocar a URL para `https://<filtroapp>/api/webhooks/v1/projects`. Nada mais
    muda: mesmo token, mesmo corpo, mesmas respostas.
 2. Publicar essa troca e confirmar um envio com sucesso.
 
 ### Desligamento do caminho antigo (D5)
 
 - O uso do caminho antigo é contado por dia (`UsageCounter`, tipo
-  `webhook.legacy-projects.day`) e aparece em **Operações › Webhook do ComercialAPP**
+  `webhook.legacy-projects.day`) e aparece em **Operações › Webhook do PrismaCRM**
   (chamadas nos últimos 30 dias e último uso).
-- Depois que o ComercialAPP publicar a troca e o painel mostrar **sem uso**, defina no
+- Depois que a URL for trocada no PrismaCRM e o painel mostrar **sem uso**, defina no
   `backend/.env.production` `PROJECT_WEBHOOK_LEGACY_SUNSET=<data 60 dias adiante>` e recrie
   backend e worker: o caminho antigo passa a anunciar a data no cabeçalho `Sunset`.
 - Na data, remover a montagem `router.use('/webhooks/projects', …)` em

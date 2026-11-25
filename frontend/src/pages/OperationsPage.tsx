@@ -244,14 +244,14 @@ function FileStatusCard({
   );
 }
 
-// Caminho antigo do webhook do ComercialAPP: mostra se ainda é chamado, para
+// Caminho antigo do webhook do PrismaCRM: mostra se ainda é chamado, para
 // confirmar a migração para /v1 antes de desligá-lo (spec 042, D5).
 function LegacyProjectWebhookCard({ item }: { item?: OperationalLegacyWebhookStatus }) {
   const webhook = item || { status: 'UNAVAILABLE' };
   return (
     <Card
       className="ops-page__panel"
-      title={<PanelTitle title="Webhook do ComercialAPP" icon={Link2} />}
+      title={<PanelTitle title="Webhook do PrismaCRM" icon={Link2} />}
       actions={<OperationalStatusPill status={webhook.status} />}
     >
       <DetailRows

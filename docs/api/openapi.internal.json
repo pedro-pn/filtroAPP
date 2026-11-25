@@ -50410,7 +50410,7 @@
     "/api/webhooks/projects": {
       "post": {
         "operationId": "postApiWebhooksProjects",
-        "summary": "Webhook de projetos do ComercialAPP (caminho antigo, descontinuado: use /api/webhooks/v1/projects)",
+        "summary": "Webhook de projetos do PrismaCRM (caminho antigo, descontinuado: use /api/webhooks/v1/projects)",
         "tags": [
           "integracoes"
         ],
@@ -50512,7 +50512,7 @@
     "/api/webhooks/v1/projects": {
       "post": {
         "operationId": "postApiWebhooksV1Projects",
-        "summary": "Webhook de projetos do ComercialAPP (v1): cria ou atualiza o projeto a partir da proposta",
+        "summary": "Webhook de projetos do PrismaCRM (v1): cria ou atualiza o projeto com os dados do negócio no CRM",
         "tags": [
           "integracoes"
         ],

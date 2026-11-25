@@ -38,7 +38,7 @@ export type OperationalFileStatus = {
   backupSource?: string;
 };
 
-// Uso do caminho antigo do webhook do ComercialAPP (spec 042, 7.6).
+// Uso do caminho antigo do webhook do PrismaCRM (spec 042, 7.6).
 export type OperationalLegacyWebhookStatus = {
   status: string;
   currentPath?: string;

@@ -63,7 +63,7 @@ test('equipment, EPI, stock, quality, romaneio and logistics routes are fully mi
   assert.equal(publicSign?.auth, 'publicToken', 'assinatura pública de EPI não usa sessão');
 });
 
-test('the ComercialAPP webhook is versioned and the old path is documented as deprecated (7.6)', () => {
+test('the PrismaCRM webhook is versioned and the old path is documented as deprecated (7.6)', () => {
   const current = byKey.get('POST /api/webhooks/v1/projects')?.contract;
   const legacy = byKey.get('POST /api/webhooks/projects')?.contract;
   assert.equal(current?.auth, 'apiToken');
