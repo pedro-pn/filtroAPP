@@ -38,6 +38,16 @@ export type OperationalFileStatus = {
   backupSource?: string;
 };
 
+// Uso do caminho antigo do webhook do ComercialAPP (spec 042, 7.6).
+export type OperationalLegacyWebhookStatus = {
+  status: string;
+  currentPath?: string;
+  legacyPath?: string;
+  last30Days?: number;
+  lastUsedDay?: string | null;
+  sunset?: string | null;
+};
+
 export type OperationalDeployStatus = {
   configured: boolean;
   status: string;
@@ -128,6 +138,7 @@ export type OperationalStatus = {
   restore: OperationalFileStatus;
   deploy?: OperationalDeployStatus;
   abuse?: OperationalAbuseStatus;
+  legacyProjectWebhook?: OperationalLegacyWebhookStatus;
   omie: {
     configured: boolean;
     enabled: boolean;

@@ -40,6 +40,8 @@ import { convertDocxToPdf } from '../../lib/report-pdf-from-docx.js';
 import { requireAuth, requireModuleRole } from '../../middleware/auth.js';
 import { expensiveRouteLimit } from '../../lib/rate-limit.js';
 
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { opsRoute, EMPTY, FILE, jsonResponseSchema, libValidatedBodySchema } from '../../lib/api-contract/domains/operacoes.js';
 const router = Router();
 const ROMANEIO_DRAFT_MODULE = 'romaneio';
 const ROMANEIO_EMAIL_PENDING_STATUS = 'pendente';
@@ -981,7 +983,7 @@ export function shouldCleanupFailedRomaneioCreate({ completed = false, filesPers
   return !completed && !filesPersisted;
 }
 
-router.get('/projects', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /projects', { tag: 'romaneio', summary: 'Romaneio: Listar projetos', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   const query = projectListQuerySchema.parse(req.query);
   const where = romaneioProjectListWhereForUser(req.auth.user, query.active, query.type);
   const items = await prisma.project.findMany({
@@ -1007,7 +1009,7 @@ router.get('/projects', requireAuth, requireRomaneioAccess, asyncHandler(async (
     })));
 }));
 
-router.get('/drafts', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /drafts', { tag: 'romaneio', summary: 'Romaneio: Listar rascunhos', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   const items = await prisma.reportDraft.findMany({
     where: {
       ...romaneioDraftWhere(req.auth.user.id),
@@ -1023,7 +1025,7 @@ router.get('/drafts', requireAuth, requireRomaneioAccess, asyncHandler(async (re
   res.json(items);
 }));
 
-router.post('/drafts', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /drafts', { tag: 'romaneio', summary: 'Romaneio: Criar rascunhos', body: draftSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   const data = draftSchema.parse(req.body);
   const payload = normalizeDraftPayload(data);
   if (data.projectId) {
@@ -1058,7 +1060,7 @@ router.post('/drafts', requireAuth, requireRomaneioAccess, asyncHandler(async (r
   res.status(201).json(item);
 }));
 
-router.put('/drafts/:id', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PUT /drafts/:id', { tag: 'romaneio', summary: 'Romaneio: Atualizar rascunhos (por id)', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   const data = draftSchema.omit({ id: true }).parse(req.body);
   const current = await prisma.reportDraft.findUniqueOrThrow({ where: { id: req.params.id } });
   if (current.userId !== req.auth.user.id || current.payload?.__module !== ROMANEIO_DRAFT_MODULE) {
@@ -1098,7 +1100,7 @@ router.put('/drafts/:id', requireAuth, requireRomaneioAccess, asyncHandler(async
   res.json(item);
 }));
 
-router.delete('/drafts/:id', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('DELETE /drafts/:id', { tag: 'romaneio', summary: 'Romaneio: Excluir rascunhos (por id)', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 204: EMPTY }, errors: [401, 403] }), requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   const current = await prisma.reportDraft.findUniqueOrThrow({ where: { id: req.params.id } });
   if (current.userId !== req.auth.user.id || current.payload?.__module !== ROMANEIO_DRAFT_MODULE) {
     return res.status(403).json({ error: 'Você não tem permissão para excluir este rascunho.' });
@@ -1107,7 +1109,7 @@ router.delete('/drafts/:id', requireAuth, requireRomaneioAccess, asyncHandler(as
   res.status(204).end();
 }));
 
-router.get('/catalog/pdf', requireAuth, requireRomaneioAccess, ...expensiveRouteLimit('document'), asyncHandler(async (_req, res) => {
+defineRoute(router, opsRoute('GET /catalog/pdf', { tag: 'romaneio', summary: 'Romaneio: Gerar PDF catálogo', responses: { 200: FILE }, errors: [401, 403, 429] }), requireAuth, requireRomaneioAccess, ...expensiveRouteLimit('document'), asyncHandler(async (_req, res) => {
   await ensureRomaneioCatalogSynced();
   const items = await prisma.romaneioCatalogItem.findMany({
     where: { isActive: true },
@@ -1120,7 +1122,7 @@ router.get('/catalog/pdf', requireAuth, requireRomaneioAccess, ...expensiveRoute
   return res.send(pdf);
 }));
 
-router.get('/catalog', requireAuth, requireRomaneioAccess, asyncHandler(async (_req, res) => {
+defineRoute(router, opsRoute('GET /catalog', { tag: 'romaneio', summary: 'Romaneio: Listar catálogo', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireAuth, requireRomaneioAccess, asyncHandler(async (_req, res) => {
   const items = await prisma.romaneioCatalogItem.findMany({
     where: { isActive: true },
     orderBy: [{ categoryName: 'asc' }, { code: 'asc' }, { name: 'asc' }]
@@ -1129,7 +1131,7 @@ router.get('/catalog', requireAuth, requireRomaneioAccess, asyncHandler(async (_
   res.json(items.map(item => ({ ...item, qrUrl: qrPageUrl(item.publicToken) })));
 }));
 
-router.post('/catalog', requireAuth, requireRomaneioAccess, requireRomaneioManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /catalog', { tag: 'romaneio', summary: 'Romaneio: Criar catálogo', body: catalogSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requireRomaneioAccess, requireRomaneioManager, asyncHandler(async (req, res) => {
   const data = catalogSchema.parse(req.body);
   const item = await prisma.romaneioCatalogItem.create({
     data: {
@@ -1142,7 +1144,7 @@ router.post('/catalog', requireAuth, requireRomaneioAccess, requireRomaneioManag
   res.status(201).json(item);
 }));
 
-router.put('/catalog/categories', requireAuth, requireRomaneioAccess, requireRomaneioManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PUT /catalog/categories', { tag: 'romaneio', summary: 'Romaneio: Atualizar catálogo › categorias', body: catalogCategoryRenameSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requireRomaneioAccess, requireRomaneioManager, asyncHandler(async (req, res) => {
   const data = catalogCategoryRenameSchema.parse(req.body);
   const result = await prisma.$transaction(async tx => {
     const rdoOwnedCount = await tx.romaneioCatalogItem.count({
@@ -1166,7 +1168,7 @@ router.put('/catalog/categories', requireAuth, requireRomaneioAccess, requireRom
   res.json(result);
 }));
 
-router.put('/catalog/:id', requireAuth, requireRomaneioAccess, requireRomaneioManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PUT /catalog/:id', { tag: 'romaneio', summary: 'Romaneio: Atualizar catálogo (por id)', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requireRomaneioAccess, requireRomaneioManager, asyncHandler(async (req, res) => {
   const data = catalogSchema.partial().parse(req.body);
   const item = await prisma.$transaction(async tx => {
     const existing = await tx.romaneioCatalogItem.findUniqueOrThrow({ where: { id: req.params.id } });
@@ -1188,7 +1190,7 @@ router.put('/catalog/:id', requireAuth, requireRomaneioAccess, requireRomaneioMa
   res.json(item);
 }));
 
-router.delete('/catalog/:id', requireAuth, requireRomaneioAccess, requireRomaneioManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('DELETE /catalog/:id', { tag: 'romaneio', summary: 'Romaneio: Excluir catálogo (por id)', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 204: EMPTY }, errors: [401, 403] }), requireAuth, requireRomaneioAccess, requireRomaneioManager, asyncHandler(async (req, res) => {
   await prisma.$transaction(async tx => {
     const existing = await tx.romaneioCatalogItem.findUniqueOrThrow({ where: { id: req.params.id } });
     if (MANAGED_CATALOG_SOURCES.has(existing.sourceType)) {
@@ -1204,12 +1206,12 @@ router.delete('/catalog/:id', requireAuth, requireRomaneioAccess, requireRomanei
   res.status(204).send();
 }));
 
-router.get('/notifications', requireAuth, requireRomaneioAccess, requireRomaneioManager, asyncHandler(async (_req, res) => {
+defineRoute(router, opsRoute('GET /notifications', { tag: 'romaneio', summary: 'Romaneio: Listar notificações', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireAuth, requireRomaneioAccess, requireRomaneioManager, asyncHandler(async (_req, res) => {
   const items = await prisma.romaneioNotificationRecipient.findMany({ orderBy: { email: 'asc' } });
   res.json(items);
 }));
 
-router.post('/notifications', requireAuth, requireRomaneioAccess, requireRomaneioManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /notifications', { tag: 'romaneio', summary: 'Romaneio: Criar notificações', body: recipientSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requireRomaneioAccess, requireRomaneioManager, asyncHandler(async (req, res) => {
   const data = recipientSchema.parse(req.body);
   const item = await prisma.romaneioNotificationRecipient.upsert({
     where: { email: data.email.toLowerCase() },
@@ -1219,7 +1221,7 @@ router.post('/notifications', requireAuth, requireRomaneioAccess, requireRomanei
   res.status(201).json(item);
 }));
 
-router.delete('/notifications/:id', requireAuth, requireRomaneioAccess, requireRomaneioManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('DELETE /notifications/:id', { tag: 'romaneio', summary: 'Romaneio: Excluir notificações (por id)', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 204: EMPTY }, errors: [401, 403] }), requireAuth, requireRomaneioAccess, requireRomaneioManager, asyncHandler(async (req, res) => {
   await prisma.romaneioNotificationRecipient.update({
     where: { id: req.params.id },
     data: { isActive: false }
@@ -1227,7 +1229,7 @@ router.delete('/notifications/:id', requireAuth, requireRomaneioAccess, requireR
   res.status(204).send();
 }));
 
-router.get('/return-items', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /return-items', { tag: 'romaneio', summary: 'Romaneio: Listar return itens', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   const query = returnItemsQuerySchema.parse(req.query);
   const project = await resolveRomaneioProjectReference(query, req.auth.user, prisma, {
     createPending: false,
@@ -1242,7 +1244,7 @@ router.get('/return-items', requireAuth, requireRomaneioAccess, asyncHandler(asy
   return res.json({ projectId: project.id, items });
 }));
 
-router.get('/checklist-map', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /checklist-map', { tag: 'romaneio', summary: 'Romaneio: Listar mapa do checklist', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   await ensureRomaneioCatalogSynced();
   const [map, hasSavedSignature] = await Promise.all([
     buildRomaneioChecklistMap(),
@@ -1285,7 +1287,7 @@ async function sendConsolidatedChecklistPdf(res, romaneio) {
   return sendRomaneioStoredFile(res, current, 'checklistPdfUrl', 'application/pdf', 'pdf');
 }
 
-router.get('/:id/checklist/pdf', requireAuth, requireRomaneioAccess, ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /:id/checklist/pdf', { tag: 'romaneio', summary: 'Romaneio: Gerar PDF checklist', responses: { 200: FILE }, errors: [401, 403, 429] }), requireAuth, requireRomaneioAccess, ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
   const romaneio = await prisma.romaneio.findFirstOrThrow({
     where: visibleRomaneioWhere({ id: req.params.id }, req.auth.user),
     ...selectedFields()
@@ -1293,7 +1295,7 @@ router.get('/:id/checklist/pdf', requireAuth, requireRomaneioAccess, ...expensiv
   return sendConsolidatedChecklistPdf(res, romaneio);
 }));
 
-router.get('/:id/checklists/:checklistId/pdf', requireAuth, requireRomaneioAccess, ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /:id/checklists/:checklistId/pdf', { tag: 'romaneio', summary: 'Romaneio: Gerar PDF checklists', responses: { 200: FILE }, errors: [401, 403, 404, 429] }), requireAuth, requireRomaneioAccess, ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
   const romaneio = await prisma.romaneio.findFirstOrThrow({
     where: visibleRomaneioWhere({ id: req.params.id }, req.auth.user),
     ...selectedFields()
@@ -1303,7 +1305,7 @@ router.get('/:id/checklists/:checklistId/pdf', requireAuth, requireRomaneioAcces
   return sendConsolidatedChecklistPdf(res, romaneio);
 }));
 
-router.get('/:id/pdf', requireAuth, requireRomaneioAccess, ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /:id/pdf', { tag: 'romaneio', summary: 'Romaneio: Gerar PDF registro', responses: { 200: FILE }, errors: [401, 403, 429] }), requireAuth, requireRomaneioAccess, ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
   const item = await prisma.romaneio.findFirstOrThrow({
     where: visibleRomaneioWhere({ id: req.params.id }, req.auth.user),
     ...selectedFields()
@@ -1311,7 +1313,7 @@ router.get('/:id/pdf', requireAuth, requireRomaneioAccess, ...expensiveRouteLimi
   return sendRomaneioStoredFile(res, item, 'pdfUrl', 'application/pdf', 'pdf');
 }));
 
-router.get('/:id/docx', requireAuth, requireRomaneioAccess, ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /:id/docx', { tag: 'romaneio', summary: 'Romaneio: Gerar DOCX registro', responses: { 200: FILE }, errors: [401, 403, 429] }), requireAuth, requireRomaneioAccess, ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
   const item = await prisma.romaneio.findFirstOrThrow({
     where: visibleRomaneioWhere({ id: req.params.id }, req.auth.user),
     ...selectedFields()
@@ -1325,7 +1327,7 @@ router.get('/:id/docx', requireAuth, requireRomaneioAccess, ...expensiveRouteLim
   );
 }));
 
-router.get('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /', { tag: 'romaneio', summary: 'Romaneio: Listar registros', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   const search = String(req.query.search || '').trim();
   const projectId = String(req.query.projectId || '').trim();
   const where = visibleRomaneioWhere({}, req.auth.user);
@@ -1349,7 +1351,7 @@ router.get('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res
   res.json(items);
 }));
 
-router.get('/:id', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /:id', { tag: 'romaneio', summary: 'Romaneio: Consultar registro (por id)', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   const item = await prisma.romaneio.findFirstOrThrow({
     where: visibleRomaneioWhere({ id: req.params.id }, req.auth.user),
     ...selectedFields()
@@ -1357,7 +1359,7 @@ router.get('/:id', requireAuth, requireRomaneioAccess, asyncHandler(async (req, 
   res.json(item);
 }));
 
-router.post('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /', { tag: 'romaneio', summary: 'Romaneio: Criar registro', body: createRomaneioSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   await ensureRomaneioCatalogSynced();
   const payload = createRomaneioSchema.parse(req.body);
   if (payload.type !== 'INBOUND' && payload.items.some(item => item.isExtra)) {
@@ -1489,7 +1491,7 @@ router.post('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, re
   res.status(201).json(created);
 }));
 
-router.put('/:id', requireAuth, requireRomaneioAccess, requireRomaneioEditor, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PUT /:id', { tag: 'romaneio', summary: 'Romaneio: Atualizar registro (por id)', body: createRomaneioSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requireRomaneioAccess, requireRomaneioEditor, asyncHandler(async (req, res) => {
   await ensureRomaneioCatalogSynced();
   const payload = createRomaneioSchema.parse(req.body);
   if (payload.type !== 'INBOUND' && payload.items.some(item => item.isExtra)) {

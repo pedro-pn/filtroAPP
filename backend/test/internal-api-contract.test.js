@@ -12,7 +12,7 @@ import { defineRoute, isWriteMethod } from '../src/lib/api-contract/registry.js'
 // Contrato da API interna (spec 042). As rotas reais do Express precisam estar
 // no registro (defineRoute) ou na lista de rotas ainda não migradas, que só
 // pode diminuir: ao migrar um domínio, remova as linhas dele e baixe o número.
-const UNMIGRATED_ROUTES_BASELINE = 457;
+const UNMIGRATED_ROUTES_BASELINE = 306;
 
 const allowlistFile = new URL('../src/lib/api-contract/unmigrated-routes.json', import.meta.url);
 const openApiFile = new URL('../../docs/api/openapi.internal.json', import.meta.url);
@@ -52,6 +52,26 @@ test('Efetivo and workforce routes are fully migrated (phase 3)', () => {
   const domainRoutes = routes.filter(route => efetivoDomain.test(route.path));
   assert.ok(domainRoutes.length >= 115, `esperava as rotas do Efetivo (achei ${domainRoutes.length})`);
   assert.deepEqual(domainRoutes.filter(route => !route.contract).map(routeKey), []);
+});
+
+test('equipment, EPI, stock, quality, romaneio and logistics routes are fully migrated (phase 4)', () => {
+  const opsDomain = /^\/api(?:\/rdo)?\/(?:equipamentos|epi|estoque|qualidade|romaneio|logistica|manometers|particle-counters|equipment|units)(?:\/|$)/;
+  const domainRoutes = routes.filter(route => opsDomain.test(route.path));
+  assert.ok(domainRoutes.length >= 150, `esperava as rotas operacionais (achei ${domainRoutes.length})`);
+  assert.deepEqual(domainRoutes.filter(route => !route.contract).map(routeKey), []);
+  const publicSign = byKey.get('POST /api/epi/public-sign/:token/confirm')?.contract;
+  assert.equal(publicSign?.auth, 'publicToken', 'assinatura pública de EPI não usa sessão');
+});
+
+test('the ComercialAPP webhook is versioned and the old path is documented as deprecated (7.6)', () => {
+  const current = byKey.get('POST /api/webhooks/v1/projects')?.contract;
+  const legacy = byKey.get('POST /api/webhooks/projects')?.contract;
+  assert.equal(current?.auth, 'apiToken');
+  assert.notEqual(current?.deprecated, true);
+  assert.equal(legacy?.deprecated, true);
+  const document = buildInternalOpenApi(routes);
+  assert.equal(document.paths['/api/webhooks/projects'].post.deprecated, true);
+  assert.equal(document.paths['/api/webhooks/v1/projects'].post.deprecated, undefined);
 });
 
 test('manual RDO upload is documented as multipart with the PDF as a binary part', () => {

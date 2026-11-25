@@ -6,6 +6,8 @@ import prisma from '../../lib/prisma.js';
 import { equipmentCache } from '../../lib/resource-list-cache.js';
 import { requireAuth, requireInternalUser, requireManager } from '../../middleware/auth.js';
 
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { opsRoute, EMPTY, jsonResponseSchema, libValidatedBodySchema } from '../../lib/api-contract/domains/operacoes.js';
 const router = Router();
 router.use(requireAuth);
 
@@ -15,12 +17,12 @@ const schema = z.object({
   serviceTags: z.array(z.string()).default([])
 });
 
-router.get('/', requireInternalUser, asyncHandler(async (_req, res) => {
+defineRoute(router, opsRoute('GET /', { tag: 'inventario-rdo', summary: 'Equipamentos do RDO: Listar registros', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireInternalUser, asyncHandler(async (_req, res) => {
   const items = await equipmentCache.get(() => prisma.equipment.findMany({ orderBy: { name: 'asc' } }));
   res.json(items);
 }));
 
-router.post('/', requireManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /', { tag: 'inventario-rdo', summary: 'Equipamentos do RDO: Criar registro', body: schema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403] }), requireManager, asyncHandler(async (req, res) => {
   const data = schema.parse(req.body);
   const existing = await prisma.equipment.findUnique({ where: { code: data.code } });
   if (existing && !existing.isActive) {
@@ -33,14 +35,14 @@ router.post('/', requireManager, asyncHandler(async (req, res) => {
   res.status(201).json(item);
 }));
 
-router.put('/:id', requireManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PUT /:id', { tag: 'inventario-rdo', summary: 'Equipamentos do RDO: Atualizar registro (por id)', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireManager, asyncHandler(async (req, res) => {
   const data = schema.partial().parse(req.body);
   const item = await prisma.equipment.update({ where: { id: req.params.id }, data });
   equipmentCache.clear();
   res.json(item);
 }));
 
-router.delete('/:id', requireManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('DELETE /:id', { tag: 'inventario-rdo', summary: 'Equipamentos do RDO: Excluir registro (por id)', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 204: EMPTY }, errors: [401, 403] }), requireManager, asyncHandler(async (req, res) => {
   await prisma.equipment.update({ where: { id: req.params.id }, data: { isActive: false } });
   equipmentCache.clear();
   res.status(204).end();

@@ -49,7 +49,9 @@ const STATUS_PRESENTATION: Record<
   UNKNOWN: { label: 'Desconhecido', tone: 'neutral' },
   OK: { label: 'Normal', tone: 'success' },
   ALERT: { label: 'Uso fora do normal', tone: 'danger' },
-  UNAVAILABLE: { label: 'Indisponível', tone: 'neutral' }
+  UNAVAILABLE: { label: 'Indisponível', tone: 'neutral' },
+  IN_USE: { label: 'Caminho antigo em uso', tone: 'warning' },
+  IDLE: { label: 'Sem uso do caminho antigo', tone: 'success' }
 };
 
 export function operationalStatusLabel(status: string) {

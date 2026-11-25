@@ -290,3 +290,38 @@ esse quantitativo quando o cálculo está desativado. Itens antigos sem
 Publique este receptor antes do emissor do ComercialAPP. Entregas antigas sem
 `estimateSummary` continuam válidas; propostas já concluídas no ComercialAPP
 precisam de uma rotina específica de atualização para receber o novo campo.
+
+## Webhook de projetos: versão e migração
+
+O ComercialAPP cria e atualiza projetos no FiltroAPP pelo webhook de projetos
+(spec 042, critério 7.6). A partir de 2026-11-25 o caminho é versionado:
+
+| Caminho | Situação |
+|---|---|
+| `POST /api/webhooks/v1/projects` | **Atual.** Mesmo contrato, token e respostas de antes. |
+| `POST /api/webhooks/projects` | **Descontinuado.** Continua funcionando igual, mas responde com `Deprecation` (RFC 9745) e `Link: </api/webhooks/v1/projects>; rel="successor-version"`. Quando a data de desligamento for definida, responde também com `Sunset` (RFC 8594). |
+
+Contrato (sem mudança): corpo JSON validado por `projectIntakeSchema`
+(`lib/projects/project-intake.js`), `Authorization: Bearer <PROJECT_INTAKE_WEBHOOK_TOKEN>`,
+respostas `201 created` / `200 already_exists|updated`, `409` para revisão inferior ou
+dados divergentes, `401` para token ausente ou inválido, `503` se o token não estiver
+configurado, `429` acima de 60 envios por minuto. Documentado em
+`docs/api/openapi.internal.json` (operação marcada `deprecated` no caminho antigo).
+
+### O que muda no ComercialAPP
+
+1. Trocar a URL do envio para `https://<filtroapp>/api/webhooks/v1/projects`. Nada mais
+   muda: mesmo token, mesmo corpo, mesmas respostas.
+2. Publicar essa troca e confirmar um envio com sucesso.
+
+### Desligamento do caminho antigo (D5)
+
+- O uso do caminho antigo é contado por dia (`UsageCounter`, tipo
+  `webhook.legacy-projects.day`) e aparece em **Operações › Webhook do ComercialAPP**
+  (chamadas nos últimos 30 dias e último uso).
+- Depois que o ComercialAPP publicar a troca e o painel mostrar **sem uso**, defina no
+  `backend/.env.production` `PROJECT_WEBHOOK_LEGACY_SUNSET=<data 60 dias adiante>` e recrie
+  backend e worker: o caminho antigo passa a anunciar a data no cabeçalho `Sunset`.
+- Na data, remover a montagem `router.use('/webhooks/projects', …)` em
+  `backend/src/routes/index.js` num PR próprio (o caminho antigo passa a responder 404).
+

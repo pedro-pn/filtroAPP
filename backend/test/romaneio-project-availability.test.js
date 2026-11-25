@@ -65,8 +65,8 @@ test('Saída direta aceita projeto ativo sem consultar o Efetivo e rejeita concl
 
 test('rotas de gravação não criam obra pendente para código ausente', () => {
   const source = fs.readFileSync(new URL('../src/routes/resources/romaneios.js', import.meta.url), 'utf8');
-  const createRoute = source.slice(source.indexOf("router.post('/',"), source.indexOf("router.put('/:id'"));
-  const updateRoute = source.slice(source.indexOf("router.put('/:id'"));
+  const createRoute = source.slice(source.indexOf("opsRoute('POST /', "), source.indexOf("opsRoute('PUT /:id', "));
+  const updateRoute = source.slice(source.indexOf("opsRoute('PUT /:id', "));
   assert.match(createRoute, /createPending:\s*false/);
   assert.match(updateRoute, /createPending:\s*false/);
 });

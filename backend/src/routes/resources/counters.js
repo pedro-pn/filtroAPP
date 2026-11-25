@@ -5,20 +5,22 @@ import { listParticleCountersCompat, respondManagedByModule } from '../../lib/eq
 import { particleCountersCache } from '../../lib/resource-list-cache.js';
 import { requireAuth, requireInternalUser, requireManager } from '../../middleware/auth.js';
 
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { opsRoute, jsonResponseSchema } from '../../lib/api-contract/domains/operacoes.js';
 // Contadores de partículas agora são gerenciados pelo módulo Equipamentos.
 // Este router é um shim de LEITURA que projeta o modelo unificado para a forma
 // legada usada pelos relatórios (bloco de partículas).
 const router = Router();
 router.use(requireAuth);
 
-router.get('/', requireInternalUser, asyncHandler(async (_req, res) => {
+defineRoute(router, opsRoute('GET /', { tag: 'inventario-rdo', summary: 'Contadores de partículas: Listar registros', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireInternalUser, asyncHandler(async (_req, res) => {
   const items = await particleCountersCache.get(() => listParticleCountersCompat());
   res.json(items);
 }));
 
-router.post('/', requireManager, respondManagedByModule);
-router.put('/categories/rename', requireManager, respondManagedByModule);
-router.put('/:id', requireManager, respondManagedByModule);
-router.delete('/:id', requireManager, respondManagedByModule);
+defineRoute(router, opsRoute('POST /', { tag: 'inventario-rdo', summary: 'Contadores de partículas: Criar registro', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireManager, respondManagedByModule);
+defineRoute(router, opsRoute('PUT /categories/rename', { tag: 'inventario-rdo', summary: 'Contadores de partículas: Atualizar categorias › rename', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireManager, respondManagedByModule);
+defineRoute(router, opsRoute('PUT /:id', { tag: 'inventario-rdo', summary: 'Contadores de partículas: Atualizar registro (por id)', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireManager, respondManagedByModule);
+defineRoute(router, opsRoute('DELETE /:id', { tag: 'inventario-rdo', summary: 'Contadores de partículas: Excluir registro (por id)', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireManager, respondManagedByModule);
 
 export default router;

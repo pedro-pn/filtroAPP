@@ -30,6 +30,7 @@ import { requireAuth } from '../../middleware/auth.js';
 import env from '../../config/env.js';
 import { makeCommonSchemas } from '../../../../shared/schemas/common.js';
 
+import { opsRoute, FILE, EMPTY, jsonResponseSchema, libValidatedBodySchema } from '../../lib/api-contract/domains/operacoes.js';
 const router = Router();
 const commonSchemas = makeCommonSchemas(z);
 const EPI_SIGNATURE_TOKEN_DAYS = 7;
@@ -998,12 +999,12 @@ export async function publicEpiValidationPayload(validationCode, client = prisma
   };
 }
 
-router.get('/validate-signature/:validationCode', publicSignatureLimiter, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /validate-signature/:validationCode', { tag: 'epi', summary: 'EPI: Consultar validar assinatura (por id)', auth: 'publicToken', responses: { 200: jsonResponseSchema }, errors: [429] }), publicSignatureLimiter, asyncHandler(async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.json(await publicEpiValidationPayload(req.params.validationCode));
 }));
 
-router.get('/public-sign/:token', publicSignatureLimiter, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /public-sign/:token', { tag: 'epi', summary: 'EPI: Consultar assinatura pública (por id)', auth: 'publicToken', responses: { 200: jsonResponseSchema }, errors: [429] }), publicSignatureLimiter, asyncHandler(async (req, res) => {
   const evidence = signatureEvidenceFromRequest(req);
   let request = await findRequestByToken(req.params.token);
   let status = requestStatus(request);
@@ -1021,7 +1022,7 @@ router.get('/public-sign/:token', publicSignatureLimiter, asyncHandler(async (re
   res.json(publicEpiSignaturePayload(request, status));
 }));
 
-router.get('/public-sign/:token/pdf', publicSignatureLimiter, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /public-sign/:token/pdf', { tag: 'epi', summary: 'EPI: Gerar PDF assinatura pública', auth: 'publicToken', responses: { 200: FILE }, errors: [429] }), publicSignatureLimiter, asyncHandler(async (req, res) => {
   const evidence = signatureEvidenceFromRequest(req);
   const request = await publicPdfEpiRequestOrThrow(req.params.token);
   await logEpiSignatureRequestEvent(prisma, request, 'PDF_DOWNLOADED', evidence);
@@ -1172,7 +1173,7 @@ export async function confirmPublicEpiSignatureRequest({
   return { signed, evidence };
 }
 
-router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /public-sign/:token/confirm', { tag: 'epi', summary: 'EPI: Confirmar assinatura pública', auth: 'publicToken', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 429] }), publicSignatureLimiter, asyncHandler(async (req, res) => {
   const { signed, evidence } = await confirmPublicEpiSignatureRequest({
     token: req.params.token,
     body: req.body || {},
@@ -1185,14 +1186,14 @@ router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(
 
 router.use(requireAuth, requireEpiAccess);
 
-router.get('/job-roles', requireEpiTechnician, asyncHandler(async (_req, res) => {
+defineRoute(router, opsRoute('GET /job-roles', { tag: 'epi', summary: 'EPI: Listar job roles', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireEpiTechnician, asyncHandler(async (_req, res) => {
   const items = await prisma.jobRole.findMany({
     orderBy: { name: 'asc' }
   });
   res.json(sortJobRolesByName(items));
 }));
 
-router.get('/collaborators', asyncHandler(async (_req, res) => {
+defineRoute(router, opsRoute('GET /collaborators', { tag: 'epi', summary: 'EPI: Listar colaboradores', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), asyncHandler(async (_req, res) => {
   const items = await prisma.collaborator.findMany({
     // All sectors are enabled by default; the administrator controls visibility.
     where: { isActive: true, ...epiCollaboratorAccessWhere(_req.auth), ...collaboratorVisibilityWhere('EPI') },
@@ -1202,7 +1203,7 @@ router.get('/collaborators', asyncHandler(async (_req, res) => {
   res.json(items.map(epiCollaboratorDto));
 }));
 
-router.put('/collaborators/:id/profile', requireEpiTechnician, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PUT /collaborators/:id/profile', { tag: 'epi', summary: 'EPI: Atualizar colaboradores › perfil', body: profileSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireEpiTechnician, asyncHandler(async (req, res) => {
   const data = profileSchema.parse(req.body || {});
   const item = await prisma.$transaction(async tx => {
     if (data.roleOverrideJobRoleId) {
@@ -1241,13 +1242,13 @@ router.put('/collaborators/:id/profile', requireEpiTechnician, asyncHandler(asyn
   res.json(epiCollaboratorDto(item));
 }));
 
-router.get('/collaborators/:id/pdf', ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /collaborators/:id/pdf', { tag: 'epi', summary: 'EPI: Gerar PDF colaboradores', responses: { 200: FILE }, errors: [401, 403, 429] }), ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
   assertEpiCollaboratorAccess(req, req.params.id);
   const archived = String(req.query.archived || '').toLowerCase() === 'true';
   return sendCollaboratorPdf(res, req.params.id, { archived });
 }));
 
-router.post('/collaborators/:id/records', requireEpiTechnician, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /collaborators/:id/records', { tag: 'epi', summary: 'EPI: Criar colaboradores › registros', body: createRecordSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403] }), requireEpiTechnician, asyncHandler(async (req, res) => {
   const data = createRecordSchema.parse(req.body || {});
   const item = await prisma.$transaction(async tx => {
     const collaborator = await tx.collaborator.findFirst({ where: { id: req.params.id, isActive: true }, include: { jobRole: true } });
@@ -1280,7 +1281,7 @@ router.post('/collaborators/:id/records', requireEpiTechnician, asyncHandler(asy
   res.status(201).json(item);
 }));
 
-router.put('/records/:id', requireEpiTechnician, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PUT /records/:id', { tag: 'epi', summary: 'EPI: Atualizar registros (por id)', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireEpiTechnician, asyncHandler(async (req, res) => {
   const data = recordSchema.partial().parse(req.body || {});
   const item = await prisma.$transaction(async tx => {
     await lockEpiRecord(tx, req.params.id);
@@ -1378,7 +1379,7 @@ defineRoute(router, {
   res.status(201).json(item);
 }));
 
-router.post('/collaborators/:id/records/archive', requireEpiTechnician, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /collaborators/:id/records/archive', { tag: 'epi', summary: 'EPI: Arquivar colaboradores › registros', body: archiveRecordsSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireEpiTechnician, asyncHandler(async (req, res) => {
   const data = archiveRecordsSchema.parse(req.body || {});
   const uniqueIds = Array.from(new Set(data.recordIds));
   await prisma.$transaction(async tx => {
@@ -1456,7 +1457,7 @@ export async function removeUnsignedEpiRecord({ recordId, evidence = {}, client 
   });
 }
 
-router.delete('/records/:id', requireEpiTechnician, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('DELETE /records/:id', { tag: 'epi', summary: 'EPI: Excluir registros (por id)', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 204: EMPTY }, errors: [401, 403] }), requireEpiTechnician, asyncHandler(async (req, res) => {
   await removeUnsignedEpiRecord({ recordId: req.params.id, evidence: signatureEvidenceFromRequest(req) });
   res.status(204).send();
 }));
@@ -1528,7 +1529,7 @@ export async function createEpiSignatureRequestForRecords({ collaboratorId, requ
   return { request, token, signUrl: publicSignUrl(token) };
 }
 
-router.post('/collaborators/:id/signature-requests', requireEpiTechnician, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /collaborators/:id/signature-requests', { tag: 'epi', summary: 'EPI: Criar colaboradores › solicitações de assinatura', body: signatureRequestSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403] }), requireEpiTechnician, asyncHandler(async (req, res) => {
   const data = signatureRequestSchema.parse(req.body || {});
   const result = await createEpiSignatureRequestForRecords({
     collaboratorId: req.params.id,
@@ -1538,7 +1539,7 @@ router.post('/collaborators/:id/signature-requests', requireEpiTechnician, async
   res.status(201).json(result);
 }));
 
-router.get('/catalog', asyncHandler(async (_req, res) => {
+defineRoute(router, opsRoute('GET /catalog', { tag: 'epi', summary: 'EPI: Listar catálogo', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), asyncHandler(async (_req, res) => {
   const items = await prisma.epiCatalogItem.findMany({
     where: { isActive: true },
     orderBy: [{ name: 'asc' }, { ca: 'asc' }]
@@ -1546,7 +1547,7 @@ router.get('/catalog', asyncHandler(async (_req, res) => {
   res.json(items);
 }));
 
-router.post('/catalog', requireEpiTechnician, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /catalog', { tag: 'epi', summary: 'EPI: Criar catálogo', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 201: jsonResponseSchema }, errors: [400, 401, 403] }), requireEpiTechnician, asyncHandler(async (req, res) => {
   const data = parseEpiCatalogData(req.body || {});
   const item = await prisma.epiCatalogItem.upsert({
     where: { name_ca: { name: data.name, ca: data.ca } },
@@ -1556,7 +1557,7 @@ router.post('/catalog', requireEpiTechnician, asyncHandler(async (req, res) => {
   res.status(201).json(item);
 }));
 
-router.put('/catalog/:id', requireEpiTechnician, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PUT /catalog/:id', { tag: 'epi', summary: 'EPI: Atualizar catálogo (por id)', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireEpiTechnician, asyncHandler(async (req, res) => {
   const item = await prisma.$transaction(async tx => {
     const current = await tx.epiCatalogItem.findUniqueOrThrow({ where: { id: req.params.id } });
     const data = parseEpiCatalogData(req.body || {}, current);
@@ -1565,7 +1566,7 @@ router.put('/catalog/:id', requireEpiTechnician, asyncHandler(async (req, res) =
   res.json(item);
 }));
 
-router.delete('/catalog/:id', requireEpiTechnician, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('DELETE /catalog/:id', { tag: 'epi', summary: 'EPI: Excluir catálogo (por id)', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 204: EMPTY }, errors: [401, 403] }), requireEpiTechnician, asyncHandler(async (req, res) => {
   await prisma.epiCatalogItem.update({ where: { id: req.params.id }, data: { isActive: false } });
   res.status(204).send();
 }));

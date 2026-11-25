@@ -152,8 +152,8 @@ test('gate incompleto informa os bloqueios sem aceitar data histórica', async (
 
 test('romaneio valida obra ativa antes de gerar arquivos sem consultar o gate de mobilização', () => {
   const source = fs.readFileSync(new URL('../src/routes/resources/romaneios.js', import.meta.url), 'utf8');
-  const createRoute = source.slice(source.indexOf("router.post('/',"), source.indexOf("router.put('/:id'"));
-  const updateRoute = source.slice(source.indexOf("router.put('/:id'"));
+  const createRoute = source.slice(source.indexOf("opsRoute('POST /', "), source.indexOf("opsRoute('PUT /:id', "));
+  const updateRoute = source.slice(source.indexOf("opsRoute('PUT /:id', "));
   assert.match(createRoute, /assertRomaneioOutboundProjectAvailable/);
   assert.match(updateRoute, /assertRomaneioOutboundProjectAvailable/);
   assert.ok(createRoute.indexOf('assertRomaneioOutboundProjectAvailable') < createRoute.indexOf('saveRomaneioPdf(preview)'));
