@@ -83,7 +83,7 @@ du -sh /root/backups/filtrovali/* 2>/dev/null | sort -h | tail
 ```
 
 - **Disco cheio** (o Postgres para de aceitar escrita):
-  1. backups locais antigos: o cron mantém 2 (`LOCAL_BACKUP_KEEP=2`); remova
+  1. backups locais antigos: a rotina local mantém até 2 (`LOCAL_BACKUP_KEEP=2`); diário/mensal deixam 1 após upload bem-sucedido, e falhas podem deixar pastas incompletas; remova
      pastas `/root/backups/filtrovali/20*` mais antigas **só depois** de conferir
      que a cópia equivalente está no B2 (`b2 ls b2://filtrovali-backups/daily/`);
   2. dumps de pré-deploy: `/root/backups/filtrovali/pre-deploy` (mantém 3);
@@ -164,12 +164,26 @@ versão anterior falhar depois da volta, restaure o dump pré-deploy em
 
 ## 4. Restaurar backup
 
-Backups: a cada 5 h local (`/root/backups/filtrovali/<timestamp>`, mantém 2),
-diário em `b2://filtrovali-backups/daily/<timestamp>` e mensal em
-`b2://filtrovali-backups/monthly/<timestamp>`. O ensaio mensal
-(`deploy/restore-drill.sh`) prova que o último backup diário restaura; o
-resultado aparece no painel de Operações e em
-`/root/backups/filtrovali/status/restore-latest.json`.
+Configuração conferida em 25/11/2026: o cron de `root` usa **UTC**, sem
+`CRON_TZ`. As cópias completas locais rodam às **00h, 03h, 08h, 13h, 18h e
+23h UTC** (não em intervalos uniformes de 5 h), em
+`/root/backups/filtrovali/<timestamp>`. A rotina local mantém até 2 pastas;
+após o upload diário/mensal, fica somente a pasta daquela execução no host.
+Falhas podem deixar pastas incompletas; não escolha apenas pela data mais nova.
+
+O envio diário para `b2://filtrovali-backups/daily/<timestamp>` roda às **02h UTC**
+(23h do dia anterior em Brasília); o mensal para `monthly/<timestamp>`, no dia
+**1 às 01h UTC** (22h do último dia do mês anterior em Brasília). As regras do
+B2 ocultam os uploads diários após 7 dias e mensais após 60 dias e os excluem um
+dia depois de ocultar.
+
+As rotinas de backup usam `/usr/local/sbin/filtroapp-backup-run` para carregar
+`/root/.config/filtroapp-backup/env`. O ensaio mensal já está agendado no dia
+**2 às 04h30 UTC** (01h30 de Brasília), usando
+`B2_ENV_FILE=/root/.config/filtroapp-backup/b2.env`. O resultado aparece no painel
+de Operações e em `/root/backups/filtrovali/status/restore-latest.json`.
+Consulte [BACKUP.md](../deploy/BACKUP.md) para o cron exato, o conteúdo das cópias
+e a evidência operacional mais recente da verificação.
 
 ### 4a. Mesmo servidor, banco/arquivos danificados
 
@@ -184,7 +198,10 @@ ordem) e só então sobe a aplicação. Detalhes e restore parcial: `deploy/BACK
 ### 4b. Backup só no B2 (local perdido ou servidor novo)
 
 ```bash
-source /root/.config/newrdo-backup/b2.env && b2 account authorize   # credenciais de leitura
+set -a
+source /root/.config/filtroapp-backup/b2.env   # credenciais de leitura
+set +a
+/root/.local/bin/b2 account authorize
 b2 ls b2://filtrovali-backups/daily/
 mkdir -p /root/restore && b2 sync b2://filtrovali-backups/daily/<timestamp> /root/restore/<timestamp>
 BACKUP_SOURCE=/root/restore/<timestamp> RESTORE_PROXY=true deploy/restore-prod.sh
@@ -218,7 +235,7 @@ do banco: veja `sanity.restoreSeconds` no último `restore-latest.json`.
 | Pontomais | `PONTOMAIS_API_TOKEN` | painel Pontomais |
 | Tokens da API de integrações (`fva_…`) | — | `docs/OPERACOES.md` |
 | Segredos de link (`SIGNATURE_TOKEN_SECRET`, `SURVEY_TOKEN_SECRET`) | ver `deploy/PRODUCTION.md` | use `*_PREVIOUS` para não invalidar links já enviados |
-| B2 (backup) | `/root/.config/newrdo-backup/b2.env` | Backblaze → App Keys; rode `b2 account authorize` de novo |
+| B2 (backup) | `/root/.config/filtroapp-backup/b2.env` | Backblaze → App Keys; rode `b2 account authorize` de novo |
 
 Se o vazamento envolver dados pessoais, siga também
 `LGPD_PROCEDIMENTO_TITULARES_INCIDENTES.md` (prazo de comunicação à ANPD).

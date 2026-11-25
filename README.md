@@ -594,8 +594,8 @@ Termos do negócio (RDO, RLQ, HH, Missão, Efetivo, Romaneio…): [`docs/GLOSSAR
 Caminho manual (plano B):
 
 ```bash
-# 1. Fazer backup validado antes de qualquer deploy
-./deploy/backup-prod.sh
+# 1. Fazer backup com o ambiente protegido do servidor antes de qualquer deploy
+LOCAL_BACKUP_KEEP=2 /usr/local/sbin/filtroapp-backup-run
 
 # 2. Rebuild e restart
 POSTGRES_PASSWORD=<senha> docker compose -f docker-compose.prod.yml up -d --build
@@ -632,6 +632,12 @@ Nginx HTTP interno
 - Domínio legado: `relatorios.filtrovali.com.br` redireciona para o app; a raiz antiga aponta para o módulo de relatórios.
 
 ---
+
+O backup automático de produção é executado pelo crontab de `root` em UTC:
+cópias completas locais às 00h, 03h, 08h, 13h, 18h e 23h; envio diário ao B2 às
+02h; mensal no dia 1 às 01h; ensaio de restauração no dia 2 às 04h30.
+Configuração, retenção e caminhos conferidos em 25/11/2026:
+[guia de backup e restore](deploy/BACKUP.md).
 
 ## Variáveis de Ambiente
 

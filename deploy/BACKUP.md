@@ -1,14 +1,91 @@
 # Backup
 
-## O que este projeto precisa salvar
+## Configuração verificada em produção em 25/11/2026
 
-- Banco PostgreSQL
-- Volume `filtrovali_relatorios`
-- Certificados em `filtrovali_certs`
-- Arquivo `backend/.env.production`
+A origem dos agendamentos é o **crontab do usuário `root` da VPS**, com o serviço
+`cron` ativo. O host usa `Etc/UTC`; não há `TZ` ou `CRON_TZ` no crontab. Os horários
+abaixo são UTC, e a coluna Brasília usa UTC−3.
 
-Os dados do banco em produção ficam no volume Docker `filtrovali_pgdata`, mas isso
-é apenas persistência local no host. Não substitui backup externo.
+| Rotina | Horário UTC | Horário de Brasília | Destino |
+|---|---|---|---|
+| Cópia local completa | 00h, 03h, 08h, 13h, 18h e 23h, diariamente | 21h do dia anterior; 00h, 05h, 10h, 15h e 20h | `/root/backups/filtrovali/<timestamp>` |
+| Diário completo | 02h, diariamente | 23h do dia anterior | `b2://filtrovali-backups/daily/<timestamp>` |
+| Mensal completo | Dia 1 às 01h | Último dia do mês anterior às 22h | `b2://filtrovali-backups/monthly/<timestamp>` |
+| Ensaio de restauração | Dia 2 às 04h30 | Dia 2 às 01h30 | PostgreSQL descartável; status local |
+
+A expressão local `0 0,3-23/5 * * *` não representa intervalos uniformes de cinco
+horas: também executa às 23h e às 00h, com intervalo de uma hora nessa virada.
+Não há backup horário nem envio para um prefixo `hourly-db/` no cron vigente.
+Veja as linhas exatas em [Agendamento no cron](#agendamento-no-cron).
+
+As três rotinas de backup chamam `/usr/local/sbin/filtroapp-backup-run` (modo
+`700`), instalado no servidor, fora do repositório. Ele exporta as variáveis de
+`/root/.config/filtroapp-backup/env` (modo `600`) e executa
+`/root/apps/filtroAPP/deploy/backup-prod.sh`. O arquivo de ambiente contém
+`POSTGRES_PASSWORD`, `TELEGRAM_TOKEN` e `TELEGRAM_CHAT_ID`; seus valores não devem
+ser copiados para a documentação. O cron informa `B2_URI` apenas nas rotinas
+diária e mensal. O ensaio usa a CLI `/root/.local/bin/b2` e o arquivo
+`/root/.config/filtroapp-backup/b2.env` (modo `600`). O caminho antigo
+`/root/.config/newrdo-backup/b2.env` não existe nessa VPS.
+
+### Conteúdo e retenção efetivos
+
+Cada backup completo gera `postgres.sql.gz`, `relatorios.tar.gz`,
+`certs.tar.gz`, `proxy.tar.gz` e `SHA256SUMS`. Os arquivos correspondem ao dump do
+PostgreSQL e aos volumes `filtrovali_relatorios`, `filtrovali_certs` e
+`infra_proxy_data` (Caddy). Os volumes permanecem montados somente para leitura
+durante o arquivamento. `latest` aponta para o último diretório que chegou à
+etapa de checksum; o link sozinho não comprova upload para o B2.
+
+A cópia local recebe `LOCAL_BACKUP_KEEP=2` e remove os diretórios com timestamp
+mais antigos após concluir. Diário e mensal não recebem esse limite: após
+upload bem-sucedido, o script deixa **somente o diretório daquela execução** no
+host. As cópias locais posteriores voltam a acumular até duas. Execuções com
+falha podem deixar diretórios incompletos, além desse limite. Os dumps de
+pré-deploy ficam separados em `/root/backups/filtrovali/pre-deploy` (padrão de
+três cópias), fora dessa limpeza.
+
+O bucket `filtrovali-backups` está privado. As regras de lifecycle consultadas
+na API do B2 são:
+
+| Prefixo exato | Ocultar após o upload | Excluir após ocultar |
+|---|---|---|
+| `daily/` | 7 dias | 1 dia |
+| `monthly` | 60 dias | 1 dia |
+
+Não se trata de retenção diária de 60 dias ou mensal de 365 dias. O prefixo
+mensal está configurado como `monthly`, sem barra final. Esta verificação não
+altera o cron nem as regras do bucket.
+
+`backend/.env.production`, os arquivos protegidos em `/root/.config` e o
+Caddyfile do infra-proxy **não são copiados pelo script**: precisam ser
+recuperáveis separadamente do cofre/configuração da infraestrutura. O volume
+`filtrovali_pgdata` é persistência local; o backup do banco é o dump lógico.
+
+### Evidência operacional da verificação
+
+O log do cron registra o diário de `2026-11-25-020002` concluído com upload para
+`daily/` e a cópia local de `2026-11-25-180001` concluída. A listagem do B2
+confirmou os cinco arquivos do diário de hoje, além dos diretórios mensais de
+01/10 e 01/11. Na coleta,
+`latest` apontava para a cópia das 18h. Entretanto, `backup-latest.json`
+registrava uma execução posterior com **`FAILURE`**, iniciada às 18h48m37 UTC,
+encerrada às 18h48m38 UTC, código 130, na etapa de dump (linha 148).
+Esse horário não corresponde ao cron configurado; a origem e a causa da
+interrupção não foram determinadas nesta verificação. O status registra a
+última execução, inclusive fora do cron; não confirma isoladamente o último
+upload remoto.
+
+O último `restore-latest.json` é um ensaio **`SUCCESS` de 18/11/2026**,
+13h56m32–13h59m47 UTC: 195 segundos no total, 24 segundos para restaurar o banco,
+a partir de `daily/2026-11-18-020001`. O cron mensal está instalado, mas ainda
+não havia `/root/logs/restore-drill.log` na coleta; esse status não comprova uma
+execução pelo agendamento mensal.
+
+API e worker exigem os status de backup e restore. Os limites em execução são
+`OPERATIONS_BACKUP_MAX_AGE_HOURS=26` e `OPERATIONS_RESTORE_MAX_AGE_DAYS=35`,
+com `OPERATIONS_ALERT_JOB_ENABLED=true`. O script de backup tem credenciais de
+Telegram configuradas para falhas; não foi feito teste de entrega de alerta.
 
 ## Script pronto
 
@@ -156,19 +233,19 @@ Para evitar que as credenciais apareçam no histórico do shell, salve-as em
 arquivos protegidos e autorize usando variáveis de ambiente:
 
 ```bash
-sudo install -d -m 700 /root/.config/newrdo-backup
-sudo editor /root/.config/newrdo-backup/b2.env
-sudo chmod 600 /root/.config/newrdo-backup/b2.env
+sudo install -d -m 700 /root/.config/filtroapp-backup
+sudo editor /root/.config/filtroapp-backup/b2.env
+sudo chmod 600 /root/.config/filtroapp-backup/b2.env
 ```
 
 ```bash
-# /root/.config/newrdo-backup/b2.env
+# /root/.config/filtroapp-backup/b2.env
 export B2_APPLICATION_KEY_ID="<keyID-do-backblaze>"
 export B2_APPLICATION_KEY="<applicationKey-do-backblaze>"
 ```
 
 ```bash
-sudo -H bash -lc 'source /root/.config/newrdo-backup/b2.env && b2 account authorize'
+sudo -H bash -lc 'source /root/.config/filtroapp-backup/b2.env && b2 account authorize'
 ```
 
 Teste o acesso:
@@ -197,39 +274,49 @@ B2_URI=b2://filtrovali-backups/daily \
 ./deploy/backup-prod.sh
 ```
 
-### Retenção automática no Backblaze
+### Retenção no Backblaze
 
-Configure a expiração no painel do Backblaze, em Lifecycle Rules do bucket. Uma
-estratégia simples:
+As regras instaladas são as descritas em [Conteúdo e retenção efetivos](#conteúdo-e-retenção-efetivos).
+Elas expiram os uploads com timestamp por prefixo. Para consultar sem modificar:
 
-- prefixo `hourly/`: deletar após 7 dias
-- prefixo `daily/`: deletar após 60 dias
-- prefixo `monthly/`: deletar após 365 dias
-
-Para os backups deste script, cada execução cria arquivos novos dentro de uma
-pasta com timestamp. Por isso a regra precisa expirar arquivos por idade do
-upload/prefixo, não apenas versões antigas do mesmo arquivo.
+```bash
+set -a
+source /root/.config/filtroapp-backup/b2.env
+set +a
+/root/.local/bin/b2 bucket get filtrovali-backups
+```
 
 ## Agendamento no cron
 
-Três agendamentos recomendados — horário, diário e mensal:
-
-```bash
-crontab -e
-```
+Linhas ativas do crontab de `root`, verificadas em 25/11/2026. **Horários UTC**.
+Não reinstale estas linhas sem antes conferir `crontab -l`, para evitar duplicar
+as rotinas existentes.
 
 ```cron
-# Horário — somente banco, sem recomprimir o volume de relatórios
-# Evita a janela dos backups mensal/diário; se outro backup ainda estiver rodando, pula esta execução.
-0 0,3-23 * * * B2_URI=b2://filtrovali-backups/hourly-db INCLUDE_REPORTS=false INCLUDE_CERTS=false INCLUDE_PROXY=false BACKUP_LOCK_TIMEOUT_SECONDS=0 /root/apps/filtroAPP/deploy/backup-prod.sh >> /root/logs/backup-filtrovali.log 2>&1
+# Local completo: 00h, 03h, 08h, 13h, 18h e 23h UTC; sem upload; até 2 diretórios.
+0 0,3-23/5 * * * INCLUDE_CERTS=true BACKUP_LOCK_TIMEOUT_SECONDS=0 LOCAL_BACKUP_KEEP=2 /usr/local/sbin/filtroapp-backup-run >> /root/logs/backup-filtrovali.log 2>&1
 
-# Diário às 02h — banco + relatórios + certificados
-# Espera até 2h se houver outro backup finalizando.
-0 2 * * * B2_URI=b2://filtrovali-backups/daily INCLUDE_CERTS=true BACKUP_LOCK_TIMEOUT_SECONDS=7200 /root/apps/filtroAPP/deploy/backup-prod.sh >> /root/logs/backup-filtrovali.log 2>&1
+# Diário completo às 02h UTC; espera até 2h pelo lock.
+0 2 * * * B2_URI=b2://filtrovali-backups/daily INCLUDE_CERTS=true BACKUP_LOCK_TIMEOUT_SECONDS=7200 /usr/local/sbin/filtroapp-backup-run >> /root/logs/backup-filtrovali.log 2>&1
 
-# Mensal todo dia 1 às 01h — banco + relatórios + certificados
-# Espera até 2h se houver outro backup finalizando.
-0 1 1 * * B2_URI=b2://filtrovali-backups/monthly INCLUDE_CERTS=true BACKUP_LOCK_TIMEOUT_SECONDS=7200 /root/apps/filtroAPP/deploy/backup-prod.sh >> /root/logs/backup-filtrovali.log 2>&1
+# Mensal completo no dia 1 às 01h UTC; espera até 2h pelo lock.
+0 1 1 * * B2_URI=b2://filtrovali-backups/monthly INCLUDE_CERTS=true BACKUP_LOCK_TIMEOUT_SECONDS=7200 /usr/local/sbin/filtroapp-backup-run >> /root/logs/backup-filtrovali.log 2>&1
+
+# Ensaio mensal no dia 2 às 04h30 UTC; credenciais de leitura do B2.
+30 4 2 * * B2_BIN=/root/.local/bin/b2 B2_ENV_FILE=/root/.config/filtroapp-backup/b2.env bash /root/apps/filtroAPP/deploy/restore-drill.sh >> /root/logs/restore-drill.log 2>&1
+```
+
+O cron antigo de renovação via Certbot está comentado. O TLS em uso é gerenciado
+pelo Caddy; veja [INFRA-PROXY.md](INFRA-PROXY.md).
+
+Para executar manualmente com as mesmas variáveis protegidas do cron:
+
+```bash
+# Local; preserva até 2 diretórios.
+LOCAL_BACKUP_KEEP=2 /usr/local/sbin/filtroapp-backup-run
+
+# Cópia externa diária; sucesso no upload deixa só esta execução no host.
+B2_URI=b2://filtrovali-backups/daily BACKUP_LOCK_TIMEOUT_SECONDS=7200 /usr/local/sbin/filtroapp-backup-run
 ```
 
 ## Restore do banco
@@ -279,7 +366,7 @@ Por padrão, o restore escreve status em
 ```env
 OPERATIONS_RESTORE_STATUS_FILE=/ops-status/restore-latest.json
 OPERATIONS_REQUIRE_RESTORE_STATUS=true
-OPERATIONS_RESTORE_MAX_AGE_DAYS=30
+OPERATIONS_RESTORE_MAX_AGE_DAYS=35
 ```
 
 Sem restaurar certificados:
@@ -325,13 +412,6 @@ Sem rodar migrations:
 BACKUP_SOURCE=/root/backups/filtrovali/2026-04-24-030001 RUN_MIGRATIONS=false ./deploy/restore-prod.sh
 ```
 
-## Estratégia recomendada
-
-- Backup horário completo (banco + relatórios + certificados) com retenção curta no Backblaze B2
-- Backup diário completo com retenção longa
-- Snapshot periódico do disco EBS
-- Ensaio de restauração mensal automatizado (`deploy/restore-drill.sh`, abaixo)
-
 ## Ensaio de restauração (`deploy/restore-drill.sh`)
 
 Backup que nunca foi restaurado não é backup comprovado. O ensaio:
@@ -347,15 +427,14 @@ Backup que nunca foi restaurado não é backup comprovado. O ensaio:
 5. grava `restore-latest.json` (`kind: restore-drill`, duração, contagens), lido
    pelo painel de Operações.
 
-Rode no servidor (primeira vez à mão, depois mensal no cron):
+O ensaio já está agendado no cron de produção. Para uma execução manual no servidor:
 
 ```bash
 cd ~/apps/filtroAPP
-deploy/restore-drill.sh
-# cron sugerido: 30 4 2 * * /root/apps/filtroAPP/deploy/restore-drill.sh >> /root/logs/restore-drill.log 2>&1
+B2_BIN=/root/.local/bin/b2 B2_ENV_FILE=/root/.config/filtroapp-backup/b2.env bash deploy/restore-drill.sh
 ```
 
-Com o ensaio agendado, ligue `OPERATIONS_REQUIRE_RESTORE_STATUS=true` e
+Em produção já estão ativos `OPERATIONS_REQUIRE_RESTORE_STATUS=true` e
 `OPERATIONS_RESTORE_MAX_AGE_DAYS=35` no `backend/.env.production`. Se
 `TELEGRAM_TOKEN`/`TELEGRAM_CHAT_ID` estiverem no ambiente do cron, uma falha também
 avisa no Telegram, como no backup.
