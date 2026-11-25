@@ -348,21 +348,19 @@ O caminho manual da seção "Subida em produção" continua válido como plano B
 descartável (container próprio, sem rede, apagado no fim), confere migrations,
 usuários, projetos, relatórios e a data do último relatório, e grava o resultado
 em `restore-latest.json`, o mesmo arquivo que o painel de Operações lê. Nunca
-toca o banco de produção. **Rode no servidor** a primeira vez à mão:
+toca o banco de produção. O ensaio já está agendado no crontab de `root`, no
+dia 2 às **04h30 UTC (01h30 de Brasília)**. Para uma execução manual com os
+mesmos caminhos do cron:
 
 ```bash
 cd ~/apps/filtroAPP
-deploy/restore-drill.sh
+B2_BIN=/root/.local/bin/b2 B2_ENV_FILE=/root/.config/filtroapp-backup/b2.env bash deploy/restore-drill.sh
 cat /root/backups/filtrovali/status/restore-latest.json
 ```
 
 Precisa de espaço livre em disco para o dump descompactado mais o banco
-restaurado. Depois do primeiro ensaio com sucesso, agende-o (mensal) e ligue a
-cobrança no painel/alerta:
-
-```bash
-( crontab -l; echo '30 4 2 * * /root/apps/filtroAPP/deploy/restore-drill.sh >> /root/logs/restore-drill.log 2>&1' ) | crontab -
-```
+restaurado. Não duplique o agendamento existente. A verificação de 25/11/2026
+confirmou estes parâmetros ativos no backend e no worker:
 
 ```env
 OPERATIONS_BACKUP_STATUS_FILE=/ops-status/backup-latest.json
@@ -567,7 +565,7 @@ OPERATIONS_RESTORE_STATUS_FILE=/ops-status/restore-latest.json
 OPERATIONS_REQUIRE_BACKUP_STATUS=true
 OPERATIONS_REQUIRE_RESTORE_STATUS=false
 OPERATIONS_BACKUP_MAX_AGE_HOURS=26
-OPERATIONS_RESTORE_MAX_AGE_DAYS=30
+OPERATIONS_RESTORE_MAX_AGE_DAYS=35
 OPERATIONS_ALERT_JOB_ENABLED=true
 OPERATIONS_ALERT_INTERVAL_MS=3600000
 OPERATIONS_ALERT_EMAILS=ti@empresa.example,responsavel@empresa.example
@@ -817,20 +815,26 @@ dois nomes antes do `443` ficar operacional.
 
 ## Backup
 
-Não existe rotina automática de backup embutida no compose de produção.
-Os dados ficam persistidos localmente nos volumes Docker:
+A rotina automática está no **crontab de `root` da VPS**, fora do Compose.
+Configuração conferida em **25/11/2026**, com o servidor em `Etc/UTC`:
 
-- `filtrovali_pgdata`
-- `filtrovali_relatorios`
+- cópia completa local às **00h, 03h, 08h, 13h, 18h e 23h UTC**;
+- cópia completa diária para `b2://filtrovali-backups/daily` às **02h UTC**;
+- cópia completa mensal para `b2://filtrovali-backups/monthly`, no dia **1 às 01h UTC**;
+- ensaio de restauração em container descartável, no dia **2 às 04h30 UTC**.
 
-Para backup operacional do servidor, use:
+As três rotinas de backup executam `/usr/local/sbin/filtroapp-backup-run`, que
+carrega `/root/.config/filtroapp-backup/env` e chama `deploy/backup-prod.sh`.
+Cada execução completa inclui dump PostgreSQL, relatórios, certificados, o
+volume de dados do Caddy e checksums. Os arquivos de ambiente e o Caddyfile
+precisam ser recuperados separadamente do cofre/configuração da infraestrutura.
 
-- `deploy/backup-prod.sh`
-- `deploy/BACKUP.md`
+A rotina local mantém até duas pastas com timestamp após sucesso; diário e
+mensal deixam somente a pasta da própria execução no host após upload
+bem-sucedido. O B2 oculta os uploads de `daily/` após 7 dias e os de `monthly`
+após 60 dias, excluindo-os um dia depois de ocultar. Não há envio horário ao B2
+nem snapshot EBS configurado por esses scripts.
 
-O fluxo recomendado é:
-
-1. `pg_dump` do PostgreSQL
-2. compactação do volume `filtrovali_relatorios`
-3. cópia para S3 ou outro destino externo
-4. snapshot periódico do disco EBS
+Os volumes `filtrovali_pgdata` e `filtrovali_relatorios` são persistência local.
+Horários em Brasília, linhas exatas do cron, retenção, status observado,
+credenciais e procedimentos de recuperação estão em [BACKUP.md](BACKUP.md).
