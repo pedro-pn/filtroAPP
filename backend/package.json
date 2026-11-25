@@ -11,6 +11,7 @@
     "ops:test-alert": "node scripts/send-test-ops-alert.js",
     "performance:report": "node scripts/report-performance.js",
     "performance:http": "node scripts/benchmark-http-performance.js",
+    "load:test": "node scripts/load-test.js",
     "test": "node --test test/*.test.js",
     "generate:quality-models": "node scripts/generate-quality-document-models.js",
     "prisma:generate": "prisma generate",
