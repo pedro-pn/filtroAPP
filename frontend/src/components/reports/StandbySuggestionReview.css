@@ -1,0 +1,43 @@
+.standby-suggestion {
+  margin-block: 12px;
+  min-width: 0;
+}
+
+.standby-suggestion p {
+  margin: 0 0 8px;
+}
+
+.standby-suggestion__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.standby-suggestion__editor {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.standby-suggestion__editor p {
+  margin: 0;
+}
+
+.standby-suggestion__evidence {
+  padding-inline-start: 20px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.standby-suggestion__evidence li + li {
+  margin-top: 8px;
+}
+
+@media (max-width: 480px) {
+  .standby-suggestion__actions > button {
+    flex: 1 1 100%;
+    white-space: normal;
+  }
+}

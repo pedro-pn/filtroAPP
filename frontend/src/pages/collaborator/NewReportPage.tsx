@@ -46,6 +46,7 @@ import { useNewReportBootstrap } from '../../hooks/useBootstrap';
 import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
 import { useReportMutations } from '../../hooks/useReports';
 import { useReportWorkforcePrefill } from '../../hooks/useReportWorkforcePrefill';
+import { useStandbySuggestion } from '../../hooks/useStandbySuggestion';
 import { AppShell } from '../../layout/AppShell';
 import { createNavigationModel } from '../../layout/navigationModel';
 import { PageHeader } from '../../layout/PageHeader';
@@ -244,6 +245,14 @@ function SiteRdoFormPage() {
   const canCreateReportWithoutLeader = user?.role === 'MANAGER' || user?.role === 'COORDINATOR';
   const canReview = canReviewRdoReports(user);
   const effectiveServiceOnly = canCreateServiceOnly && serviceOnly;
+  const standbyReview = useStandbySuggestion({
+    input: { dailyDescription, services, arrivalTime, departureTime, lunchBreak, noturno, noturnoStart, noturnoEnd, noturnoInterval, standby, standbyDuration, standbyMotivo },
+    scope: `new:${projectId}:${reportDate}`,
+    enabled: !effectiveServiceOnly,
+    disabled: isSubmitting,
+    reviewer: canReview,
+    onApply: fields => useRdoStore.setState(fields)
+  });
   const steps = effectiveServiceOnly ? serviceOnlySteps : rdoSteps;
   const navigationModules = useMemo(() => hubModulesForUser(user), [user]);
   const navigation = useMemo(
@@ -958,6 +967,16 @@ function SiteRdoFormPage() {
     if (!validateHeader()) return;
     if (!validateServices()) return;
 
+    isSubmittingRef.current = true;
+    const standbyDecision = await standbyReview.reviewBeforeSubmit();
+    if (standbyDecision === 'cancel') {
+      isSubmittingRef.current = false;
+      return;
+    }
+    // Applying from the dialog and sending happen in the same event: use its values directly.
+    const submissionStandby = typeof standbyDecision === 'object'
+      ? standbyDecision : { standby, standbyDuration, standbyMotivo };
+
     if (effectiveServiceOnly && user.role === 'COORDINATOR') {
       const confirmed = await confirm({
         title: 'Enviar relatório diretamente para o cliente?',
@@ -966,7 +985,10 @@ function SiteRdoFormPage() {
         cancelLabel: 'Cancelar',
         danger: false
       });
-      if (!confirmed) return;
+      if (!confirmed) {
+        isSubmittingRef.current = false;
+        return;
+      }
     }
 
     isSubmittingRef.current = true;
@@ -1026,10 +1048,10 @@ function SiteRdoFormPage() {
           dailyDescription: dailyDescription || null,
           specialConditions: {
             workLocation: effectiveWorkLocation,
-            standby,
+            standby: submissionStandby.standby,
             standbyDetails: {
-              total: standbyDuration,
-              motivo: standbyMotivo
+              total: submissionStandby.standbyDuration,
+              motivo: submissionStandby.standbyMotivo
             },
             generalUploads,
             noturnoDetails: {
@@ -1148,6 +1170,8 @@ function SiteRdoFormPage() {
         </Card>
 
         <div className="rdo-form-stage" inert={isSubmitting}>
+
+        {standbyReview.review}
 
         {step === 0 ? (
         <div className={`rdo-form-grid rdo-form-grid--header ${effectiveServiceOnly ? 'is-service-only' : ''}`}>
