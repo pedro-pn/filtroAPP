@@ -9,6 +9,8 @@ export type E2eSeed = {
   collaborators: { ana: { id: string; name: string }; bruno: { id: string; name: string } };
   projects: { a: { id: string; code: string; name: string }; b: { id: string; code: string; name: string } };
   reports: { projectBReportId: string };
+  users: { adminId: string; collaboratorUserId: string };
+  efetivo: { mobilizationDate: string; executionStartDate: string; executionEndDate: string };
 };
 
 const here = path.dirname(fileURLToPath(import.meta.url));
