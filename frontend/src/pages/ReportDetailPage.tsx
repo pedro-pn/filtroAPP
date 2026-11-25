@@ -34,6 +34,7 @@ import { SignatureProgress } from '../components/reports/SignatureProgress';
 import { useToast } from '../components/ui/ToastContext';
 import { useReportDetailBootstrap } from '../hooks/useBootstrap';
 import { useReportWorkforceAvailability } from '../hooks/useReportWorkforcePlanning';
+import { useStandbySuggestion } from '../hooks/useStandbySuggestion';
 import { pageScrollRestoreStateFromNavigation } from '../hooks/usePageScrollRestoration';
 import { useReport, useReportAudit, useReportMutations } from '../hooks/useReports';
 import { AppShell } from '../layout/AppShell';
@@ -74,7 +75,7 @@ import { canReviewRdoReports } from '../../../shared/modules/rdo-permissions.js'
 import { canEditMissionReports } from '../../../shared/modules/mission-report-access.js';
 import type { AuthUser } from '../types/auth';
 import { firstMissingRequiredServiceTime } from '../utils/reportServiceTimes';
-import { normalizeLocalUploadUrl } from '../utils/uploadAssetUrl';
+import { asUploadedFiles } from './reportDetailUploads';
 import { reportEditorOperationalMode } from './reportEditorOperationalMode';
 import { REPORT_DETAIL_TEXT as TEXT } from './reportDetailText';
 import { hubModulesForUser } from './hubModules';
@@ -261,31 +262,6 @@ function overtimeMinutesFromReport(report: ReportSummary) {
   const nighttime = minutesValue(report.nighttimeOvertimeMinutes ?? overtimeSummary.nighttimeOvertimeMinutes);
   const total = minutesValue(report.totalOvertimeMinutes ?? overtimeSummary.totalOvertimeMinutes) || daytime + nighttime;
   return { daytime, nighttime, total };
-}
-
-function asUploadedFiles(value: unknown): UploadedFile[] {
-  return Array.isArray(value)
-    ? value
-      .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
-      .map(item => {
-        const url = getString(item.url)
-          || getString(item.path)
-          || getString(item.storagePath)
-          || getString(item.dataUrl)
-          || getString(item.source)
-          || getString(item.src)
-          || getString(item.href)
-          || getString(item.publicUrl)
-          || getString(item.fileName);
-        return {
-          label: getString(item.label) || 'Arquivo',
-          fileName: getString(item.fileName) || getString(item.name) || url || 'arquivo',
-          mimeType: getString(item.mimeType) || getString(item.type) || 'image/jpeg',
-          url: normalizeLocalUploadUrl(url)
-        };
-      })
-      .filter((item): item is UploadedFile => Boolean(item.url))
-    : [];
 }
 
 function serviceId() {
@@ -500,6 +476,14 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const canReview = canReviewRdoReports(user);
   const canEditSequence = canReview && !readOnly && !manualReport;
   const canApproveInEditor = report.status === 'PENDING' || report.status === 'RETURNED' || hasActiveClientRejection(report);
+  const standbyReview = useStandbySuggestion({
+    input: form,
+    scope: report.id,
+    enabled: report.reportType === 'RDO' && !serviceReportMode && !manualReport && !readOnly,
+    disabled: isSaving,
+    reviewer: canReview,
+    onApply: fields => setForm(current => ({ ...current, ...fields }))
+  });
 
   async function handleReissue() {
     const result = await reportMutations.regenerateReports.mutateAsync({ ids: [report.id] });
@@ -782,9 +766,9 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     resolve?.(deleteReports);
   }
 
-  async function handleSave(options: { navigateAfter?: boolean; showSuccess?: boolean } = {}) {
+  async function handleSave(options: { navigateAfter?: boolean; showSuccess?: boolean; reviewStandby?: boolean } = {}) {
     // A submissão lê os valores atuais, inclusive a alteração do campo que perdeu o foco.
-    const form = currentFormRef.current;
+    let form = currentFormRef.current;
     if (readOnly) return false;
     if (manualReport) return handleManualInlineSave(options);
     if (report.reportType === 'RDO') {
@@ -886,6 +870,9 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     const { navigateAfter = false, showSuccess = true } = options;
 
     try {
+      const standbyDecision = options.reviewStandby === false ? 'skip' : await standbyReview.reviewBeforeSubmit();
+      if (standbyDecision === 'cancel') return false;
+      if (typeof standbyDecision === 'object') form = { ...form, ...standbyDecision };
       const shouldAskDerivedDeletion = hasFinalizedServiceDemotion(report, form);
       const deleteUnfinalizedDerivedReports = shouldAskDerivedDeletion
         ? await requestDerivedDeletionChoice()
@@ -944,7 +931,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   }
 
   async function handleSaveAndStatus(status: Extract<ReportStatus, 'APPROVED' | 'RETURNED'>, reviewNotes?: string | null) {
-    const saved = await handleSave({ navigateAfter: false, showSuccess: false });
+    const saved = await handleSave({ navigateAfter: false, showSuccess: false, reviewStandby: status !== 'RETURNED' });
     if (!saved) return;
     const updated = await handleStatus(status, reviewNotes);
     if (updated && status === 'APPROVED' && canReview) {
@@ -989,6 +976,8 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     <UploadTransferProvider key={report.id} enabled={!readOnly && !manualReport && !isSaving} onMove={move => setForm(current => moveReportUpload(current, move))}>
     <form className="rdo-form-stage rdo-edit-form" noValidate onSubmit={handleSubmit} aria-busy={isSaving}>
       {readOnly ? <Alert tone="warning">{TEXT.signedLocked}</Alert> : null}
+
+      {standbyReview.review}
 
       <Card className="rdo-form-card rdo-form-card--identification" title={TEXT.generalInfo}>
         <div className="rdo-field-grid rdo-field-grid--identification rdo-edit-general-grid">

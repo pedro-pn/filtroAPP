@@ -1,5 +1,13 @@
 # Search regression in a browser
 
+For standby suggestions, start Vite locally and open its origin in a Playwright CLI session.
+Run `playwright-cli run-code --filename frontend/test/browser/rdo-standby-suggestion.js`
+from the repository root. All API requests are simulated. It covers live detection, cancelling,
+ignoring and rediscovering the suggestion in a pending review, editing the proposed duration
+and reason, applying during submission/approval, legacy service observations, unclear durations,
+and 390 px layout. Screenshots are saved under `output/playwright/standby-review-*.png`.
+Calculation and false-positive regressions are in `frontend/test/rdo-standby-suggestion.test.mjs`.
+
 For the app update notice, build the frontend and start `npm run preview -- --port 4187`.
 Open `http://127.0.0.1:4187/login` in an isolated Playwright CLI session and run
 `playwright-cli run-code --filename frontend/test/browser/app-update-notice.js` from the repository root.
