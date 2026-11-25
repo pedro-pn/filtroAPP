@@ -19,6 +19,8 @@ import { PROJECT_DISTRIBUTION_CHANNELS } from '../../../../shared/modules/projec
 import { RDO_ACCESS_ROLES, requireAuth, requireManager, requireModuleRole } from '../../middleware/auth.js';
 import { ensureProjectReleasedServiceReportSignatureRounds, reconcileProjectClientSignatureRequirements } from './reports.js';
 
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { opsRoute, EMPTY, jsonResponseSchema, libValidatedBodySchema } from '../../lib/api-contract/domains/operacoes.js';
 export { projectListWhereForAuth } from '../../lib/projects/access.js';
 
 const router = Router();
@@ -302,7 +304,7 @@ function projectWithCurrentRoles(project) {
   };
 }
 
-router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /', { tag: 'cadastros-rdo', summary: 'Projetos: Listar projetos', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   const where = await projectListWhereForAuth(req.auth, req.query.active);
 
   const items = await prisma.project.findMany({
@@ -313,7 +315,7 @@ router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => 
   res.json(items.map(projectWithCurrentRoles));
 }));
 
-router.post('/', requireAuth, requireRdoAccess, requireManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /', { tag: 'cadastros-rdo', summary: 'Projetos: Criar projeto', body: schema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requireRdoAccess, requireManager, asyncHandler(async (req, res) => {
   const data = normalizeProjectInput(schema.parse(req.body));
   await assertActiveClientSegment(data.clientSegment);
   const authorizedUserIds = await assertAuthorizedProjectUsers(data.authorizedUserIds);
@@ -367,7 +369,7 @@ router.post('/', requireAuth, requireRdoAccess, requireManager, asyncHandler(asy
   res.status(201).json(projectWithCurrentRoles(item));
 }));
 
-router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PUT /:id', { tag: 'cadastros-rdo', summary: 'Projetos: Atualizar projeto', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requireRdoAccess, requireManager, asyncHandler(async (req, res) => {
   const parsed = parseProjectUpdateInput(req.body);
   const shouldReconcileClientSigners = parsed.clientEmailPrimary !== undefined
     || parsed.clientSignerSignsServiceReports !== undefined
@@ -550,7 +552,7 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
   res.json(projectWithCurrentRoles(item));
 }));
 
-router.delete('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('DELETE /:id', { tag: 'cadastros-rdo', summary: 'Projetos: Excluir projeto', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 204: EMPTY }, errors: [401, 403] }), requireAuth, requireRdoAccess, requireManager, asyncHandler(async (req, res) => {
   await removeProjectById(req.params.id, prisma, {
     userId: req.auth.user.id,
     evidence: signatureEvidenceFromRequest(req)

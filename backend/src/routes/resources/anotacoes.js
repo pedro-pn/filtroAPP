@@ -6,6 +6,8 @@ import asyncHandler from '../../lib/async-handler.js';
 import { createMemoryRateLimit } from '../../lib/rate-limit.js';
 import { requireAuth, requireModuleRole } from '../../middleware/auth.js';
 
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { opsRoute, jsonResponseSchema } from '../../lib/api-contract/domains/operacoes.js';
 // "Adequar para relatório" (Atividades do dia e Observações do RDO): gestor e coordenador do RDO.
 export const ANOTACOES_ROLES = ['rdo:manager', 'rdo:coordinator'];
 
@@ -33,11 +35,11 @@ export function createAnotacoesRouter({
   router.use(authenticate, requireModuleRole(...ANOTACOES_ROLES));
 
   // O frontend só mostra o botão quando a chave da OpenAI está configurada no servidor.
-  router.get('/config', (_req, res) => {
+  defineRoute(router, opsRoute('GET /config', { tag: 'anotacoes', summary: 'Anotações: Disponibilidade da adequação por IA', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), (_req, res) => {
     res.json({ disponivel: configurada(), maxCaracteres: MAX_CARACTERES });
   });
 
-  router.post('/adequar', ...limites, asyncHandler(async (req, res) => {
+  defineRoute(router, opsRoute('POST /adequar', { tag: 'anotacoes', summary: 'Anotações: Adequar texto com IA (OpenAI)', body: corpoSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), ...limites, asyncHandler(async (req, res) => {
     const parsed = corpoSchema.safeParse(req.body || {});
     if (!parsed.success) {
       return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Anotação inválida.', codigo: 'INVALIDA' });

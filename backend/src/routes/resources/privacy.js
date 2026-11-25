@@ -23,6 +23,8 @@ import prisma from '../../lib/prisma.js';
 import { createMemoryRateLimit, expensiveRouteLimit } from '../../lib/rate-limit.js';
 import { requireAuth } from '../../middleware/auth.js';
 
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { opsRoute, jsonResponseSchema } from '../../lib/api-contract/domains/operacoes.js';
 const router = Router();
 const PUBLIC_REQUEST_DEDUPE_HOURS = 24;
 const RESPONSE_ATTEMPT_STALE_MS = 15 * 60 * 1000;
@@ -532,7 +534,7 @@ export async function notifyDataSubjectRequestCreated(request, {
   });
 }
 
-router.post('/requests', publicRequestLimiter, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /requests', { tag: 'privacidade', summary: 'Privacidade: Abrir solicitação do titular (LGPD)', auth: 'public', body: requestSchema, responses: { 201: jsonResponseSchema }, errors: [400, 429] }), publicRequestLimiter, asyncHandler(async (req, res) => {
   const data = requestSchema.parse(req.body || {});
   if (data.companyWebsite) {
     return res.status(201).json({
@@ -565,7 +567,7 @@ router.post('/requests', publicRequestLimiter, asyncHandler(async (req, res) => 
   res.status(201).json({ request: dataSubjectRequestPublicShape(request) });
 }));
 
-router.get('/requests', requireAuth, requirePrivacyManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /requests', { tag: 'privacidade', summary: 'Privacidade: Listar solicitações dos titulares', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requirePrivacyManager, asyncHandler(async (req, res) => {
   const query = requestListQuerySchema.parse(req.query || {});
   const where = query.status === 'ALL' ? {} : { status: query.status };
   const skip = (query.page - 1) * query.pageSize;
@@ -598,7 +600,7 @@ router.get('/requests', requireAuth, requirePrivacyManager, asyncHandler(async (
   });
 }));
 
-router.post('/requests/:id/response', requireAuth, requirePrivacyManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /requests/:id/response', { tag: 'privacidade', summary: 'Privacidade: Responder solicitação do titular', body: requestResponseSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 409] }), requireAuth, requirePrivacyManager, asyncHandler(async (req, res) => {
   const missing = missingMailerError();
   if (missing) throw missing;
 
@@ -725,7 +727,7 @@ router.post('/requests/:id/response', requireAuth, requirePrivacyManager, asyncH
   res.json({ request: updated });
 }));
 
-router.patch('/requests/:id/identity-verification', requireAuth, requirePrivacyManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PATCH /requests/:id/identity-verification', { tag: 'privacidade', summary: 'Privacidade: Registrar verificação de identidade', body: identityVerificationSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requirePrivacyManager, asyncHandler(async (req, res) => {
   const data = identityVerificationSchema.parse(req.body || {});
   const request = await prisma.dataSubjectRequest.findUniqueOrThrow({
     where: { id: req.params.id },
@@ -745,7 +747,7 @@ router.patch('/requests/:id/identity-verification', requireAuth, requirePrivacyM
   res.json({ request: updated });
 }));
 
-router.patch('/requests/:id/status', requireAuth, requirePrivacyManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PATCH /requests/:id/status', { tag: 'privacidade', summary: 'Privacidade: Alterar status da solicitação', body: requestStatusSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requirePrivacyManager, asyncHandler(async (req, res) => {
   const data = requestStatusSchema.parse(req.body || {});
   const request = await prisma.dataSubjectRequest.findUniqueOrThrow({
     where: { id: req.params.id },
@@ -770,7 +772,7 @@ router.patch('/requests/:id/status', requireAuth, requirePrivacyManager, asyncHa
   res.json({ request: updated });
 }));
 
-router.get('/me/data-export', requireAuth, ...expensiveRouteLimit('export'), asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /me/data-export', { tag: 'privacidade', summary: 'Privacidade: Exportar meus dados', responses: { 200: jsonResponseSchema }, errors: [401, 403, 429] }), requireAuth, ...expensiveRouteLimit('export'), asyncHandler(async (req, res) => {
   const user = await prisma.user.findUniqueOrThrow({
     where: { id: req.auth.user.id },
     include: {
@@ -1104,7 +1106,7 @@ export async function buildSelfServiceDataExport(user, {
   };
 }
 
-router.post('/me/delete-request', requireAuth, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /me/delete-request', { tag: 'privacidade', summary: 'Privacidade: Pedir exclusão da minha conta', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 201: jsonResponseSchema }, errors: [401, 403] }), requireAuth, asyncHandler(async (req, res) => {
   const readiness = await dataSubjectRequestIntakeReadiness();
   if (!readiness.ready) {
     console.error(`Solicitação LGPD autenticada recusada: ${readiness.reason}`);

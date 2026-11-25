@@ -64,6 +64,8 @@ import { removeContribution, resolveContributionScope } from '../../lib/acompanh
 import { progressReadModeSchema } from '../../lib/acompanhamento/progress-projection.js';
 import { requestAdditionalProposalQuery } from '../../lib/projects/commercial-proposal-sync.js';
 
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { opsRoute, FILE, jsonResponseSchema, libValidatedBodySchema } from '../../lib/api-contract/domains/operacoes.js';
 const router = Router();
 const detailReadQuerySchema = z.object({
   progress: progressReadModeSchema.default('full'),
@@ -91,7 +93,12 @@ for (const [path, ownerKey, param] of [
   ['/projetos/:projectId/metas-semanais', 'projectId', 'projectId'],
   ['/grupos-missoes/:groupId/metas-semanais', 'groupId', 'groupId']
 ]) {
-  router.get(path, requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res) => {
+  const ownerLabel = ownerKey === 'projectId' ? 'projeto' : 'grupo de missões';
+  const weeklyRoute = (verb, summary, extra = {}) => opsRoute(`${verb} ${path}`, {
+    tag: 'acompanhamento-comercial', summary: `Acompanhamento comercial: ${summary} (${ownerLabel})`,
+    responses: { 200: jsonResponseSchema }, ...extra
+  });
+  defineRoute(router, weeklyRoute('GET', 'Consultar metas semanais', { errors: [401, 403] }), requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res) => {
     const owner = { [ownerKey]: req.params[param] };
     const [targets, workdays] = await Promise.all([
       listWeeklyProgressTargets(owner), weeklyTargetWorkdays(owner)
@@ -103,12 +110,12 @@ for (const [path, ownerKey, param] of [
       ? await loadWeeklyAttendanceHistory(owner) : undefined;
     res.json({ targets, workdays, ...(progressHistory ? { progressHistory } : {}), ...(serviceHistory ? { serviceHistory } : {}), ...(attendanceHistory ? { attendanceHistory } : {}) });
   }));
-  router.put(path, requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+  defineRoute(router, weeklyRoute('PUT', 'Salvar meta semanal', { body: libValidatedBodySchema, validatedBy: 'saveWeeklyProgressTarget (lib)', errors: [400, 401, 403] }), requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
     res.json(await saveWeeklyProgressTarget({ [ownerKey]: req.params[param] }, req.body, {
       userId: req.auth.user.id, userName: req.auth.user.name
     }));
   }));
-  router.delete(path, requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+  defineRoute(router, weeklyRoute('DELETE', 'Excluir meta semanal', { body: libValidatedBodySchema, bodyOptional: true, validatedBy: 'deleteWeeklyProgressTarget (lib)', errors: [400, 401, 403] }), requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
     res.json(await deleteWeeklyProgressTarget({ [ownerKey]: req.params[param] }, req.body, {
       userId: req.auth.user.id, userName: req.auth.user.name
     }));
@@ -125,13 +132,13 @@ function requireComercialAppToken(req, res, next) {
   next();
 }
 
-router.get('/comercialapp/capabilities', requireComercialAppToken, (_req, res) => {
+defineRoute(router, opsRoute('GET /comercialapp/capabilities', { tag: 'acompanhamento-comercial', summary: 'ComercialAPP: Versões e recursos aceitos pela ponte', auth: 'apiToken', responses: { 200: jsonResponseSchema } }), requireComercialAppToken, (_req, res) => {
   const ready = env.comercialAppAdditionalContract === '3';
   res.set('Cache-Control', 'no-store').json(ready ? { contractVersion: 3, additionalProposals: true, budgetMode: 'CONTRIBUTIONS' }
     : { contractVersion: 1, additionalProposals: false, budgetMode: 'MAIN' });
 });
 
-router.post('/comercialapp/propostas', requireComercialAppToken, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /comercialapp/propostas', { tag: 'acompanhamento-comercial', summary: 'ComercialAPP: Receber propostas e revisões', auth: 'apiToken', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400] }), requireComercialAppToken, asyncHandler(async (req, res) => {
   try {
     const result = await receiveCommercialAppProposal(req.body);
     res.status(result.duplicate ? 200 : 201).json(result);
@@ -141,7 +148,7 @@ router.post('/comercialapp/propostas', requireComercialAppToken, asyncHandler(as
   }
 }));
 
-router.get('/comercialapp/projetos', requireComercialAppToken, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /comercialapp/projetos', { tag: 'acompanhamento-comercial', summary: 'ComercialAPP: Listar projetos vinculados a propostas', auth: 'apiToken', responses: { 200: jsonResponseSchema }, errors: [400] }), requireComercialAppToken, asyncHandler(async (req, res) => {
   const { busca } = z.object({ busca: z.string().trim().min(2).max(100) }).parse(req.query);
   const items = await prisma.project.findMany({
     where: { ...projectChannelWhere('commercial'), isActive: true,
@@ -156,7 +163,7 @@ router.get('/comercialapp/projetos', requireComercialAppToken, asyncHandler(asyn
   res.json({ items });
 }));
 
-router.get('/projetos/:projectId/comercialapp/revisoes', requireAuth, requireAcompanhamentoAccess,
+defineRoute(router, opsRoute('GET /projetos/:projectId/comercialapp/revisoes', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Listar revisões do ComercialAPP do projeto', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireAuth, requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
     const [items, budget, jobs] = await Promise.all([
       listCommercialAppRevisions(req.params.projectId),
@@ -171,7 +178,7 @@ router.get('/projetos/:projectId/comercialapp/revisoes', requireAuth, requireAco
     })) });
   }));
 
-router.post('/projetos/:projectId/comercialapp/selecionar', requireAuth, requireAcompanhamentoManager,
+defineRoute(router, opsRoute('POST /projetos/:projectId/comercialapp/selecionar', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Selecionar a revisão do ComercialAPP que vale para o projeto', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
     const { externalId, replaceLegacy, ...options } = z.object({ externalId: z.string().min(1),
       replaceLegacy: z.boolean().optional().default(false),
@@ -190,7 +197,7 @@ router.post('/projetos/:projectId/comercialapp/selecionar', requireAuth, require
   }));
 
 
-router.get('/projetos/:projectId/comercialapp/documentos', requireAuth, requireAcompanhamentoAccess,
+defineRoute(router, opsRoute('GET /projetos/:projectId/comercialapp/documentos', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Listar documentos do ComercialAPP do projeto', responses: { 200: FILE }, errors: [400, 401, 403, 404] }), requireAuth, requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
     const { proposalId, documentId } = z.object({ proposalId: z.string().min(1), documentId: z.string().min(1) }).parse(req.query);
     const proposal = await prisma.commercialAppProposal.findFirst({ where: { projectId: req.params.projectId, externalId: proposalId } });
@@ -209,14 +216,14 @@ router.get('/projetos/:projectId/comercialapp/documentos', requireAuth, requireA
     res.sendFile(file.targetPath);
   }));
 
-router.post('/projetos/:projectId/comercialapp/consultar-adicional', requireAuth, requireAcompanhamentoManager,
+defineRoute(router, opsRoute('POST /projetos/:projectId/comercialapp/consultar-adicional', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Consultar proposta adicional no ComercialAPP', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
     const reference = z.object({ proposalCode: z.string().regex(/^\d{1,40}$/),
       revisionNumber: z.number().int().nonnegative().max(2_147_483_647) }).parse(req.body);
     res.status(202).json(await requestAdditionalProposalQuery(req.params.projectId, reference));
   }));
 
-router.post('/projetos/:projectId/comercialapp/resolver-escopo', requireAuth, requireAcompanhamentoManager,
+defineRoute(router, opsRoute('POST /projetos/:projectId/comercialapp/resolver-escopo', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Resolver o escopo da proposta do ComercialAPP', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
     const { proposalCode, ...options } = z.object({ proposalCode: z.string().min(1).max(40),
       expectedSelectionVersion: z.number().int().positive(), choice: z.enum(['MANUAL', 'COMMERCIAL']),
@@ -224,7 +231,7 @@ router.post('/projetos/:projectId/comercialapp/resolver-escopo', requireAuth, re
     res.json(await resolveContributionScope(req.params.projectId, proposalCode, { ...options, userId: req.auth.user.id }));
   }));
 
-router.post('/projetos/:projectId/comercialapp/remover-adicional', requireAuth, requireAcompanhamentoManager,
+defineRoute(router, opsRoute('POST /projetos/:projectId/comercialapp/remover-adicional', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Remover proposta adicional do ComercialAPP', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
     const { proposalCode, ...options } = z.object({ proposalCode: z.string().min(1).max(40),
       expectedSelectionVersion: z.number().int().positive(), reason: z.string().trim().min(1).max(1000)
@@ -366,8 +373,7 @@ function requireServiceToken(req, res, next) {
 }
 
 // Recebe o .accdb como binário cru (mais simples para um script: `curl --data-binary @arquivo`).
-router.post(
-  '/import',
+defineRoute(router, opsRoute('POST /import', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Importar base comercial (.accdb)', auth: 'apiToken', noBody: 'Corpo binário: o .accdb cru (application/octet-stream), lido e validado pelo handler; não é JSON.', responses: { 200: jsonResponseSchema }, errors: [400, 422] }),
   requireServiceToken,
   express.raw({
     type: ['application/octet-stream', 'application/x-msaccess'],
@@ -399,8 +405,7 @@ router.post(
 
 // Histórico de importações (auditoria). Por ora restrito ao admin do hub; quando os papéis
 // `acompanhamento:*` existirem, trocar por requireModuleRole.
-router.get(
-  '/imports',
+defineRoute(router, opsRoute('GET /imports', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Histórico de importações', responses: { 200: jsonResponseSchema }, errors: [401, 403] }),
   requireAuth,
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
@@ -414,8 +419,7 @@ router.get(
 );
 
 // Dashboard de acompanhamento (previsto + realizado parcial por projeto).
-router.get(
-  '/dashboard',
+defineRoute(router, opsRoute('GET /dashboard', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Painel (previsto e realizado por projeto)', responses: { 200: jsonResponseSchema }, errors: [401, 403] }),
   requireAuth,
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
@@ -427,8 +431,7 @@ router.get(
 );
 
 // Cards da aba "Projetos": indicadores por projeto (dias trabalhados, avanço, colaboradores, prazos).
-router.get(
-  '/projetos-cards',
+defineRoute(router, opsRoute('GET /projetos-cards', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Cards da aba Projetos', responses: { 200: jsonResponseSchema }, errors: [401, 403] }),
   requireAuth,
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
@@ -444,8 +447,7 @@ router.get(
   })
 );
 
-router.patch(
-  '/projetos/:projectId/card-name',
+defineRoute(router, opsRoute('PATCH /projetos/:projectId/card-name', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Renomear o card do projeto', body: projectCardNameSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }),
   requireAuth,
   requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
@@ -457,8 +459,7 @@ router.patch(
   })
 );
 
-router.get(
-  '/projetos/:projectId/romaneios',
+defineRoute(router, opsRoute('GET /projetos/:projectId/romaneios', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Romaneios do projeto', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }),
   requireAuth,
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
@@ -469,8 +470,7 @@ router.get(
   })
 );
 
-router.get(
-  '/grupos-missoes/:groupId/romaneios',
+defineRoute(router, opsRoute('GET /grupos-missoes/:groupId/romaneios', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Romaneios do grupo de missões', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }),
   requireAuth,
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
@@ -483,8 +483,7 @@ router.get(
   })
 );
 
-router.get(
-  '/projetos/:projectId/standby-historico',
+defineRoute(router, opsRoute('GET /projetos/:projectId/standby-historico', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Histórico de standby do projeto', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }),
   requireAuth,
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
@@ -495,8 +494,7 @@ router.get(
   })
 );
 
-router.get(
-  '/projetos/:projectId/notas-gestao',
+defineRoute(router, opsRoute('GET /projetos/:projectId/notas-gestao', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Listar notas de gestão do projeto', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }),
   requireAuth,
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
@@ -509,8 +507,7 @@ router.get(
   })
 );
 
-router.post(
-  '/projetos/:projectId/notas-gestao',
+defineRoute(router, opsRoute('POST /projetos/:projectId/notas-gestao', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Criar nota de gestão do projeto', body: projectManagementNoteSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403] }),
   requireAuth,
   requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
@@ -528,8 +525,7 @@ router.post(
   })
 );
 
-router.patch(
-  '/projetos/:projectId/acompanhamento-status',
+defineRoute(router, opsRoute('PATCH /projetos/:projectId/acompanhamento-status', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Alterar o status de acompanhamento do projeto', body: projectTrackingStateSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }),
   requireAuth,
   requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
@@ -574,8 +570,7 @@ router.patch(
   })
 );
 
-router.get(
-  '/grupos-missoes',
+defineRoute(router, opsRoute('GET /grupos-missoes', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Listar grupos de missões', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }),
   requireAuth,
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
@@ -585,8 +580,7 @@ router.get(
   })
 );
 
-router.post(
-  '/grupos-missoes',
+defineRoute(router, opsRoute('POST /grupos-missoes', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Criar grupo de missões (mesclar projetos)', body: missionGroupCreateSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403] }),
   requireAuth,
   requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
@@ -603,8 +597,7 @@ router.post(
   })
 );
 
-router.patch(
-  '/grupos-missoes/:groupId',
+defineRoute(router, opsRoute('PATCH /grupos-missoes/:groupId', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Atualizar grupo de missões', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }),
   requireAuth,
   requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
@@ -621,8 +614,7 @@ router.patch(
   })
 );
 
-router.get(
-  '/grupos-missoes/:groupId/detalhe',
+defineRoute(router, opsRoute('GET /grupos-missoes/:groupId/detalhe', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Detalhe do grupo de missões', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }),
   requireAuth,
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
@@ -645,8 +637,7 @@ router.get(
   })
 );
 
-router.post(
-  '/grupos-missoes/:groupId/desmesclar',
+defineRoute(router, opsRoute('POST /grupos-missoes/:groupId/desmesclar', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Desfazer grupo de missões', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 200: jsonResponseSchema }, errors: [401, 403] }),
   requireAuth,
   requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
@@ -663,8 +654,7 @@ router.post(
 );
 
 // Realizado (compras Omie) agrupado por categoria de gasto. Opcional: ?projectId= para um projeto.
-router.get(
-  '/realizado-categorias',
+defineRoute(router, opsRoute('GET /realizado-categorias', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Realizado (compras Omie) por categoria de gasto', responses: { 200: jsonResponseSchema }, errors: [401, 403] }),
   requireAuth,
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
@@ -696,8 +686,7 @@ router.get(
 );
 
 // Custos administrativos por códigos fixos do Omie, sem cadastrar esses códigos como Project.
-router.get(
-  '/sede',
+defineRoute(router, opsRoute('GET /sede', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Custos administrativos da Sede (códigos fixos do Omie)', responses: { 200: jsonResponseSchema }, errors: [401, 403] }),
   requireAuth,
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
@@ -714,8 +703,7 @@ router.get(
 );
 
 // Projetos cuja proposta bate com propostas importadas (sinalização de pendência na aba Projetos).
-router.get(
-  '/pendencias',
+defineRoute(router, opsRoute('GET /pendencias', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Projetos com proposta importada pendente de vínculo', responses: { 200: jsonResponseSchema }, errors: [401, 403] }),
   requireAuth,
   requireAcompanhamentoAccess,
   asyncHandler(async (_req, res) => {
@@ -725,10 +713,10 @@ router.get(
 );
 
 // Mesmo vínculo operacional usado na projeção do Data Book por proposta.
-router.get('/projetos/:projectId/escopos-propostas', requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /projetos/:projectId/escopos-propostas', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Vínculo dos relatórios com os escopos das propostas', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res) => {
   res.json(await getProposalScopeTracking(req.params.projectId));
 }));
-router.put('/projetos/:projectId/escopos-propostas/:reportId', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PUT /projetos/:projectId/escopos-propostas/:reportId', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Vincular relatório a um escopo de proposta', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
   const payload = z.object({ serviceKey: z.string().length(64), contributionKey: z.string().min(1).max(200).nullable(),
     version: z.string().length(64), reason: z.string().trim().max(1000).optional() }).parse(req.body);
   const result = await assignReportContribution(req.params.projectId, req.params.reportId, payload, req.auth.user.id);
@@ -737,8 +725,7 @@ router.put('/projetos/:projectId/escopos-propostas/:reportId', requireAuth, requ
 }));
 
 // Revisões da proposta de um projeto (interface simples para escolher qual revisão vale).
-router.get(
-  '/projetos/:projectId/revisoes',
+defineRoute(router, opsRoute('GET /projetos/:projectId/revisoes', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Revisões da proposta do projeto', responses: { 200: jsonResponseSchema }, errors: [401, 403, 404] }),
   requireAuth,
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
@@ -762,8 +749,7 @@ const additionalRevisionSchema = revisionSchema.extend({
 });
 const proposalCodeParamSchema = z.coerce.number().int();
 
-router.post(
-  '/projetos/:projectId/revisao',
+defineRoute(router, opsRoute('POST /projetos/:projectId/revisao', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Escolher a revisão da proposta do projeto', body: revisionSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }),
   requireAuth,
   requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
@@ -778,8 +764,7 @@ router.post(
   })
 );
 
-router.post(
-  '/projetos/:projectId/propostas-adicionais/revisao',
+defineRoute(router, opsRoute('POST /projetos/:projectId/propostas-adicionais/revisao', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Escolher a revisão de uma proposta adicional', body: additionalRevisionSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }),
   requireAuth,
   requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
@@ -797,8 +782,7 @@ router.post(
   })
 );
 
-router.delete(
-  '/projetos/:projectId/propostas-adicionais/:codProp',
+defineRoute(router, opsRoute('DELETE /projetos/:projectId/propostas-adicionais/:codProp', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Remover proposta adicional do projeto', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }),
   requireAuth,
   requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
@@ -844,8 +828,7 @@ const manualCostSchema = z.object({
   note: z.string().trim().max(500).nullable().optional()
 });
 
-router.patch(
-  '/projetos/:projectId/cronograma',
+defineRoute(router, opsRoute('PATCH /projetos/:projectId/cronograma', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Atualizar o cronograma do projeto', body: scheduleSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }),
   requireAuth,
   requireAcompanhamentoAccess,
   (req, res, next) => Object.hasOwn(req.body ?? {}, 'proposalPercentage')
@@ -862,8 +845,7 @@ router.patch(
   })
 );
 
-router.post(
-  '/projetos/:projectId/custos-manuais',
+defineRoute(router, opsRoute('POST /projetos/:projectId/custos-manuais', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Lançar custo manual no projeto', body: manualCostSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403] }),
   requireAuth,
   requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
@@ -880,8 +862,7 @@ router.post(
   })
 );
 
-router.delete(
-  '/projetos/:projectId/custos-manuais/:costId',
+defineRoute(router, opsRoute('DELETE /projetos/:projectId/custos-manuais/:costId', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Excluir custo manual do projeto', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 200: jsonResponseSchema }, errors: [401, 403, 404] }),
   requireAuth,
   requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
@@ -935,8 +916,7 @@ const plannedScopeSchema = z.object({
   contributionsFingerprint: z.string().regex(/^[a-f0-9]{64}$/).optional()
 });
 
-router.get(
-  '/projetos/:projectId/escopo-previsto',
+defineRoute(router, opsRoute('GET /projetos/:projectId/escopo-previsto', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Escopo previsto do projeto', responses: { 200: jsonResponseSchema }, errors: [401, 403, 404] }),
   requireAuth,
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
@@ -949,8 +929,7 @@ router.get(
   })
 );
 
-router.put(
-  '/projetos/:projectId/escopo-previsto',
+defineRoute(router, opsRoute('PUT /projetos/:projectId/escopo-previsto', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Salvar o escopo previsto do projeto', body: plannedScopeSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }),
   requireAuth,
   requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
@@ -965,7 +944,7 @@ router.put(
   })
 );
 
-router.post('/projetos/:projectId/horas-previstas/resolver', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /projetos/:projectId/horas-previstas/resolver', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Escolher horas previstas (comercial ou manual)', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
   const data = z.object({ choice: z.enum(['COMMERCIAL', 'MANUAL']), fingerprint: z.string().regex(/^[a-f0-9]{64}$/) }).parse(req.body);
   try {
     await resolvePlannedHoursDecision(req.params.projectId, data, req.auth.user.id);
@@ -976,7 +955,7 @@ router.post('/projetos/:projectId/horas-previstas/resolver', requireAuth, requir
   }
 }));
 
-router.get('/projetos/:projectId/sistemas', requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /projetos/:projectId/sistemas', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Sistemas do projeto', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res) => {
   await assertHistoricalProject(prisma, req.params.projectId);
   const systems = await prisma.projectServiceSystem.findMany({
     where: { projectId: req.params.projectId }, orderBy: [{ equipment: 'asc' }, { name: 'asc' }], include: projectSystemScopeInclude
@@ -984,7 +963,7 @@ router.get('/projetos/:projectId/sistemas', requireAuth, requireAcompanhamentoAc
   res.json(systems.map(projectSystemWithMeasurements));
 }));
 
-router.put('/projetos/:projectId/sistemas/:id/alias', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PUT /projetos/:projectId/sistemas/:id/alias', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Renomear (apelido) um sistema do projeto', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
   const data = z.object({
     equipment: z.string().trim().min(1).max(180), system: z.string().trim().min(1).max(180),
     serviceType: z.enum(['LIMPEZA_QUIMICA', 'TESTE_PRESSAO', 'FLUSHING', 'FILTRAGEM', 'LIMPEZA_MECANICA']),
@@ -997,8 +976,7 @@ router.put('/projetos/:projectId/sistemas/:id/alias', requireAuth, requireAcompa
 }));
 
 // Dashboard detalhado de um projeto (aberto ao clicar no card da aba Projetos).
-router.get(
-  '/projetos/:projectId/planning-context',
+defineRoute(router, opsRoute('GET /projetos/:projectId/planning-context', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Contexto de planejamento do projeto', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }),
   requireAuth,
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
@@ -1012,8 +990,7 @@ router.get(
   })
 );
 
-router.get(
-  '/projetos/:projectId/faturamentos',
+defineRoute(router, opsRoute('GET /projetos/:projectId/faturamentos', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Faturamentos do projeto', responses: { 200: jsonResponseSchema }, errors: [401, 403, 404] }),
   requireAuth,
   requireAcompanhamentoAccess,
   requireProjectFinancials,
@@ -1024,8 +1001,7 @@ router.get(
   })
 );
 
-router.get(
-  '/grupos-missoes/:groupId/faturamentos',
+defineRoute(router, opsRoute('GET /grupos-missoes/:groupId/faturamentos', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Faturamentos do grupo de missões', responses: { 200: jsonResponseSchema }, errors: [401, 403] }),
   requireAuth,
   requireAcompanhamentoAccess,
   requireProjectFinancials,
@@ -1038,8 +1014,7 @@ router.get(
   })
 );
 
-router.get(
-  '/projetos/:projectId/detalhe',
+defineRoute(router, opsRoute('GET /projetos/:projectId/detalhe', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Painel detalhado do projeto', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }),
   requireAuth,
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
@@ -1081,11 +1056,11 @@ const trackingDivisionRowSchema = z.object({
   forceManualProgress: z.boolean().optional()
 }).strict();
 
-router.get('/projetos/:projectId/divisoes', requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /projetos/:projectId/divisoes', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Divisões do projeto', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res) => {
   res.json(await getTrackingDivisions(req.params.projectId));
 }));
 
-router.put('/projetos/:projectId/divisoes', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PUT /projetos/:projectId/divisoes', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Salvar as divisões do projeto', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
   try {
     const rows = z.array(trackingDivisionRowSchema).max(500).parse(req.body?.divisions);
     const result = await setTrackingDivisions(req.params.projectId, rows);
@@ -1096,7 +1071,7 @@ router.put('/projetos/:projectId/divisoes', requireAuth, requireAcompanhamentoMa
   }
 }));
 
-router.patch('/projetos/:projectId/divisoes', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PATCH /projetos/:projectId/divisoes', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Atualizar parte das divisões do projeto', body: trackingDivisionRowSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
   try {
     const row = trackingDivisionRowSchema.parse(req.body?.division);
     const result = await setTrackingDivision(req.params.projectId, row);
@@ -1108,7 +1083,7 @@ router.patch('/projetos/:projectId/divisoes', requireAuth, requireAcompanhamento
 }));
 
 // Avanço físico do projeto (RDO ponderado por serviço) — previsto × realizado dos RDOs.
-router.get('/projetos/:projectId/correcoes-realizado', requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /projetos/:projectId/correcoes-realizado', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Correções do realizado do projeto', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res) => {
   res.json(await listRealizedCorrections(req.params.projectId));
 }));
 
@@ -1123,7 +1098,7 @@ const realizedCorrectionSchema = z.object({
   expectedSourceMeters: z.number().nonnegative()
 }).strict();
 
-router.put('/projetos/:projectId/correcoes-realizado', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PUT /projetos/:projectId/correcoes-realizado', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Salvar correções do realizado do projeto', body: realizedCorrectionSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
   const data = realizedCorrectionSchema.parse(req.body);
   try {
     const saved = await saveRealizedCorrection(req.params.projectId, data, req.auth.user.id);
@@ -1134,8 +1109,7 @@ router.put('/projetos/:projectId/correcoes-realizado', requireAuth, requireAcomp
   }
 }));
 
-router.get(
-  '/projetos/:projectId/avanco',
+defineRoute(router, opsRoute('GET /projetos/:projectId/avanco', { tag: 'acompanhamento-comercial', summary: 'Acompanhamento comercial: Avanço físico do projeto (RDO ponderado por serviço)', responses: { 200: jsonResponseSchema }, errors: [401, 403, 404] }),
   requireAuth,
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {

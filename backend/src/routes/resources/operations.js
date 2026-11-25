@@ -9,6 +9,8 @@ import prisma from '../../lib/prisma.js';
 import { createMemoryRateLimit } from '../../lib/rate-limit.js';
 import { requireAuth, requireHubAdmin } from '../../middleware/auth.js';
 
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { opsRoute, jsonResponseSchema, libValidatedBodySchema } from '../../lib/api-contract/domains/operacoes.js';
 const router = Router();
 const clientErrorLimiter = createMemoryRateLimit({
   windowMs: 60 * 1000,
@@ -26,7 +28,7 @@ const clientErrorSchema = z.object({
   context: z.record(z.string(), z.unknown()).optional().nullable()
 }).passthrough();
 
-router.post('/client-errors', clientErrorLimiter, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /client-errors', { tag: 'operacoes-sistema', summary: 'Operação: Registrar erro do navegador', auth: 'public', body: clientErrorSchema, responses: { 200: jsonResponseSchema }, errors: [400, 429] }), clientErrorLimiter, asyncHandler(async (req, res) => {
   const data = clientErrorSchema.parse(req.body || {});
   const error = new Error(data.message);
   error.name = data.name || 'ClientError';
@@ -53,16 +55,16 @@ router.post('/client-errors', clientErrorLimiter, asyncHandler(async (req, res) 
 
 router.use(requireAuth, requireHubAdmin);
 
-router.get('/status', asyncHandler(async (_req, res) => {
+defineRoute(router, opsRoute('GET /status', { tag: 'operacoes-sistema', summary: 'Operação: Painel de status do sistema', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), asyncHandler(async (_req, res) => {
   res.json(await getOperationalStatus());
 }));
 
 // Exceções (legal hold) da retenção LGPD por projeto ou colaborador.
-router.get('/retention-holds', asyncHandler(async (_req, res) => {
+defineRoute(router, opsRoute('GET /retention-holds', { tag: 'operacoes-sistema', summary: 'Operação: Exceções (legal hold) da retenção LGPD', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), asyncHandler(async (_req, res) => {
   res.json(await listRetentionHolds(prisma));
 }));
 
-router.put('/retention-holds', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PUT /retention-holds', { tag: 'operacoes-sistema', summary: 'Operação: Salvar exceção (legal hold) da retenção LGPD', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }), asyncHandler(async (req, res) => {
   const item = await setRetentionHold(prisma, req.body, { userId: req.auth.user.id });
   if (!item) return res.status(404).json({ error: 'Código não encontrado.' });
   res.json(item);

@@ -9,7 +9,8 @@
 - [x] T007 Fase 2 — RDO/reports (uploads, PDF, manual-upload, operational-reports, drafts, databook `edicoes`, statistics recipients); upload manual em multipart se D3 = a
 - [x] T008 Fase 3 — efetivo, workforce, conferência de alocação
 - [x] T009 Fase 4 — equipamentos, epi, estoque, qualidade, romaneio, logística, manometers, counters
-- [ ] T010 Fase 5 — acompanhamento (comercial/custo/ponto), operations, privacy, admin/api-credentials/accounts, notifications, assinaturas
+- [x] T010 Fase 5a — acompanhamento (comercial/custo/ponto/conciliação), assinaturas, pesquisas, cadastros do RDO (colaboradores, cargos, DDS, projetos, segmentos, inibição), notificações, anotações, contas, credenciais de API, privacidade, operação (242 rotas; sobram só as 64 da integração v1)
+- [ ] T010b Fase 5b — API de integração v1 (`/api/integracoes/v1`, auth `apiToken`): ligar o contrato interno ao catálogo/OpenAPI externo já existente
 - [ ] T011 Frontend: teste de `extractApiErrorMessage` com o formato novo; mostrar `requestId` em erro inesperado
 - [x] T012 7.5 `withRetry()` em `lib/http/outbound.js`; Conecta RH (sync/compliance) e leitura em lote do ComercialAPP; alerta após N ciclos (`CONECTA_RH_ALERT_AFTER_FAILURES`)
 - [x] T013 7.6 `/api/webhooks/v1/projects` + `Deprecation`/`Sunset` no caminho antigo + contador de uso no painel; política de versão em `docs/comercialapp-bridge.md` e `docs/API_INTEGRACOES.md`

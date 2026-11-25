@@ -46,6 +46,8 @@ import { createMemoryRateLimit, expensiveRouteLimit } from '../../lib/rate-limit
 import { signatureEvidenceFromRequest } from '../../lib/signatures/common.js';
 import { requireAuth } from '../../middleware/auth.js';
 
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { opsRoute, EMPTY, FILE, jsonResponseSchema, libValidatedBodySchema } from '../../lib/api-contract/domains/operacoes.js';
 const router = Router();
 const publicSignatureLimiter = createMemoryRateLimit({
   windowMs: 15 * 60 * 1000,
@@ -106,12 +108,12 @@ function invitationToken(req) {
 }
 
 // Rotas públicas: o segredo existe somente em X-Signature-Token.
-router.get('/publico', publicSignatureLimiter, publicHeaders, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /publico', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Abrir documento pelo link do assinante', auth: 'publicToken', responses: { 200: jsonResponseSchema }, errors: [429] }), publicSignatureLimiter, publicHeaders, asyncHandler(async (req, res) => {
   const payload = await loadInvite(prisma, invitationToken(req), signatureEvidenceFromRequest(req));
   return res.json(payload);
 }));
 
-router.get('/publico/pdf', publicSignatureLimiter, publicHeaders, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /publico/pdf', { tag: 'assinaturas', summary: 'Assinaturas avulsas: PDF do documento (link do assinante)', auth: 'publicToken', responses: { 200: FILE }, errors: [429] }), publicSignatureLimiter, publicHeaders, asyncHandler(async (req, res) => {
   const resolved = await resolveInviteByToken(prisma, invitationToken(req));
   assertInviteUsable(resolved);
   const invite = inviteDocumentOrThrow(resolved, req.query.documentId);
@@ -140,7 +142,7 @@ router.get('/publico/pdf', publicSignatureLimiter, publicHeaders, asyncHandler(a
   return res.send(bytes);
 }));
 
-router.get('/publico/paginas/:n.png', publicSignatureLimiter, publicHeaders, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /publico/paginas/:n.png', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Imagem de uma página (link do assinante)', auth: 'publicToken', responses: { 200: FILE }, errors: [429] }), publicSignatureLimiter, publicHeaders, asyncHandler(async (req, res) => {
   const resolved = await resolveInviteByToken(prisma, invitationToken(req));
   assertInviteUsable(resolved);
   const invite = inviteDocumentOrThrow(resolved, req.query.documentId);
@@ -164,13 +166,13 @@ router.get('/publico/paginas/:n.png', publicSignatureLimiter, publicHeaders, asy
   return res.send(png);
 }));
 
-router.post('/publico/assinar', publicSignatureLimiter, publicHeaders, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /publico/assinar', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Assinar pelo link do assinante', auth: 'publicToken', body: publicSignSchema, responses: { 200: jsonResponseSchema }, errors: [400, 429] }), publicSignatureLimiter, publicHeaders, asyncHandler(async (req, res) => {
   const body = publicSignSchema.parse(req.body);
   const result = await confirmSignature(prisma, invitationToken(req), body, signatureEvidenceFromRequest(req));
   return res.json(result);
 }));
 
-router.get('/validar/:code', publicSignatureLimiter, publicHeaders, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /validar/:code', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Validar documento assinado pelo código', auth: 'public', responses: { 200: jsonResponseSchema }, errors: [429] }), publicSignatureLimiter, publicHeaders, asyncHandler(async (req, res) => {
   const payload = await validateByCode(prisma, req.params.code);
   if (!payload) {
     const error = new Error('Código de validação inválido.');
@@ -182,29 +184,29 @@ router.get('/validar/:code', publicSignatureLimiter, publicHeaders, asyncHandler
 
 router.use(requireAuth, requireAssinaturasAccess);
 
-router.post('/lotes', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /lotes', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Criar lote de documentos', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 201: jsonResponseSchema }, errors: [401, 403] }), asyncHandler(async (req, res) => {
   return res.status(201).json(await createBatch(prisma, ownerId(req)));
 }));
 
-router.get('/lotes/:id', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /lotes/:id', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Consultar lote', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), asyncHandler(async (req, res) => {
   return res.json(await getBatch(prisma, req.params.id, ownerId(req)));
 }));
 
-router.put('/lotes/:id/configuracao', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PUT /lotes/:id/configuracao', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Configurar lote', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), asyncHandler(async (req, res) => {
   return res.json(await saveBatch(prisma, req.params.id, ownerId(req), req.body));
 }));
 
-router.post('/lotes/:id/publicar', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /lotes/:id/publicar', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Publicar lote', body: publishSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), asyncHandler(async (req, res) => {
   return res.json(await publishBatch(prisma, req.params.id, ownerId(req), publishSchema.parse(req.body)));
 }));
 
-router.post('/lotes/:id/assinantes/:signerId/:action', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /lotes/:id/assinantes/:signerId/:action', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Ação sobre assinante do lote', body: publishSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), asyncHandler(async (req, res) => {
   const action = z.enum(['link', 'renovar', 'reenviar-email', 'revogar']).parse(req.params.action);
   const expiry = action === 'renovar' ? publishSchema.parse(req.body) : undefined;
   return res.json(await batchInviteAction(prisma, req.params.id, req.params.signerId, ownerId(req), action, expiry));
 }));
 
-router.get('/documentos', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /documentos', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Listar documentos', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), asyncHandler(async (req, res) => {
   const result = await listDocuments(prisma, ownerId(req), {
     grouped: req.query.grouped === '1',
     status: req.query.status,
@@ -218,7 +220,7 @@ router.get('/documentos', asyncHandler(async (req, res) => {
   return res.json(result);
 }));
 
-router.post('/documentos', raw({ type: 'application/pdf', limit: `${env.assinaturasMaxPdfMb}mb` }), asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /documentos', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Criar documento', body: uploadSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403] }), raw({ type: 'application/pdf', limit: `${env.assinaturasMaxPdfMb}mb` }), asyncHandler(async (req, res) => {
   const binary = req.is('application/pdf');
   const body = binary ? binaryUploadSchema.parse(req.query) : uploadSchema.parse(req.body);
   const document = await createDocument(prisma, {
@@ -233,29 +235,29 @@ router.post('/documentos', raw({ type: 'application/pdf', limit: `${env.assinatu
   return res.status(201).json(document);
 }));
 
-router.get('/documentos/:id', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /documentos/:id', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Consultar documento', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), asyncHandler(async (req, res) => {
   return res.json(await getDocument(prisma, req.params.id, ownerId(req)));
 }));
 
-router.get('/documentos/:id/usuarios-compartilhamento', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /documentos/:id/usuarios-compartilhamento', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Usuários com quem o documento pode ser compartilhado', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), asyncHandler(async (req, res) => {
   return res.json(await sharingUsers(prisma, req.params.id, ownerId(req), req.query.q || ''));
 }));
 
-router.get('/documentos/:id/compartilhamentos', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /documentos/:id/compartilhamentos', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Compartilhamentos do documento', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), asyncHandler(async (req, res) => {
   return res.json(await listDocumentShares(prisma, req.params.id, ownerId(req)));
 }));
 
-router.put('/documentos/:id/compartilhamentos/:userId', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PUT /documentos/:id/compartilhamentos/:userId', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Compartilhar documento com usuário', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), asyncHandler(async (req, res) => {
   const body = z.strictObject({ permission: z.enum(['VIEW', 'EDIT']) }).parse(req.body);
   return res.json(await saveDocumentShare(prisma, req.params.id, ownerId(req), req.params.userId, body.permission));
 }));
 
-router.delete('/documentos/:id/compartilhamentos/:userId', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('DELETE /documentos/:id/compartilhamentos/:userId', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Remover compartilhamento', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 204: EMPTY }, errors: [401, 403] }), asyncHandler(async (req, res) => {
   await removeDocumentShare(prisma, req.params.id, ownerId(req), req.params.userId);
   return res.status(204).end();
 }));
 
-router.get('/documentos/:id/pdf', ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /documentos/:id/pdf', { tag: 'assinaturas', summary: 'Assinaturas avulsas: PDF original do documento', responses: { 200: FILE }, errors: [401, 403, 429] }), ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
   const document = await documentForAccessOrThrow(prisma, req.params.id, ownerId(req));
   const bytes = await sourcePdfBuffer(document);
   res.setHeader('Cache-Control', 'no-store');
@@ -264,7 +266,7 @@ router.get('/documentos/:id/pdf', ...expensiveRouteLimit('document'), asyncHandl
   return res.send(bytes);
 }));
 
-router.get('/documentos/:id/pdf-final', ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /documentos/:id/pdf-final', { tag: 'assinaturas', summary: 'Assinaturas avulsas: PDF final assinado', responses: { 200: FILE }, errors: [401, 403, 429] }), ...expensiveRouteLimit('document'), asyncHandler(async (req, res) => {
   const document = await documentForAccessOrThrow(prisma, req.params.id, ownerId(req));
   const bytes = await finalPdfBuffer(document);
   res.setHeader('Cache-Control', 'no-store');
@@ -273,7 +275,7 @@ router.get('/documentos/:id/pdf-final', ...expensiveRouteLimit('document'), asyn
   return res.send(bytes);
 }));
 
-router.get('/documentos/:id/paginas/:n.png', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /documentos/:id/paginas/:n.png', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Imagem de uma página do documento', responses: { 200: FILE }, errors: [401, 403] }), asyncHandler(async (req, res) => {
   const document = await documentForAccessOrThrow(prisma, req.params.id, ownerId(req));
   const png = await renderPage(document, req.params.n);
   res.setHeader('Cache-Control', 'private, no-cache');
@@ -281,13 +283,13 @@ router.get('/documentos/:id/paginas/:n.png', asyncHandler(async (req, res) => {
   return res.send(png);
 }));
 
-router.patch('/documentos/:id', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PATCH /documentos/:id', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Renomear documento', body: renameSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), asyncHandler(async (req, res) => {
   const body = renameSchema.parse(req.body);
   const document = await documentForAccessOrThrow(prisma, req.params.id, ownerId(req), { edit: true });
   return res.json(await renameDocument(prisma, document, body.title, ownerId(req)));
 }));
 
-router.put('/documentos/:id/assinantes', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PUT /documentos/:id/assinantes', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Definir assinantes', body: signerSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), asyncHandler(async (req, res) => {
   const body = signerSchema.parse(req.body);
   const document = await documentForAccessOrThrow(prisma, req.params.id, ownerId(req), { edit: true });
   if (document.batchId && !document.permissions.isOwner) {
@@ -296,7 +298,7 @@ router.put('/documentos/:id/assinantes', asyncHandler(async (req, res) => {
   return res.json(await replaceSigners(prisma, document, body, ownerId(req)));
 }));
 
-router.put('/documentos/:id/campos', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PUT /documentos/:id/campos', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Posicionar campos de assinatura', body: fieldSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), asyncHandler(async (req, res) => {
   const body = fieldSchema.parse(req.body);
   const document = await documentForAccessOrThrow(prisma, req.params.id, ownerId(req), {
     edit: true,
@@ -305,15 +307,15 @@ router.put('/documentos/:id/campos', asyncHandler(async (req, res) => {
   return res.json(await replaceFields(prisma, document, body, ownerId(req)));
 }));
 
-router.post('/documentos/:id/publicar', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /documentos/:id/publicar', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Publicar documento (enviar para assinatura)', body: publishSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), asyncHandler(async (req, res) => {
   return res.json(await publishDocument(prisma, req.params.id, ownerId(req), publishSchema.parse(req.body)));
 }));
 
-router.post('/documentos/:id/despublicar', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /documentos/:id/despublicar', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Voltar documento para rascunho', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), asyncHandler(async (req, res) => {
   return res.json(await unpublishDocument(prisma, req.params.id, ownerId(req)));
 }));
 
-router.get('/documentos/:id/assinantes/:signerId/link', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /documentos/:id/assinantes/:signerId/link', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Link de assinatura do assinante', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), asyncHandler(async (req, res) => {
   const document = await documentForOwnerOrThrow(prisma, req.params.id, ownerId(req), {
     include: { signers: true }
   });
@@ -327,7 +329,7 @@ router.get('/documentos/:id/assinantes/:signerId/link', asyncHandler(async (req,
   return res.json(await recoverInviteLink(prisma, document, signer, ownerId(req)));
 }));
 
-router.post('/documentos/:id/assinantes/:signerId/renovar', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /documentos/:id/assinantes/:signerId/renovar', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Renovar link do assinante', body: publishSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), asyncHandler(async (req, res) => {
   const expiry = publishSchema.parse(req.body);
   const result = await prisma.$transaction(async tx => {
     const document = await documentForOwnerOrThrow(tx, req.params.id, ownerId(req), { include: { signers: true } });
@@ -347,12 +349,12 @@ router.post('/documentos/:id/assinantes/:signerId/renovar', asyncHandler(async (
   return res.json({ url: result.url, expiresAt: result.expiresAt });
 }));
 
-router.post('/documentos/:id/assinantes/:signerId/revogar', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /documentos/:id/assinantes/:signerId/revogar', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Revogar link do assinante', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), asyncHandler(async (req, res) => {
   const result = await revokeDocumentInvite(prisma, req.params.id, req.params.signerId, ownerId(req));
   return res.json({ id: result.id, status: result.status, revokedAt: result.revokedAt });
 }));
 
-router.post('/documentos/:id/assinantes/:signerId/reenviar-email', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /documentos/:id/assinantes/:signerId/reenviar-email', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Reenviar e-mail ao assinante', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), asyncHandler(async (req, res) => {
   const document = await documentForOwnerOrThrow(prisma, req.params.id, ownerId(req), { include: { signers: true } });
   const signer = document.signers.find(item => item.id === req.params.signerId);
   if (!signer) {
@@ -364,32 +366,32 @@ router.post('/documentos/:id/assinantes/:signerId/reenviar-email', asyncHandler(
   return res.json(await resendInviteEmail(prisma, document, signer));
 }));
 
-router.get('/documentos/:id/auditoria', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /documentos/:id/auditoria', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Trilha de auditoria do documento', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), asyncHandler(async (req, res) => {
   return res.json(await listAudit(prisma, req.params.id, ownerId(req), {
     cursor: req.query.cursor,
     limit: req.query.limit
   }));
 }));
 
-router.post('/documentos/:id/cancelar', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /documentos/:id/cancelar', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Cancelar documento', body: cancelSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), asyncHandler(async (req, res) => {
   const body = cancelSchema.parse(req.body || {});
   return res.json(await cancelDocument(prisma, req.params.id, ownerId(req), body.reason));
 }));
 
-router.post('/documentos/:id/arquivar', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /documentos/:id/arquivar', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Arquivar documento', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), asyncHandler(async (req, res) => {
   return res.json(await archiveDocument(prisma, req.params.id, ownerId(req)));
 }));
 
-router.post('/documentos/:id/restaurar', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /documentos/:id/restaurar', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Restaurar documento arquivado', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), asyncHandler(async (req, res) => {
   return res.json(await restoreArchivedDocument(prisma, req.params.id, ownerId(req)));
 }));
 
-router.delete('/documentos/:id', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('DELETE /documentos/:id', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Excluir documento', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 204: EMPTY }, errors: [401, 403] }), asyncHandler(async (req, res) => {
   await softDeleteDocument(prisma, req.params.id, ownerId(req));
   return res.status(204).end();
 }));
 
-router.post('/documentos/:id/restaurar-excluido', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /documentos/:id/restaurar-excluido', { tag: 'assinaturas', summary: 'Assinaturas avulsas: Restaurar documento excluído', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), asyncHandler(async (req, res) => {
   return res.json(await restoreDeletedDocument(prisma, req.params.id, ownerId(req)));
 }));
 

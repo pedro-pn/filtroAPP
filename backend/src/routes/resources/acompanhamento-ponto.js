@@ -49,6 +49,8 @@ import {
 } from '../../lib/acompanhamento/allocation-audit.js';
 import { requireAcompanhamentoAccess, requireAcompanhamentoManager, requireAuth } from '../../middleware/auth.js';
 
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { opsRoute, jsonResponseSchema } from '../../lib/api-contract/domains/operacoes.js';
 const router = Router();
 const collaboratorViewSchema = z.enum(['full', 'summary', 'reconciliation']).optional().default('full');
 
@@ -180,8 +182,7 @@ export function createPontoMaisIntegrationRouter({
   const routes = Router();
   const integration = { ...defaultPontoMaisIntegration, ...services };
 
-  routes.get(
-    '/rdo-simulation-exclusions',
+  defineRoute(routes, opsRoute('GET /rdo-simulation-exclusions', { tag: 'acompanhamento-ponto', summary: 'Ponto: Colaboradores fora da simulação de custo do RDO', responses: { 200: jsonResponseSchema }, errors: [401, 403] }),
     authenticate,
     authorizeManager,
     asyncHandler(async (_req, res) => {
@@ -198,8 +199,7 @@ export function createPontoMaisIntegrationRouter({
     })
   );
 
-  routes.post(
-    '/rdo-simulation-exclusions',
+  defineRoute(routes, opsRoute('POST /rdo-simulation-exclusions', { tag: 'acompanhamento-ponto', summary: 'Ponto: Incluir ou tirar colaborador da simulação de custo do RDO', body: rdoSimulationExclusionSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }),
     authenticate,
     authorizeManager,
     asyncHandler(async (req, res) => {
@@ -224,8 +224,7 @@ export function createPontoMaisIntegrationRouter({
     })
   );
 
-  routes.post(
-    '/sync',
+  defineRoute(routes, opsRoute('POST /sync', { tag: 'acompanhamento-ponto', summary: 'Ponto: Sincronizar com o PontoMais', body: syncPeriodSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }),
     authenticate,
     authorizeManager,
     asyncHandler(async (req, res) => {
@@ -251,8 +250,7 @@ export function createPontoMaisIntegrationRouter({
     })
   );
 
-  routes.get(
-    '/integration-status',
+  defineRoute(routes, opsRoute('GET /integration-status', { tag: 'acompanhamento-ponto', summary: 'Ponto: Status da integração com o PontoMais', responses: { 200: jsonResponseSchema }, errors: [401, 403] }),
     authenticate,
     authorizeAccess,
     asyncHandler(async (_req, res) => {
@@ -260,8 +258,7 @@ export function createPontoMaisIntegrationRouter({
     })
   );
 
-  routes.get(
-    '/sync-runs',
+  defineRoute(routes, opsRoute('GET /sync-runs', { tag: 'acompanhamento-ponto', summary: 'Ponto: Histórico de sincronizações', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }),
     authenticate,
     authorizeManager,
     asyncHandler(async (req, res) => {
@@ -271,8 +268,7 @@ export function createPontoMaisIntegrationRouter({
     })
   );
 
-  routes.get(
-    '/pending',
+  defineRoute(routes, opsRoute('GET /pending', { tag: 'acompanhamento-ponto', summary: 'Ponto: Pendências da integração', responses: { 200: jsonResponseSchema }, errors: [401, 403] }),
     authenticate,
     authorizeManager,
     asyncHandler(async (_req, res) => {
@@ -280,8 +276,7 @@ export function createPontoMaisIntegrationRouter({
     })
   );
 
-  routes.get(
-    '/external-employees',
+  defineRoute(routes, opsRoute('GET /external-employees', { tag: 'acompanhamento-ponto', summary: 'Ponto: Funcionários do PontoMais sem vínculo', responses: { 200: jsonResponseSchema }, errors: [401, 403] }),
     authenticate,
     authorizeManager,
     asyncHandler(async (_req, res) => {
@@ -289,8 +284,7 @@ export function createPontoMaisIntegrationRouter({
     })
   );
 
-  routes.post(
-    '/external-employees/ignore',
+  defineRoute(routes, opsRoute('POST /external-employees/ignore', { tag: 'acompanhamento-ponto', summary: 'Ponto: Ignorar funcionário do PontoMais', body: externalEmployeeIgnoreSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }),
     authenticate,
     authorizeManager,
     asyncHandler(async (req, res) => {
@@ -312,8 +306,7 @@ export function createPontoMaisIntegrationRouter({
     })
   );
 
-  routes.get(
-    '/reconciliation-projects',
+  defineRoute(routes, opsRoute('GET /reconciliation-projects', { tag: 'acompanhamento-ponto', summary: 'Ponto: Projetos para conciliação', responses: { 200: jsonResponseSchema }, errors: [401, 403] }),
     authenticate,
     authorizeManager,
     asyncHandler(async (_req, res) => {
@@ -332,8 +325,7 @@ export function createPontoMaisIntegrationRouter({
     })
   );
 
-  routes.post(
-    '/external-employees/link',
+  defineRoute(routes, opsRoute('POST /external-employees/link', { tag: 'acompanhamento-ponto', summary: 'Ponto: Vincular funcionário do PontoMais a um colaborador', body: externalEmployeeLinkSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }),
     authenticate,
     authorizeManager,
     asyncHandler(async (req, res) => {
@@ -355,8 +347,7 @@ export function createPontoMaisIntegrationRouter({
     })
   );
 
-  routes.post(
-    '/project-tags/link',
+  defineRoute(routes, opsRoute('POST /project-tags/link', { tag: 'acompanhamento-ponto', summary: 'Ponto: Vincular etiqueta do PontoMais a um projeto', body: projectTagLinkSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }),
     authenticate,
     authorizeManager,
     asyncHandler(async (req, res) => {
@@ -378,8 +369,7 @@ export function createPontoMaisIntegrationRouter({
     })
   );
 
-  routes.get(
-    '/project-tags/ignored',
+  defineRoute(routes, opsRoute('GET /project-tags/ignored', { tag: 'acompanhamento-ponto', summary: 'Ponto: Etiquetas de projeto ignoradas', responses: { 200: jsonResponseSchema }, errors: [401, 403] }),
     authenticate,
     authorizeManager,
     asyncHandler(async (_req, res) => {
@@ -387,8 +377,7 @@ export function createPontoMaisIntegrationRouter({
     })
   );
 
-  routes.post(
-    '/project-tags/ignore',
+  defineRoute(routes, opsRoute('POST /project-tags/ignore', { tag: 'acompanhamento-ponto', summary: 'Ponto: Ignorar etiqueta de projeto', body: projectTagIgnoreSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }),
     authenticate,
     authorizeManager,
     asyncHandler(async (req, res) => {
@@ -410,8 +399,7 @@ export function createPontoMaisIntegrationRouter({
     })
   );
 
-  routes.post(
-    '/day-project-overrides',
+  defineRoute(routes, opsRoute('POST /day-project-overrides', { tag: 'acompanhamento-ponto', summary: 'Ponto: Corrigir o projeto de um dia', body: dayProjectOverrideSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }),
     authenticate,
     authorizeManager,
     asyncHandler(async (req, res) => {
@@ -443,8 +431,7 @@ export function createPontoMaisIntegrationRouter({
     })
   );
 
-  routes.post(
-    '/day-project-overrides/batch',
+  defineRoute(routes, opsRoute('POST /day-project-overrides/batch', { tag: 'acompanhamento-ponto', summary: 'Ponto: Corrigir o projeto de vários dias', body: dayProjectOverridesBatchSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }),
     authenticate,
     authorizeManager,
     asyncHandler(async (req, res) => {
@@ -482,8 +469,7 @@ export function createPontoMaisIntegrationRouter({
 router.use(createPontoMaisIntegrationRouter());
 
 // Recebe o .xlsx como binário cru (curl --data-binary @arquivo ou fetch com body do File).
-router.post(
-  '/import',
+defineRoute(router, opsRoute('POST /import', { tag: 'acompanhamento-ponto', summary: 'Ponto: Importar planilha de ponto (.xlsx)', noBody: 'Corpo binário: o .xlsx cru (curl --data-binary @arquivo), lido e validado pelo handler; não é JSON.', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 422] }),
   requireAuth,
   requireAcompanhamentoManager,
   express.raw({
@@ -510,8 +496,7 @@ router.post(
   })
 );
 
-router.get(
-  '/imports',
+defineRoute(router, opsRoute('GET /imports', { tag: 'acompanhamento-ponto', summary: 'Ponto: Histórico de importações', responses: { 200: jsonResponseSchema }, errors: [401, 403] }),
   requireAuth,
   requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
@@ -534,8 +519,7 @@ router.get(
 );
 
 // Exclui um import do ponto (e seus resumos, via cascade). Gestor.
-router.delete(
-  '/imports/:id',
+defineRoute(router, opsRoute('DELETE /imports/:id', { tag: 'acompanhamento-ponto', summary: 'Ponto: Excluir importação (e seus resumos)', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 200: jsonResponseSchema }, errors: [401, 403, 404, 409] }),
   requireAuth,
   requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
@@ -554,8 +538,7 @@ router.delete(
   })
 );
 
-router.get(
-  '/colaboradores',
+defineRoute(router, opsRoute('GET /colaboradores', { tag: 'acompanhamento-ponto', summary: 'Ponto: Colaboradores com horas', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }),
   requireAuth,
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
@@ -602,8 +585,7 @@ router.get(
 
 // Colaboradores para seletores do acompanhamento. Por padrão retorna ativos; a reconciliação
 // do ponto pode incluir históricos/inativos para custos retroativos.
-router.get(
-  '/colaboradores-ativos',
+defineRoute(router, opsRoute('GET /colaboradores-ativos', { tag: 'acompanhamento-ponto', summary: 'Ponto: Colaboradores para os seletores', responses: { 200: jsonResponseSchema }, errors: [401, 403] }),
   requireAuth,
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
@@ -623,8 +605,7 @@ const linkSchema = z.object({
   collaboratorId: z.string().trim().min(1)
 }).refine(data => data.normalizedName || data.rawName, { message: 'Informe normalizedName ou rawName.' });
 
-router.post(
-  '/vincular',
+defineRoute(router, opsRoute('POST /vincular', { tag: 'acompanhamento-ponto', summary: 'Ponto: Vincular colaborador da planilha', body: linkSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }),
   requireAuth,
   requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
@@ -667,8 +648,7 @@ export const resolveUnallocatedSchema = z.object({
   })).min(1).max(200)
 });
 
-router.get(
-  '/auditoria-alocacao',
+defineRoute(router, opsRoute('GET /auditoria-alocacao', { tag: 'acompanhamento-ponto', summary: 'Ponto: Auditoria de alocação (ponto × RDO)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }),
   requireAuth,
   requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
@@ -690,8 +670,7 @@ router.get(
   })
 );
 
-router.get(
-  '/dias-sem-alocacao',
+defineRoute(router, opsRoute('GET /dias-sem-alocacao', { tag: 'acompanhamento-ponto', summary: 'Ponto: Dias com ponto e sem alocação', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }),
   requireAuth,
   requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
@@ -709,8 +688,7 @@ router.get(
   })
 );
 
-router.post(
-  '/dias-sem-alocacao/resolver',
+defineRoute(router, opsRoute('POST /dias-sem-alocacao/resolver', { tag: 'acompanhamento-ponto', summary: 'Ponto: Resolver dias sem alocação', body: resolveUnallocatedSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }),
   requireAuth,
   requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
@@ -740,8 +718,7 @@ router.post(
 
 // Contagem para o aviso na navegação do módulo. O balde de projeto não cadastrado fica de fora de
 // propósito: aquilo é fila de cadastro de missão, não pendência a resolver.
-router.get(
-  '/pendencias/contagem',
+defineRoute(router, opsRoute('GET /pendencias/contagem', { tag: 'acompanhamento-ponto', summary: 'Ponto: Contagem de pendências (aviso na navegação)', responses: { 200: jsonResponseSchema }, errors: [401, 403] }),
   requireAuth,
   requireAcompanhamentoManager,
   asyncHandler(async (_req, res) => {
