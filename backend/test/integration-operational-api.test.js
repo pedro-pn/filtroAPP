@@ -8,7 +8,6 @@ import { serializeOperationalResource } from '../src/lib/api-credentials/operati
 import { listOperationalResources, operationalVisibilityWhere } from '../src/lib/api-credentials/operational-service.js';
 import { createOperationalRouter } from '../src/routes/integrations/v1/operational.js';
 import { executePlaygroundOperation } from '../src/lib/api-credentials/playground.js';
-import { contractOfRoute } from '../src/lib/api-contract/registry.js';
 
 const key = 'synthetic-operational-cursor-key-at-least-32-chars';
 const stamp = new Date('2026-09-07T10:00:00.000Z');
@@ -97,7 +96,7 @@ test('every operational collection is grantable, routable, selectable in playgro
     assert.ok(!futureScopeDefinitions().some(scope => scope.code === resource.scope));
     const route = router.stack.find(layer => layer.route?.path === resource.path && layer.route?.methods.get).route;
     assert.deepEqual(Object.keys(route.methods), ['get']);
-    assert.equal(route.stack.length, contractOfRoute(route, 'get') ? 3 : 2);
+    assert.equal(route.stack.length, 3, 'requireApiOperation, validação do contrato e handler');
     let allowed = false;
     route.stack[0].handle({ apiAuth: { scopeCodes: new Set(resource.requiredScopes) }, query: {} }, {}, () => { allowed = true; });
     assert.equal(allowed, true);
@@ -268,7 +267,7 @@ test('real operational route meters and audits output without exposing private f
   const req = { query: { limit: '2' }, requestId: 'synthetic-request', headers: {}, apiAuth: { credential, scopeCodes: new Set([resource.scope]), projectIds: new Set() } };
   const result = await new Promise((resolve, reject) => {
     const route = router.stack.find(layer => layer.route?.path === resource.path && layer.route?.methods.get).route;
-    route.stack[0].handle(req, {}, () => route.stack[1].handle(req, { json: resolve }, reject));
+    route.stack[0].handle(req, {}, () => route.stack.at(-1).handle(req, { json: resolve }, reject));
   });
   assert.equal(result.items.length, 1);
   assert.equal(result.requestId, req.requestId);

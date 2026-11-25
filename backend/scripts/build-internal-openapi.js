@@ -47,7 +47,9 @@ if (args.has('--allowlist')) {
   } else {
     fs.mkdirSync(path.dirname(OPENAPI_FILE), { recursive: true });
     fs.writeFileSync(OPENAPI_FILE, document);
-    console.log(`${routes.filter(route => route.contract).length} rota(s) com contrato em ${path.relative(process.cwd(), OPENAPI_FILE)}`);
+    const contracted = routes.filter(route => route.contract);
+    const external = contracted.filter(route => route.contract.externalContract).length;
+    console.log(`${contracted.length - external} rota(s) com contrato em ${path.relative(process.cwd(), OPENAPI_FILE)}; ${external} da integração v1 no contrato público (specs/015)`);
   }
 }
 process.exit(0);

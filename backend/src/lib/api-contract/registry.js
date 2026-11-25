@@ -6,6 +6,8 @@ import { z } from 'zod';
 //   - valida body/params/query antes do handler final (ZodError → 400 padrão);
 //   - alimenta o OpenAPI gerado (docs/api/openapi.internal.json);
 //   - é conferido no CI contra as rotas reais (test/internal-api-contract.test.js).
+// Rotas da integração v1 levam `externalContract` ({ spec, operationId }): o
+// contrato público delas é o de specs/015, e o OpenAPI interno as omite.
 
 export const CONTRACT_KEY = Symbol.for('filtrovali.apiContract');
 
@@ -55,6 +57,12 @@ function assertSpec(spec) {
   }
   if (spec.bodyContentType !== undefined && !BODY_CONTENT_TYPES.has(spec.bodyContentType)) {
     throw new TypeError(`defineRoute ${where}: bodyContentType deve ser ${[...BODY_CONTENT_TYPES].join(', ')}.`);
+  }
+  if (spec.externalContract !== undefined) {
+    const { spec: file, operationId } = spec.externalContract || {};
+    if (typeof file !== 'string' || !file || typeof operationId !== 'string' || !operationId) {
+      throw new TypeError(`defineRoute ${where}: externalContract precisa de spec e operationId.`);
+    }
   }
   if (spec.bodyFiles !== undefined && (typeof spec.bodyFiles !== 'object' || spec.bodyContentType !== 'multipart/form-data')) {
     throw new TypeError(`defineRoute ${where}: bodyFiles só vale com bodyContentType multipart/form-data.`);

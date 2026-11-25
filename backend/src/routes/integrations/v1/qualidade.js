@@ -13,6 +13,8 @@ import { listIntegrationQualityNatures } from '../../../lib/qualidade/integratio
 import { resolveIntegrationQualityEvidence } from '../../../lib/qualidade/integration-evidence.js';
 import { createIntegrationQualityRecord, validateIntegrationQualityCreate } from '../../../lib/qualidade/integration-create.js';
 
+import { defineRoute } from '../../../lib/api-contract/registry.js';
+import { integrationRoute } from '../../../lib/api-contract/domains/integracoes.js';
 export function createIntegrationQualityRouter({ prismaClient = prisma, envConfig = env } = {}) {
   const router = Router();
   router.use((_req, _res, next) => withProjectChannel('api', next));
@@ -31,7 +33,7 @@ export function createIntegrationQualityRouter({ prismaClient = prisma, envConfi
     };
   }
 
-  router.post('/registros', requireApiOperation('quality.records.create'), asyncHandler(async (req, res) => {
+  defineRoute(router, integrationRoute('POST /registros', 'quality.records.create'), requireApiOperation('quality.records.create'), asyncHandler(async (req, res) => {
     const ctx = context(req);
     const key = req.headers['idempotency-key'];
     validateIntegrationQualityCreate(req.body, key, ctx, req.query);
@@ -47,7 +49,7 @@ export function createIntegrationQualityRouter({ prismaClient = prisma, envConfi
     return { ...pageResult, generatedAt: new Date().toISOString(), schemaVersion: '1.0', requestId: req.requestId };
   }
 
-  router.get('/registros', requireApiOperation('quality.records.list'), asyncHandler(async (req, res) => {
+  defineRoute(router, integrationRoute('GET /registros', 'quality.records.list'), requireApiOperation('quality.records.list'), asyncHandler(async (req, res) => {
     const query = schemas.qualityRecordsQuery.parse(req.query);
     const result = await runMeteredApiOperation(req, {
       prismaClient,
@@ -68,7 +70,7 @@ export function createIntegrationQualityRouter({ prismaClient = prisma, envConfi
     res.status(result.statusCode || 200).json(result.body);
   }));
 
-  router.get('/registros/:id', requireApiOperation('quality.records.get'), asyncHandler(async (req, res) => {
+  defineRoute(router, integrationRoute('GET /registros/:id', 'quality.records.get'), requireApiOperation('quality.records.get'), asyncHandler(async (req, res) => {
     const { id } = schemas.idParams.parse(req.params);
     const query = schemas.qualityRecordDetailQuery.parse(req.query);
     const result = await runMeteredApiOperation(req, {
@@ -79,7 +81,7 @@ export function createIntegrationQualityRouter({ prismaClient = prisma, envConfi
     res.json(result.body);
   }));
 
-  router.get('/naturezas', requireApiOperation('quality.natures.list'), asyncHandler(async (req, res) => {
+  defineRoute(router, integrationRoute('GET /naturezas', 'quality.natures.list'), requireApiOperation('quality.natures.list'), asyncHandler(async (req, res) => {
     const query = schemas.qualityNaturesQuery.parse(req.query);
     const result = await runMeteredApiOperation(req, {
       prismaClient,
@@ -93,7 +95,7 @@ export function createIntegrationQualityRouter({ prismaClient = prisma, envConfi
     res.json(result.body);
   }));
 
-  router.get('/evidencias/:id/download', requireApiOperation('quality.evidence.download'), asyncHandler(async (req, res) => {
+  defineRoute(router, integrationRoute('GET /evidencias/:id/download', 'quality.evidence.download'), requireApiOperation('quality.evidence.download'), asyncHandler(async (req, res) => {
     const { id } = schemas.idParams.parse(req.params);
     const result = await runMeteredApiOperation(req, {
       prismaClient,

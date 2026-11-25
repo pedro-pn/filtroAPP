@@ -10,7 +10,7 @@
 - [x] T008 Fase 3 — efetivo, workforce, conferência de alocação
 - [x] T009 Fase 4 — equipamentos, epi, estoque, qualidade, romaneio, logística, manometers, counters
 - [x] T010 Fase 5a — acompanhamento (comercial/custo/ponto/conciliação), assinaturas, pesquisas, cadastros do RDO (colaboradores, cargos, DDS, projetos, segmentos, inibição), notificações, anotações, contas, credenciais de API, privacidade, operação (242 rotas; sobram só as 64 da integração v1)
-- [ ] T010b Fase 5b — API de integração v1 (`/api/integracoes/v1`, auth `apiToken`): ligar o contrato interno ao catálogo/OpenAPI externo já existente
+- [x] T010b Fase 5b — API de integração v1 (`/api/integracoes/v1`, auth `apiToken`): `integrationRoute` liga cada rota à operação do catálogo e ao contrato público (specs/015); lista de rotas sem contrato zerada
 - [ ] T011 Frontend: teste de `extractApiErrorMessage` com o formato novo; mostrar `requestId` em erro inesperado
 - [x] T012 7.5 `withRetry()` em `lib/http/outbound.js`; Conecta RH (sync/compliance) e leitura em lote do ComercialAPP; alerta após N ciclos (`CONECTA_RH_ALERT_AFTER_FAILURES`)
 - [x] T013 7.6 `/api/webhooks/v1/projects` + `Deprecation`/`Sunset` no caminho antigo + contador de uso no painel; política de versão em `docs/comercialapp-bridge.md` e `docs/API_INTEGRACOES.md`
