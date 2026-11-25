@@ -23,7 +23,7 @@ export function useAdministrationAutosave<T>({ savedValue, canManage, validate, 
   });
 
   function change(next: T) {
-    setDraft({ value: next });
+    setDraft(Object.is(next, savedValue) ? null : { value: next });
     if (!saving.current) mutation.reset();
   }
 
