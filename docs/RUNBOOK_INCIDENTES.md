@@ -233,7 +233,7 @@ saber quando voltou.
 | Serviço | Sintoma | O que fazer |
 |---|---|---|
 | **Omie** | painel de Operações: "Sincronização Omie falhou" | Nada se perde: o próximo ciclo retoma. Se a falha persistir horas ou travar o worker, desligue com `OMIE_SYNC_ENABLED=false` e `dcp up -d worker`; religue depois. |
-| **Conecta RH** | alocações/colaboradores sem atualizar | Confira o status do Conecta com a equipe deles; os eventos têm deduplicação, então reprocessar depois é seguro. |
+| **Conecta RH** | alocações/colaboradores sem atualizar | Cada leitura já tem até 3 tentativas com espera crescente (falha de rede, prazo, 429/502/503/504; 4xx não repete), e o alerta por e-mail só sai depois de `CONECTA_RH_ALERT_AFTER_FAILURES` ciclos seguidos com falha (padrão 3 = 15 min). Confira o status do Conecta com a equipe deles; os eventos têm deduplicação, então reprocessar depois é seguro. |
 | **ZapSign** | assinatura avulsa não envia/retorna | Os documentos ficam pendentes; avise os usuários; reenvie depois que voltar. |
 | **OpenAI** | "adequar anotações" / revisão do Data Book falha | Funcionalidade auxiliar: os usuários seguem sem ela. Conferir a chave e o limite de gasto no painel da OpenAI. |
 | **E-mail (SMTP/Microsoft)** | e-mails de assinatura/liberação não chegam | A fila `ReportEmailJob` guarda e tenta de novo sozinha (espera crescente). Consulta em `deploy/PRODUCTION.md`, "Entrega dos e-mails". Não reenvie à mão: o worker retoma. |

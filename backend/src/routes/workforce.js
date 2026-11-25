@@ -21,6 +21,8 @@ import {
   workforceCalendarQuerySchema
 } from '../lib/workforce/schemas.js';
 import { ACOMPANHAMENTO_ACCESS_ROLES, RDO_INTERNAL_ROLES, requireAuth } from '../middleware/auth.js';
+import { defineRoute } from '../lib/api-contract/registry.js';
+import { EMPTY, efetivoRoute, jsonResponseSchema } from '../lib/api-contract/domains/efetivo.js';
 
 const router = Router();
 
@@ -53,7 +55,7 @@ export function requireWorkforceRead(req, res, next) {
 
 router.use(requireAuth);
 
-router.get('/calendar', requireWorkforceRead, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('GET /calendar', { summary: 'Calendário da força de trabalho', tag: 'forca-de-trabalho', query: workforceCalendarQuerySchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireWorkforceRead, asyncHandler(async (req, res) => {
   const query = workforceCalendarQuerySchema.parse(req.query);
   const collaboratorIds = Array.isArray(query.collaboratorId)
     ? query.collaboratorId
@@ -72,11 +74,11 @@ router.get('/calendar', requireWorkforceRead, asyncHandler(async (req, res) => {
   res.json({ revision: calendar.revision, holidays: calendar.holidays, absences: filteredAbsences.map(absenceDto) });
 }));
 
-router.post('/availability/check', requireWorkforceRead, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('POST /availability/check', { summary: 'Verificar disponibilidade de colaboradores', tag: 'forca-de-trabalho', body: workforceAvailabilityInputSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireWorkforceRead, asyncHandler(async (req, res) => {
   res.json(await checkWorkforceAvailability(prisma, workforceAvailabilityInputSchema.parse(req.body)));
 }));
 
-router.get('/absences', requireEfetivoViewer, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('GET /absences', { summary: 'Ausências da força de trabalho', tag: 'forca-de-trabalho', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireEfetivoViewer, asyncHandler(async (req, res) => {
   const query = workforceAbsenceQuerySchema.parse({
     from: req.query.from,
     to: req.query.to,
@@ -90,12 +92,12 @@ router.get('/absences', requireEfetivoViewer, asyncHandler(async (req, res) => {
   res.json(items.map(absenceDto));
 }));
 
-router.post('/absences', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('POST /absences', { summary: 'Registrar ausência da força de trabalho', tag: 'forca-de-trabalho', body: workforceAbsenceInputSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   const result = await createWorkforceAbsence(prisma, workforceAbsenceInputSchema.parse(req.body), actorContext(req));
   res.status(201).json({ ...result, absence: absenceDto(result.absence) });
 }));
 
-router.patch('/absences/:absenceId', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('PATCH /absences/:absenceId', { summary: 'Atualizar ausência da força de trabalho', tag: 'forca-de-trabalho', body: workforceAbsenceUpdateSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404, 409] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   const expectedVersion = parseIfMatchVersion(req.get('If-Match-Version'));
   if (!expectedVersion) return res.status(428).json({ error: 'Informe If-Match-Version com a versão atual.' });
   const result = await updateWorkforceAbsence(
@@ -107,7 +109,7 @@ router.patch('/absences/:absenceId', requireEfetivoManager, asyncHandler(async (
   res.json({ ...result, absence: absenceDto(result.absence) });
 }));
 
-router.delete('/absences/:absenceId', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('DELETE /absences/:absenceId', { summary: 'Excluir ausência da força de trabalho', tag: 'forca-de-trabalho', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 204: EMPTY }, errors: [400, 401, 403, 404, 409] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   const expectedVersion = parseIfMatchVersion(req.get('If-Match-Version'));
   if (!expectedVersion) return res.status(428).json({ error: 'Informe If-Match-Version com a versão atual.' });
   await deleteWorkforceAbsence(prisma, req.params.absenceId, { ...actorContext(req), expectedVersion });

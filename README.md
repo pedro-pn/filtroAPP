@@ -736,6 +736,7 @@ Onde ficam: em produção, todas as variáveis abaixo vão em `backend/.env.prod
 | `LGPD_NOTIFICATION_EMAIL` / `PRIVACY_NOTIFICATION_EMAIL` | Não (recomendado em produção) | Destino dos pedidos de titulares; `PRIVACY_NOTIFICATION_EMAIL` tem prioridade |
 | `PRIVACY_NOTICE_LEGACY_ROLLOUT_COMPAT_ENABLED` | Não | Compatibilidade do aviso de privacidade para contas antigas sem versão aceita |
 | `CONECTA_RH_COMPANY_ID` / `CONECTA_RH_API_URL` / `CONECTA_RH_READ_TOKEN` | Não | Integração Conecta RH: empresa autorizada a publicar e recuperação por snapshot/feed no worker |
+| `CONECTA_RH_ALERT_AFTER_FAILURES` | Não | Alerta por e-mail da sincronização de RH só depois de N ciclos seguidos com falha (padrão 3 = 15 min); dentro de cada ciclo as leituras já têm nova tentativa com espera crescente |
 | `COMERCIALAPP_API_URL` / `COMERCIALAPP_SERVICE_TOKEN` / `COMERCIALAPP_ADDITIONAL_CONTRACT` / `COMERCIALAPP_ALLOW_STAGING_HTTP` | Não | Ponte com o ComercialAPP (`docs/comercialapp-bridge.md`) |
 | `CRM_PLANNING_ENVIRONMENT` / `CRM_PLANNING_TENANT_ID` | Não | Namespace do contrato planning-1.0 (PrismaCRM); vazio infere sandbox fora de produção |
 | `ROMANEIO_EQUIPMENT_FILE` | Não | Catálogo de equipamentos do Romaneio (padrão: arquivo do repositório) |

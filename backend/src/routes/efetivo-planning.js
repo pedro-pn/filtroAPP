@@ -97,6 +97,8 @@ import {
   scenarioInputSchema,
   stageInputSchema
 } from '../lib/efetivo/planning/schemas.js';
+import { defineRoute } from '../lib/api-contract/registry.js';
+import { EMPTY, efetivoRoute, jsonResponseSchema, libValidatedBodySchema } from '../lib/api-contract/domains/efetivo.js';
 
 const router = Router();
 const listQuerySchema = z.object({ search: z.string().trim().max(120).optional() });
@@ -142,37 +144,37 @@ function context(req) {
   return { actorUserId: req.auth?.user?.id || null, evidence: requestEvidence(req) };
 }
 
-router.get('/projects', requireEfetivoViewer, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('GET /projects', { summary: 'Projetos disponíveis para o planejamento', tag: 'efetivo', query: listQuerySchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireEfetivoViewer, asyncHandler(async (req, res) => {
   res.json(await listPlanningProjects(listQuerySchema.parse(req.query)));
 }));
 
-router.get('/job-roles', requireEfetivoViewer, asyncHandler(async (_req, res) => {
+defineRoute(router, efetivoRoute('GET /job-roles', { summary: 'Cargos usados no planejamento', tag: 'efetivo', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireEfetivoViewer, asyncHandler(async (_req, res) => {
   res.json(await listPlanningJobRoles());
 }));
 
-router.get('/coordinators', requireEfetivoViewer, asyncHandler(async (_req, res) => {
+defineRoute(router, efetivoRoute('GET /coordinators', { summary: 'Coordenadores disponíveis para missões', tag: 'efetivo', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireEfetivoViewer, asyncHandler(async (_req, res) => {
   res.json(await listPlanningCoordinators());
 }));
 
-router.get('/overview', requireEfetivoViewer, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('GET /overview', { summary: 'Visão geral do efetivo numa data', tag: 'efetivo', query: datePositionQuerySchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireEfetivoViewer, asyncHandler(async (req, res) => {
   res.json(await getPlanningOverview(datePositionQuerySchema.parse(req.query)));
 }));
 
-router.get('/calendar', requireEfetivoViewer, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('GET /calendar', { summary: 'Calendário do planejamento no intervalo', tag: 'efetivo', query: intervalQuerySchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireEfetivoViewer, asyncHandler(async (req, res) => {
   res.json(await getPlanningCalendar(intervalQuerySchema.parse(req.query)));
 }));
 
-router.get('/availability', requireEfetivoViewer, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('GET /availability', { summary: 'Disponibilidade dos colaboradores no intervalo', tag: 'efetivo', query: intervalQuerySchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireEfetivoViewer, asyncHandler(async (req, res) => {
   res.json(await getPlanningAvailabilityPeriod(intervalQuerySchema.parse(req.query)));
 }));
 
-router.get('/collaborators', requireEfetivoViewer, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('GET /collaborators', { summary: 'Colaboradores do planejamento', tag: 'efetivo', query: collaboratorListQuerySchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireEfetivoViewer, asyncHandler(async (req, res) => {
   res.json(await listPlanningCollaborators(collaboratorListQuerySchema.parse(req.query)));
 }));
 
 router.use('/collaborators', createEfetivoRhRouter());
 
-router.get('/collaborators/:collaboratorId/rh', requireEfetivoViewer, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('GET /collaborators/:collaboratorId/rh', { summary: 'Situação de documentos e exames (Conecta RH) do colaborador numa data', tag: 'efetivo', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireEfetivoViewer, asyncHandler(async (req, res) => {
   const id = idSchema.parse(req.params.collaboratorId);
   const date = dateOnlySchema.parse(req.query.date);
   const items = await getConectaCompliance(prisma, id, date);
@@ -180,86 +182,86 @@ router.get('/collaborators/:collaboratorId/rh', requireEfetivoViewer, asyncHandl
   res.json(items.map(({ id, category, typeCode, title, status, issuedOn, expiresOn, hasNoExpiry }) => ({ id, category, typeCode, title, status, issuedOn, expiresOn, hasNoExpiry })));
 }));
 
-router.post('/collaborators', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('POST /collaborators', { summary: 'Cadastrar colaborador pelo planejamento', tag: 'efetivo', body: collaboratorInputSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   const collaborator = await createPlanningCollaborator(collaboratorInputSchema.parse(req.body), context(req));
   collaboratorsCache.clear();
   res.status(201).json(collaborator);
 }));
 
-router.patch('/collaborators/:collaboratorId', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('PATCH /collaborators/:collaboratorId', { summary: 'Atualizar colaborador pelo planejamento', tag: 'efetivo', body: collaboratorInputSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   const collaborator = await updatePlanningCollaborator(idSchema.parse(req.params.collaboratorId), collaboratorInputSchema.parse(req.body), context(req));
   collaboratorsCache.clear();
   res.json(collaborator);
 }));
 
-router.get('/absences', requireEfetivoViewer, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('GET /absences', { summary: 'Ausências no planejamento', tag: 'efetivo', query: absenceListQuerySchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireEfetivoViewer, asyncHandler(async (req, res) => {
   res.json(await listWorkforceAbsences(prisma, absenceListQuerySchema.parse(req.query)));
 }));
 
-router.post('/absences', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('POST /absences', { summary: 'Registrar ausência', tag: 'efetivo', body: absenceInputSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   res.status(201).json(await createWorkforceAbsence(prisma, absenceInputSchema.parse(req.body), context(req)));
 }));
 
-router.patch('/absences/:absenceId', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('PATCH /absences/:absenceId', { summary: 'Atualizar ausência (exige If-Match-Version)', tag: 'efetivo', body: absenceUpdateSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404, 409] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   const expectedVersion = z.coerce.number().int().min(1).parse(req.get('If-Match-Version'));
   res.json(await updateWorkforceAbsence(prisma, idSchema.parse(req.params.absenceId), absenceUpdateSchema.parse(req.body), { ...context(req), expectedVersion }));
 }));
 
-router.delete('/absences/:absenceId', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('DELETE /absences/:absenceId', { summary: 'Excluir ausência (exige If-Match-Version)', tag: 'efetivo', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 204: EMPTY }, errors: [400, 401, 403, 404, 409] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   const expectedVersion = z.coerce.number().int().min(1).parse(req.get('If-Match-Version'));
   await deleteWorkforceAbsence(prisma, idSchema.parse(req.params.absenceId), { ...context(req), expectedVersion });
   res.status(204).end();
 }));
 
-router.get('/missions', requireEfetivoViewer, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('GET /missions', { summary: 'Missões do planejamento', tag: 'efetivo', query: missionListQuerySchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireEfetivoViewer, asyncHandler(async (req, res) => {
   res.json(await listMissions(missionListQuerySchema.parse(req.query)));
 }));
 
-router.post('/missions', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('POST /missions', { summary: 'Criar missão', tag: 'efetivo', body: missionInputSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   res.status(201).json(await createMission(missionInputSchema.parse(req.body), context(req)));
 }));
 
-router.get('/missions/pending', requireEfetivoViewer, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('GET /missions/pending', { summary: 'Projetos com missão pendente', tag: 'efetivo', query: missionPendingQuerySchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireEfetivoViewer, asyncHandler(async (req, res) => {
   res.json(await listPendingMissionProjects(missionPendingQuerySchema.parse(req.query)));
 }));
 
-router.get('/missions/:missionId', requireEfetivoViewer, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('GET /missions/:missionId', { summary: 'Detalhe da missão', tag: 'efetivo', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireEfetivoViewer, asyncHandler(async (req, res) => {
   res.json(await getMission(idSchema.parse(req.params.missionId)));
 }));
 
-router.get('/missions/:missionId/execution', requireEfetivoViewer, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('GET /missions/:missionId/execution', { summary: 'Comparação entre planejado e executado da missão', tag: 'efetivo', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireEfetivoViewer, asyncHandler(async (req, res) => {
   res.json(await getMissionExecutionComparison(idSchema.parse(req.params.missionId), {
     loadProgress: computeProjectProgress
   }));
 }));
 
-router.get('/missions/:missionId/weekly-targets', requireEfetivoViewer, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('GET /missions/:missionId/weekly-targets', { summary: 'Metas semanais da missão', tag: 'efetivo', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireEfetivoViewer, asyncHandler(async (req, res) => {
   res.json(await getMissionWeeklyProgressTargets(idSchema.parse(req.params.missionId), { includeServices: req.query.services === 'true' }));
 }));
 
-router.put('/missions/:missionId/weekly-targets', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('PUT /missions/:missionId/weekly-targets', { summary: 'Salvar meta semanal da missão', tag: 'efetivo', body: libValidatedBodySchema, validatedBy: 'serviço (lib) chamado pelo handler', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   res.json(await saveMissionWeeklyProgressTarget(idSchema.parse(req.params.missionId), req.body, {
     userId: req.auth.user.id, userName: req.auth.user.name
   }));
 }));
 
-router.delete('/missions/:missionId/weekly-targets', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('DELETE /missions/:missionId/weekly-targets', { summary: 'Excluir meta semanal da missão', tag: 'efetivo', body: libValidatedBodySchema, validatedBy: 'serviço (lib) chamado pelo handler', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   res.json(await deleteMissionWeeklyProgressTarget(idSchema.parse(req.params.missionId), req.body, {
     userId: req.auth.user.id, userName: req.auth.user.name
   }));
 }));
 
-router.patch('/missions/:missionId', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('PATCH /missions/:missionId', { summary: 'Atualizar missão', tag: 'efetivo', body: missionUpdateInputSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404, 409] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   const version = z.coerce.number().int().min(1).parse(req.get('If-Match-Version'));
   res.json(await updateMission(idSchema.parse(req.params.missionId), missionUpdateInputSchema.parse(req.body), { ...context(req), version }));
 }));
 
-router.delete('/missions/:missionId', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('DELETE /missions/:missionId', { summary: 'Excluir missão', tag: 'efetivo', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 204: EMPTY }, errors: [400, 401, 403, 404] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   await deleteMission(idSchema.parse(req.params.missionId), context(req));
   res.status(204).end();
 }));
 
-router.post('/missions/:missionId/cycles', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('POST /missions/:missionId/cycles', { summary: 'Criar ciclo de mobilização da missão', tag: 'efetivo', body: mobilizationCycleInputSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   res.status(201).json(await createMissionCycle(
     idSchema.parse(req.params.missionId),
     mobilizationCycleInputSchema.parse(req.body),
@@ -267,7 +269,7 @@ router.post('/missions/:missionId/cycles', requireEfetivoManager, asyncHandler(a
   ));
 }));
 
-router.patch('/missions/:missionId/cycles/:cycleId', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('PATCH /missions/:missionId/cycles/:cycleId', { summary: 'Atualizar ciclo de mobilização da missão', tag: 'efetivo', body: mobilizationCycleInputSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   res.json(await updateMissionCycle(
     idSchema.parse(req.params.missionId),
     idSchema.parse(req.params.cycleId),
@@ -276,16 +278,16 @@ router.patch('/missions/:missionId/cycles/:cycleId', requireEfetivoManager, asyn
   ));
 }));
 
-router.get('/missions/:missionId/eligible-collaborators', requireEfetivoViewer, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('GET /missions/:missionId/eligible-collaborators', { summary: 'Colaboradores elegíveis para a missão', tag: 'efetivo', query: eligibleCollaboratorsQuerySchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireEfetivoViewer, asyncHandler(async (req, res) => {
   const filters = eligibleCollaboratorsQuerySchema.parse(req.query);
   res.json(await listEligibleCollaborators(idSchema.parse(req.params.missionId), filters.jobRoleId, filters));
 }));
 
-router.post('/missions/:missionId/allocations', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('POST /missions/:missionId/allocations', { summary: 'Alocar colaborador na missão', tag: 'efetivo', body: allocationInputSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   res.status(201).json(await addMissionAllocation(idSchema.parse(req.params.missionId), allocationInputSchema.parse(req.body), context(req)));
 }));
 
-router.patch('/missions/:missionId/allocations/:allocationId', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('PATCH /missions/:missionId/allocations/:allocationId', { summary: 'Alterar o período da alocação', tag: 'efetivo', body: allocationPeriodInputSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   res.json(await updateMissionAllocationPeriod(
     idSchema.parse(req.params.missionId),
     idSchema.parse(req.params.allocationId),
@@ -294,7 +296,7 @@ router.patch('/missions/:missionId/allocations/:allocationId', requireEfetivoMan
   ));
 }));
 
-router.post('/missions/:missionId/allocations/:allocationId/cycles', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('POST /missions/:missionId/allocations/:allocationId/cycles', { summary: 'Criar ciclo individual da alocação', tag: 'efetivo', body: mobilizationCycleInputSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   res.status(201).json(await createAllocationCycle(
     idSchema.parse(req.params.missionId),
     idSchema.parse(req.params.allocationId),
@@ -303,7 +305,7 @@ router.post('/missions/:missionId/allocations/:allocationId/cycles', requireEfet
   ));
 }));
 
-router.post('/missions/:missionId/allocations/:allocationId/cycles/inherit', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('POST /missions/:missionId/allocations/:allocationId/cycles/inherit', { summary: 'Herdar os ciclos da missão na alocação', tag: 'efetivo', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 201: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   res.status(201).json(await initializeAllocationCycles(
     idSchema.parse(req.params.missionId),
     idSchema.parse(req.params.allocationId),
@@ -311,7 +313,7 @@ router.post('/missions/:missionId/allocations/:allocationId/cycles/inherit', req
   ));
 }));
 
-router.patch('/missions/:missionId/allocations/:allocationId/cycles/:cycleId', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('PATCH /missions/:missionId/allocations/:allocationId/cycles/:cycleId', { summary: 'Atualizar ciclo individual da alocação', tag: 'efetivo', body: mobilizationCycleInputSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   res.json(await updateAllocationCycle(
     idSchema.parse(req.params.missionId),
     idSchema.parse(req.params.allocationId),
@@ -321,7 +323,7 @@ router.patch('/missions/:missionId/allocations/:allocationId/cycles/:cycleId', r
   ));
 }));
 
-router.delete('/missions/:missionId/allocations/:allocationId/cycles/:cycleId', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('DELETE /missions/:missionId/allocations/:allocationId/cycles/:cycleId', { summary: 'Excluir ciclo individual da alocação', tag: 'efetivo', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 204: EMPTY }, errors: [400, 401, 403, 404] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   await deleteAllocationCycle(
     idSchema.parse(req.params.missionId),
     idSchema.parse(req.params.allocationId),
@@ -331,89 +333,89 @@ router.delete('/missions/:missionId/allocations/:allocationId/cycles/:cycleId', 
   res.status(204).end();
 }));
 
-router.delete('/missions/:missionId/allocations/:allocationId', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('DELETE /missions/:missionId/allocations/:allocationId', { summary: 'Remover colaborador da missão', tag: 'efetivo', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 204: EMPTY }, errors: [400, 401, 403, 404] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   await removeMissionAllocation(idSchema.parse(req.params.missionId), idSchema.parse(req.params.allocationId), context(req));
   res.status(204).end();
 }));
 
-router.post('/missions/:missionId/auto-allocate', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('POST /missions/:missionId/auto-allocate', { summary: 'Alocar automaticamente a equipe da missão', tag: 'efetivo', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   res.json(await autoAllocateMission(idSchema.parse(req.params.missionId), context(req)));
 }));
 
-router.patch('/missions/:missionId/stage', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('PATCH /missions/:missionId/stage', { summary: 'Mover a missão de etapa', tag: 'efetivo', body: stageInputSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404, 409] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   const version = z.coerce.number().int().min(1).parse(req.get('If-Match-Version'));
   res.json(await moveMissionStage(idSchema.parse(req.params.missionId), stageInputSchema.parse(req.body), { ...context(req), version }));
 }));
 
-router.get('/scenarios', requireEfetivoViewer, asyncHandler(async (_req, res) => {
+defineRoute(router, efetivoRoute('GET /scenarios', { summary: 'Cenários de planejamento', tag: 'efetivo', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireEfetivoViewer, asyncHandler(async (_req, res) => {
   res.json(await listScenarios());
 }));
 
-router.post('/scenarios', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('POST /scenarios', { summary: 'Criar cenário', tag: 'efetivo', body: scenarioInputSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   res.status(201).json(await createScenario(scenarioInputSchema.parse(req.body), context(req)));
 }));
 
-router.get('/scenarios/:scenarioId/compare', requireEfetivoViewer, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('GET /scenarios/:scenarioId/compare', { summary: 'Comparar cenário com o planejamento atual', tag: 'efetivo', query: scenarioCompareSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireEfetivoViewer, asyncHandler(async (req, res) => {
   res.json(await compareScenario(idSchema.parse(req.params.scenarioId), scenarioCompareSchema.parse(req.query)));
 }));
 
-router.post('/scenarios/:scenarioId/hires', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('POST /scenarios/:scenarioId/hires', { summary: 'Registrar contratação prevista no cenário', tag: 'efetivo', body: plannedHireInputSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   res.status(201).json(await saveScenarioHire(idSchema.parse(req.params.scenarioId), plannedHireInputSchema.parse(req.body), context(req)));
 }));
 
-router.post('/scenarios/:scenarioId/apply', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('POST /scenarios/:scenarioId/apply', { summary: 'Aplicar cenário ao planejamento', tag: 'efetivo', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   res.json(await applyScenario(idSchema.parse(req.params.scenarioId), context(req)));
 }));
 
-router.post('/scenarios/:scenarioId/discard', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('POST /scenarios/:scenarioId/discard', { summary: 'Descartar cenário', tag: 'efetivo', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   res.json(await discardScenario(idSchema.parse(req.params.scenarioId), context(req)));
 }));
 
-router.patch('/admin/job-roles/:jobRoleId', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('PATCH /admin/job-roles/:jobRoleId', { summary: 'Configurar cargo no planejamento', tag: 'efetivo', body: jobRolePlanningInputSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   res.json(await updatePlanningJobRole(idSchema.parse(req.params.jobRoleId), jobRolePlanningInputSchema.parse(req.body), context(req)));
 }));
 
-router.get('/admin/holidays', requireEfetivoViewer, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('GET /admin/holidays', { summary: 'Feriados do planejamento', tag: 'efetivo', query: holidayListSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireEfetivoViewer, asyncHandler(async (req, res) => {
   res.json(await listHolidays(holidayListSchema.parse(req.query)));
 }));
 
-router.post('/admin/holidays', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('POST /admin/holidays', { summary: 'Cadastrar feriado', tag: 'efetivo', body: holidayInputSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   res.status(201).json(await saveHoliday(holidayInputSchema.parse(req.body), context(req)));
 }));
 
-router.patch('/admin/holidays/:holidayId', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('PATCH /admin/holidays/:holidayId', { summary: 'Atualizar feriado', tag: 'efetivo', body: holidayInputSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   res.json(await updateHoliday(idSchema.parse(req.params.holidayId), holidayInputSchema.parse(req.body), context(req)));
 }));
 
-router.delete('/admin/holidays/:holidayId', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('DELETE /admin/holidays/:holidayId', { summary: 'Excluir feriado', tag: 'efetivo', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 204: EMPTY }, errors: [400, 401, 403, 404] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   await deleteHoliday(idSchema.parse(req.params.holidayId), context(req));
   res.status(204).end();
 }));
 
-router.get('/admin/settings', requireEfetivoViewer, asyncHandler(async (_req, res) => {
+defineRoute(router, efetivoRoute('GET /admin/settings', { summary: 'Parâmetros do planejamento', tag: 'efetivo', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireEfetivoViewer, asyncHandler(async (_req, res) => {
   res.json(await getPlanningSettings());
 }));
 
-router.patch('/admin/settings', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('PATCH /admin/settings', { summary: 'Atualizar parâmetros do planejamento', tag: 'efetivo', body: planningSettingsInputSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   res.json(await updatePlanningSettings(planningSettingsInputSchema.parse(req.body), context(req)));
 }));
 
 const notificationEmailSettingSchema = makeNotificationEmailSettingSchema(z);
 
-router.get('/admin/notification-emails', requireEfetivoViewer, asyncHandler(async (_req, res) => {
+defineRoute(router, efetivoRoute('GET /admin/notification-emails', { summary: 'Configuração dos e-mails de notificação do Efetivo', tag: 'efetivo', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireEfetivoViewer, asyncHandler(async (_req, res) => {
   res.json(await listNotificationEmailSettings());
 }));
 
-router.patch('/admin/notification-emails', requireEfetivoManager, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('PATCH /admin/notification-emails', { summary: 'Ativar ou desativar e-mail de notificação do Efetivo', tag: 'efetivo', body: notificationEmailSettingSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireEfetivoManager, asyncHandler(async (req, res) => {
   const payload = notificationEmailSettingSchema.parse(req.body);
   res.json(await setNotificationEmailSetting(payload.purpose, payload.email, context(req).actorUserId));
 }));
 
-router.get('/admin/activity', requireEfetivoViewer, asyncHandler(async (req, res) => {
+defineRoute(router, efetivoRoute('GET /admin/activity', { summary: 'Histórico de atividades do planejamento', tag: 'efetivo', query: activitySchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireEfetivoViewer, asyncHandler(async (req, res) => {
   res.json(await listPlanningActivity(activitySchema.parse(req.query)));
 }));
 
-router.get('/admin/users', requireEfetivoViewer, asyncHandler(async (_req, res) => {
+defineRoute(router, efetivoRoute('GET /admin/users', { summary: 'Usuários com papel no Efetivo', tag: 'efetivo', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireEfetivoViewer, asyncHandler(async (_req, res) => {
   res.json(await listEfetivoRoleUsers());
 }));
 

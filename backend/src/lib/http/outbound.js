@@ -75,3 +75,88 @@ export async function fetchWithTimeout(url, init = {}, {
     return response;
   }
 }
+
+// --- Nova tentativa genérica (spec 042, critério 7.5) -------------------------
+
+const RETRYABLE_ERROR_CODES = new Set(['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'EAI_AGAIN', 'EPIPE', 'ENOTFOUND',
+  'UND_ERR_SOCKET', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_HEADERS_TIMEOUT', 'UND_ERR_BODY_TIMEOUT', 'OUTBOUND_TIMEOUT']);
+export const RETRYABLE_HTTP_STATUS = new Set([429, 502, 503, 504]);
+
+/**
+ * Falha transitória: rede, prazo esgotado ou HTTP 429/502/503/504. Erros 4xx
+ * (exceto 429) e erros de contrato nunca são repetidos.
+ */
+export function isRetryableError(error) {
+  if (!error) return false;
+  if (RETRYABLE_HTTP_STATUS.has(Number(error.statusCode ?? error.status))) return true;
+  if (Number.isFinite(Number(error.statusCode ?? error.status))) return false;
+  if (['TimeoutError', 'OutboundTimeoutError'].includes(error.name)) return true;
+  const code = error.code || error.cause?.code;
+  if (RETRYABLE_ERROR_CODES.has(code)) return true;
+  // fetch do Node sinaliza falha de rede como TypeError("fetch failed").
+  return error.name === 'TypeError' && /fetch failed/i.test(String(error.message));
+}
+
+/** Retry-After (segundos ou data HTTP) em milissegundos, ou null. */
+export function retryAfterMs(value, now = Date.now()) {
+  if (value === null || value === undefined || value === '') return null;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+  const date = Date.parse(String(value));
+  return Number.isFinite(date) ? Math.max(0, date - now) : null;
+}
+
+function backoffDelay(attempt, { baseMs, maxMs, jitter, random }) {
+  const exponential = Math.min(maxMs, baseMs * 2 ** (attempt - 1));
+  // "Equal jitter": metade fixa + metade aleatória, para não sincronizar vários processos.
+  return jitter ? exponential / 2 + random() * (exponential / 2) : exponential;
+}
+
+/**
+ * Repete `fn` em falha transitória, com espera exponencial e jitter.
+ *
+ * - `retryOnError(error)`: padrão isRetryableError (não repete 4xx, exceto 429);
+ * - `retryOnResult(result)`: repete também quando o resultado indica falha
+ *   transitória (ex.: Response 503). Na última tentativa o resultado é devolvido
+ *   como veio, para o chamador tratar o erro do jeito de sempre;
+ * - `discardResult(result)`: libera o resultado descartado (ex.: cancelar o corpo);
+ * - Retry-After (em `error.retryAfterMs` ou no cabeçalho da Response) aumenta a
+ *   espera, limitada a `maxMs`;
+ * - um `signal` abortado pelo chamador interrompe sem nova tentativa.
+ */
+export async function withRetry(fn, {
+  attempts = 3,
+  baseMs = 500,
+  maxMs = 5000,
+  jitter = true,
+  retryOnError = isRetryableError,
+  retryOnResult = null,
+  discardResult = null,
+  signal = null,
+  sleep = defaultSleep,
+  random = Math.random,
+  onRetry = null
+} = {}) {
+  const maxAttempts = Math.max(1, Math.floor(attempts));
+  for (let attempt = 1; ; attempt += 1) {
+    let result;
+    try {
+      result = await fn(attempt);
+    } catch (error) {
+      if (attempt >= maxAttempts || signal?.aborted || !retryOnError(error)) throw error;
+      const wait = Math.max(backoffDelay(attempt, { baseMs, maxMs, jitter, random }), Math.min(maxMs, error.retryAfterMs ?? 0));
+      onRetry?.({ attempt, wait, error });
+      await sleep(wait);
+      continue;
+    }
+    if (retryOnResult && attempt < maxAttempts && !signal?.aborted && retryOnResult(result)) {
+      const hinted = retryAfterMs(result?.headers?.get?.('retry-after'));
+      await discardResult?.(result);
+      const wait = Math.max(backoffDelay(attempt, { baseMs, maxMs, jitter, random }), Math.min(maxMs, hinted ?? 0));
+      onRetry?.({ attempt, wait, status: result?.status });
+      await sleep(wait);
+      continue;
+    }
+    return result;
+  }
+}
