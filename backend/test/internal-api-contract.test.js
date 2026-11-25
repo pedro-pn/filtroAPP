@@ -63,15 +63,11 @@ test('equipment, EPI, stock, quality, romaneio and logistics routes are fully mi
   assert.equal(publicSign?.auth, 'publicToken', 'assinatura pública de EPI não usa sessão');
 });
 
-test('the PrismaCRM webhook is versioned and the old path is documented as deprecated (7.6)', () => {
-  const current = byKey.get('POST /api/webhooks/v1/projects')?.contract;
-  const legacy = byKey.get('POST /api/webhooks/projects')?.contract;
-  assert.equal(current?.auth, 'apiToken');
-  assert.notEqual(current?.deprecated, true);
-  assert.equal(legacy?.deprecated, true);
+test('the removed projects intake webhook has no route left (PrismaCRM uses /api/integracoes/v1)', () => {
+  assert.deepEqual(routes.map(routeKey).filter(key => /\/api\/webhooks\/(v1\/)?projects/.test(key)), []);
   const document = buildInternalOpenApi(routes);
-  assert.equal(document.paths['/api/webhooks/projects'].post.deprecated, true);
-  assert.equal(document.paths['/api/webhooks/v1/projects'].post.deprecated, undefined);
+  assert.equal(document.paths['/api/webhooks/projects'], undefined);
+  assert.equal(document.paths['/api/webhooks/v1/projects'], undefined);
 });
 
 test('manual RDO upload is documented as multipart with the PDF as a binary part', () => {

@@ -1,9 +1,8 @@
 import assert from 'node:assert/strict';
-import { PassThrough, Readable, Writable } from 'node:stream';
 import test from 'node:test';
 
-import app from '../src/app.js';
-import env from '../src/config/env.js';
+import { ZodError } from 'zod';
+
 import prisma from '../src/lib/prisma.js';
 import {
   ProjectIntakeConflictError,
@@ -22,60 +21,6 @@ const validPayload = {
   revision: 2,
   location: 'Ilha Solteira - SP'
 };
-
-function dispatchApp(method, pathName, body, headers = {}) {
-  return new Promise((resolve, reject) => {
-    const payload = body === undefined ? null : Buffer.from(JSON.stringify(body));
-    const req = new Readable({
-      read() {
-        if (payload) this.push(payload);
-        this.push(null);
-      }
-    });
-    req.method = method;
-    req.url = pathName;
-    req.headers = {
-      host: '127.0.0.1',
-      ...(payload ? {
-        'content-type': 'application/json',
-        'content-length': String(payload.length)
-      } : {}),
-      ...headers
-    };
-    req.socket = new PassThrough();
-    req.socket.remoteAddress = '198.51.100.20';
-    req.socket.encrypted = false;
-    req.connection = req.socket;
-
-    const chunks = [];
-    const responseHeaders = new Map();
-    const res = new Writable({
-      write(chunk, _encoding, callback) {
-        chunks.push(Buffer.from(chunk));
-        callback();
-      }
-    });
-    res.statusCode = 200;
-    res.setHeader = (name, value) => responseHeaders.set(String(name).toLowerCase(), value);
-    res.getHeader = name => responseHeaders.get(String(name).toLowerCase());
-    res.getHeaders = () => Object.fromEntries(responseHeaders);
-    res.removeHeader = name => responseHeaders.delete(String(name).toLowerCase());
-    res.writeHead = (statusCode, headersToSet = {}) => {
-      res.statusCode = statusCode;
-      Object.entries(headersToSet).forEach(([name, value]) => res.setHeader(name, value));
-      return res;
-    };
-    res.end = (chunk, encoding, callback) => {
-      if (chunk) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding));
-      Writable.prototype.end.call(res, callback);
-      const rawBody = Buffer.concat(chunks).toString('utf8');
-      resolve({ statusCode: res.statusCode, json: rawBody ? JSON.parse(rawBody) : null, headers: Object.fromEntries(responseHeaders) });
-      return res;
-    };
-
-    app.handle(req, res, reject);
-  });
-}
 
 function projectFromPayload(payload = validPayload, overrides = {}) {
   const projectFields = { ...projectIntakeSchema.parse(payload) };
@@ -137,13 +82,10 @@ function intakeClient(project) {
   };
 }
 
-function configureToken(t, token) {
-  const original = env.projectIntakeWebhookToken;
-  env.projectIntakeWebhookToken = token;
-  t.after(() => {
-    env.projectIntakeWebhookToken = original;
-  });
-}
+
+// Recebimento de projeto (usado pela API v1 `POST /api/integracoes/v1/efetivo/projetos`
+// e pelos eventos de planejamento do PrismaCRM). O antigo webhook /api/webhooks/projects
+// foi removido; os casos de comportamento migraram para a função compartilhada.
 
 test('project intake schema normalizes fields and formats the proposal with its revision', () => {
   const parsed = projectIntakeSchema.parse({
@@ -382,44 +324,16 @@ test('receiveProjectIntake selects a revision imported after the first idempoten
   assert.equal(afterImport.commercialRevision.selectedCodBd, 9902);
 });
 
-test('POST /api/webhooks/projects returns 503 when the integration is not configured', async t => {
-  configureToken(t, '');
-  const response = await dispatchApp('POST', '/api/webhooks/projects', validPayload);
-  assert.equal(response.statusCode, 503);
-  assert.equal(response.json.code, 'PROJECT_WEBHOOK_NOT_CONFIGURED');
-});
-
-test('POST /api/webhooks/projects returns the same 401 for missing and invalid tokens', async t => {
-  configureToken(t, 'secret-token');
-  const missing = await dispatchApp('POST', '/api/webhooks/projects', validPayload);
-  const invalid = await dispatchApp('POST', '/api/webhooks/projects', validPayload, {
-    authorization: 'Bearer wrong-token'
-  });
-  assert.equal(missing.statusCode, 401);
-  assert.equal(invalid.statusCode, 401);
-  // Mesma resposta para token ausente ou inválido (sem vazar qual foi o caso);
-  // só o requestId muda, por ser um por requisição.
-  const withoutRequestId = ({ requestId, ...body }) => body;
-  assert.deepEqual(withoutRequestId(missing.json), withoutRequestId(invalid.json));
-  assert.ok(missing.json.requestId && invalid.json.requestId && missing.json.requestId !== invalid.json.requestId);
-});
-
-test('POST /api/webhooks/projects creates and returns a normalized pending project', async t => {
-  configureToken(t, 'secret-token');
+test('receiveProjectIntake creates and returns a normalized pending project', async t => {
   const calls = stubProjectClient(t);
-  const response = await dispatchApp('POST', '/api/webhooks/projects', {
-    ...validPayload,
-    code: ' 005719 ',
-    name: ' Ilha Solteira '
-  }, { authorization: 'Bearer secret-token' });
+  const result = await receiveProjectIntake({ ...validPayload, code: ' 005719 ', name: ' Ilha Solteira ' });
 
-  assert.equal(response.statusCode, 201);
-  assert.equal(response.json.status, 'created');
-  assert.equal(response.json.commercialRevision.status, 'not_found');
-  assert.equal(response.json.project.proposalCode, '3088 Rev. 2');
-  assert.equal('contractCode' in response.json.project, false);
-  assert.equal(response.json.commercialRevision.proposalCode, '3088');
-  assert.equal('contractCode' in response.json.commercialRevision, false);
+  assert.equal(result.status, 'created');
+  assert.equal(result.commercialRevision.status, 'not_found');
+  assert.equal(result.project.proposalCode, '3088 Rev. 2');
+  assert.equal('contractCode' in result.project, false);
+  assert.equal(result.commercialRevision.proposalCode, '3088');
+  assert.equal('contractCode' in result.commercialRevision, false);
   const createCall = calls.find(([name]) => name === 'create');
   assert.equal(createCall[1].data.code, '005719');
   assert.equal(createCall[1].data.clientCnpj, '12345678000190');
@@ -428,17 +342,14 @@ test('POST /api/webhooks/projects creates and returns a normalized pending proje
   assert.equal(createCall[1].data.registrationPending, true);
 });
 
-test('POST /api/webhooks/projects accepts revision -1 without persisting it in the proposal text', async t => {
-  configureToken(t, 'secret-token');
+test('receiveProjectIntake accepts revision -1 without persisting it in the proposal text', async t => {
   const payload = { ...validPayload, revision: -1 };
   const calls = stubProjectClient(t, { created: projectFromPayload(payload) });
-  const response = await dispatchApp('POST', '/api/webhooks/projects', payload, {
-    authorization: 'Bearer secret-token'
-  });
+  const result = await receiveProjectIntake(payload);
 
-  assert.equal(response.statusCode, 201);
-  assert.equal(response.json.project.proposalCode, '3088');
-  assert.equal(response.json.commercialRevision.revision, 0);
+  assert.equal(result.status, 'created');
+  assert.equal(result.project.proposalCode, '3088');
+  assert.equal(result.commercialRevision.revision, 0);
   const createCall = calls.find(([name]) => name === 'create');
   assert.equal(createCall[1].data.contractCode, '3088');
   assert.equal('revision' in createCall[1].data, false);
@@ -562,57 +473,38 @@ test('receiveProjectIntake rejects a concurrent divergent project after P2002', 
   })), ProjectIntakeConflictError);
 });
 
-test('POST /api/webhooks/projects returns a stable conflict without exposing internals', async t => {
-  configureToken(t, 'secret-token');
+test('receiveProjectIntake reports a divergent existing project as a stable conflict', async t => {
   stubProjectClient(t, { existing: projectFromPayload(validPayload, { name: 'Outro nome' }) });
-  const response = await dispatchApp('POST', '/api/webhooks/projects', validPayload, {
-    authorization: 'Bearer secret-token'
-  });
-  assert.equal(response.statusCode, 409);
-  assert.equal(response.json.code, 'PROJECT_CODE_CONFLICT');
-  assert.equal('stack' in response.json, false);
+  await assert.rejects(
+    () => receiveProjectIntake(validPayload),
+    error => error instanceof ProjectIntakeConflictError && error.code === 'PROJECT_CODE_CONFLICT'
+  );
 });
 
-test('POST /api/webhooks/projects rejects invalid data before touching the database', async t => {
-  configureToken(t, 'secret-token');
-  let touchedDatabase = false;
+function stubDatabaseTouch(t) {
+  const state = { touched: false };
   const originalFindUnique = prisma.project.findUnique;
   prisma.project.findUnique = async () => {
-    touchedDatabase = true;
+    state.touched = true;
     return null;
   };
   t.after(() => {
     prisma.project.findUnique = originalFindUnique;
   });
+  return state;
+}
 
-  const response = await dispatchApp('POST', '/api/webhooks/projects', {
-    ...validPayload,
-    clientCnpj: '123456789012345'
-  }, { authorization: 'Bearer secret-token' });
-  assert.equal(response.statusCode, 400);
-  assert.equal(touchedDatabase, false);
+test('receiveProjectIntake rejects invalid data before touching the database', async t => {
+  const database = stubDatabaseTouch(t);
+  await assert.rejects(() => receiveProjectIntake({ ...validPayload, clientCnpj: '123456789012345' }), ZodError);
+  assert.equal(database.touched, false);
 });
 
-test('POST /api/webhooks/projects rejects the obsolete contractCode field without compatibility alias', async t => {
-  configureToken(t, 'secret-token');
-  let touchedDatabase = false;
-  const originalFindUnique = prisma.project.findUnique;
-  prisma.project.findUnique = async () => {
-    touchedDatabase = true;
-    return null;
-  };
-  t.after(() => {
-    prisma.project.findUnique = originalFindUnique;
-  });
-
+test('receiveProjectIntake rejects the obsolete contractCode field without compatibility alias', async t => {
+  const database = stubDatabaseTouch(t);
   const { proposalCode: _proposalCode, ...obsoletePayload } = validPayload;
-  const response = await dispatchApp('POST', '/api/webhooks/projects', {
-    ...obsoletePayload,
-    contractCode: '3088'
-  }, { authorization: 'Bearer secret-token' });
-
-  assert.equal(response.statusCode, 400);
-  assert.equal(touchedDatabase, false);
+  await assert.rejects(() => receiveProjectIntake({ ...obsoletePayload, contractCode: '3088' }), ZodError);
+  assert.equal(database.touched, false);
 });
 
 test('planning pode criar cadastro sem selecionar orçamento legado de código coincidente', async () => {
@@ -626,50 +518,3 @@ test('planning pode criar cadastro sem selecionar orçamento legado de código c
   assert.equal(result.commercialRevision, null);
   assert.equal(result.project.id, created.id);
 });
-
-// Spec 042, 7.6: caminho versionado e caminho antigo descontinuado.
-function stubLegacyCounter(t) {
-  const calls = [];
-  const original = prisma.usageCounter.upsert;
-  prisma.usageCounter.upsert = async args => { calls.push(args); return { count: 1 }; };
-  t.after(() => { prisma.usageCounter.upsert = original; });
-  return calls;
-}
-
-test('POST /api/webhooks/v1/projects is the current path, without deprecation headers', async t => {
-  configureToken(t, 'secret-token');
-  stubProjectClient(t);
-  const counted = stubLegacyCounter(t);
-  const response = await dispatchApp('POST', '/api/webhooks/v1/projects', validPayload, { authorization: 'Bearer secret-token' });
-  assert.equal(response.statusCode, 201);
-  assert.equal(response.json.status, 'created');
-  assert.equal(response.headers.deprecation, undefined);
-  assert.equal(response.headers.sunset, undefined);
-  assert.equal(counted.length, 0);
-});
-
-test('POST /api/webhooks/projects keeps working, flagged as deprecated and counted per day', async t => {
-  configureToken(t, 'secret-token');
-  stubProjectClient(t);
-  const counted = stubLegacyCounter(t);
-  const response = await dispatchApp('POST', '/api/webhooks/projects', validPayload, { authorization: 'Bearer secret-token' });
-  assert.equal(response.statusCode, 201);
-  assert.match(response.headers.deprecation, /^@\d+$/);
-  assert.equal(response.headers.link, '</api/webhooks/v1/projects>; rel="successor-version"');
-  assert.equal(response.headers.sunset, undefined, 'Sunset só depois de PROJECT_WEBHOOK_LEGACY_SUNSET');
-  await new Promise(resolve => setImmediate(resolve));
-  assert.equal(counted.length, 1);
-  assert.equal(counted[0].create.kind, 'webhook.legacy-projects.day');
-});
-
-test('the legacy path announces Sunset once PROJECT_WEBHOOK_LEGACY_SUNSET is set, even when the token is wrong', async t => {
-  configureToken(t, 'secret-token');
-  stubLegacyCounter(t);
-  const original = env.projectWebhookLegacySunset;
-  env.projectWebhookLegacySunset = new Date('2027-03-01T00:00:00Z');
-  t.after(() => { env.projectWebhookLegacySunset = original; });
-  const response = await dispatchApp('POST', '/api/webhooks/projects', validPayload, { authorization: 'Bearer wrong' });
-  assert.equal(response.statusCode, 401);
-  assert.equal(response.headers.sunset, 'Mon, 01 Mar 2027 00:00:00 GMT');
-});
-

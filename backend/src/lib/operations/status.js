@@ -6,7 +6,6 @@ import { databaseRoleStatus } from './database-role.js';
 import { errorTrackingStatus } from './error-tracking.js';
 import { abuseFindingLabel, abuseThresholds, detectAbuse, readAbuseWindow } from '../abuse/monitor.js';
 import { openAiUsageSummary } from '../abuse/openai-budget.js';
-import { legacyProjectWebhookStatus } from '../integrations/legacy-project-webhook-status.js';
 
 export const RECURRING_JOB_NAMES = [
   'assinaturas:finalization',
@@ -511,8 +510,7 @@ export async function getOperationalStatus({
     omie,
     commercialImport,
     database,
-    abuse,
-    legacyProjectWebhook
+    abuse
   ] = await Promise.all([
     latestRecurringJobRuns(prismaClient),
     dataRetentionStatus(prismaClient),
@@ -524,8 +522,7 @@ export async function getOperationalStatus({
     omieSyncStatus(prismaClient, config),
     commercialImportStatus(prismaClient, config),
     databaseRoleStatus(prismaClient),
-    abuseStatus(prismaClient, config, now),
-    legacyProjectWebhookStatus(prismaClient, config, now)
+    abuseStatus(prismaClient, config, now)
   ]);
 
   const problems = collectProblems({
@@ -559,7 +556,6 @@ export async function getOperationalStatus({
     commercialImport,
     database,
     abuse,
-    legacyProjectWebhook,
     errorTracking: errorTrackingStatus(config),
     alerting: {
       enabled: config.operationsAlertJobEnabled,

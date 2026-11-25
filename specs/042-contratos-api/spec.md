@@ -101,6 +101,11 @@ tentativas e espera crescente com jitter; falha que persiste por N ciclos gera u
 
 ### US5 — Webhook versionado (Priority: P3) — 7.6
 
+> **Revisão de 2026-11-25:** o 7.6 já estava atendido. O único cliente externo que cria projetos,
+> o PrismaCRM, usa a API versionada `POST /api/integracoes/v1/efetivo/projetos`; o webhook
+> `/api/webhooks/projects` estava sem uso. A versão `/v1` do webhook (fase 4, #658) foi revertida e
+> os dois caminhos foram removidos ([decisão](../../docs/decisoes/2026-11-25-remover-webhook-de-projetos.md)).
+
 O PrismaCRM chama `POST /api/webhooks/v1/projects`. O caminho antigo continua funcionando
 durante a transição, respondendo com `Deprecation`/`Sunset` no cabeçalho, e é desligado com aviso.
 

@@ -42,7 +42,7 @@ O status é um retrato calculado no momento da consulta. `workflowVersion` não 
 | `POST /api/integracoes/v1/efetivo/projetos` | Prisma → FiltroAPP | Adicionado; escopo `efetivo.projetos.create`, acesso a todos os projetos | Sim, operação `efetivo.projects.create` |
 | `POST /api/integracoes/v1/efetivo/projetos/{id}/fatos-comerciais` | Prisma → FiltroAPP | Adicionado; escopo `efetivo.projetos.fatos-comerciais.write`, projeto autorizado | Sim, operação `efetivo.projects.commercialFact.post` |
 | `POST /api/integracoes/v1/efetivo/projetos/{id}/documentos` | Prisma → FiltroAPP | Adicionado; escopo `efetivo.projetos.documentos.write`, projeto autorizado | Sim, operação `efetivo.projects.document.post` |
-| `POST /api/webhooks/projects` | Prisma → FiltroAPP | Rota antiga permanece disponível com `PROJECT_INTAKE_WEBHOOK_TOKEN` próprio | Não |
+| ~~`POST /api/webhooks/projects`~~ | Prisma → FiltroAPP | Removida em 2026-11 (sem uso desde a migração para `efetivo.projects.create`) | Não |
 | `GET /api/integracoes/v1/projetos` | FiltroAPP → Prisma | Existente; identifica projetos e IDs com escopo `projetos.read` | Sim |
 | `GET /api/integracoes/v1/efetivo/projetos/{id}/status` | FiltroAPP → Prisma | Adicionado; escopo `efetivo.projetos.status.read`, recorte por projeto e resposta minimizada | Sim, operação `efetivo.projects.status.get` |
 | Recepção de aditivos e aceites | Prisma → FiltroAPP | A desenhar com o desenvolvedor do Prisma; não há contrato de evento | Não |

@@ -12,6 +12,6 @@
 - [ ] T010 Fase 5 — acompanhamento (comercial/custo/ponto), operations, privacy, admin/api-credentials/accounts, notifications, assinaturas
 - [ ] T011 Frontend: teste de `extractApiErrorMessage` com o formato novo; mostrar `requestId` em erro inesperado
 - [x] T012 7.5 `withRetry()` em `lib/http/outbound.js`; Conecta RH (sync/compliance) e leitura em lote do ComercialAPP; alerta após N ciclos (`CONECTA_RH_ALERT_AFTER_FAILURES`)
-- [x] T013 7.6 `/api/webhooks/v1/projects` + `Deprecation`/`Sunset` no caminho antigo + contador de uso no painel; política de versão em `docs/comercialapp-bridge.md` e `docs/API_INTEGRACOES.md`
-- [ ] T014 Coordenar com o PrismaCRM a troca para `/v1`; remover o caminho antigo após o prazo (D5) — responsável: operação
+- [x] T013 ~~7.6 `/api/webhooks/v1/projects` + `Deprecation`/`Sunset` + contador~~ — revertida em 2026-11-25: o PrismaCRM já usa `/api/integracoes/v1/efetivo/projetos` (7.6 atendido); webhook removido
+- [x] T014 ~~Coordenar com o PrismaCRM a troca para `/v1`~~ — obsoleta: nada a mudar no CRM; webhook removido (PR `chore/remove-project-intake-webhook`)
 - [ ] T015 Docs: README (onde está o contrato), `docs/PADRAO_MODULO.md` (toda rota nova usa `defineRoute`), revisão de segurança (7.x)
