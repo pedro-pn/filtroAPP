@@ -5,6 +5,7 @@ import {
   DatabaseBackup,
   FileSpreadsheet,
   GitCommitHorizontal,
+  Link2,
   RefreshCw,
   ShieldAlert,
   ShieldCheck,
@@ -18,6 +19,7 @@ import {
   getOperationalStatus,
   type OperationalAbuseStatus,
   type OperationalDeployStatus,
+  type OperationalLegacyWebhookStatus,
   type OperationalOpenAiPeriod,
   type OperationalFileStatus,
   type OperationalStatus
@@ -238,6 +240,28 @@ function FileStatusCard({
       {item.runDir || item.backupSource ? (
         <p className="ops-page__note">{item.runDir || item.backupSource}</p>
       ) : null}
+    </Card>
+  );
+}
+
+// Caminho antigo do webhook do PrismaCRM: mostra se ainda é chamado, para
+// confirmar a migração para /v1 antes de desligá-lo (spec 042, D5).
+function LegacyProjectWebhookCard({ item }: { item?: OperationalLegacyWebhookStatus }) {
+  const webhook = item || { status: 'UNAVAILABLE' };
+  return (
+    <Card
+      className="ops-page__panel"
+      title={<PanelTitle title="Webhook do PrismaCRM" icon={Link2} />}
+      actions={<OperationalStatusPill status={webhook.status} />}
+    >
+      <DetailRows
+        rows={[
+          { label: 'Caminho atual', value: webhook.currentPath || '/api/webhooks/v1/projects' },
+          { label: 'Chamadas ao caminho antigo (30 dias)', value: String(webhook.last30Days ?? '—') },
+          { label: 'Último uso do caminho antigo', value: dateTime(webhook.lastUsedDay) },
+          { label: 'Desligamento previsto', value: webhook.sunset ? dateTime(webhook.sunset) : 'Não definido' }
+        ]}
+      />
     </Card>
   );
 }
@@ -677,6 +701,7 @@ export function OperationsPage({ preview = false }: { preview?: boolean }) {
             <div className="ops-page__grid">
               <OmieStatusCard item={status.omie} />
               <CommercialImportCard item={status.commercialImport} />
+              <LegacyProjectWebhookCard item={status.legacyProjectWebhook} />
             </div>
           </section>
           <section

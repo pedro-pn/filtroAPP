@@ -102,6 +102,7 @@ export function buildInternalOpenApi(routes, { version = '0' } = {}) {
       ...(contract.body ? { requestBody: requestBodyFor(contract) } : {}),
       ...(contract.validateInput === 'handler' ? { 'x-validated-by': contract.validatedBy } : {}),
       ...(contract.noBody ? { 'x-no-body': contract.noBody } : {}),
+      ...(contract.deprecated ? { deprecated: true } : {}),
       responses: responsesFor(contract)
     };
     if (!operation.parameters.length) delete operation.parameters;

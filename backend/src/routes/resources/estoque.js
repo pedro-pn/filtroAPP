@@ -33,6 +33,8 @@ import {
   requireEstoqueManager
 } from '../../middleware/auth.js';
 
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { opsRoute, EMPTY, jsonResponseSchema, libValidatedBodySchema } from '../../lib/api-contract/domains/operacoes.js';
 const router = Router();
 const estoqueSchemas = makeEstoqueSchemas(z);
 const STOCK_ITEM_TYPES = ['FILTRO', 'PRODUTO_QUIMICO'];
@@ -441,7 +443,7 @@ function syncRomaneioCatalogAfterStockChange() {
   });
 }
 
-router.get('/categorias', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /categorias', { tag: 'estoque', summary: 'Estoque: Listar categorias', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), asyncHandler(async (req, res) => {
   const includeInactive = parseBoolean(req.query.includeInactive);
   const type = String(req.query.type || '').trim();
   if (type && !STOCK_ITEM_TYPES.includes(type)) {
@@ -458,7 +460,7 @@ router.get('/categorias', asyncHandler(async (req, res) => {
   res.json({ categories: categories.map(serializeStockCategory) });
 }));
 
-router.post('/categorias', requireEstoqueManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /categorias', { tag: 'estoque', summary: 'Estoque: Criar categorias', body: stockCategoryCreateSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403, 409] }), requireEstoqueManager, asyncHandler(async (req, res) => {
   const data = stockCategoryCreateSchema.parse(req.body);
   try {
     const category = await prisma.stockCategory.create({
@@ -478,7 +480,7 @@ router.post('/categorias', requireEstoqueManager, asyncHandler(async (req, res) 
   }
 }));
 
-router.put('/categorias/:id', requireEstoqueManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PUT /categorias/:id', { tag: 'estoque', summary: 'Estoque: Atualizar categorias (por id)', body: stockCategoryUpdateSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404, 409] }), requireEstoqueManager, asyncHandler(async (req, res) => {
   const current = await prisma.stockCategory.findUnique({
     where: { id: req.params.id },
     include: categoryWithItemCount
@@ -502,7 +504,7 @@ router.put('/categorias/:id', requireEstoqueManager, asyncHandler(async (req, re
   }
 }));
 
-router.patch('/categorias/:id/ativo', requireEstoqueManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PATCH /categorias/:id/ativo', { tag: 'estoque', summary: 'Estoque: Atualizar categorias › ativo', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireEstoqueManager, asyncHandler(async (req, res) => {
   const data = estoqueSchemas.activePatch.parse(req.body);
   const category = await prisma.stockCategory.update({
     where: { id: req.params.id },
@@ -513,7 +515,7 @@ router.patch('/categorias/:id/ativo', requireEstoqueManager, asyncHandler(async 
   res.json(serializeStockCategory(category));
 }));
 
-router.delete('/categorias/:id', requireEstoqueManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('DELETE /categorias/:id', { tag: 'estoque', summary: 'Estoque: Excluir categorias (por id)', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 204: EMPTY }, errors: [401, 403, 404, 409] }), requireEstoqueManager, asyncHandler(async (req, res) => {
   const current = await prisma.stockCategory.findUnique({
     where: { id: req.params.id },
     include: categoryWithItemCount
@@ -528,7 +530,7 @@ router.delete('/categorias/:id', requireEstoqueManager, asyncHandler(async (req,
   res.status(204).end();
 }));
 
-router.get('/itens', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /itens', { tag: 'estoque', summary: 'Estoque: Listar itens', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), asyncHandler(async (req, res) => {
   const includeInactive = parseBoolean(req.query.includeInactive);
   const type = String(req.query.type || '').trim();
   const search = String(req.query.search || '').trim();
@@ -553,7 +555,7 @@ router.get('/itens', asyncHandler(async (req, res) => {
   res.json({ items: items.map(serializeStockItem) });
 }));
 
-router.post('/itens', requireEstoqueManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /itens', { tag: 'estoque', summary: 'Estoque: Criar itens', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 201: jsonResponseSchema }, errors: [400, 401, 403, 409] }), requireEstoqueManager, asyncHandler(async (req, res) => {
   const data = estoqueSchemas.itemCreate.parse(req.body);
   if (await stockCodeExists(data.code)) {
     return res.status(409).json({ error: 'Código de estoque já cadastrado.' });
@@ -577,7 +579,7 @@ router.post('/itens', requireEstoqueManager, asyncHandler(async (req, res) => {
   }
 }));
 
-router.put('/itens/:id', requireEstoqueManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PUT /itens/:id', { tag: 'estoque', summary: 'Estoque: Atualizar itens (por id)', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404, 409] }), requireEstoqueManager, asyncHandler(async (req, res) => {
   const current = await prisma.stockItem.findUnique({
     where: { id: req.params.id },
     include: itemWithMovementCount
@@ -612,7 +614,7 @@ router.put('/itens/:id', requireEstoqueManager, asyncHandler(async (req, res) =>
   }
 }));
 
-router.post('/itens/:id/documentos', requireEstoqueManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /itens/:id/documentos', { tag: 'estoque', summary: 'Estoque: Criar itens › documentos', body: stockItemDocumentSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireEstoqueManager, asyncHandler(async (req, res) => {
   const current = await prisma.stockItem.findUnique({
     where: { id: req.params.id },
     select: { id: true }
@@ -624,7 +626,7 @@ router.post('/itens/:id/documentos', requireEstoqueManager, asyncHandler(async (
   res.status(201).json(serializeStockItemDocument(document));
 }));
 
-router.delete('/itens/:id/documentos/:documentId', requireEstoqueManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('DELETE /itens/:id/documentos/:documentId', { tag: 'estoque', summary: 'Estoque: Excluir itens › documentos (por id)', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 204: EMPTY }, errors: [401, 403, 404] }), requireEstoqueManager, asyncHandler(async (req, res) => {
   const document = await removeStockItemDocument(prisma, {
     itemId: req.params.id,
     documentId: req.params.documentId
@@ -633,7 +635,7 @@ router.delete('/itens/:id/documentos/:documentId', requireEstoqueManager, asyncH
   res.status(204).end();
 }));
 
-router.patch('/itens/:id/ativo', requireEstoqueManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PATCH /itens/:id/ativo', { tag: 'estoque', summary: 'Estoque: Atualizar itens › ativo', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireEstoqueManager, asyncHandler(async (req, res) => {
   const data = estoqueSchemas.activePatch.parse(req.body);
   const item = await prisma.stockItem.update({
     where: { id: req.params.id },
@@ -644,7 +646,7 @@ router.patch('/itens/:id/ativo', requireEstoqueManager, asyncHandler(async (req,
   res.json(serializeStockItem(item));
 }));
 
-router.delete('/itens/:id', requireEstoqueManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('DELETE /itens/:id', { tag: 'estoque', summary: 'Estoque: Excluir itens (por id)', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 204: EMPTY }, errors: [401, 403, 404, 409] }), requireEstoqueManager, asyncHandler(async (req, res) => {
   const current = await prisma.stockItem.findUnique({
     where: { id: req.params.id },
     include: itemWithMovementCount
@@ -660,7 +662,7 @@ router.delete('/itens/:id', requireEstoqueManager, asyncHandler(async (req, res)
   res.status(204).end();
 }));
 
-router.get('/resumo', asyncHandler(async (_req, res) => {
+defineRoute(router, opsRoute('GET /resumo', { tag: 'estoque', summary: 'Estoque: Listar resumo', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), asyncHandler(async (_req, res) => {
   res.json({ summary: await buildStockSummary(prisma) });
 }));
 
@@ -684,17 +686,17 @@ export async function getStockItemProjectActivity(client, itemId) {
   });
 }
 
-router.get('/itens/:id/obras', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /itens/:id/obras', { tag: 'estoque', summary: 'Estoque: Listar itens › obras', responses: { 200: jsonResponseSchema }, errors: [401, 403, 404] }), asyncHandler(async (req, res) => {
   const item = await prisma.stockItem.findUnique({ where: { id: req.params.id }, select: { id: true } });
   if (!item) return res.status(404).json({ error: 'Item de estoque não encontrado.' });
   res.json({ projects: await getStockItemProjectActivity(prisma, item.id) });
 }));
 
-router.get('/movimentacoes', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /movimentacoes', { tag: 'estoque', summary: 'Estoque: Listar movimentacoes', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), asyncHandler(async (req, res) => {
   res.json(await listStockMovements(prisma, req.query));
 }));
 
-router.post('/movimentacoes', requireEstoqueManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /movimentacoes', { tag: 'estoque', summary: 'Estoque: Criar movimentacoes', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 201: jsonResponseSchema }, errors: [400, 401, 403] }), requireEstoqueManager, asyncHandler(async (req, res) => {
   if (Object.hasOwn(req.body || {}, 'movements')) {
     let results;
     try {
@@ -758,7 +760,7 @@ router.post('/movimentacoes', requireEstoqueManager, asyncHandler(async (req, re
     }
   });
 }));
-router.post('/movimentacoes/:id/estorno', requireEstoqueManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /movimentacoes/:id/estorno', { tag: 'estoque', summary: 'Estoque: Criar movimentacoes › estorno', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 201: jsonResponseSchema }, errors: [400, 401, 403] }), requireEstoqueManager, asyncHandler(async (req, res) => {
   const data = estoqueSchemas.reverseMovement.parse(req.body || {});
   const result = await reverseMovement(prisma, {
     movementId: req.params.id,
@@ -768,7 +770,7 @@ router.post('/movimentacoes/:id/estorno', requireEstoqueManager, asyncHandler(as
   res.status(201).json(serializeStockMovement(result.movement));
 }));
 
-router.get('/lotes', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /lotes', { tag: 'estoque', summary: 'Estoque: Listar lotes', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), asyncHandler(async (req, res) => {
   const itemId = String(req.query.itemId || '').trim();
   const reason = String(req.query.reason || '').trim();
   const projectId = String(req.query.projectId || '').trim();

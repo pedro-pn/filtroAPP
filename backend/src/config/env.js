@@ -286,6 +286,14 @@ const rawEnvSchema = z.object({
   COMERCIALAPP_ALLOW_STAGING_HTTP: booleanWithDefault('COMERCIALAPP_ALLOW_STAGING_HTTP', false),
   COMERCIALAPP_ADDITIONAL_CONTRACT: z.enum(['', '3']).default(''),
   PROJECT_INTAKE_WEBHOOK_TOKEN: stringWithDefault(''),
+  // Data de desligamento do caminho antigo do webhook (/api/webhooks/projects), enviada no
+  // cabeçalho Sunset. Vazio até o PrismaCRM migrar para /v1 (D5: +60 dias depois).
+  PROJECT_WEBHOOK_LEGACY_SUNSET: z.preprocess(
+    value => { const v = emptyToUndefined(value); return v === undefined ? undefined : String(v).trim(); },
+    z.string().refine(v => !Number.isNaN(Date.parse(v)), {
+      message: 'PROJECT_WEBHOOK_LEGACY_SUNSET deve ser uma data ISO (ex.: 2027-03-01).'
+    }).optional()
+  ),
   PONTOMAIS_API_TOKEN: stringWithDefault(''),
   OMIE_APP_KEY: stringWithDefault(''),
   OMIE_APP_SECRET: stringWithDefault(''),
@@ -486,6 +494,7 @@ export function loadEnv(source = process.env) {
     comercialAppAllowStagingHttp: raw.COMERCIALAPP_ALLOW_STAGING_HTTP,
     comercialAppAdditionalContract: raw.COMERCIALAPP_ADDITIONAL_CONTRACT,
     projectIntakeWebhookToken: raw.PROJECT_INTAKE_WEBHOOK_TOKEN,
+    projectWebhookLegacySunset: raw.PROJECT_WEBHOOK_LEGACY_SUNSET ? new Date(raw.PROJECT_WEBHOOK_LEGACY_SUNSET) : null,
     pontomaisApiToken: raw.PONTOMAIS_API_TOKEN,
     omieAppKey: raw.OMIE_APP_KEY,
     omieAppSecret: raw.OMIE_APP_SECRET,

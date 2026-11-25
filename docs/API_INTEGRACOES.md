@@ -521,6 +521,14 @@ Para uma carga completa:
 
 Para sincronização incremental, informe `updatedSince` em UTC. Em Qualidade, para remoções, conceda o escopo de excluídos e use `includeDeleted=true`; `deletedAt` funciona como tombstone. As novas coleções operacionais não têm tombstones: faça reconciliação completa periódica para remoções ou mudanças de visibilidade/vínculos. O teto não é um snapshot transacional; use upsert e sobreposição temporal para alterações concorrentes. Em caso de falha intermediária, retome pelo último cursor confirmado.
 
+## Webhook de projetos do PrismaCRM
+
+Fora da API v1 de tokens (`/api/integracoes/v1`), o PrismaCRM envia os projetos criados no CRM para
+`POST /api/webhooks/v1/projects` com o token de serviço `PROJECT_INTAKE_WEBHOOK_TOKEN`.
+O caminho antigo `POST /api/webhooks/projects` segue aceito, descontinuado, com os
+cabeçalhos `Deprecation`/`Link` (e `Sunset` quando a data de desligamento for definida).
+Política de versão e passos de migração: [comercialapp-bridge.md](comercialapp-bridge.md#webhook-de-projetos-versão-e-migração).
+
 ## Limites e erros
 
 - `400 VALIDATION_ERROR` ou `INVALID_CURSOR`: corrija parâmetros; não repita automaticamente.

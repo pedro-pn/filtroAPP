@@ -7,18 +7,20 @@ import prisma from '../../lib/prisma.js';
 import { unitCategoriesCache, unitsCache } from '../../lib/resource-list-cache.js';
 import { requireAuth, requireInternalUser, requireManager } from '../../middleware/auth.js';
 
+import { defineRoute } from '../../lib/api-contract/registry.js';
+import { opsRoute, jsonResponseSchema } from '../../lib/api-contract/domains/operacoes.js';
 // Os equipamentos do tipo "unidade" passaram a ser gerenciados pelo módulo
 // Equipamentos. Este router agora é apenas um shim de LEITURA que projeta o
 // modelo unificado de volta para a forma legada usada pelos relatórios.
 const router = Router();
 router.use(requireAuth);
 
-router.get('/', requireInternalUser, asyncHandler(async (_req, res) => {
+defineRoute(router, opsRoute('GET /', { tag: 'inventario-rdo', summary: 'Unidades: Listar registros', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireInternalUser, asyncHandler(async (_req, res) => {
   const items = await unitsCache.get(() => listUnitsCompat());
   res.json(items);
 }));
 
-router.get('/categories', requireManager, asyncHandler(async (_req, res) => {
+defineRoute(router, opsRoute('GET /categories', { tag: 'inventario-rdo', summary: 'Unidades: Listar categorias', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireManager, asyncHandler(async (_req, res) => {
   const categories = await unitCategoriesCache.get(async () => {
     const [unitCategories, romaneioCategories] = await Promise.all([
       prisma.equipmentCategory.findMany({
@@ -44,9 +46,9 @@ router.get('/categories', requireManager, asyncHandler(async (_req, res) => {
 }));
 
 // Escritas agora são feitas exclusivamente pelo módulo Equipamentos.
-router.post('/', requireManager, respondManagedByModule);
-router.put('/categories/rename', requireManager, respondManagedByModule);
-router.put('/:id', requireManager, respondManagedByModule);
-router.delete('/:id', requireManager, respondManagedByModule);
+defineRoute(router, opsRoute('POST /', { tag: 'inventario-rdo', summary: 'Unidades: Escritas agora são feitas exclusivamente pelo módulo Equipamentos', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireManager, respondManagedByModule);
+defineRoute(router, opsRoute('PUT /categories/rename', { tag: 'inventario-rdo', summary: 'Unidades: Atualizar categorias › rename', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireManager, respondManagedByModule);
+defineRoute(router, opsRoute('PUT /:id', { tag: 'inventario-rdo', summary: 'Unidades: Atualizar registro (por id)', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireManager, respondManagedByModule);
+defineRoute(router, opsRoute('DELETE /:id', { tag: 'inventario-rdo', summary: 'Unidades: Excluir registro (por id)', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 200: jsonResponseSchema }, errors: [401, 403] }), requireManager, respondManagedByModule);
 
 export default router;

@@ -32,6 +32,7 @@ import { buildFunctioningChecklistPdf } from '../../lib/equipamentos/functioning
 import { buildFunctioningChecklistXlsx, CHECKLIST_XLSX_MIME } from '../../lib/equipamentos/functioning-checklist-xlsx.js';
 import { defineRoute } from '../../lib/api-contract/registry.js';
 
+import { opsRoute, EMPTY, jsonResponseSchema, libValidatedBodySchema } from '../../lib/api-contract/domains/operacoes.js';
 const functioningChecklistPayloadSchema = z.object({ template: functioningChecklistSchema.nullable() });
 
 const router = Router();
@@ -273,8 +274,7 @@ async function importRomaneioEquipmentIntoCategory(category) {
 }
 
 // Catálogo de grandezas/unidades para os campos `measure` do datasheet.
-router.get(
-  '/units-catalog',
+defineRoute(router, opsRoute('GET /units-catalog', { tag: 'equipamentos', summary: 'Equipamentos: Catálogo de grandezas/unidades para os campos `measure` do datasheet', responses: { 200: jsonResponseSchema }, errors: [401, 403] }),
   asyncHandler(async (_req, res) => {
     res.json(measurementCatalog());
   })
@@ -282,8 +282,7 @@ router.get(
 
 // === Categorias ===
 
-router.get(
-  '/technical-standards',
+defineRoute(router, opsRoute('GET /technical-standards', { tag: 'equipamentos', summary: 'Equipamentos: Listar normas técnicas', responses: { 200: jsonResponseSchema }, errors: [401, 403] }),
   asyncHandler(async (_req, res) => {
     const standards = await prisma.equipmentTechnicalStandard.findMany({
       orderBy: [{ name: 'asc' }, { id: 'asc' }],
@@ -298,8 +297,7 @@ router.get(
   })
 );
 
-router.post(
-  '/technical-standards',
+defineRoute(router, opsRoute('POST /technical-standards', { tag: 'equipamentos', summary: 'Equipamentos: Criar normas técnicas', body: technicalStandardSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403] }),
   requireEquipamentosManager,
   asyncHandler(async (req, res) => {
     const data = technicalStandardSchema.parse(req.body);
@@ -311,8 +309,7 @@ router.post(
   })
 );
 
-router.put(
-  '/technical-standards/:id',
+defineRoute(router, opsRoute('PUT /technical-standards/:id', { tag: 'equipamentos', summary: 'Equipamentos: Atualizar normas técnicas (por id)', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }),
   requireEquipamentosManager,
   asyncHandler(async (req, res) => {
     const data = technicalStandardSchema.partial().parse(req.body);
@@ -322,8 +319,7 @@ router.put(
   })
 );
 
-router.delete(
-  '/technical-standards/:id',
+defineRoute(router, opsRoute('DELETE /technical-standards/:id', { tag: 'equipamentos', summary: 'Equipamentos: Excluir normas técnicas (por id)', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 204: EMPTY }, errors: [401, 403] }),
   requireEquipamentosManager,
   asyncHandler(async (req, res) => {
     await prisma.$transaction(tx => removeTechnicalStandard(tx, req.params.id));
@@ -332,8 +328,7 @@ router.delete(
   })
 );
 
-router.get(
-  '/categories',
+defineRoute(router, opsRoute('GET /categories', { tag: 'equipamentos', summary: 'Equipamentos: Listar categorias', responses: { 200: jsonResponseSchema }, errors: [401, 403] }),
   asyncHandler(async (_req, res) => {
     const categories = await prisma.equipmentCategory.findMany({
       where: { isActive: true },
@@ -344,8 +339,7 @@ router.get(
   })
 );
 
-router.post(
-  '/categories',
+defineRoute(router, opsRoute('POST /categories', { tag: 'equipamentos', summary: 'Equipamentos: Criar categorias', body: categorySchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403] }),
   requireEquipamentosManager,
   asyncHandler(async (req, res) => {
     const data = categorySchema.parse(req.body);
@@ -390,8 +384,7 @@ router.post(
   })
 );
 
-router.put(
-  '/categories/:id',
+defineRoute(router, opsRoute('PUT /categories/:id', { tag: 'equipamentos', summary: 'Equipamentos: Atualizar categorias (por id)', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }),
   requireEquipamentosManager,
   asyncHandler(async (req, res) => {
     const data = categorySchema.partial().parse(req.body);
@@ -471,8 +464,7 @@ router.put(
   })
 );
 
-router.delete(
-  '/categories/:id',
+defineRoute(router, opsRoute('DELETE /categories/:id', { tag: 'equipamentos', summary: 'Equipamentos: Excluir categorias (por id)', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 204: EMPTY }, errors: [401, 403, 404, 409] }),
   requireEquipamentosManager,
   asyncHandler(async (req, res) => {
     const category = await prisma.equipmentCategory.findUnique({
@@ -530,8 +522,7 @@ async function maintenanceProfileKey(name) {
   return key;
 }
 
-router.get(
-  '/maintenance/config',
+defineRoute(router, opsRoute('GET /maintenance/config', { tag: 'equipamentos', summary: 'Equipamentos: Listar manutenção › configuração', responses: { 200: jsonResponseSchema }, errors: [401, 403] }),
   asyncHandler(async (req, res) => {
     const canManage = hasModuleRole(req.auth.user, 'equipamentos:manager');
     const [config, profiles, candidates] = await Promise.all([
@@ -576,8 +567,7 @@ router.get(
   })
 );
 
-router.put(
-  '/maintenance/config',
+defineRoute(router, opsRoute('PUT /maintenance/config', { tag: 'equipamentos', summary: 'Equipamentos: Atualizar manutenção › configuração', body: maintenanceConfigSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }),
   requireEquipamentosManager,
   asyncHandler(async (req, res) => {
     const data = maintenanceConfigSchema.parse(req.body);
@@ -615,8 +605,7 @@ router.put(
   })
 );
 
-router.post(
-  '/maintenance/profiles',
+defineRoute(router, opsRoute('POST /maintenance/profiles', { tag: 'equipamentos', summary: 'Equipamentos: Criar manutenção › perfis', body: maintenanceProfileSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403] }),
   requireEquipamentosManager,
   asyncHandler(async (req, res) => {
     const data = maintenanceProfileSchema.parse(req.body);
@@ -643,8 +632,7 @@ router.post(
   })
 );
 
-router.put(
-  '/maintenance/profiles/:id',
+defineRoute(router, opsRoute('PUT /maintenance/profiles/:id', { tag: 'equipamentos', summary: 'Equipamentos: Atualizar manutenção › perfis (por id)', body: maintenanceProfileSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }),
   requireEquipamentosManager,
   asyncHandler(async (req, res) => {
     const data = maintenanceProfileSchema.parse(req.body);
@@ -720,8 +708,7 @@ router.put(
   })
 );
 
-router.delete(
-  '/maintenance/profiles/:id',
+defineRoute(router, opsRoute('DELETE /maintenance/profiles/:id', { tag: 'equipamentos', summary: 'Equipamentos: Excluir manutenção › perfis (por id)', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 200: jsonResponseSchema }, errors: [401, 403, 404] }),
   requireEquipamentosManager,
   asyncHandler(async (req, res) => {
     const profile = await prisma.maintenanceProfile.findUnique({
@@ -756,8 +743,7 @@ router.delete(
 
 // === Equipamentos ===
 
-router.get(
-  '/',
+defineRoute(router, opsRoute('GET /', { tag: 'equipamentos', summary: 'Equipamentos: Listar registros', responses: { 200: jsonResponseSchema }, errors: [401, 403] }),
   asyncHandler(async (req, res) => {
     const where = { isActive: true };
     if (req.query.categoryId) where.categoryId = String(req.query.categoryId);
@@ -778,8 +764,7 @@ router.get(
   })
 );
 
-router.get(
-  '/:id/maintenance-history',
+defineRoute(router, opsRoute('GET /:id/maintenance-history', { tag: 'equipamentos', summary: 'Equipamentos: Listar manutenção histórico', responses: { 200: jsonResponseSchema }, errors: [401, 403, 404] }),
   asyncHandler(async (req, res) => {
     const equipment = await prisma.companyEquipment.findUnique({
       where: { id: req.params.id },
@@ -875,8 +860,7 @@ async function regenerateCurrentTechnicalDoc(equipmentId) {
   }
 }
 
-router.post(
-  '/',
+defineRoute(router, opsRoute('POST /', { tag: 'equipamentos', summary: 'Equipamentos: Criar registro', body: equipmentSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403, 409] }),
   requireEquipamentosManager,
   asyncHandler(async (req, res) => {
     const data = equipmentSchema.parse(req.body);
@@ -935,8 +919,7 @@ router.post(
   })
 );
 
-router.put(
-  '/:id',
+defineRoute(router, opsRoute('PUT /:id', { tag: 'equipamentos', summary: 'Equipamentos: Atualizar registro (por id)', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }),
   requireEquipamentosManager,
   asyncHandler(async (req, res) => {
     const data = equipmentSchema.partial().parse(req.body);
@@ -1043,7 +1026,7 @@ router.put(
   })
 );
 
-router.get('/:id/documents', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /:id/documents', { tag: 'equipamentos', summary: 'Equipamentos: Listar documentos', responses: { 200: jsonResponseSchema }, errors: [401, 403, 404] }), asyncHandler(async (req, res) => {
   const equipment = await prisma.companyEquipment.findUnique({ where: { id: req.params.id } });
   if (!equipment?.isActive) return res.status(404).json({ error: 'Equipamento não encontrado.' });
   const documents = await prisma.equipmentAttachment.findMany({
@@ -1053,7 +1036,7 @@ router.get('/:id/documents', asyncHandler(async (req, res) => {
   res.json(documents.map(serializeEquipmentAttachment));
 }));
 
-router.post('/:id/documents', requireEquipamentosManager, ...expensiveRouteLimit('upload'), asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('POST /:id/documents', { tag: 'equipamentos', summary: 'Equipamentos: Criar documentos', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 201: jsonResponseSchema }, errors: [400, 401, 403, 404, 429] }), requireEquipamentosManager, ...expensiveRouteLimit('upload'), asyncHandler(async (req, res) => {
   const upload = pdfUploadSchema.unwrap().unwrap().parse(req.body);
   const equipment = await prisma.companyEquipment.findUnique({ where: { id: req.params.id }, include: { category: true } });
   if (!equipment?.isActive) return res.status(404).json({ error: 'Equipamento não encontrado.' });
@@ -1066,7 +1049,7 @@ router.post('/:id/documents', requireEquipamentosManager, ...expensiveRouteLimit
   res.status(201).json(serializeEquipmentAttachment(attachment));
 }));
 
-router.delete('/:id/documents/:documentId', requireEquipamentosManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('DELETE /:id/documents/:documentId', { tag: 'equipamentos', summary: 'Equipamentos: Excluir documentos (por id)', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 204: EMPTY }, errors: [401, 403, 404] }), requireEquipamentosManager, asyncHandler(async (req, res) => {
   const equipment = await prisma.companyEquipment.findUnique({ where: { id: req.params.id } });
   if (!equipment?.isActive) return res.status(404).json({ error: 'Equipamento não encontrado.' });
   const removed = await removeEquipmentDocument(prisma, equipment.id, req.params.documentId);
@@ -1077,8 +1060,7 @@ router.delete('/:id/documents/:documentId', requireEquipamentosManager, asyncHan
 
 // Gera (ou regenera) o datasheet em PDF a partir dos Dados Técnicos preenchidos.
 // O PDF novo vira o atual; os anteriores permanecem no histórico.
-router.post(
-  '/:id/technical-doc',
+defineRoute(router, opsRoute('POST /:id/technical-doc', { tag: 'equipamentos', summary: 'Equipamentos: Gera (ou regenera) o datasheet em PDF a partir dos Dados Técnicos preenchidos', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 201: jsonResponseSchema }, errors: [400, 401, 403, 404, 429] }),
   requireEquipamentosManager,
   ...expensiveRouteLimit('generation'),
   asyncHandler(async (req, res) => {
@@ -1149,13 +1131,13 @@ defineRoute(router, {
 }));
 
 // Link da página pública e acesso de cada documento; só o gestor altera o acesso.
-router.get('/:id/qr-link', asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('GET /:id/qr-link', { tag: 'equipamentos', summary: 'Equipamentos: Link da página pública e acesso de cada documento', responses: { 200: jsonResponseSchema }, errors: [401, 403, 404] }), asyncHandler(async (req, res) => {
   const settings = await buildQrLinkSettings(prisma, req.params.id);
   if (!settings) return res.status(404).json({ error: 'Equipamento não encontrado.' });
   return res.json(settings);
 }));
 
-router.put('/:id/qr-access', requireEquipamentosManager, asyncHandler(async (req, res) => {
+defineRoute(router, opsRoute('PUT /:id/qr-access', { tag: 'equipamentos', summary: 'Equipamentos: Atualizar qr access', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireEquipamentosManager, asyncHandler(async (req, res) => {
   const { access } = z.object({ access: z.record(z.string(), z.enum(['PUBLIC', 'LOGIN', 'HIDDEN'])) }).parse(req.body);
   const equipment = await prisma.companyEquipment.findUnique({ where: { id: req.params.id }, select: { id: true, isActive: true } });
   if (!equipment?.isActive) return res.status(404).json({ error: 'Equipamento não encontrado.' });
@@ -1197,8 +1179,7 @@ async function loadEquipmentWithAttachments(id) {
 
 // Salva os passos próprios do equipamento (lista vazia = volta a herdar o modelo da
 // categoria) e regenera o PDF do manual. Só gestor.
-router.put(
-  '/:id/operation-manual',
+defineRoute(router, opsRoute('PUT /:id/operation-manual', { tag: 'equipamentos', summary: 'Equipamentos: Salva os passos próprios do equipamento (lista vazia = volta a herdar o modelo da categoria) e regenera o PDF do manual', body: libValidatedBodySchema, validatedBy: 'handler/serviço (corpo conferido fora do contrato)', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }),
   requireEquipamentosManager,
   asyncHandler(async (req, res) => {
     const { steps } = z.object({ steps: equipmentOperationStepsSchema }).parse(req.body);
@@ -1244,8 +1225,7 @@ router.put(
 );
 
 // Regenera apenas o PDF (ex.: manual desatualizado após mudança no modelo da categoria).
-router.post(
-  '/:id/operation-manual/pdf',
+defineRoute(router, opsRoute('POST /:id/operation-manual/pdf', { tag: 'equipamentos', summary: 'Equipamentos: Regenera apenas o PDF (ex', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404, 429] }),
   requireEquipamentosManager,
   ...expensiveRouteLimit('generation'),
   asyncHandler(async (req, res) => {
@@ -1266,8 +1246,7 @@ router.post(
   })
 );
 
-router.delete(
-  '/:id',
+defineRoute(router, opsRoute('DELETE /:id', { tag: 'equipamentos', summary: 'Equipamentos: Excluir registro (por id)', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 204: EMPTY }, errors: [401, 403] }),
   requireEquipamentosManager,
   asyncHandler(async (req, res) => {
     await prisma.companyEquipment.update({
@@ -1289,16 +1268,14 @@ const slotMappingSchema = z.object({
   categoryId: z.string().trim().min(1).nullable().optional()
 });
 
-router.get(
-  '/rdo-slots',
+defineRoute(router, opsRoute('GET /rdo-slots', { tag: 'equipamentos', summary: 'Equipamentos: Listar posições do RDO', responses: { 200: jsonResponseSchema }, errors: [401, 403] }),
   asyncHandler(async (_req, res) => {
     const { slots } = await resolveRdoSlotMap();
     res.json(slots);
   })
 );
 
-router.put(
-  '/rdo-slots/:slotKey',
+defineRoute(router, opsRoute('PUT /rdo-slots/:slotKey', { tag: 'equipamentos', summary: 'Equipamentos: Atualizar posições do RDO (por id)', body: slotMappingSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }),
   requireEquipamentosManager,
   asyncHandler(async (req, res) => {
     const slot = getSlot(req.params.slotKey);
@@ -1364,15 +1341,13 @@ const recipientSchema = z
     message: 'Informe uma conta ou um e-mail.'
   });
 
-router.get(
-  '/notifications/config',
+defineRoute(router, opsRoute('GET /notifications/config', { tag: 'equipamentos', summary: 'Equipamentos: Listar notificações › configuração', responses: { 200: jsonResponseSchema }, errors: [401, 403] }),
   asyncHandler(async (_req, res) => {
     res.json(await getEquipmentNotificationConfig());
   })
 );
 
-router.put(
-  '/notifications/config',
+defineRoute(router, opsRoute('PUT /notifications/config', { tag: 'equipamentos', summary: 'Equipamentos: Atualizar notificações › configuração', body: notificationConfigSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }),
   requireEquipamentosManager,
   asyncHandler(async (req, res) => {
     const data = notificationConfigSchema.parse(req.body);
@@ -1381,8 +1356,7 @@ router.put(
 );
 
 // Contas internas elegíveis a receber notificações (para o seletor da UI).
-router.get(
-  '/notifications/accounts',
+defineRoute(router, opsRoute('GET /notifications/accounts', { tag: 'equipamentos', summary: 'Equipamentos: Contas internas elegíveis a receber notificações (para o seletor da UI)', responses: { 200: jsonResponseSchema }, errors: [401, 403] }),
   asyncHandler(async (_req, res) => {
     const users = await prisma.user.findMany({
       where: { isActive: true, accountType: { in: ['ADMIN', 'INTERNAL'] } },
@@ -1401,15 +1375,13 @@ router.get(
   })
 );
 
-router.get(
-  '/notifications/recipients',
+defineRoute(router, opsRoute('GET /notifications/recipients', { tag: 'equipamentos', summary: 'Equipamentos: Listar notificações › destinatários', responses: { 200: jsonResponseSchema }, errors: [401, 403] }),
   asyncHandler(async (_req, res) => {
     res.json(await listEquipmentNotificationRecipients());
   })
 );
 
-router.post(
-  '/notifications/recipients',
+defineRoute(router, opsRoute('POST /notifications/recipients', { tag: 'equipamentos', summary: 'Equipamentos: Criar notificações › destinatários', body: recipientSchema, responses: { 201: jsonResponseSchema }, errors: [400, 401, 403] }),
   requireEquipamentosManager,
   asyncHandler(async (req, res) => {
     const data = recipientSchema.parse(req.body);
@@ -1434,8 +1406,7 @@ router.post(
   })
 );
 
-router.put(
-  '/notifications/recipients/:id',
+defineRoute(router, opsRoute('PUT /notifications/recipients/:id', { tag: 'equipamentos', summary: 'Equipamentos: Atualizar notificações › destinatários (por id)', body: recipientPreferencesSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }),
   requireEquipamentosManager,
   asyncHandler(async (req, res) => {
     const data = recipientPreferencesSchema.parse(req.body);
@@ -1447,8 +1418,7 @@ router.put(
   })
 );
 
-router.delete(
-  '/notifications/recipients/:id',
+defineRoute(router, opsRoute('DELETE /notifications/recipients/:id', { tag: 'equipamentos', summary: 'Equipamentos: Excluir notificações › destinatários (por id)', noBody: 'Sem corpo: a ação é definida pelo caminho.', responses: { 204: EMPTY }, errors: [401, 403] }),
   requireEquipamentosManager,
   asyncHandler(async (req, res) => {
     await prisma.equipmentNotificationRecipient.delete({

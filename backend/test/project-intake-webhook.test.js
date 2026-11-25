@@ -69,7 +69,7 @@ function dispatchApp(method, pathName, body, headers = {}) {
       if (chunk) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding));
       Writable.prototype.end.call(res, callback);
       const rawBody = Buffer.concat(chunks).toString('utf8');
-      resolve({ statusCode: res.statusCode, json: rawBody ? JSON.parse(rawBody) : null });
+      resolve({ statusCode: res.statusCode, json: rawBody ? JSON.parse(rawBody) : null, headers: Object.fromEntries(responseHeaders) });
       return res;
     };
 
@@ -626,3 +626,50 @@ test('planning pode criar cadastro sem selecionar orçamento legado de código c
   assert.equal(result.commercialRevision, null);
   assert.equal(result.project.id, created.id);
 });
+
+// Spec 042, 7.6: caminho versionado e caminho antigo descontinuado.
+function stubLegacyCounter(t) {
+  const calls = [];
+  const original = prisma.usageCounter.upsert;
+  prisma.usageCounter.upsert = async args => { calls.push(args); return { count: 1 }; };
+  t.after(() => { prisma.usageCounter.upsert = original; });
+  return calls;
+}
+
+test('POST /api/webhooks/v1/projects is the current path, without deprecation headers', async t => {
+  configureToken(t, 'secret-token');
+  stubProjectClient(t);
+  const counted = stubLegacyCounter(t);
+  const response = await dispatchApp('POST', '/api/webhooks/v1/projects', validPayload, { authorization: 'Bearer secret-token' });
+  assert.equal(response.statusCode, 201);
+  assert.equal(response.json.status, 'created');
+  assert.equal(response.headers.deprecation, undefined);
+  assert.equal(response.headers.sunset, undefined);
+  assert.equal(counted.length, 0);
+});
+
+test('POST /api/webhooks/projects keeps working, flagged as deprecated and counted per day', async t => {
+  configureToken(t, 'secret-token');
+  stubProjectClient(t);
+  const counted = stubLegacyCounter(t);
+  const response = await dispatchApp('POST', '/api/webhooks/projects', validPayload, { authorization: 'Bearer secret-token' });
+  assert.equal(response.statusCode, 201);
+  assert.match(response.headers.deprecation, /^@\d+$/);
+  assert.equal(response.headers.link, '</api/webhooks/v1/projects>; rel="successor-version"');
+  assert.equal(response.headers.sunset, undefined, 'Sunset só depois de PROJECT_WEBHOOK_LEGACY_SUNSET');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(counted.length, 1);
+  assert.equal(counted[0].create.kind, 'webhook.legacy-projects.day');
+});
+
+test('the legacy path announces Sunset once PROJECT_WEBHOOK_LEGACY_SUNSET is set, even when the token is wrong', async t => {
+  configureToken(t, 'secret-token');
+  stubLegacyCounter(t);
+  const original = env.projectWebhookLegacySunset;
+  env.projectWebhookLegacySunset = new Date('2027-03-01T00:00:00Z');
+  t.after(() => { env.projectWebhookLegacySunset = original; });
+  const response = await dispatchApp('POST', '/api/webhooks/projects', validPayload, { authorization: 'Bearer wrong' });
+  assert.equal(response.statusCode, 401);
+  assert.equal(response.headers.sunset, 'Mon, 01 Mar 2027 00:00:00 GMT');
+});
+

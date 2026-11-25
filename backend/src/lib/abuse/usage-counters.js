@@ -16,7 +16,9 @@ export const COUNTER_KINDS = Object.freeze({
   RATE_LIMITED: 'abuse.rate-limited',
   OPENAI_TOKENS_DAY: 'openai.tokens.day',
   OPENAI_TOKENS_MONTH: 'openai.tokens.month',
-  OPENAI_CALLS_DAY: 'openai.calls.day'
+  OPENAI_CALLS_DAY: 'openai.calls.day',
+  // Uso do caminho antigo do webhook do PrismaCRM (spec 042, 7.6), por dia.
+  LEGACY_PROJECT_WEBHOOK_DAY: 'webhook.legacy-projects.day'
 });
 
 export function abuseBucketStart(now = new Date()) {
@@ -75,13 +77,15 @@ export async function sumUsageCounters({ kinds, since, subjects = null }, { pris
   }));
 }
 
-// Linhas de abuso guardam IP: 30 dias (ROPA, "Auditoria e segurança"). Uso da OpenAI: 400 dias.
+// Linhas de abuso guardam IP: 30 dias (ROPA, "Auditoria e segurança"). Uso da OpenAI
+// e do webhook antigo (sem dado pessoal): 400 dias.
 export async function pruneUsageCounters({ prismaClient = prisma, now = new Date() } = {}) {
   const abuseCutoff = new Date(now.getTime() - ABUSE_RETENTION_DAYS * DAY_MS);
   const openaiCutoff = new Date(now.getTime() - OPENAI_USAGE_RETENTION_DAYS * DAY_MS);
-  const [abuse, openai] = await Promise.all([
+  const [abuse, openai, webhook] = await Promise.all([
     prismaClient.usageCounter.deleteMany({ where: { kind: { startsWith: 'abuse.' }, periodStart: { lt: abuseCutoff } } }),
-    prismaClient.usageCounter.deleteMany({ where: { kind: { startsWith: 'openai.' }, periodStart: { lt: openaiCutoff } } })
+    prismaClient.usageCounter.deleteMany({ where: { kind: { startsWith: 'openai.' }, periodStart: { lt: openaiCutoff } } }),
+    prismaClient.usageCounter.deleteMany({ where: { kind: { startsWith: 'webhook.' }, periodStart: { lt: openaiCutoff } } })
   ]);
-  return { abuse: abuse.count, openai: openai.count };
+  return { abuse: abuse.count, openai: openai.count, webhook: webhook.count };
 }

@@ -101,7 +101,7 @@ fecha os gaps de validação do domínio (US2), reduz a allowlist e acrescenta
   aperto num PR seguinte.
 - **Risco 2 — erro com formato novo quebrando algum `catch` específico do frontend.** Mitigação:
   `error` continua string; busca por usos de `response.data.*` no frontend antes de cada fase.
-- **Risco 3 — webhook: ComercialAPP é outro repositório.** Mitigação: dois caminhos em paralelo e
+- **Risco 3 — webhook: quem chama é o PrismaCRM, sistema externo (URL configurada no CRM).** Mitigação: dois caminhos em paralelo e
   contador de uso antes de desligar.
 
 ## Esforço total estimado
@@ -132,5 +132,5 @@ Todas as recomendações foram aceitas pelo usuário:
 - **D2 — Onde publicar:** arquivo gerado no repositório (`docs/api/openapi.internal.json`), com visualizador só em desenvolvimento.
 - **D3 — Upload manual de PDF:** trocar o JSON em base64 por multipart em streaming, no PR da fase de RDO.
 - **D4 — Ordem das fases:** auth → RDO → Efetivo → equipamentos/EPI/estoque/qualidade → resto.
-- **D5 — Caminho antigo do webhook:** desligado 60 dias depois que o ComercialAPP migrar, confirmado pelo contador de uso.
+- **D5 — Caminho antigo do webhook:** desligado 60 dias depois que o PrismaCRM migrar, confirmado pelo contador de uso.
 - **D6 — Formato de erro:** `{ error: string, code, requestId, details? }`, compatível com o frontend atual.
