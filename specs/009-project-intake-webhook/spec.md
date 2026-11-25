@@ -1,5 +1,11 @@
 # Feature Specification: Recebimento de projetos por webhook
 
+> **Substituída e removida.** Desde 2026-10 o PrismaCRM cria projetos pela API de integração v1
+> (`POST /api/integracoes/v1/efetivo/projetos`, escopo `efetivo.projetos.create`), que reaproveita
+> `receiveProjectIntake`. O webhook `POST /api/webhooks/projects` e o token
+> `PROJECT_INTAKE_WEBHOOK_TOKEN` foram removidos em 2026-11
+> ([decisão](../../docs/decisoes/2026-11-25-remover-webhook-de-projetos.md)).
+
 **Feature Branch**: `feat/project-intake-webhook`
 
 **Created**: 2026-08-13

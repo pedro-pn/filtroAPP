@@ -521,13 +521,15 @@ Para uma carga completa:
 
 Para sincronização incremental, informe `updatedSince` em UTC. Em Qualidade, para remoções, conceda o escopo de excluídos e use `includeDeleted=true`; `deletedAt` funciona como tombstone. As novas coleções operacionais não têm tombstones: faça reconciliação completa periódica para remoções ou mudanças de visibilidade/vínculos. O teto não é um snapshot transacional; use upsert e sobreposição temporal para alterações concorrentes. Em caso de falha intermediária, retome pelo último cursor confirmado.
 
-## Webhook de projetos do PrismaCRM
+## Criação de projetos pelo PrismaCRM
 
-Fora da API v1 de tokens (`/api/integracoes/v1`), o PrismaCRM envia os projetos criados no CRM para
-`POST /api/webhooks/v1/projects` com o token de serviço `PROJECT_INTAKE_WEBHOOK_TOKEN`.
-O caminho antigo `POST /api/webhooks/projects` segue aceito, descontinuado, com os
-cabeçalhos `Deprecation`/`Link` (e `Sunset` quando a data de desligamento for definida).
-Política de versão e passos de migração: [comercialapp-bridge.md](comercialapp-bridge.md#webhook-de-projetos-versão-e-migração).
+O PrismaCRM cria os projetos no FiltroAPP pela própria API v1: `POST /api/integracoes/v1/efetivo/projetos`,
+com credencial de API que tenha o escopo `efetivo.projetos.create`. Reenvio idêntico é idempotente,
+revisão superior da mesma proposta atualiza o vínculo e dados divergentes ou revisão inferior
+respondem `409 PROJECT_CODE_CONFLICT`. Não há outro canal: o antigo webhook
+`POST /api/webhooks/projects` (token `PROJECT_INTAKE_WEBHOOK_TOKEN`) foi removido em 2026-11,
+sem chamadas desde a migração do CRM para a API v1 em outubro
+([decisão](decisoes/2026-11-25-remover-webhook-de-projetos.md)).
 
 ## Limites e erros
 

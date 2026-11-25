@@ -68,6 +68,10 @@ fecha os gaps de validação do domínio (US2), reduz a allowlist e acrescenta
 - ComercialAPP: mantém a espera exponencial por proposta; a leitura em lote ganha `withRetry`.
 
 ### 7.6 — Versão do webhook (0,5 dia + coordenação)
+> **Revisão de 2026-11-25:** o 7.6 já estava atendido. O único cliente externo que cria projetos,
+> o PrismaCRM, usa a API versionada `POST /api/integracoes/v1/efetivo/projetos`; o webhook
+> `/api/webhooks/projects` estava sem uso. A versão `/v1` do webhook (fase 4, #658) foi revertida e
+> os dois caminhos foram removidos ([decisão](../../docs/decisoes/2026-11-25-remover-webhook-de-projetos.md)).
 - `router.use('/webhooks/v1/projects', projectIntakeWebhookRouter)` além do caminho atual.
 - Caminho antigo responde `Deprecation: true` e `Sunset: <data>`; contador de uso do caminho
   antigo no painel de Operações (para saber quando o ComercialAPP migrou).
@@ -132,5 +136,5 @@ Todas as recomendações foram aceitas pelo usuário:
 - **D2 — Onde publicar:** arquivo gerado no repositório (`docs/api/openapi.internal.json`), com visualizador só em desenvolvimento.
 - **D3 — Upload manual de PDF:** trocar o JSON em base64 por multipart em streaming, no PR da fase de RDO.
 - **D4 — Ordem das fases:** auth → RDO → Efetivo → equipamentos/EPI/estoque/qualidade → resto.
-- **D5 — Caminho antigo do webhook:** desligado 60 dias depois que o PrismaCRM migrar, confirmado pelo contador de uso.
+- **D5 — Caminho antigo do webhook:** ~~desligado 60 dias depois que o PrismaCRM migrar~~ — obsoleta: o webhook estava sem uso e foi removido (2026-11-25).
 - **D6 — Formato de erro:** `{ error: string, code, requestId, details? }`, compatível com o frontend atual.

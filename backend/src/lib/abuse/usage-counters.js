@@ -16,9 +16,7 @@ export const COUNTER_KINDS = Object.freeze({
   RATE_LIMITED: 'abuse.rate-limited',
   OPENAI_TOKENS_DAY: 'openai.tokens.day',
   OPENAI_TOKENS_MONTH: 'openai.tokens.month',
-  OPENAI_CALLS_DAY: 'openai.calls.day',
-  // Uso do caminho antigo do webhook do PrismaCRM (spec 042, 7.6), por dia.
-  LEGACY_PROJECT_WEBHOOK_DAY: 'webhook.legacy-projects.day'
+  OPENAI_CALLS_DAY: 'openai.calls.day'
 });
 
 export function abuseBucketStart(now = new Date()) {
@@ -78,7 +76,8 @@ export async function sumUsageCounters({ kinds, since, subjects = null }, { pris
 }
 
 // Linhas de abuso guardam IP: 30 dias (ROPA, "Auditoria e segurança"). Uso da OpenAI
-// e do webhook antigo (sem dado pessoal): 400 dias.
+// (sem dado pessoal): 400 dias. `webhook.*` só limpa linhas do webhook de projetos já
+// removido (2026-11), até não restar nenhuma.
 export async function pruneUsageCounters({ prismaClient = prisma, now = new Date() } = {}) {
   const abuseCutoff = new Date(now.getTime() - ABUSE_RETENTION_DAYS * DAY_MS);
   const openaiCutoff = new Date(now.getTime() - OPENAI_USAGE_RETENTION_DAYS * DAY_MS);

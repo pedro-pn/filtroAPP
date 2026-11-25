@@ -31,7 +31,6 @@ test('loadEnv parses defaults from a minimal valid environment', () => {
   assert.equal(env.operationsBackupMaxAgeHours, 26);
   assert.equal(env.operationsAlertJobEnabled, false);
   assert.equal(env.errorTrackingWebhookUrl, '');
-  assert.equal(env.projectIntakeWebhookToken, '');
   assert.equal(env.pontomaisApiToken, '');
   assert.equal(env.assinaturasMaxPdfMb, 200);
   assert.equal(env.projectDocumentMaxMb, 20);
@@ -108,15 +107,6 @@ test('loadEnv mantém o token do Ponto Mais opcional e normalizado', () => {
   });
 
   assert.equal(env.pontomaisApiToken, 'integration-secret');
-});
-
-test('loadEnv parses the project intake webhook token without making it mandatory', () => {
-  const env = loadEnv({
-    DATABASE_URL: databaseUrl,
-    PROJECT_INTAKE_WEBHOOK_TOKEN: '  intake-secret  '
-  });
-
-  assert.equal(env.projectIntakeWebhookToken, 'intake-secret');
 });
 
 test('loadEnv fails fast when DATABASE_URL is missing', () => {

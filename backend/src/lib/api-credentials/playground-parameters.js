@@ -40,7 +40,7 @@ export function describePlaygroundParameters(operation) {
     : operation.operationId === 'quality.evidence.download'
       ? { label: 'ID da evidência', help: 'Copie id de uma evidência ATTACHMENT no array evidences de um registro de Qualidade.' }
       : ['efetivo.projects.status.get', 'efetivo.projects.measurement.get'].includes(operation.operationId)
-        ? { label: 'ID do projeto', help: 'Copie id da resposta do webhook de projetos ou da operação Listar projetos. O projeto deve estar no recorte do token.' }
+        ? { label: 'ID do projeto', help: 'Copie id da resposta de Criar projeto (efetivo.projetos.create) ou da operação Listar projetos. O projeto deve estar no recorte do token.' }
       : operation.path.startsWith('/estoque/')
         ? { label: 'ID do documento de estoque', help: 'Copie id de um item retornado em Documentos técnicos de estoque — metadados globais.' }
         : { label: operation.path.startsWith('/manutencao/') ? 'ID do anexo de manutenção' : 'ID do anexo do relatório', help: 'Copie id de um item retornado na listagem de metadados de anexos do mesmo módulo.' };
