@@ -613,6 +613,8 @@ model Collaborator {
   signatureNoticeVersion         String?
   isActive                       Boolean                          @default(true)
   rdoCostSimulationExcluded      Boolean                          @default(false)
+  // Matriz de habilidades (shared/modules/collaborator-skills.js): { CHAVE: 1..3 }; ausente = 0.
+  skillLevels                    Json                             @default("{}")
   // LGPD: anonimização 5 anos após o desligamento (lib/privacy/collaborator-retention.js).
   privacyAnonymizedAt            DateTime?
   createdAt                      DateTime                         @default(now())

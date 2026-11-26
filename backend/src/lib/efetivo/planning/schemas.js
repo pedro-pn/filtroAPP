@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { COLLABORATOR_SKILL_KEYS, MAX_COLLABORATOR_SKILL_LEVEL } from '../../../../../shared/modules/collaborator-skills.js';
 import { makeProjectReportRecipientsSchema } from '../../../../../shared/schemas/project-report-recipients.js';
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -6,6 +7,11 @@ export const dateOnlySchema = z.string().regex(datePattern, 'Use o formato AAAA-
   const date = new Date(`${value}T00:00:00.000Z`);
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }, 'Informe uma data válida.');
+
+// Níveis 0–3 por habilidade conhecida; chaves fora do catálogo são rejeitadas.
+export const collaboratorSkillLevelsSchema = z.object(Object.fromEntries(
+  COLLABORATOR_SKILL_KEYS.map(key => [key, z.number().int().min(0).max(MAX_COLLABORATOR_SKILL_LEVEL).optional()])
+)).strict();
 
 export const idSchema = z.string().trim().min(1).max(100);
 export const hexColorSchema = z.string().regex(/^#[0-9a-f]{6}$/i, 'Informe uma cor hexadecimal válida.');
@@ -45,7 +51,8 @@ export const collaboratorInputSchema = z.object({
   jobRoleEffectiveDate: dateOnlySchema.optional(),
   admissionDate: dateOnlySchema,
   terminationDate: dateOnlySchema.nullable().optional(),
-  note: z.string().trim().max(1000).nullable().optional()
+  note: z.string().trim().max(1000).nullable().optional(),
+  skillLevels: collaboratorSkillLevelsSchema.optional()
 }).refine(value => !value.terminationDate || value.terminationDate >= value.admissionDate, {
   path: ['terminationDate'],
   message: 'O desligamento não pode ser anterior à admissão.'

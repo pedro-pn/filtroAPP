@@ -1,3 +1,4 @@
+import { normalizeCollaboratorSkillLevels } from '../../../../../shared/modules/collaborator-skills.js';
 import { addCalendarDays, parseDateKey } from './date-only.js';
 import { calculateDailyCapacity } from './capacity.js';
 import { jobRoleFamilyKey } from '../../collaborators/job-role-service.js';
@@ -111,6 +112,7 @@ export function buildAvailabilityPeriod({ startDate, endDate, jobRoleId, project
         name: collaborator.name,
         role: collaborator.jobRole?.name || '',
         jobRoleId: entry.jobRoleId,
+        skillLevels: normalizeCollaboratorSkillLevels(collaborator.skillLevels),
         days: []
       };
       const status = entry.absence

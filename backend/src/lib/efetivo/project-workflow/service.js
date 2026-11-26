@@ -1,3 +1,4 @@
+import { normalizeCollaboratorSkillLevels } from '../../../../../shared/modules/collaborator-skills.js';
 import { jobRoleVisibilityWhere } from '../../collaborators/workforce-policy.js';
 import {
   PROJECT_WORKFLOW_CHECKLISTS,
@@ -163,6 +164,7 @@ const OPERATIONAL_MISSION_QUERY = {
             id: true,
             name: true,
             isActive: true,
+            skillLevels: true,
             user: { select: reportOperatorUserSelect },
             jobRole: { select: { id: true, name: true } }
           }
@@ -343,7 +345,8 @@ function operationalMissionSummary(project) {
         name: allocation.collaborator.name,
         isActive: allocation.collaborator.isActive,
         canOperateReports: canOperateReports(allocation.collaborator),
-        role: allocation.collaborator.jobRole?.name || allocation.jobRole?.name || ''
+        role: allocation.collaborator.jobRole?.name || allocation.jobRole?.name || '',
+        skillLevels: normalizeCollaboratorSkillLevels(allocation.collaborator.skillLevels)
       } : null,
       jobRole: allocation.jobRole
     }))
@@ -450,6 +453,7 @@ function publicTeamPreparation(workflow, mission, context) {
     collaboratorId: allocation.collaboratorId,
     name: allocation.collaborator?.name || 'Colaborador',
     role: allocation.jobRole?.name || allocation.collaborator?.role || 'Função não informada',
+    skillLevels: normalizeCollaboratorSkillLevels(allocation.collaborator?.skillLevels),
     periods: allocation.periods || [],
     checks: PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS.filter(definition => !hiddenTeamChecks.includes(definition.key)).map(definition => {
       const record = recordByKey.get(`${allocation.collaboratorId}:${definition.key}`);

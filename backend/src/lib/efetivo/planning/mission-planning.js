@@ -1,3 +1,4 @@
+import { normalizeCollaboratorSkillLevels } from '../../../../../shared/modules/collaborator-skills.js';
 import { jobRoleVisibilityWhere, isCollaboratorVisible } from '../../collaborators/workforce-policy.js';
 import { recordEfetivoAudit } from './audit.js';
 import { hasEditableDefaultMissionCycle } from '../../../../../shared/modules/mission-default-cycle.js';
@@ -30,7 +31,7 @@ export const missionInclude = {
   allocations: {
     where: { deletedAt: null },
     include: {
-      collaborator: { select: { id: true, name: true, isActive: true, rhStatus: true, jobRoleId: true, jobRole: { select: { id: true, name: true } } } },
+      collaborator: { select: { id: true, name: true, isActive: true, rhStatus: true, jobRoleId: true, skillLevels: true, jobRole: { select: { id: true, name: true } } } },
       jobRole: { select: { id: true, name: true } },
       cycles: { orderBy: { mobilizationDate: 'asc' } }
     },
@@ -45,7 +46,7 @@ function missionWithCurrentRoles(mission) {
     allocations: (mission.allocations || []).map(allocation => ({
       ...allocation,
       collaborator: allocation.collaborator
-        ? { ...allocation.collaborator, role: allocation.collaborator.jobRole?.name || '' }
+        ? { ...allocation.collaborator, role: allocation.collaborator.jobRole?.name || '', skillLevels: normalizeCollaboratorSkillLevels(allocation.collaborator.skillLevels) }
         : allocation.collaborator
     }))
   };

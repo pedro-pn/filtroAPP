@@ -902,6 +902,17 @@ components:
             - { $ref: '#/components/schemas/DateOnly' }
             - { type: 'null' }
         note: { type: [string, 'null'], maxLength: 1000 }
+        skillLevels: { $ref: '#/components/schemas/CollaboratorSkillLevels' }
+    CollaboratorSkillLevels:
+      type: object
+      description: Matriz de habilidades (0 sem experiência/não avaliado, 1 em desenvolvimento, 2 intermediário, 3 apto). Chave ausente equivale a 0; quando omitido na edição, mantém o valor atual.
+      additionalProperties: false
+      properties:
+        FLUSHING: { type: integer, minimum: 0, maximum: 3 }
+        CHEMICAL_CLEANING: { type: integer, minimum: 0, maximum: 3 }
+        FILTRATION: { type: integer, minimum: 0, maximum: 3 }
+        HYDROJETTING: { type: integer, minimum: 0, maximum: 3 }
+        HYDROSTATIC_TEST: { type: integer, minimum: 0, maximum: 3 }
     CollaboratorPlanning:
       allOf:
         - $ref: '#/components/schemas/CollaboratorOption'
@@ -916,6 +927,7 @@ components:
             status: { type: string, enum: [ALLOCATED, UNAVAILABLE, FREE, OUTSIDE_EMPLOYMENT] }
             plannedUtilization90d: { type: [number, 'null'], minimum: 0, maximum: 100 }
             vacationAlert: { type: [object, 'null'] }
+            skillLevels: { $ref: '#/components/schemas/CollaboratorSkillLevels' }
     InactiveCollaboratorConfirmation:
       type: boolean
       default: false

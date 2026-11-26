@@ -16,6 +16,7 @@ import {
   type PlanningMission
 } from '../../../api/efetivoPlanning';
 import { Alert, Badge, Card, EmptyState } from '../../../components/ui/ds';
+import { CollaboratorSkillTags } from '../../../components/efetivo/CollaboratorSkillTags';
 import { WorkflowButton as Button } from '../../../components/ui/WorkflowButton';
 import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { RemoveIconButton } from '../../../components/ui/RemoveIconButton';
@@ -311,7 +312,7 @@ export function MissionAllocationModal({ mission, open, canManage, onClose = noE
                 const adding = canChangeCycles && addingCycleAllocationId === allocation.id;
                 return <Card padding="sm" className="efetivo-team-person-card" key={allocation.id} data-allocation-id={allocation.id}>
                   <header className="efetivo-team-person-heading">
-                    <div><h4>{allocation.collaborator?.name || 'Colaborador'}</h4><p>{allocation.jobRole?.name || allocation.collaborator?.role || 'Cargo não informado'}</p></div>
+                    <div><h4>{allocation.collaborator?.name || 'Colaborador'}</h4><p>{allocation.jobRole?.name || allocation.collaborator?.role || 'Cargo não informado'}</p><CollaboratorSkillTags skillLevels={allocation.collaborator?.skillLevels} /></div>
                     <Badge tone={inherited ? 'neutral' : 'info'}>{inherited ? 'Segue os ciclos do projeto' : 'Ciclos individuais'}</Badge>
                   </header>
                   {!mission.demands.some(demand => demand.jobRoleId === allocation.jobRoleId) ? <Badge tone="warning">Cargo fora do planejamento</Badge> : null}

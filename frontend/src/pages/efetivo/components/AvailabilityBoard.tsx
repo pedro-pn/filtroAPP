@@ -8,6 +8,7 @@ import { getPlanningAvailability, type PeriodAvailabilityStatus, type PlanningAv
 import { displayDateOnly, parseDateOnly } from '../../../utils/calendarGrid';
 import { buildCalendarBuckets, type CalendarBucket, type CalendarScale } from '../../../utils/availabilityCalendar';
 import { summarizeAvailabilityPeriod } from '../../../utils/availabilitySummary';
+import { CollaboratorSkillTags } from '../../../components/efetivo/CollaboratorSkillTags';
 
 const STATUSES: PeriodAvailabilityStatus[] = ['AVAILABLE', 'AWAITING_MOBILIZATION', 'MOBILIZED', 'ON_VACATION', 'OFFSHORE_FATIGUE', 'OTHER_UNAVAILABLE'];
 const STATUS_META: Record<PeriodAvailabilityStatus, { label: string; short: string; description: string }> = {
@@ -162,6 +163,7 @@ export function AvailabilityBoard({ date, endDate, jobRoleId, view, onViewChange
             const details = [...new Set(person.days.map(day => day.detail).filter(Boolean))];
             return <article className="efetivo-availability-card" data-collaborator-id={person.id} key={person.id}>
               <div className="efetivo-availability-person"><i aria-hidden="true">{initials(person.name)}</i><span><strong>{person.name}</strong><small>{person.role}</small></span></div>
+              <CollaboratorSkillTags skillLevels={person.skillLevels} />
               <div className="efetivo-period-person-counts">{counts.map(item => <span data-availability-status={item.status} key={item.status}>{item.count} {item.count === 1 ? 'dia' : 'dias'} · {STATUS_META[item.status].short}</span>)}{outsideDays ? <span data-availability-status="OUTSIDE_EMPLOYMENT">{outsideDays} {outsideDays === 1 ? 'dia' : 'dias'} · Fora do vínculo</span> : null}</div>
               {details.length ? <div className="efetivo-availability-context"><small title={details.join(' · ')}>{details.slice(0, 2).join(' · ')}{details.length > 2 ? ` +${details.length - 2}` : ''}</small></div> : null}
             </article>;

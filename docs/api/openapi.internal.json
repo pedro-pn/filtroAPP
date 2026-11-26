@@ -21031,6 +21031,37 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "skillLevels": {
+                    "type": "object",
+                    "properties": {
+                      "FLUSHING": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 3
+                      },
+                      "CHEMICAL_CLEANING": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 3
+                      },
+                      "FILTRATION": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 3
+                      },
+                      "HYDROJETTING": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 3
+                      },
+                      "HYDROSTATIC_TEST": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 3
+                      }
+                    },
+                    "additionalProperties": false
                   }
                 },
                 "required": [
@@ -21251,6 +21282,37 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "skillLevels": {
+                    "type": "object",
+                    "properties": {
+                      "FLUSHING": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 3
+                      },
+                      "CHEMICAL_CLEANING": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 3
+                      },
+                      "FILTRATION": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 3
+                      },
+                      "HYDROJETTING": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 3
+                      },
+                      "HYDROSTATIC_TEST": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 3
+                      }
+                    },
+                    "additionalProperties": false
                   }
                 },
                 "required": [

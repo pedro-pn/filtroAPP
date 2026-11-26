@@ -20,6 +20,8 @@ import { allocationOverlapsPeriod } from '../../../utils/missionAllocationPeriod
 import { filterCollaboratorsByActivity, filterMissionTeamCollaborators, missionTeamCollaboratorPeriods, plannedRoleCoverage, plannedRoleIdSet, toggleMissionCollaborator, type CollaboratorActivityFilter, type PlannedTeamRole } from '../../../utils/missionTeam';
 import { MissionPeriodFields, type MissionPeriodDraft } from './MissionPeriodFields';
 import { ConectaCompliancePanel, ConectaComplianceProvider } from './ConectaCompliancePanel';
+import { CollaboratorSkillTags } from '../../../components/efetivo/CollaboratorSkillTags';
+import { COLLABORATOR_SKILLS, collaboratorSkillLevel, meetsCollaboratorSkill, type CollaboratorSkillKey } from '../../../../../shared/modules/collaborator-skills.js';
 import '../EfetivoTeam.ds.css';
 
 const COLUMN_META: Record<AvailabilityStatus, { label: string; description: string }> = {
@@ -70,6 +72,12 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
   const closeDialog = () => { setOpen(false); setEditingPeriod(null); onCancel?.(); };
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
+  const [skillFilter, setSkillFilter] = useState<CollaboratorSkillKey | ''>('');
+  const [skillMinLevel, setSkillMinLevel] = useState(1);
+  const matchesSkill = (person: PlanningCollaborator) => meetsCollaboratorSkill(person.skillLevels, skillFilter, skillMinLevel);
+  const bySkillLevel = (left: PlanningCollaborator, right: PlanningCollaborator) => skillFilter
+    ? collaboratorSkillLevel(right.skillLevels, skillFilter) - collaboratorSkillLevel(left.skillLevels, skillFilter)
+    : 0;
   const [activityFilter, setActivityFilter] = useState<CollaboratorActivityFilter>('ACTIVE');
   const [preAdmissionConfirmationIds, setPreAdmissionConfirmationIds] = useState<string[]>([]);
   const [inactiveConfirmationIds, setInactiveConfirmationIds] = useState<string[]>([]);
@@ -116,6 +124,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
         terminationDate: null,
         isActive: collaborator.isActive ?? true,
         rhStatus: collaborator.rhStatus,
+        skillLevels: collaborator.skillLevels,
         status: 'OUTSIDE_EMPLOYMENT' as const,
         plannedUtilization90d: null,
         vacationAlert: null
@@ -150,7 +159,8 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
   const hiddenSelected = options.filter(collaborator => draftIds.includes(collaborator.id) && !visibleIds.has(collaborator.id)
     && (activityFilter === 'ACTIVE' || collaborator.isActive !== false));
   const inactivePeople = filterMissionTeamCollaborators(filterCollaboratorsByActivity(options, 'INACTIVE'), search)
-    .filter(person => !roleFilter || person.jobRoleId === roleFilter);
+    .filter(person => (!roleFilter || person.jobRoleId === roleFilter) && matchesSkill(person))
+    .sort(bySkillLevel);
   const preAdmissionDraftIds = options.filter(person => person.rhStatus === 'PRE_ADMISSION' && draftIds.includes(person.id)).map(person => person.id);
   const inactiveDraftIds = options.filter(person => person.isActive === false && draftIds.includes(person.id)).map(person => person.id);
   const blockedDraftIds = new Set([
@@ -202,7 +212,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
         <legend>Equipe da missão</legend>
         <div className="efetivo-team-picker-trigger">
           <div><strong>{selectedIds.length} {selectedIds.length === 1 ? 'colaborador selecionado' : 'colaboradores selecionados'}</strong><span>Consulte a disponibilidade considerando todas as datas da programação.</span></div>
-          <Button variant="secondary" size="sm" disabled={disabled} onClick={() => { setSearch(''); setRoleFilter(''); setOverlapConfirmationIds([]); setInactiveConfirmationIds([]); setOpen(true); }}>Ver colaboradores</Button>
+          <Button variant="secondary" size="sm" disabled={disabled} onClick={() => { setSearch(''); setRoleFilter(''); setSkillFilter(''); setSkillMinLevel(1); setOverlapConfirmationIds([]); setInactiveConfirmationIds([]); setOpen(true); }}>Ver colaboradores</Button>
         </div>
         {!validPeriod ? <p className="efetivo-team-help">Preencha a mobilização e o fim da execução para consultar os colaboradores.</p> : null}
         {roleSummary.length ? <div className="efetivo-team-role-summary" aria-label="Resumo da equipe por cargo">{roleSummary.map(([role, count]) => <Badge key={role}>{role} · {count}</Badge>)}</div> : null}
@@ -214,7 +224,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
             const collaborator = options.find(item => item.id === collaboratorId);
             const period = allocationPeriods.find(item => item.collaboratorId === collaboratorId) || { collaboratorId, mobilizationDate: startDate, demobilizationDate: endDate };
             return <div className="efetivo-team-cycle-row" key={collaboratorId}>
-              <div className="efetivo-team-person-heading"><div><strong>{collaborator?.name || 'Colaborador selecionado'}</strong><p>{collaborator?.role || 'Cargo não informado'}</p></div></div>
+              <div className="efetivo-team-person-heading"><div><strong>{collaborator?.name || 'Colaborador selecionado'}</strong><p>{collaborator?.role || 'Cargo não informado'}</p><CollaboratorSkillTags skillLevels={collaborator?.skillLevels} /></div></div>
               <MissionPeriodFields id={'mission-team-' + collaboratorId} value={period} min={startDate} max={endDate} disabled={disabled} onChange={value => updateAllocationPeriod(collaboratorId, value)} />
             </div>;
           })}
@@ -242,6 +252,12 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
             <Field id="mission-team-role-filter" label="Filtrar por cargo" optionalText="">
               <Select size="sm" value={roleFilter} onChange={event => setRoleFilter(event.target.value)}><option value="">Todos os cargos</option>{roles.filter(role => ((role.isAvailableInWorkforce ?? (role.isOperational || role.hasOperationalCollaborators))) && inPlan(role.id)).map(role => <option value={role.id} key={role.id}>{role.name}</option>)}</Select>
             </Field>
+            <Field id="mission-team-skill-filter" label="Habilidade" optionalText="">
+              <Select size="sm" value={skillFilter} onChange={event => setSkillFilter(event.target.value as CollaboratorSkillKey | '')}><option value="">Todas as habilidades</option>{COLLABORATOR_SKILLS.map(skill => <option value={skill.key} key={skill.key}>{skill.label}</option>)}</Select>
+            </Field>
+            {skillFilter ? <Field id="mission-team-skill-level" label="Nível mínimo" optionalText="">
+              <Select size="sm" value={String(skillMinLevel)} onChange={event => setSkillMinLevel(Number(event.target.value))}><option value="1">1 · Em desenvolvimento ou mais</option><option value="2">2 · Intermediário ou mais</option><option value="3">3 · Apto</option></Select>
+            </Field> : null}
           </div>
           <p className="efetivo-team-selection-count" role="status">{draftIds.length} selecionado(s)</p>
           {blockedDraftIds.size ? <Alert tone="warning">Há colaboradores selecionados com férias ou outra indisponibilidade no período. Ajuste as datas individuais ou remova-os da seleção.</Alert> : null}
@@ -263,7 +279,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
                   {hiddenSelected.length ? <section className="efetivo-team-section" aria-label="Selecionados fora do quadro">
                     <header><h4>Selecionados fora do quadro</h4><p>Use o filtro Inativos para consultar os colaboradores desligados.</p></header>
                     {hiddenSelected.map(collaborator => <div className="efetivo-team-cycle-row" key={collaborator.id}>
-                      <div className="efetivo-team-person-heading"><div><strong>{collaborator.name}</strong><p>{collaborator.role || 'Cargo não informado'}</p></div></div>
+                      <div className="efetivo-team-person-heading"><div><strong>{collaborator.name}</strong><p>{collaborator.role || 'Cargo não informado'}</p><CollaboratorSkillTags skillLevels={collaborator.skillLevels} /></div></div>
                       {documentation(collaborator.id)}
                       <div className="efetivo-team-actions"><RemoveIconButton label={`Remover colaborador ${collaborator.name}`} disabled={disabled} onClick={() => setDraftIds(current => toggleDraft(current, collaborator.id, false))} /></div>
                     </div>)}
@@ -275,6 +291,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
                       const hasRole = Boolean(person.jobRoleId && operationalRoleIds.has(person.jobRoleId));
                       return <Card padding="sm" selected={selected} className="efetivo-team-choice-card" key={person.id}>
                         <label className="efetivo-team-choice"><input type="checkbox" checked={selected} disabled={disabled || (!hasRole && !selected)} onChange={event => setDraftIds(current => toggleDraft(current, person.id, event.target.checked))} /><div className="efetivo-team-choice-person"><i aria-hidden="true">{initials(person.name)}</i><span><strong>{person.name}</strong><small>{person.role || 'Cargo não informado'} · Inativo</small></span></div></label>
+                        <CollaboratorSkillTags skillLevels={person.skillLevels} />
                         {documentation(person.id)}
                       </Card>;
                     })}{!inactivePeople.length ? <p>Nenhum colaborador inativo encontrado.</p> : null}</div>
@@ -286,7 +303,8 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
                         &&
                         (!roleFilter || entry.collaborator.jobRoleId === roleFilter)
                         && filterMissionTeamCollaborators([entry.collaborator], search).length > 0
-                      ));
+                        && matchesSkill(entry.collaborator)
+                      )).sort((left, right) => bySkillLevel(left.collaborator, right.collaborator));
                       return <section className="efetivo-team-availability-column" data-availability-status={status} key={status} aria-label={COLUMN_META[status].label}>
                         <header><div><h3>{COLUMN_META[status].label}</h3><Badge>{entries.length}</Badge></div><p>{COLUMN_META[status].description}</p></header>
                         <div className="efetivo-team-stack">
@@ -301,6 +319,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
                                 <input type="checkbox" checked={selected} disabled={disabled || (!selectable && !selected)} onChange={event => setDraftIds(current => toggleDraft(current, entry.collaborator.id, event.target.checked))} />
                                 <span className="efetivo-team-choice-person"><i aria-hidden="true">{initials(entry.collaborator.name)}</i><span><strong>{entry.collaborator.name}</strong>{entry.collaborator.rhStatus === 'PRE_ADMISSION' ? <Badge>Pré-admissão</Badge> : null}<small>{entry.collaborator.role || 'Cargo não informado'}</small></span></span>
                               </label>
+                              <CollaboratorSkillTags skillLevels={entry.collaborator.skillLevels} emptyLabel="Habilidades não avaliadas" />
                               {documentation(entry.collaborator.id)}
                               {entry.mission ? <p className="efetivo-team-help">{entry.mission.project.code} · {entry.mission.project.name}<br />Mobilização em {displayDateOnly(entry.mission.mobilizationDate)}</p> : null}
                               {hasMissionOverlap ? <p className="efetivo-team-warning">Exige confirmação de sobreposição.</p> : null}
@@ -310,7 +329,7 @@ export function MissionTeamSelector({ mission, planId, roles, plannedRoles, sele
                               {status === 'AVAILABLE' && !hasOperationalRole ? <p className="efetivo-team-help">Sem função operacional vinculada</p> : null}
                               {plannedRoles?.length && !plannedIds.has(entry.collaborator.jobRoleId || '') ? <p className="efetivo-team-help">Cargo fora do planejamento desta obra</p> : null}
                             </Card>;
-                          }) : <p className="efetivo-team-help">{search || roleFilter ? 'Nenhum colaborador para estes filtros.' : 'Nenhum colaborador nesta situação.'}</p>}
+                          }) : <p className="efetivo-team-help">{search || roleFilter || skillFilter ? 'Nenhum colaborador para estes filtros.' : 'Nenhum colaborador nesta situação.'}</p>}
                         </div>
                       </section>;
                     })}

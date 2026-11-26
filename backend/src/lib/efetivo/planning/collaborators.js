@@ -1,5 +1,6 @@
 import { collaboratorVisibilityWhere, defaultJobRoleVisibilityWhere, requireVisibleCollaborators } from '../../collaborators/workforce-policy.js';
 import crypto from 'node:crypto';
+import { normalizeCollaboratorSkillLevels } from '../../../../../shared/modules/collaborator-skills.js';
 
 import { markFutureAllocationsForReplanning, withCurrentJobRole } from '../../collaborators/job-role-service.js';
 import { synchronizeCurrentCollaboratorJobRole, validateCollaboratorRoleEffectiveDate } from '../../collaborators/job-role-history.js';
@@ -32,6 +33,7 @@ function collaboratorData(payload, role) {
     admissionDate: utcDate(payload.admissionDate),
     terminationDate: utcDate(payload.terminationDate),
     efetivoNote: String(payload.note || '').trim() || null,
+    ...(payload.skillLevels !== undefined ? { skillLevels: normalizeCollaboratorSkillLevels(payload.skillLevels) } : {}),
     isActive: !payload.terminationDate || parseDateKey(payload.terminationDate) >= new Date().toISOString().slice(0, 10)
   };
 }

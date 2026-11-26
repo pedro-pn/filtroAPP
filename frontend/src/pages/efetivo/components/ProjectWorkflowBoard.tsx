@@ -76,6 +76,7 @@ import {
 } from '../../../utils/reorderDrag';
 import { buildInitialTeamContext } from '../../../utils/initialTeamContext';
 import { missionTeamAllocationPeriod, selectedMissionCollaboratorIds, type InitialTeamContext } from '../../../utils/missionTeam';
+import { CollaboratorSkillTags } from '../../../components/efetivo/CollaboratorSkillTags';
 
 const InitialTeamAvailabilityModal = lazy(() => import('./MissionFormModal').then(module => ({ default: module.InitialTeamAvailabilityModal })));
 const ProjectLegacyCompletionModal = lazy(() => import('./ProjectLegacyCompletionModal').then(module => ({ default: module.ProjectLegacyCompletionModal })));
@@ -296,6 +297,7 @@ function ProjectCard({
                 {allocation.collaboratorId === mission.headquartersResponsibleCollaboratorId ? <em>Líder</em> : null}
               </strong>
               <small>{allocation.jobRole?.name || allocation.collaborator?.role || 'Função não informada'}</small>
+              <CollaboratorSkillTags skillLevels={allocation.collaborator?.skillLevels} />
             </div>
           )) : <p>Nenhum colaborador alocado ainda.</p>}
         </div>

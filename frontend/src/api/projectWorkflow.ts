@@ -2,6 +2,7 @@ import { apiClient, type ApiClientError } from './client';
 import type { ProjectRomaneiosResponse } from './acompanhamentoComercial';
 import type { ProjectDocumentRequirementSummary } from './projectDocuments';
 import type { ClientSigner } from '../types/domain';
+import type { CollaboratorSkillLevels } from '../../../shared/modules/collaborator-skills.js';
 import type { ProjectReportRecipients } from '../../../shared/schemas/project-report-recipients.js';
 
 export type ProjectWorkflowStage = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'WAITING_PLANNING' | 'MOBILIZATION_PLANNING' | 'PREPARATION' | 'MOBILIZATION' | 'EXECUTION' | 'DEMOBILIZATION' | 'POST_JOB' | 'FINAL_MEASUREMENT' | 'FINISHED';
@@ -58,7 +59,7 @@ export interface ProjectOperationalMissionSummary {
     collaboratorId: string;
     jobRoleId: string;
     periods?: Array<{ startDate: string; endDate: string }>;
-    collaborator: { id: string; name: string; isActive: boolean; role: string; canOperateReports?: boolean } | null;
+    collaborator: { id: string; name: string; isActive: boolean; role: string; canOperateReports?: boolean; skillLevels?: CollaboratorSkillLevels } | null;
     jobRole: { id: string; name: string } | null;
   }>;
 }
@@ -117,6 +118,7 @@ export interface ProjectWorkflowTeamPreparation {
     periods?: Array<{ startDate: string; endDate: string }>;
     name: string;
     role: string;
+    skillLevels?: CollaboratorSkillLevels;
     checks: Array<{
       key: ProjectWorkflowTeamMemberCheckKey;
       label: string;

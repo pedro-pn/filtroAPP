@@ -1,12 +1,14 @@
 import { todayDateOnly } from '../../../utils/dateOnly';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { z } from 'zod';
 
 import type { CollaboratorInput, PlanningCollaborator, PlanningJobRole } from '../../../api/efetivoPlanning';
 import { Button, Field, Input, Select, Textarea } from '../../../components/ui/ds';
 import { Modal } from '../../../components/ui/Modal';
+import { CollaboratorSkillEditor } from '../../../components/efetivo/CollaboratorSkillEditor';
+import type { CollaboratorSkillLevels } from '../../../../../shared/modules/collaborator-skills.js';
 import '../EfetivoDialogs.css';
 
 const schema = z.object({
@@ -41,7 +43,12 @@ export function OperationalCollaboratorModal({ open, collaborator, jobRoles, sav
   onSubmit: (payload: CollaboratorInput) => void;
 }) {
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: initialValues(collaborator) });
-  useEffect(() => { if (open) reset(initialValues(collaborator)); }, [collaborator, open, reset]);
+  const [skillLevels, setSkillLevels] = useState<CollaboratorSkillLevels>(() => ({ ...collaborator?.skillLevels }));
+  useEffect(() => {
+    if (!open) return;
+    reset(initialValues(collaborator));
+    setSkillLevels({ ...collaborator?.skillLevels });
+  }, [collaborator, open, reset]);
   return (
     <Modal
       open={open}
@@ -63,7 +70,7 @@ export function OperationalCollaboratorModal({ open, collaborator, jobRoles, sav
         id="operational-collaborator-form"
         className="efetivo-dialog-form"
         noValidate
-        onSubmit={handleSubmit(values => onSubmit({ name: values.name.trim(), jobRoleId: values.jobRoleId, jobRoleEffectiveDate: values.jobRoleEffectiveDate, admissionDate: values.admissionDate, terminationDate: values.terminationDate || null, note: values.note.trim() || null }))}
+        onSubmit={handleSubmit(values => onSubmit({ name: values.name.trim(), jobRoleId: values.jobRoleId, jobRoleEffectiveDate: values.jobRoleEffectiveDate, admissionDate: values.admissionDate, terminationDate: values.terminationDate || null, note: values.note.trim() || null, skillLevels }))}
       >
         <p className="efetivo-dialog-description" id="operational-collaborator-description">Mantenha os dados, a função e o vínculo do colaborador atualizados.</p>
         <div className="efetivo-dialog-fields">
@@ -88,6 +95,9 @@ export function OperationalCollaboratorModal({ open, collaborator, jobRoles, sav
           <Field id="operational-collaborator-note" label="Observação operacional" optionalText="" className="efetivo-dialog-wide" errorText={errors.note?.message}>
             <Textarea size="sm" rows={3} disabled={saving} {...register('note')} />
           </Field>
+          <div className="efetivo-dialog-wide">
+            <CollaboratorSkillEditor value={skillLevels} disabled={saving} onChange={setSkillLevels} />
+          </div>
         </div>
       </form>
     </Modal>
