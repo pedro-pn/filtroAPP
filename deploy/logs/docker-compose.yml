@@ -1,0 +1,67 @@
+name: filtrovali-logs
+
+# Envio dos logs dos contêineres (produção e homologação) ao Grafana Cloud.
+# Projeto separado do app: deploy e volta de versão não recriam o agente.
+# Passo a passo em deploy/LOGS.md.
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+services:
+  # Só leitura de contêineres e redes; sem POST, exec ou imagens.
+  docker-proxy:
+    image: ghcr.io/tecnativa/docker-socket-proxy:v0.5.0
+    container_name: filtrovali-logs-docker-proxy
+    restart: unless-stopped
+    environment:
+      CONTAINERS: "1"
+      NETWORKS: "1"
+      POST: "0"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - logs-internal
+    logging: *default-logging
+    mem_limit: 64m
+    cpus: 0.1
+    pids_limit: 50
+
+  alloy:
+    image: grafana/alloy:v1.21.3
+    container_name: filtrovali-logs-agent
+    restart: unless-stopped
+    command:
+      - run
+      - --storage.path=/var/lib/alloy/data
+      - --server.http.listen-addr=127.0.0.1:12345
+      - /etc/alloy/config.alloy
+    env_file:
+      - .env
+    volumes:
+      - ./config.alloy:/etc/alloy/config.alloy:ro
+      # Guarda até onde cada contêiner já foi enviado (reiniciar não reenvia).
+      - filtrovali_logs_alloy:/var/lib/alloy/data
+    depends_on:
+      - docker-proxy
+    networks:
+      - logs-internal
+      - logs-egress
+    logging: *default-logging
+    mem_limit: 256m
+    cpus: 0.25
+    pids_limit: 100
+
+volumes:
+  filtrovali_logs_alloy:
+    name: filtrovali_logs_alloy
+
+networks:
+  # Sem saída para a internet: só o agente alcança o proxy do Docker.
+  logs-internal:
+    name: filtrovali-logs-internal
+    internal: true
+  logs-egress:
+    name: filtrovali-logs-egress

@@ -1,0 +1,132 @@
+// Logs centralizados (critério 12.2): envia ao Grafana Cloud a saída dos
+// contêineres filtrovali-* (produção, homologação e o próprio agente).
+//
+// O agente fala com o Docker pelo docker-socket-proxy, que só libera leitura
+// de contêineres e redes. Antes do envio, o pipeline descarta ruído e mascara
+// dado pessoal e segredos. O IP fica: ele é necessário para investigar abuso
+// (docs/RUNBOOK_INCIDENTES.md).
+
+discovery.docker "filtrovali" {
+  host             = "tcp://docker-proxy:2375"
+  refresh_interval = "30s"
+
+  filter {
+    name   = "name"
+    values = ["filtrovali"]
+  }
+}
+
+discovery.relabel "filtrovali" {
+  targets = []
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_log_stream"]
+    target_label  = "stream"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    regex         = "filtrovali"
+    replacement   = "production"
+    target_label  = "env"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    regex         = "filtrovali-staging"
+    replacement   = "staging"
+    target_label  = "env"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    regex         = "filtrovali-logs"
+    replacement   = "logs"
+    target_label  = "env"
+  }
+}
+
+loki.source.docker "filtrovali" {
+  host          = "tcp://docker-proxy:2375"
+  targets       = discovery.docker.filtrovali.targets
+  relabel_rules = discovery.relabel.filtrovali.rules
+  forward_to    = [loki.process.filtrovali.receiver]
+}
+
+loki.process "filtrovali" {
+  // Ruído: o healthcheck do Docker chama /health a cada 15 s.
+  stage.drop {
+    expression          = "^GET /health "
+    drop_counter_reason = "healthcheck"
+  }
+
+  // Postgres: os parâmetros de uma consulta lenta podem trazer dado pessoal.
+  stage.drop {
+    expression          = "DETAIL:\\s+parameters:"
+    drop_counter_reason = "postgres_parameters"
+  }
+
+  // Senha em URL de conexão (postgresql://usuario:senha@host).
+  stage.replace {
+    expression = "://[^:/\\s]+:([^@\\s]+)@"
+    replace    = "<redacted>"
+  }
+
+  // Token da API de integração (fva_<seletor>_<segredo>).
+  stage.replace {
+    expression = "\\b(fva_[A-Za-z0-9_-]{16,})"
+    replace    = "<api-token>"
+  }
+
+  // Cabeçalho Authorization: Bearer <token>.
+  stage.replace {
+    expression = "(?i)bearer\\s+([A-Za-z0-9._~+/=-]+)"
+    replace    = "<token>"
+  }
+
+  // Segredos em query string (o nginx registra a URL completa).
+  stage.replace {
+    expression = "(?i)[?&](?:token|access_token|api_key|apikey|key|code|password|senha|secret|signature)=([^&\\s\"]+)"
+    replace    = "<redacted>"
+  }
+
+  // E-mail.
+  stage.replace {
+    expression = "([A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)+)"
+    replace    = "<email>"
+  }
+
+  // CPF formatado.
+  stage.replace {
+    expression = "(\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2})"
+    replace    = "<cpf>"
+  }
+
+  forward_to = [loki.write.grafana_cloud.receiver]
+}
+
+loki.write "grafana_cloud" {
+  endpoint {
+    url = sys.env("GRAFANA_LOGS_URL")
+
+    basic_auth {
+      username = sys.env("GRAFANA_LOGS_USER")
+      password = sys.env("GRAFANA_LOGS_TOKEN")
+    }
+  }
+
+  external_labels = {
+    host = coalesce(sys.env("LOGS_HOST"), "vps"),
+  }
+}

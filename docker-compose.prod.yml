@@ -1,9 +1,18 @@
 name: filtrovali
 
+# Rotação dos logs de cada contêiner: até 5 arquivos de 20 MB (100 MB por serviço).
+# A cópia de longo prazo vai para o Grafana Cloud (deploy/LOGS.md).
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
 services:
   postgres:
     image: postgres:16-alpine
     container_name: filtrovali-postgres
+    logging: *default-logging
     restart: unless-stopped
     command:
       - postgres
@@ -52,6 +61,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     container_name: filtrovali-migrate
+    logging: *default-logging
     restart: "no"
     command: ["npx", "prisma", "migrate", "deploy"]
     env_file:
@@ -76,6 +86,7 @@ services:
     # Tag por commit: permite voltar à imagem anterior sem rebuild (deploy/deploy-prod.sh).
     image: filtrovali-backend:${APP_GIT_SHA:-latest}
     container_name: filtrovali-backend
+    logging: *default-logging
     restart: unless-stopped
     # Migrations rodam no serviço migrate; a API só inicia.
     command: ["node", "src/server.js"]
@@ -123,6 +134,7 @@ services:
     # Tag por commit: permite voltar à imagem anterior sem rebuild (deploy/deploy-prod.sh).
     image: filtrovali-worker:${APP_GIT_SHA:-latest}
     container_name: filtrovali-worker
+    logging: *default-logging
     restart: unless-stopped
     command: ["node", "src/worker.js"]
     env_file:
@@ -169,6 +181,7 @@ services:
         APP_GIT_SHA: ${APP_GIT_SHA:-unknown}
     image: filtrovali-nginx:${APP_GIT_SHA:-latest}
     container_name: filtrovali-nginx
+    logging: *default-logging
     restart: unless-stopped
     depends_on:
       - backend
