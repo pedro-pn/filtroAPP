@@ -12,6 +12,50 @@ Esta API fornece acesso controlado aos dados do Filtrovali sem conceder acesso d
 
 O endereço base comum a todas as áreas é `/api/integracoes/v1`. Acrescente o caminho da consulta desejada, como `/projetos`, `/estoque/itens` ou `/qualidade/registros`. O segmento `/qualidade` identifica apenas as consultas desse setor. Na exibição única do token, o exemplo em cURL usa uma consulta compatível com as permissões concedidas.
 
+## Versões e compatibilidade
+
+A versão está no caminho (`/api/integracoes/v1`) e vale para a API inteira. O contrato público é
+`specs/015-api-token-playground/contracts/openapi.yaml`, cujo `info.version` segue versionamento
+semântico. Uma versão nova *minor* traz só mudanças compatíveis; uma mudança incompatível nunca
+entra na `v1`.
+
+**Compatíveis**, entram a qualquer momento, sem aviso:
+- rota, escopo, filtro opcional ou coleção nova;
+- campo novo na resposta (o consumidor precisa ignorar campo que não conhece);
+- valor novo num campo de situação, tipo ou categoria: o consumidor trata valor desconhecido como
+  "outro", em vez de falhar;
+- limite mais generoso, ou mensagem de erro com texto diferente e o mesmo `code`.
+
+**Incompatíveis**, só numa versão nova (`/v2`):
+- remover ou renomear rota, campo, parâmetro ou escopo;
+- mudar o tipo, o formato ou o significado de um campo, como uma unidade ou um fuso;
+- tornar obrigatório um parâmetro opcional, ou recusar entrada que hoje é aceita;
+- mudar o `code` de um erro, o status HTTP de um caso ou a forma de paginar;
+- exigir escopo a mais numa rota existente.
+
+**Como uma versão é desligada:**
+1. **Publicação da `v2` com aviso prévio.** A `v2` sai com o contrato próprio, e o aviso vai
+   ao contato de cada token ativo (`recipientContact`, cadastrado em **Tokens de API**) com
+   **pelo menos 90 dias** de antecedência. O aviso diz o que muda, a data de desligamento da `v1`
+   e o guia de migração.
+2. **Marcação das rotas antigas.** Elas ficam como `deprecated` no contrato e passam a responder
+   com `Deprecation` ([RFC 9745](https://www.rfc-editor.org/rfc/rfc9745)), `Sunset` com a data de
+   desligamento ([RFC 8594](https://www.rfc-editor.org/rfc/rfc8594)) e `Link` para o guia.
+3. **Convivência das duas versões.** A `v1` continua funcionando por **no mínimo 6 meses** depois
+   da publicação da `v2`. O registro de chamadas (`ApiRequestLog`, por token e operação) mostra quem ainda usa cada rota, e o desligamento
+   só acontece depois de conferir que nenhum token ativo ainda chama a rota antiga, ou com o
+   consumidor avisado de novo.
+4. **Desligamento.** Depois da data, a rota responde `410 Gone` com `code: "API_VERSION_RETIRED"`
+   por mais 30 dias antes de ser removida do código.
+
+**Exceção de segurança.** Uma falha de segurança pode exigir mudança incompatível com prazo
+menor. Nesse caso, avisamos os consumidores no mesmo dia e o motivo fica registrado em
+`docs/incidentes/`.
+
+Rotas fora de `/api/integracoes/v1` (por exemplo, `/api/webhooks/...` e
+`/api/acompanhamento/comercial/comercialapp/...`) têm contrato próprio com cada consumidor. Elas
+seguem a mesma regra de aviso, com o prazo combinado com ele.
+
 ## Autenticação
 
 Uma conta `ADMIN` gera a credencial em **Administração → Tokens de API**. O valor completo aparece uma única vez; guarde-o em um cofre de segredos e identifique o responsável e a finalidade. Sessões humanas do app não funcionam nesta árvore e tokens de integração não funcionam como login.
