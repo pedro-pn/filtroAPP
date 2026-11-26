@@ -1,0 +1,651 @@
+{
+  "title": "filtroAPP — saúde",
+  "uid": "filtroapp-saude",
+  "tags": [
+    "filtroapp"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "editable": true,
+  "description": "Painel versionado em deploy/logs/painel-saude.json (critério 12.3). Fonte: logs do backend (morgan) e do Postgres enviados pelo Alloy.",
+  "templating": {
+    "list": [
+      {
+        "name": "logs",
+        "label": "Fonte de logs",
+        "type": "datasource",
+        "query": "loki",
+        "regex": ".*logs.*",
+        "current": {}
+      },
+      {
+        "name": "env",
+        "label": "Ambiente",
+        "type": "custom",
+        "query": "production,staging",
+        "current": {
+          "text": "production",
+          "value": "production",
+          "selected": true
+        },
+        "options": [
+          {
+            "text": "production",
+            "value": "production",
+            "selected": true
+          },
+          {
+            "text": "staging",
+            "value": "staging",
+            "selected": false
+          }
+        ]
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Requisições/s (agora)",
+      "description": "Média dos últimos 5 min. Capacidade medida com p95 ≤ 1,5 s: ~16 req/s (docs/TESTE_DE_CARGA.md).",
+      "datasource": {
+        "type": "loki",
+        "uid": "${logs}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate({env=\"$env\", service=\"backend\"} |~ `^(GET|POST|PUT|PATCH|DELETE) /api/` [5m]))",
+          "datasource": {
+            "type": "loki",
+            "uid": "${logs}"
+          }
+        }
+      ],
+      "id": 1
+    },
+    {
+      "type": "stat",
+      "title": "Erros 5xx (5 min)",
+      "description": "",
+      "datasource": {
+        "type": "loki",
+        "uid": "${logs}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({env=\"$env\", service=\"backend\"} |~ `^(GET|POST|PUT|PATCH|DELETE) /api/` | regexp `^(?P<method>[A-Z]+) (?P<route>\\S+) (?P<status>[0-9]{3}) (?P<ms>[0-9.]+) ms` | status >= 500 [5m])) or vector(0)",
+          "datasource": {
+            "type": "loki",
+            "uid": "${logs}"
+          }
+        }
+      ],
+      "id": 2
+    },
+    {
+      "type": "stat",
+      "title": "p95 da API (5 min)",
+      "description": "Meta do teste de carga: p95 ≤ 1500 ms.",
+      "datasource": {
+        "type": "loki",
+        "uid": "${logs}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 800
+              },
+              {
+                "color": "red",
+                "value": 1500
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "quantile_over_time(0.95, {env=\"$env\", service=\"backend\"} |~ `^(GET|POST|PUT|PATCH|DELETE) /api/` | regexp `^(?P<method>[A-Z]+) (?P<route>\\S+) (?P<status>[0-9]{3}) (?P<ms>[0-9.]+) ms` | unwrap ms | __error__=\"\" [5m]) by ()",
+          "datasource": {
+            "type": "loki",
+            "uid": "${logs}"
+          }
+        }
+      ],
+      "id": 3
+    },
+    {
+      "type": "stat",
+      "title": "Bloqueios 429 (1 h)",
+      "description": "Limitadores de login e rotas caras. Pico fora do normal: ver RUNBOOK_INCIDENTES, seção de abuso.",
+      "datasource": {
+        "type": "loki",
+        "uid": "${logs}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 20
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({env=\"$env\", service=\"backend\"} |~ `^(GET|POST|PUT|PATCH|DELETE) /api/` | regexp `^(?P<method>[A-Z]+) (?P<route>\\S+) (?P<status>[0-9]{3}) (?P<ms>[0-9.]+) ms` | status = 429 [1h])) or vector(0)",
+          "datasource": {
+            "type": "loki",
+            "uid": "${logs}"
+          }
+        }
+      ],
+      "id": 4
+    },
+    {
+      "type": "timeseries",
+      "title": "Requisições por segundo",
+      "description": "",
+      "datasource": {
+        "type": "loki",
+        "uid": "${logs}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate({env=\"$env\", service=\"backend\"} |~ `^(GET|POST|PUT|PATCH|DELETE) /api/` [$__rate_interval]))",
+          "legendFormat": "total",
+          "datasource": {
+            "type": "loki",
+            "uid": "${logs}"
+          }
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate({env=\"$env\", service=\"backend\"} |~ `^(GET|POST|PUT|PATCH|DELETE) /api/` | regexp `^(?P<method>[A-Z]+) (?P<route>\\S+) (?P<status>[0-9]{3}) (?P<ms>[0-9.]+) ms` | status >= 500 [$__rate_interval]))",
+          "legendFormat": "5xx",
+          "datasource": {
+            "type": "loki",
+            "uid": "${logs}"
+          }
+        }
+      ],
+      "id": 5
+    },
+    {
+      "type": "timeseries",
+      "title": "Tempo de resposta da API",
+      "description": "",
+      "datasource": {
+        "type": "loki",
+        "uid": "${logs}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "quantile_over_time(0.50, {env=\"$env\", service=\"backend\"} |~ `^(GET|POST|PUT|PATCH|DELETE) /api/` | regexp `^(?P<method>[A-Z]+) (?P<route>\\S+) (?P<status>[0-9]{3}) (?P<ms>[0-9.]+) ms` | unwrap ms | __error__=\"\" [$__interval]) by ()",
+          "legendFormat": "p50",
+          "datasource": {
+            "type": "loki",
+            "uid": "${logs}"
+          }
+        },
+        {
+          "refId": "B",
+          "expr": "quantile_over_time(0.95, {env=\"$env\", service=\"backend\"} |~ `^(GET|POST|PUT|PATCH|DELETE) /api/` | regexp `^(?P<method>[A-Z]+) (?P<route>\\S+) (?P<status>[0-9]{3}) (?P<ms>[0-9.]+) ms` | unwrap ms | __error__=\"\" [$__interval]) by ()",
+          "legendFormat": "p95",
+          "datasource": {
+            "type": "loki",
+            "uid": "${logs}"
+          }
+        },
+        {
+          "refId": "C",
+          "expr": "quantile_over_time(0.99, {env=\"$env\", service=\"backend\"} |~ `^(GET|POST|PUT|PATCH|DELETE) /api/` | regexp `^(?P<method>[A-Z]+) (?P<route>\\S+) (?P<status>[0-9]{3}) (?P<ms>[0-9.]+) ms` | unwrap ms | __error__=\"\" [$__interval]) by ()",
+          "legendFormat": "p99",
+          "datasource": {
+            "type": "loki",
+            "uid": "${logs}"
+          }
+        }
+      ],
+      "id": 6
+    },
+    {
+      "type": "timeseries",
+      "title": "Taxa de erro 5xx (%)",
+      "description": "",
+      "datasource": {
+        "type": "loki",
+        "uid": "${logs}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * sum(rate({env=\"$env\", service=\"backend\"} |~ `^(GET|POST|PUT|PATCH|DELETE) /api/` | regexp `^(?P<method>[A-Z]+) (?P<route>\\S+) (?P<status>[0-9]{3}) (?P<ms>[0-9.]+) ms` | status >= 500 [$__rate_interval])) / sum(rate({env=\"$env\", service=\"backend\"} |~ `^(GET|POST|PUT|PATCH|DELETE) /api/` [$__rate_interval]))",
+          "legendFormat": "5xx %",
+          "datasource": {
+            "type": "loki",
+            "uid": "${logs}"
+          }
+        }
+      ],
+      "id": 7
+    },
+    {
+      "type": "timeseries",
+      "title": "Respostas por status",
+      "description": "",
+      "datasource": {
+        "type": "loki",
+        "uid": "${logs}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (status) (rate({env=\"$env\", service=\"backend\"} |~ `^(GET|POST|PUT|PATCH|DELETE) /api/` | regexp `^(?P<method>[A-Z]+) (?P<route>\\S+) (?P<status>[0-9]{3}) (?P<ms>[0-9.]+) ms` | status >= 400 [$__rate_interval]))",
+          "legendFormat": "{{status}}",
+          "datasource": {
+            "type": "loki",
+            "uid": "${logs}"
+          }
+        }
+      ],
+      "id": 8
+    },
+    {
+      "type": "table",
+      "title": "Rotas mais lentas (p95 no período)",
+      "description": "IDs na URL viram :id.",
+      "datasource": {
+        "type": "loki",
+        "uid": "${logs}"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(15, quantile_over_time(0.95, {env=\"$env\", service=\"backend\"} |~ `^(GET|POST|PUT|PATCH|DELETE) /api/` | regexp `^(?P<method>[A-Z]+) (?P<route>\\S+) (?P<status>[0-9]{3}) (?P<ms>[0-9.]+) ms` | label_format route=`{{ regexReplaceAll \"/[0-9a-z]{20,}|/[0-9a-f-]{36}|/[0-9]+\" .route \"/:id\" }}` | unwrap ms | __error__=\"\" [$__range]) by (method, route))",
+          "queryType": "instant",
+          "datasource": {
+            "type": "loki",
+            "uid": "${logs}"
+          }
+        }
+      ],
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "reducers": [
+              "lastNotNull"
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "id": 9
+    },
+    {
+      "type": "table",
+      "title": "Rotas com mais erros 5xx (no período)",
+      "description": "",
+      "datasource": {
+        "type": "loki",
+        "uid": "${logs}"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 20
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(15, sum by (method, route, status) (count_over_time({env=\"$env\", service=\"backend\"} |~ `^(GET|POST|PUT|PATCH|DELETE) /api/` | regexp `^(?P<method>[A-Z]+) (?P<route>\\S+) (?P<status>[0-9]{3}) (?P<ms>[0-9.]+) ms` | label_format route=`{{ regexReplaceAll \"/[0-9a-z]{20,}|/[0-9a-f-]{36}|/[0-9]+\" .route \"/:id\" }}` | status >= 500 [$__range])))",
+          "queryType": "instant",
+          "datasource": {
+            "type": "loki",
+            "uid": "${logs}"
+          }
+        }
+      ],
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "reducers": [
+              "lastNotNull"
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "id": 10
+    },
+    {
+      "type": "timeseries",
+      "title": "Consultas lentas ao banco",
+      "description": "Contagem de consultas acima do limite de log lento.",
+      "datasource": {
+        "type": "loki",
+        "uid": "${logs}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 29
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({env=\"$env\", service=~\"backend|worker\"} |= \"[SLOW PRISMA QUERY]\" [$__interval]))",
+          "legendFormat": "Prisma > PRISMA_SLOW_QUERY_MS",
+          "datasource": {
+            "type": "loki",
+            "uid": "${logs}"
+          }
+        },
+        {
+          "refId": "B",
+          "expr": "sum(count_over_time({env=\"$env\", service=\"postgres\"} |= \"duration:\" [$__interval]))",
+          "legendFormat": "Postgres > 1 s",
+          "datasource": {
+            "type": "loki",
+            "uid": "${logs}"
+          }
+        }
+      ],
+      "id": 11
+    },
+    {
+      "type": "timeseries",
+      "title": "Volume de log por serviço",
+      "description": "Salto súbito costuma indicar laço de erro.",
+      "datasource": {
+        "type": "loki",
+        "uid": "${logs}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 29
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (service) (count_over_time({env=\"$env\"} [$__interval]))",
+          "legendFormat": "{{service}}",
+          "datasource": {
+            "type": "loki",
+            "uid": "${logs}"
+          }
+        }
+      ],
+      "id": 12
+    },
+    {
+      "type": "logs",
+      "title": "Erros recentes (backend e worker)",
+      "datasource": {
+        "type": "loki",
+        "uid": "${logs}"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 37
+      },
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{env=\"$env\", service=~\"backend|worker\"} |~ `(?i)\\[http-5xx\\]|error|erro|falha|unhandled`",
+          "datasource": {
+            "type": "loki",
+            "uid": "${logs}"
+          }
+        }
+      ],
+      "id": 13
+    }
+  ]
+}

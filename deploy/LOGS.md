@@ -111,6 +111,31 @@ docker compose --env-file backend/.env.staging -f docker-compose.staging.yml up 
 Rótulos disponíveis: `env` (`production`, `staging`, `logs`), `service` (nome do serviço no
 compose), `container`, `stream` (`stdout`/`stderr`) e `host`.
 
+## Painel de saúde (critério 12.3)
+
+O painel **"filtroAPP — saúde"** fica versionado em `deploy/logs/painel-saude.json` e é montado
+só com os logs que já chegam ao Grafana. Ele mostra:
+- requisições por segundo da API;
+- taxa de erro 5xx;
+- tempo de resposta p50, p95 e p99;
+- respostas por status e bloqueios 429;
+- as rotas mais lentas e as com mais erros (IDs da URL viram `:id`);
+- consultas lentas do Prisma e do Postgres;
+- volume de log por serviço;
+- os erros recentes do backend e do worker.
+
+O seletor **Ambiente** alterna entre produção e homologação. As referências para ler os números
+vêm do [teste de carga](../docs/TESTE_DE_CARGA.md): ~16 req/s de capacidade com p95 ≤ 1,5 s.
+
+**Importar ou atualizar:** no Grafana Cloud, abra **Dashboards → New → Import**, envie o arquivo
+`painel-saude.json` e escolha a fonte `grafanacloud-…-logs`. O `uid` é fixo (`filtroapp-saude`):
+reimportar uma versão nova substitui a anterior. Mudanças feitas na tela se perdem na próxima
+importação. Para manter uma mudança, exporte o JSON (**Share → Export**) e traga para este
+arquivo num PR.
+
+Uso de CPU e memória dos contêineres ainda não está no painel. Para isso o agente precisa
+enviar métricas, o que pede um token com `metrics:write`; por enquanto, use `docker stats`.
+
 ## Acesso e segurança
 
 - Convide para a organização do Grafana Cloud só quem cuida da operação. Exija 2FA nas contas.
