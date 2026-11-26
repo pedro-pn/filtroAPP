@@ -9,6 +9,7 @@ Nenhuma resposta da API é simulada (um teste de guarda falha se aparecer `page.
 | Login ADMIN + 2FA por e-mail | `login-2fa.real.spec.ts` | 4.1: sessão só depois do código; código errado recusado; navegador lembrado dispensa o código |
 | RDO do rascunho ao PDF | `rdo-pdf.real.spec.ts` | fluxo principal: `POST /api/rdo/reports` grava no banco; PDF do backend é válido e traz o projeto |
 | Permissão negada | `permission-denied.real.spec.ts` | 5.1: colaborador recebe 403 da API para RDO de outro projeto e não entra na gestão |
+| Efetivo: equipe inicial e sobreposição | `efetivo-mission.real.spec.ts` | admin define a equipe de um projeto em Preparação → `POST /api/efetivo/planning/missions` grava a missão (vista após recarregar); a mesma pessoa em outra missão no período exige confirmação, cancelar não grava e a API recusa com 409 `PLANNING_CONFLICT` sem a confirmação |
 
 No CI roda no job **E2E (real stack)** (informativo até 10 execuções seguidas sem falha).
 
@@ -32,5 +33,4 @@ A jornada do PDF precisa do LibreOffice no backend (`soffice` no PATH ou
 O seed (`backend/prisma/e2e-seed.js`) só cria dados fictícios e recusa bancos que não
 terminem em `_e2e`. O relatório e os traces ficam em `output/e2e-real/`.
 
-Próximas jornadas: Efetivo (missão e alocação) num segundo PR; Data Book só se o job
-continuar abaixo de ~3 min.
+Próxima jornada: Data Book, só se o job continuar abaixo de ~3 min.

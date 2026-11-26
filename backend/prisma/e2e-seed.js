@@ -18,7 +18,7 @@ import { hashPassword } from '../src/lib/password.js';
 import { accountTypeForLegacyRole, defaultPublicModuleRolesForLegacyRole, moduleRoleRows } from '../src/lib/module-roles.js';
 
 export const E2E_ACCOUNTS = Object.freeze({
-  admin: { username: 'e2e.admin', name: 'Admin E2E', role: UserRole.MANAGER, email: 'admin@e2e.test', password: 'E2e-Admin-2026!' },
+  admin: { username: 'e2e.admin', name: 'Admin E2E', role: UserRole.MANAGER, email: 'admin@e2e.test', password: 'E2e-Admin-2026!', extraModuleRoles: ['efetivo:manager'] },
   collaborator: { username: 'e2e.colab', name: 'Colaborador E2E', role: UserRole.COLLABORATOR, email: 'colab@e2e.test', password: 'E2e-Colab-2026!' }
 });
 
@@ -38,7 +38,7 @@ export function assertDisposableDatabase(url = process.env.DATABASE_URL) {
 async function upsertUser(prisma, account, collaboratorId = null) {
   const passwordHash = await hashPassword(account.password);
   const accountType = accountTypeForLegacyRole(account.role);
-  const moduleRoles = moduleRoleRows('', defaultPublicModuleRolesForLegacyRole(account.role))
+  const moduleRoles = moduleRoleRows('', [...defaultPublicModuleRolesForLegacyRole(account.role), ...(account.extraModuleRoles || [])])
     .map(({ module, role }) => ({ module, role }));
   const data = {
     name: account.name,
@@ -132,6 +132,29 @@ export async function seedE2e(prisma) {
     data: { nextNumber: 1 }
   });
 
+  // Efetivo (jornada da missão): os dois projetos em Preparação, com o admin
+  // como líder e o período planejado já definido (pula o passo das datas).
+  // Rodar de novo apaga as missões que uma execução anterior criou.
+  await prisma.efetivoMissionPlan.deleteMany({ where: { projectId: { in: [projectA.id, projectB.id] } } });
+  const day = offset => {
+    const date = new Date();
+    date.setUTCHours(0, 0, 0, 0);
+    date.setUTCDate(date.getUTCDate() + offset);
+    return date;
+  };
+  const efetivoPeriod = { mobilizationDate: day(7), executionStartDate: day(8), executionEndDate: day(20) };
+  for (const project of [projectA, projectB]) {
+    const workflow = {
+      stage: 'PREPARATION',
+      leaderUserId: admin.id,
+      acceptedAt: new Date(),
+      plannedMobilizationDate: efetivoPeriod.mobilizationDate,
+      plannedExecutionStartDate: efetivoPeriod.executionStartDate,
+      plannedExecutionEndDate: efetivoPeriod.executionEndDate
+    };
+    await prisma.projectWorkflow.upsert({ where: { projectId: project.id }, update: workflow, create: { projectId: project.id, ...workflow } });
+  }
+
   return {
     accounts: E2E_ACCOUNTS,
     users: { adminId: admin.id, collaboratorUserId: colabUser.id },
@@ -140,7 +163,8 @@ export async function seedE2e(prisma) {
       a: { id: projectA.id, code: projectA.code, name: projectA.name },
       b: { id: projectB.id, code: projectB.code, name: projectB.name }
     },
-    reports: { projectBReportId: reportB.id }
+    reports: { projectBReportId: reportB.id },
+    efetivo: Object.fromEntries(Object.entries(efetivoPeriod).map(([key, value]) => [key, value.toISOString().slice(0, 10)]))
   };
 }
 
