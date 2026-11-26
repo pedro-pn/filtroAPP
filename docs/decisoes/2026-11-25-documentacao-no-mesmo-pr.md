@@ -19,5 +19,5 @@
   - a dispensa depende da honestidade do motivo, que o revisor (ou o agente que abre o PR) confere;
   - temas fora do mapa não são cobrados.
 - **Como manter:** ao criar documentação para um tema novo, acrescente a regra em `.github/docs-map.json`. O teste do check reprova uma regra que aponte para arquivo inexistente.
-- **Obrigatório?** Começa informativo. Vira check obrigatório da `main` depois de alguns PRs sem falso positivo, com o OK do mantenedor.
+- **Obrigatório?** Começou informativo. Desde 2026-11-26 é check obrigatório da `main`, com o OK do mantenedor, depois de 10 branches verdes, sem falso positivo (4 delas de PRs do Dependabot).
 - **Quando revisar:** se o check barrar PRs sem motivo real, ou se surgir documentação gerada do código para outros temas.
