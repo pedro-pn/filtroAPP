@@ -50,9 +50,19 @@ dados de produção, com o mesmo volume.
 1. **Atualize homologação** com a `main` de agora (processo de [deploy/STAGING.md](../deploy/STAGING.md)),
    para medir o código que está em produção. Os dados de homologação são a cópia anonimizada
    de produção (`deploy/sync-staging.sh`).
-2. **Crie, em homologação**, uma conta interna **não ADMIN**, sem 2FA, com leitura em RDO,
-   Acompanhamento e Efetivo. Exemplo: usuário `carga.teste`, conta interna, papel de gestor.
-   Não use a conta de uma pessoa.
+2. **Crie, em homologação**, uma conta **ADMIN** só para o teste, por exemplo `carga.teste`. Não use a
+   conta de uma pessoa. Ela precisa ser ADMIN porque o painel do gestor (`rdo:manager`) só existe
+   para contas ADMIN. Como contas ADMIN têm 2FA obrigatório, libere **um** login sem código.
+   Rode no servidor:
+
+   ```bash
+   cd /root/apps/filtroAPP-staging
+   docker compose --env-file backend/.env.staging -f docker-compose.staging.yml \
+     exec backend node scripts/disable-2fa.js --username carga.teste --minutes 60
+   ```
+
+   O teste entra uma vez só e todos os usuários virtuais usam a mesma sessão. Rode-o dentro
+   desses 60 minutos. A liberação fica registrada na trilha de segurança.
 3. **No servidor**, em outro terminal, acompanhe CPU e memória dos contêineres durante o teste.
    Rode no servidor:
 
@@ -71,7 +81,7 @@ dados de produção, com o mesmo volume.
 
    Antes de medir, o script chama cada rota uma vez. Se a conta não tiver acesso a alguma tela
    (HTTP 401/403), ele para e mostra qual. Dê à conta o papel que falta e rode de novo: por
-   exemplo, o painel do gestor exige o papel de **gestor no módulo RDO**.
+   exemplo, o painel do gestor exige conta ADMIN.
 
    São cerca de 5 minutos. No fim, o script mostra a capacidade e o gargalo e grava tudo em
    `output/load-test/resultado.json`.
@@ -79,7 +89,7 @@ dados de produção, com o mesmo volume.
 5. **Pare o monitor** do passo 3 (`Ctrl+C`) e **mande os dois arquivos**:
    `output/load-test/resultado.json` e o `~/carga-AAAAMMDD-HHMM.log` do servidor. Com eles eu
    registro o relatório em `docs/evidence/` e preencho a seção abaixo.
-6. **Desative a conta** `carga.teste` em homologação.
+6. **Desative a conta** `carga.teste` em homologação. Se esquecer, o sync das 3 h restaura o banco e ela some.
 
 Para refazer só um trecho, use, por exemplo, `LOAD_STAGES=30,40,50 LOAD_STAGE_SECONDS=90`.
 
