@@ -303,6 +303,16 @@ async function backupStatus({ config, now, readFile }) {
   });
 }
 
+// Cópia fora do servidor (B2). Arquivo próprio: o backup local, que roda várias
+// vezes ao dia, não pode esconder um envio ao B2 que parou de acontecer.
+async function offsiteBackupStatus({ config, now, readFile }) {
+  const rawStatus = await readStatusFile(config.operationsOffsiteBackupStatusFile, { readFile });
+  return statusWithAge(rawStatus, {
+    now,
+    maxAgeMs: config.operationsOffsiteBackupMaxAgeHours * HOUR_MS
+  });
+}
+
 async function restoreStatus({ config, now, readFile }) {
   const rawStatus = await readStatusFile(config.operationsRestoreStatusFile, { readFile });
   return statusWithAge(rawStatus, {
@@ -372,6 +382,7 @@ function collectProblems({
   dataRetention,
   reportApprovalQueue,
   backup,
+  offsiteBackup = { status: 'NOT_CONFIGURED' },
   restore,
   deploy = { status: 'NOT_CONFIGURED' },
   omie,
@@ -435,6 +446,18 @@ function collectProblems({
   }
   if (backup.status === 'INVALID') {
     problems.push(problem('Status de backup está inválido.', { backup }));
+  }
+  if (offsiteBackup.status === 'FAILURE') {
+    problems.push(problem('Cópia externa do backup (B2) falhou na última execução.', { offsiteBackup }));
+  }
+  if (offsiteBackup.status === 'STALE') {
+    problems.push(problem('Cópia externa do backup (B2) está velha demais.', { offsiteBackup }));
+  }
+  if (['NOT_CONFIGURED', 'MISSING'].includes(offsiteBackup.status) && config.operationsRequireOffsiteBackupStatus) {
+    problems.push(problem('Status obrigatório da cópia externa do backup (B2) está ausente.', { offsiteBackup }));
+  }
+  if (offsiteBackup.status === 'INVALID') {
+    problems.push(problem('Status da cópia externa do backup (B2) está inválido.', { offsiteBackup }));
   }
   if (restore.status === 'FAILURE') {
     problems.push(problem('Teste/restore falhou na última execução.', { restore }));
@@ -506,6 +529,7 @@ export async function getOperationalStatus({
     reportApprovalQueue,
     jobLocks,
     backup,
+    offsiteBackup,
     restore,
     deploy,
     omie,
@@ -519,6 +543,7 @@ export async function getOperationalStatus({
     reportApprovalQueueStatus(prismaClient),
     activeJobLocks(prismaClient, now),
     backupStatus({ config, now, readFile }),
+    offsiteBackupStatus({ config, now, readFile }),
     restoreStatus({ config, now, readFile }),
     deployStatus({ config, readFile }),
     omieSyncStatus(prismaClient, config),
@@ -533,6 +558,7 @@ export async function getOperationalStatus({
     dataRetention,
     reportApprovalQueue,
     backup,
+    offsiteBackup,
     restore,
     deploy,
     omie,
@@ -553,6 +579,7 @@ export async function getOperationalStatus({
       activeLocks: jobLocks
     },
     backup,
+    offsiteBackup,
     restore,
     deploy,
     omie,

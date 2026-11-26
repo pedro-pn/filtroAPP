@@ -17,6 +17,10 @@ notify_failure() {
 
   echo "[backup] failed with exit code $exit_code at line $line_no: $cmd" >&2
   write_backup_status "FAILURE" "$exit_code" "$line_no" || true
+  # Rotina com cópia externa que não chegou ao B2: o status próprio também registra a falha.
+  if [ -n "$B2_URI" ] && [ "$UPLOAD_SUCCEEDED" != "true" ]; then
+    write_offsite_status "FAILURE" "$exit_code" || true
+  fi
 
   if [ -n "$TELEGRAM_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
     local host
@@ -53,6 +57,9 @@ PROXY_VOLUME="${PROXY_VOLUME:-infra_proxy_data}"
 BACKUP_ROOT="${BACKUP_ROOT:-/root/backups/filtrovali}"
 BACKUP_LOCK_FILE="${BACKUP_LOCK_FILE:-$BACKUP_ROOT/backup-prod.lock}"
 BACKUP_STATUS_FILE="${BACKUP_STATUS_FILE:-$BACKUP_ROOT/status/backup-latest.json}"
+# Só as rotinas com B2_URI (diário e mensal) escrevem aqui; a cópia local não mexe.
+OFFSITE_STATUS_FILE="${OFFSITE_STATUS_FILE:-$BACKUP_ROOT/status/offsite-latest.json}"
+B2_DEST=""
 BACKUP_LOCK_TIMEOUT_SECONDS="${BACKUP_LOCK_TIMEOUT_SECONDS:-0}"
 INCLUDE_CERTS="${INCLUDE_CERTS:-true}"
 INCLUDE_PROXY="${INCLUDE_PROXY:-true}"
@@ -88,6 +95,26 @@ write_backup_status() {
 }
 EOF
   mv "${BACKUP_STATUS_FILE}.tmp" "$BACKUP_STATUS_FILE"
+}
+
+write_offsite_status() {
+  local status="$1"
+  local exit_code="${2:-0}"
+  local finished_at
+  finished_at="$(date -Iseconds)"
+  mkdir -p "$(dirname "$OFFSITE_STATUS_FILE")"
+  cat > "${OFFSITE_STATUS_FILE}.tmp" <<EOF
+{
+  "kind": "backup-offsite",
+  "status": "$status",
+  "startedAt": "$BACKUP_STARTED_AT",
+  "finishedAt": "$finished_at",
+  "destination": "$B2_DEST",
+  "runDir": "$RUN_DIR",
+  "exitCode": $exit_code
+}
+EOF
+  mv "${OFFSITE_STATUS_FILE}.tmp" "$OFFSITE_STATUS_FILE"
 }
 
 prune_local_backups() {
@@ -188,8 +215,12 @@ if [ -n "$B2_URI" ]; then
     echo "[backup] uploading to $B2_DEST"
     "$B2_BIN" sync "$RUN_DIR" "$B2_DEST"
     UPLOAD_SUCCEEDED=true
+    write_offsite_status "SUCCESS" 0 || true
   else
-    echo "[backup] b2 command not found, skipping Backblaze B2 upload" >&2
+    # Com B2_URI definido, ficar sem cópia externa é falha (status FAILURE + alerta),
+    # não um aviso no log que o status de sucesso esconderia.
+    echo "[backup] B2_URI definido, mas o comando '$B2_BIN' não existe; a cópia externa não foi feita" >&2
+    false
   fi
 fi
 

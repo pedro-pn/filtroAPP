@@ -74,7 +74,8 @@ encerrada às 18h48m38 UTC, código 130, na etapa de dump (linha 148).
 Esse horário não corresponde ao cron configurado; a origem e a causa da
 interrupção não foram determinadas nesta verificação. O status registra a
 última execução, inclusive fora do cron; não confirma isoladamente o último
-upload remoto.
+upload remoto. Desde 26/11, esse papel é do `offsite-latest.json` (seção
+[Status da cópia externa](#status-da-cópia-externa-b2)).
 
 O último `restore-latest.json` é um ensaio **`SUCCESS` de 18/11/2026**,
 13h56m32–13h59m47 UTC: 195 segundos no total, 24 segundos para restaurar o banco,
@@ -199,6 +200,40 @@ OPERATIONS_BACKUP_MAX_AGE_HOURS=26
 
 Se o arquivo estiver ausente, inválido, com `status=FAILURE` ou mais velho que
 `OPERATIONS_BACKUP_MAX_AGE_HOURS`, o status operacional passa a retornar problema.
+
+### Status da cópia externa (B2)
+
+O `backup-latest.json` registra **qualquer** execução, e a cópia local roda 6 vezes por dia. Por
+isso ele não serve para saber se o envio ao B2 continua acontecendo: um backup local bem-sucedido
+cobriria um diário que falhou. As rotinas com `B2_URI` (diária e mensal) gravam também
+`OFFSITE_STATUS_FILE`, que por padrão é `$BACKUP_ROOT/status/offsite-latest.json`:
+
+```json
+{
+  "kind": "backup-offsite",
+  "status": "SUCCESS",
+  "startedAt": "2026-11-27T02:00:01+00:00",
+  "finishedAt": "2026-11-27T02:12:40+00:00",
+  "destination": "b2://filtrovali-backups/daily/2026-11-27-020001",
+  "runDir": "/root/backups/filtrovali/2026-11-27-020001",
+  "exitCode": 0
+}
+```
+
+- **Quando vira `SUCCESS`:** só depois do `b2 sync`.
+- **Quando vira `FAILURE`:** qualquer falha numa rotina com `B2_URI`, inclusive sem o comando
+  `b2` no servidor. Antes, nesse caso, o script só avisava no log e terminava com sucesso.
+- **Leitura pelo backend:** ele lê o arquivo em `/ops-status/offsite-latest.json`. Uma
+  `FAILURE` ou uma última cópia com mais de `OPERATIONS_OFFSITE_BACKUP_MAX_AGE_HOURS` (padrão 26)
+  viram problema no painel de Operações e alerta por e-mail.
+- **Arquivo ausente:** só é problema com `OPERATIONS_REQUIRE_OFFSITE_BACKUP_STATUS=true`. Ligue
+  essa opção depois que o primeiro diário gravar o arquivo.
+
+```env
+OPERATIONS_OFFSITE_BACKUP_STATUS_FILE=/ops-status/offsite-latest.json
+OPERATIONS_OFFSITE_BACKUP_MAX_AGE_HOURS=26
+OPERATIONS_REQUIRE_OFFSITE_BACKUP_STATUS=true
+```
 
 ## Backblaze B2
 

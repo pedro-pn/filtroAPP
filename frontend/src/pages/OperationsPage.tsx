@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   Activity,
   Bell,
+  CloudUpload,
   DatabaseBackup,
   FileSpreadsheet,
   GitCommitHorizontal,
@@ -98,6 +99,14 @@ const previewStatus: OperationalStatus = {
     ageMs: 131580000,
     maxAgeMs: 86400000,
     message: 'Aguardando próxima execução.'
+  },
+  offsiteBackup: {
+    configured: true,
+    status: 'SUCCESS',
+    finishedAt: '2026-09-30T02:12:00.000Z',
+    ageMs: 36000000,
+    maxAgeMs: 93600000,
+    destination: 'b2://bucket-exemplo/daily/2026-09-30-020001'
   },
   restore: {
     configured: true,
@@ -237,8 +246,10 @@ function FileStatusCard({
         ]}
       />
       {item.message ? <p className="ops-page__note">{item.message}</p> : null}
-      {item.runDir || item.backupSource ? (
-        <p className="ops-page__note">{item.runDir || item.backupSource}</p>
+      {item.destination || item.runDir || item.backupSource ? (
+        <p className="ops-page__note">
+          {item.destination || item.runDir || item.backupSource}
+        </p>
       ) : null}
     </Card>
   );
@@ -675,6 +686,16 @@ export function OperationsPage({ preview = false }: { preview?: boolean }) {
                 title="Backup"
                 item={status.backup}
                 icon={DatabaseBackup}
+              />
+              <FileStatusCard
+                title="Cópia externa (B2)"
+                item={
+                  status.offsiteBackup || {
+                    configured: false,
+                    status: 'NOT_CONFIGURED'
+                  }
+                }
+                icon={CloudUpload}
               />
               <FileStatusCard
                 title="Teste de restauração"

@@ -490,3 +490,38 @@ test('getOperationalStatus still sees an infrequent job behind many frequent run
     ['Job recorrente sem execução recente.', 'calibration-reminders']
   ]);
 });
+
+test('getOperationalStatus vigia a cópia externa (B2) separada do backup local', async () => {
+  const now = new Date('2026-11-26T15:00:00.000Z');
+  const files = new Map([
+    ['/status/backup.json', JSON.stringify({ status: 'SUCCESS', finishedAt: '2026-11-26T13:11:41Z', b2Configured: false })],
+    ['/status/offsite.json', JSON.stringify({ status: 'SUCCESS', finishedAt: '2026-11-24T02:12:00Z', destination: 'b2://b/daily/2026-11-24-020001' })]
+  ]);
+  const readFile = async file => {
+    if (!files.has(file)) throw Object.assign(new Error('não existe'), { code: 'ENOENT' });
+    return files.get(file);
+  };
+  const config = {
+    ...quietStatusConfig,
+    operationsBackupStatusFile: '/status/backup.json',
+    operationsOffsiteBackupStatusFile: '/status/offsite.json',
+    operationsOffsiteBackupMaxAgeHours: 26
+  };
+  const stale = await getOperationalStatus({ prismaClient: quietStatusClient([]), now, config, readFile });
+  assert.equal(stale.backup.status, 'SUCCESS');
+  assert.equal(stale.offsiteBackup.status, 'STALE');
+  assert.ok(stale.problems.some(item => item.message === 'Cópia externa do backup (B2) está velha demais.'));
+
+  files.set('/status/offsite.json', JSON.stringify({ status: 'FAILURE', finishedAt: '2026-11-26T02:05:00Z', exitCode: 1 }));
+  const failed = await getOperationalStatus({ prismaClient: quietStatusClient([]), now, config, readFile });
+  assert.ok(failed.problems.some(item => item.message === 'Cópia externa do backup (B2) falhou na última execução.'));
+
+  files.delete('/status/offsite.json');
+  const missing = await getOperationalStatus({ prismaClient: quietStatusClient([]), now, config, readFile });
+  assert.equal(missing.offsiteBackup.status, 'MISSING');
+  assert.equal(missing.problems.some(item => item.message.includes('cópia externa')), false);
+  const required = await getOperationalStatus({
+    prismaClient: quietStatusClient([]), now, config: { ...config, operationsRequireOffsiteBackupStatus: true }, readFile
+  });
+  assert.ok(required.problems.some(item => item.message === 'Status obrigatório da cópia externa do backup (B2) está ausente.'));
+});
