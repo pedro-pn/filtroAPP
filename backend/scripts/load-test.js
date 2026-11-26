@@ -143,7 +143,7 @@ async function login(config) {
   });
   const body = await response.json().catch(() => ({}));
   if (response.status !== 200) throw new Error(`login falhou (${response.status}): ${body.error || ''}`);
-  if (body.twoFactorRequired) throw new Error('a conta exige 2FA: use uma conta interna sem 2FA para o teste de carga.');
+  if (body.twoFactorRequired) throw new Error('a conta pediu o código do 2FA: libere um login com scripts/disable-2fa.js --username <conta> (docs/TESTE_DE_CARGA.md, passo 2).');
   const cookie = response.headers.getSetCookie().map(value => value.split(';')[0]).find(value => value.startsWith('fv_session='));
   const headers = cookie ? { cookie } : (body.token ? { authorization: `Bearer ${body.token}` } : null);
   if (!headers) throw new Error('login sem cookie de sessão nem token.');

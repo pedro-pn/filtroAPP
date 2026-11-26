@@ -1,0 +1,502 @@
+{
+  "startedAt": "2026-11-26T12:36:09.400Z",
+  "finishedAt": "2026-11-26T12:41:19.826Z",
+  "baseUrl": "https://filtrostaging.filtrovali.com.br",
+  "settings": {
+    "stages": [
+      5,
+      10,
+      20,
+      40,
+      80
+    ],
+    "stageSeconds": 60,
+    "thinkMs": 1000,
+    "targetP95": 1500,
+    "maxErrorRate": 0.01
+  },
+  "journey": [
+    {
+      "name": "sessão",
+      "path": "/api/auth/me",
+      "weight": 4
+    },
+    {
+      "name": "notificações",
+      "path": "/api/notifications",
+      "weight": 3
+    },
+    {
+      "name": "painel do gestor",
+      "path": "/api/rdo/bootstrap/gestor",
+      "weight": 2
+    },
+    {
+      "name": "lista de relatórios",
+      "path": "/api/rdo/reports?page=1&pageSize=20",
+      "weight": 3
+    },
+    {
+      "name": "cards do Acompanhamento",
+      "path": "/api/acompanhamento/comercial/projetos-cards",
+      "weight": 2
+    },
+    {
+      "name": "fluxo do Efetivo",
+      "path": "/api/efetivo/project-workflow?page=1",
+      "weight": 2
+    },
+    {
+      "name": "estatísticas",
+      "path": "/api/rdo/statistics/overview",
+      "weight": 1
+    },
+    {
+      "name": "PDF do RDO",
+      "path": "/api/rdo/reports/{reportId}/pdf",
+      "weight": 0.3
+    }
+  ],
+  "results": [
+    {
+      "users": 5,
+      "summary": {
+        "requests": 268,
+        "errors": 0,
+        "limited": 0,
+        "errorRate": 0,
+        "p50": 105,
+        "p95": 314,
+        "p99": 530,
+        "endpoints": {
+          "notificações": {
+            "requests": 40,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 205,
+            "p95": 409
+          },
+          "sessão": {
+            "requests": 68,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 25,
+            "p95": 103
+          },
+          "fluxo do Efetivo": {
+            "requests": 34,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 110,
+            "p95": 311
+          },
+          "cards do Acompanhamento": {
+            "requests": 29,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 72,
+            "p95": 170
+          },
+          "estatísticas": {
+            "requests": 17,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 36,
+            "p95": 82
+          },
+          "painel do gestor": {
+            "requests": 29,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 128,
+            "p95": 294
+          },
+          "lista de relatórios": {
+            "requests": 47,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 168,
+            "p95": 477
+          },
+          "PDF do RDO": {
+            "requests": 4,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 70,
+            "p95": 221
+          }
+        }
+      }
+    },
+    {
+      "users": 10,
+      "summary": {
+        "requests": 504,
+        "errors": 0,
+        "limited": 0,
+        "errorRate": 0,
+        "p50": 120,
+        "p95": 713,
+        "p99": 1631,
+        "endpoints": {
+          "lista de relatórios": {
+            "requests": 71,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 172,
+            "p95": 1471
+          },
+          "painel do gestor": {
+            "requests": 71,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 130,
+            "p95": 842
+          },
+          "sessão": {
+            "requests": 121,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 26,
+            "p95": 147
+          },
+          "fluxo do Efetivo": {
+            "requests": 60,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 111,
+            "p95": 484
+          },
+          "notificações": {
+            "requests": 93,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 216,
+            "p95": 1132
+          },
+          "cards do Acompanhamento": {
+            "requests": 61,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 71,
+            "p95": 801
+          },
+          "PDF do RDO": {
+            "requests": 5,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 109,
+            "p95": 545
+          },
+          "estatísticas": {
+            "requests": 22,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 38,
+            "p95": 130
+          }
+        }
+      }
+    },
+    {
+      "users": 20,
+      "summary": {
+        "requests": 952,
+        "errors": 0,
+        "limited": 0,
+        "errorRate": 0,
+        "p50": 134,
+        "p95": 842,
+        "p99": 2677,
+        "endpoints": {
+          "sessão": {
+            "requests": 246,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 34,
+            "p95": 355
+          },
+          "lista de relatórios": {
+            "requests": 159,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 212,
+            "p95": 1086
+          },
+          "estatísticas": {
+            "requests": 56,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 59,
+            "p95": 1520
+          },
+          "painel do gestor": {
+            "requests": 106,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 156,
+            "p95": 547
+          },
+          "cards do Acompanhamento": {
+            "requests": 102,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 71,
+            "p95": 962
+          },
+          "fluxo do Efetivo": {
+            "requests": 104,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 129,
+            "p95": 1893
+          },
+          "notificações": {
+            "requests": 164,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 253,
+            "p95": 1427
+          },
+          "PDF do RDO": {
+            "requests": 15,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 129,
+            "p95": 734
+          }
+        }
+      }
+    },
+    {
+      "users": 40,
+      "summary": {
+        "requests": 1220,
+        "errors": 0,
+        "limited": 0,
+        "errorRate": 0,
+        "p50": 645,
+        "p95": 3735,
+        "p99": 6839,
+        "endpoints": {
+          "sessão": {
+            "requests": 313,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 297,
+            "p95": 1817
+          },
+          "estatísticas": {
+            "requests": 68,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 412,
+            "p95": 1719
+          },
+          "painel do gestor": {
+            "requests": 139,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 899,
+            "p95": 5153
+          },
+          "cards do Acompanhamento": {
+            "requests": 144,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 594,
+            "p95": 4939
+          },
+          "notificações": {
+            "requests": 218,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 1113,
+            "p95": 4250
+          },
+          "fluxo do Efetivo": {
+            "requests": 125,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 1000,
+            "p95": 5574
+          },
+          "lista de relatórios": {
+            "requests": 193,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 852,
+            "p95": 3328
+          },
+          "PDF do RDO": {
+            "requests": 20,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 842,
+            "p95": 4248
+          }
+        }
+      }
+    },
+    {
+      "users": 80,
+      "summary": {
+        "requests": 987,
+        "errors": 1,
+        "limited": 0,
+        "errorRate": 0.0010131712259371835,
+        "p50": 3435,
+        "p95": 7964,
+        "p99": 17269,
+        "endpoints": {
+          "sessão": {
+            "requests": 241,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 1539,
+            "p95": 4496
+          },
+          "fluxo do Efetivo": {
+            "requests": 107,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 4811,
+            "p95": 9306
+          },
+          "notificações": {
+            "requests": 176,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 4658,
+            "p95": 8804
+          },
+          "cards do Acompanhamento": {
+            "requests": 113,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 3313,
+            "p95": 19078
+          },
+          "lista de relatórios": {
+            "requests": 180,
+            "errors": 1,
+            "errorStatuses": {
+              "500": 1
+            },
+            "limited": 0,
+            "p50": 2741,
+            "p95": 6441
+          },
+          "PDF do RDO": {
+            "requests": 14,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 4643,
+            "p95": 8048
+          },
+          "estatísticas": {
+            "requests": 52,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 1933,
+            "p95": 4809
+          },
+          "painel do gestor": {
+            "requests": 104,
+            "errors": 0,
+            "errorStatuses": {},
+            "limited": 0,
+            "p50": 4238,
+            "p95": 8075
+          }
+        }
+      }
+    }
+  ],
+  "verdict": {
+    "capacityUsers": 20,
+    "firstFailingStage": 40,
+    "bottleneck": {
+      "name": "fluxo do Efetivo",
+      "p95": 5574,
+      "errors": 0
+    }
+  },
+  "commit": "f4037cbe (main; script com a conferência do #670)",
+  "note": "Conta ADMIN de teste com um login liberado do 2FA; homologação com cópia anonimizada de produção. Rodado às 09h36 (Brasília), em horário de uso.",
+  "serverMonitor": {
+    "source": "docker stats a cada ~7 s (deploy/TESTE_DE_CARGA.md, passo 3); % de CPU relativo a 1 núcleo",
+    "limits": {
+      "filtrovali-staging-backend": "1,5 CPU / 2 GB",
+      "filtrovali-staging-postgres": "1,25 CPU / 2 GB"
+    },
+    "stages": {
+      "5": {
+        "backendCpuPct": "14–53",
+        "postgresCpuPct": "2–31"
+      },
+      "10": {
+        "backendCpuPct": "30–91",
+        "postgresCpuPct": "12–64"
+      },
+      "20": {
+        "backendCpuPct": "36–190 (típico ~80)",
+        "postgresCpuPct": "30–88"
+      },
+      "40": {
+        "backendCpuPct": "99–134",
+        "postgresCpuPct": "93–144"
+      },
+      "80": {
+        "backendCpuPct": "78–139",
+        "postgresCpuPct": "37–98"
+      }
+    },
+    "peakMemory": {
+      "filtrovali-staging-backend": "747 MiB",
+      "filtrovali-staging-postgres": "735 MiB"
+    },
+    "productionDuringTest": {
+      "filtrovali-backend": "picos isolados de 123–127% (tráfego próprio de produção)",
+      "filtrovali-postgres": "até 35%"
+    }
+  }
+}

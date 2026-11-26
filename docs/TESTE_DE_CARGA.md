@@ -50,9 +50,19 @@ dados de produção, com o mesmo volume.
 1. **Atualize homologação** com a `main` de agora (processo de [deploy/STAGING.md](../deploy/STAGING.md)),
    para medir o código que está em produção. Os dados de homologação são a cópia anonimizada
    de produção (`deploy/sync-staging.sh`).
-2. **Crie, em homologação**, uma conta interna **não ADMIN**, sem 2FA, com leitura em RDO,
-   Acompanhamento e Efetivo. Exemplo: usuário `carga.teste`, conta interna, papel de gestor.
-   Não use a conta de uma pessoa.
+2. **Crie, em homologação**, uma conta **ADMIN** só para o teste, por exemplo `carga.teste`. Não use a
+   conta de uma pessoa. Ela precisa ser ADMIN porque o painel do gestor (`rdo:manager`) só existe
+   para contas ADMIN. Como contas ADMIN têm 2FA obrigatório, libere **um** login sem código.
+   Rode no servidor:
+
+   ```bash
+   cd /root/apps/filtroAPP-staging
+   docker compose --env-file backend/.env.staging -f docker-compose.staging.yml \
+     exec backend node scripts/disable-2fa.js --username carga.teste --minutes 60
+   ```
+
+   O teste entra uma vez só e todos os usuários virtuais usam a mesma sessão. Rode-o dentro
+   desses 60 minutos. A liberação fica registrada na trilha de segurança.
 3. **No servidor**, em outro terminal, acompanhe CPU e memória dos contêineres durante o teste.
    Rode no servidor:
 
@@ -71,7 +81,7 @@ dados de produção, com o mesmo volume.
 
    Antes de medir, o script chama cada rota uma vez. Se a conta não tiver acesso a alguma tela
    (HTTP 401/403), ele para e mostra qual. Dê à conta o papel que falta e rode de novo: por
-   exemplo, o painel do gestor exige o papel de **gestor no módulo RDO**.
+   exemplo, o painel do gestor exige conta ADMIN.
 
    São cerca de 5 minutos. No fim, o script mostra a capacidade e o gargalo e grava tudo em
    `output/load-test/resultado.json`.
@@ -79,7 +89,7 @@ dados de produção, com o mesmo volume.
 5. **Pare o monitor** do passo 3 (`Ctrl+C`) e **mande os dois arquivos**:
    `output/load-test/resultado.json` e o `~/carga-AAAAMMDD-HHMM.log` do servidor. Com eles eu
    registro o relatório em `docs/evidence/` e preencho a seção abaixo.
-6. **Desative a conta** `carga.teste` em homologação.
+6. **Desative a conta** `carga.teste` em homologação. Se esquecer, o sync das 3 h restaura o banco e ela some.
 
 Para refazer só um trecho, use, por exemplo, `LOAD_STAGES=30,40,50 LOAD_STAGE_SECONDS=90`.
 
@@ -87,7 +97,32 @@ Para refazer só um trecho, use, por exemplo, `LOAD_STAGES=30,40,50 LOAD_STAGE_S
 
 | Data | Commit | Capacidade certificada | Primeiro degrau que estourou | Gargalo | Recurso esgotado |
 |---|---|---|---|---|---|
-| _pendente_ | | | | | |
+| 2026-11-26 | `f4037cbe` | **20 usuários virtuais**: 16 req/s, p95 0,84 s, nenhum erro | 40 (p95 3,7 s) | Nenhuma rota isolada: todas pioram juntas. Pior p95 em 40: fluxo do Efetivo (5,6 s); em 80: cards do Acompanhamento (19 s) | **CPU**: backend 100–140% e Postgres 93–144% (teto 125%). Memória sobrando (< 750 MiB de 2 GB) |
+
+Evidência completa: [docs/evidence/load-test-staging-20261126.json](evidence/load-test-staging-20261126.json).
+
+### Leitura do resultado de 2026-11-26
+
+- **Vazão.** A vazão parou de crescer em ~20 req/s, no degrau de 40 usuários, e caiu para 16 req/s
+  no degrau de 80. Com resposta boa (p95 ≤ 1,5 s), o sistema atende **~16 req/s**.
+- **Usuário virtual não é uma pessoa.** Cada usuário virtual faz uma chamada por segundo, muito
+  mais que uma pessoa real. Para converter em pessoas, compare com o pico real de produção. No
+  Grafana Cloud (Explore, fonte `-logs`, últimos 7 dias):
+  `sum(rate({env="production", service="backend"} |~ "^(GET|POST|PUT|PATCH|DELETE) /api/" [5m]))`.
+  O máximo do gráfico, em req/s, dividido por 16 dá quanto da capacidade o pico real usa.
+  **Medido em 2026-11-26: pico de 0,56 req/s** (média de 5 min). O pico real usa **~3,5%** da
+  capacidade, uma folga de **~28 vezes**. Ressalva: os logs começaram nesse dia, então a medida
+  cobre só algumas horas de uma quinta-feira. Repita a busca depois de um mês de logs (início
+  de semana, fechamento de mês) e atualize este número.
+- **O que esgota primeiro é CPU, e nos dois lados.** O backend é **um processo Node**: o código
+  da aplicação usa ~1 núcleo, e o que passa de 100% é coleta de lixo e I/O. Por isso aumentar
+  `cpus` do contêiner quase não ajuda; o próximo passo de escala seria uma segunda instância do
+  backend. O Postgres chegou ao teto de 1,25 CPU no degrau de 40. Antes de escalar, vale olhar
+  em `pg_stat_statements` as consultas do fluxo do Efetivo, dos cards do Acompanhamento e das
+  notificações, as rotas que mais pioraram.
+- **Erros.** Um único 500 na lista de relatórios, no degrau de 80 (1 em 987 chamadas).
+- **Produção durante o teste.** O backend de produção teve só os picos do próprio uso (até
+  127%), e o Postgres de produção ficou abaixo de 35%.
 
 Refaça o teste depois de mudanças grandes de desempenho, de máquina ou de limites dos
 contêineres. Refaça também quando o número de usuários ativos se aproximar da capacidade
