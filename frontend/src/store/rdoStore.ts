@@ -30,6 +30,10 @@ export interface RdoStoreState {
   standbyDuration: string;
   standbyMotivo: string;
   standbySuggestionReview: StandbyReviewReceipt | null;
+  // Pausa por nossa conta: uso interno, não aparece no RDO.
+  internalStandby: boolean;
+  internalStandbyDuration: string;
+  internalStandbyMotivo: string;
   noturnoStart: string;
   noturnoEnd: string;
   noturnoInterval: string;
@@ -46,7 +50,7 @@ export interface RdoStoreState {
   dailyDescription: string;
   generalUploads: unknown[];
   services: RdoServiceDraft[];
-  setHeaderField: <K extends keyof Pick<RdoStoreState, 'serviceOnly' | 'projectId' | 'reportDate' | 'workLocation' | 'arrivalTime' | 'departureTime' | 'lunchBreak' | 'standby' | 'noturno' | 'standbyDuration' | 'standbyMotivo' | 'noturnoStart' | 'noturnoEnd' | 'noturnoInterval' | 'ddsDay' | 'ddsDayStart' | 'ddsDayEnd' | 'ddsNight' | 'ddsNightStart' | 'ddsNightEnd' | 'overtimeReason' | 'workforceJustification' | 'dailyDescription'>>(field: K, value: RdoStoreState[K]) => void;
+  setHeaderField: <K extends keyof Pick<RdoStoreState, 'serviceOnly' | 'projectId' | 'reportDate' | 'workLocation' | 'arrivalTime' | 'departureTime' | 'lunchBreak' | 'standby' | 'noturno' | 'standbyDuration' | 'standbyMotivo' | 'internalStandby' | 'internalStandbyDuration' | 'internalStandbyMotivo' | 'noturnoStart' | 'noturnoEnd' | 'noturnoInterval' | 'ddsDay' | 'ddsDayStart' | 'ddsDayEnd' | 'ddsNight' | 'ddsNightStart' | 'ddsNightEnd' | 'overtimeReason' | 'workforceJustification' | 'dailyDescription'>>(field: K, value: RdoStoreState[K]) => void;
   setCollaborators: (ids: string[]) => void;
   setNightCollaborators: (ids: string[]) => void;
   addDdsTheme: (shift: 'day' | 'night', theme: DdsThemeSnapshot) => void;
@@ -77,6 +81,9 @@ const initialState = {
   standbyDuration: '',
   standbyMotivo: '',
   standbySuggestionReview: null,
+  internalStandby: false,
+  internalStandbyDuration: '',
+  internalStandbyMotivo: '',
   noturnoStart: '',
   noturnoEnd: '',
   noturnoInterval: '01:00:00',

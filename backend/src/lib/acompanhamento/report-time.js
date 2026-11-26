@@ -119,9 +119,13 @@ export function reportPersonTimeMetrics(report, dayCollaboratorIds = dayCollabor
   const standbyDurationMinutes = special.standby === true
     ? parseMinutes(plainObject(special.standbyDetails).total)
     : 0;
-  const standbyCollaboratorCount = standbyDurationMinutes > 0
-    ? (daytimeCollaboratorCount || nighttimeCollaboratorCount || daytimeTeamCount || nighttimeTeamCount || 1)
+  // Pausa por nossa conta (falha de equipamento, acidente...): controle interno, fora do RDO.
+  const internalStandbyDurationMinutes = special.internalStandby === true
+    ? parseMinutes(plainObject(special.internalStandbyDetails).total)
     : 0;
+  const pausedTeamCount = daytimeCollaboratorCount || nighttimeCollaboratorCount || daytimeTeamCount || nighttimeTeamCount || 1;
+  const standbyCollaboratorCount = standbyDurationMinutes > 0 ? pausedTeamCount : 0;
+  const internalStandbyCollaboratorCount = internalStandbyDurationMinutes > 0 ? pausedTeamCount : 0;
 
   return {
     daytimeCollaboratorCount,
@@ -130,6 +134,9 @@ export function reportPersonTimeMetrics(report, dayCollaboratorIds = dayCollabor
     normalWorkedMinutes: (daytimeNormalMinutes * daytimeCollaboratorCount) + (nighttimeNormalMinutes * nighttimeCollaboratorCount),
     overtimeWorkedMinutes: (daytimeOvertimeMinutes * daytimeCollaboratorCount) + (nighttimeOvertimeMinutes * nighttimeCollaboratorCount),
     standbyDurationMinutes,
-    standbyPersonMinutes: standbyDurationMinutes * standbyCollaboratorCount
+    standbyPersonMinutes: standbyDurationMinutes * standbyCollaboratorCount,
+    internalStandbyCollaboratorCount,
+    internalStandbyDurationMinutes,
+    internalStandbyPersonMinutes: internalStandbyDurationMinutes * internalStandbyCollaboratorCount
   };
 }

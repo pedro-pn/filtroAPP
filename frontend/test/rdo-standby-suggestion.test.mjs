@@ -286,3 +286,60 @@ test('o aceite do desconto sobrevive ao rascunho e não é herdado por um rascun
   assert.ok(suggestStandby(useRdoStore.getState()));
   useRdoStore.getState().reset();
 });
+
+// --- Responsabilidade da pausa: cliente (standby no RDO) x nossa conta (registro interno) ---
+
+for (const [text, expected] of [
+  ['Equipe parada das 08:00 às 10:00 aguardando PT.', 'client'],
+  ['Aguardando liberação da APR por 2 horas.', 'client'],
+  ['Parados por 1 hora por falta de energia.', 'client'],
+  ['Equipe parada 2 horas sem frente de serviço.', 'client'],
+  ['Parados por 2 horas por falha de energia.', 'client'],
+  ['Equipe parada por 2 horas devido a falha na bomba.', 'internal'],
+  ['Paralisação de 1 hora: mangueira rompeu e foi feito reparo.', 'internal'],
+  ['Parados por 3 horas após acidente com colaborador.', 'internal'],
+  ['Parados por 2 horas.', null]
+]) {
+  test(`identifica a responsabilidade da pausa (${expected ?? 'indefinida'}): ${text}`, () => {
+    assert.equal(suggestStandby(report(text)).responsibility, expected);
+  });
+}
+
+test('causas diferentes em trechos distintos sugerem "parte de cada" e pré-calculam nossa parte', () => {
+  const result = suggestStandby(report('Parados por 2 horas aguardando PT. Parados por 1 hora por falha na bomba.'));
+  assert.equal(result.responsibility, 'both');
+  assert.equal(result.totalMinutes, 180);
+  assert.equal(result.internalMinutes, 60);
+});
+
+test('pausa por nossa conta não vira standby do RDO e fica só no registro interno', () => {
+  const suggestion = suggestStandby(report('Equipe parada por 2 horas devido a falha na bomba.'));
+  const fields = reviewedStandbyFields(suggestion, '02:00', 'Falha na bomba.', 0, 'internal');
+  assert.equal(fields.standby, false);
+  assert.equal(fields.standbyDuration, '');
+  assert.equal(fields.internalStandby, true);
+  assert.equal(fields.internalStandbyDuration, '02:00');
+  assert.equal(fields.internalStandbyMotivo, 'Falha na bomba.');
+  assert.equal(fields.standbySuggestionReview.internalMinutes, 120);
+  // A mesma anotação não volta a sugerir após a decisão.
+  assert.equal(suggestStandby(report('Equipe parada por 2 horas devido a falha na bomba.', fields)), null);
+});
+
+test('"parte de cada" divide o total entre cliente e nossa conta', () => {
+  const text = 'Parados por 2 horas aguardando PT. Parados por 1 hora por falha na bomba.';
+  const suggestion = suggestStandby(report(text));
+  const fields = reviewedStandbyFields(suggestion, '03:00', 'PT e bomba.', 0, 'both', '01:00');
+  assert.equal(fields.standby, true);
+  assert.equal(fields.standbyDuration, '02:00');
+  assert.equal(fields.internalStandby, true);
+  assert.equal(fields.internalStandbyDuration, '01:00');
+  assert.equal(suggestStandby(report(text, fields)), null);
+});
+
+test('registro manual somando cliente + nossa conta cobre a pausa detectada', () => {
+  const input = report('Parados por 3 horas.', {
+    standby: true, standbyDuration: '02:00', standbyMotivo: 'Aguardando PT',
+    internalStandby: true, internalStandbyDuration: '01:00', internalStandbyMotivo: 'Falha na bomba'
+  });
+  assert.equal(suggestStandby(input), null);
+});

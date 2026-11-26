@@ -25,6 +25,10 @@ export interface ManualReportOperationalFieldsValue {
   standby: boolean;
   standbyDuration: string;
   standbyMotivo: string;
+  // Pausa por nossa conta (uso interno, não vai ao RDO). Opcional: o upload manual não usa.
+  internalStandby?: boolean;
+  internalStandbyDuration?: string;
+  internalStandbyMotivo?: string;
   ddsDay: boolean;
   ddsDayStart: string;
   ddsDayEnd: string;
@@ -45,6 +49,7 @@ interface ManualReportOperationalFieldsProps {
   showTimes?: boolean;
   showNightShift?: boolean;
   showStandby?: boolean;
+  showInternalStandby?: boolean;
   showDds?: boolean;
   includeInactiveCollaborators?: boolean;
   // Aviso exibido logo abaixo do bloco de DDS diurno (ex.: temas fora da lista aguardando validação).
@@ -78,6 +83,7 @@ export function ManualReportOperationalFields({
   showTimes = true,
   showNightShift = false,
   showStandby = false,
+  showInternalStandby = false,
   showDds = false,
   includeInactiveCollaborators = false,
   ddsAlert = null,
@@ -322,7 +328,7 @@ export function ManualReportOperationalFields({
         {renderPicker(value.collaboratorIds, 'collaboratorIds')}
       </section>
 
-      {showNightShift || showStandby || showDds ? (
+      {showNightShift || showStandby || showInternalStandby || showDds ? (
         <section className="manual-operational-section">
           <div className="section-title">Condições especiais</div>
 
@@ -368,6 +374,51 @@ export function ManualReportOperationalFields({
                         placeholder="Motivo do stand-by"
                       />
                       <AdequarAnotacaoButton valor={value.standbyMotivo} campo="Motivo do standby" disabled={disabled} onAplicar={texto => onChange({ standbyMotivo: texto })} />
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </>
+          ) : null}
+
+          {showInternalStandby ? (
+            <>
+              <div className="tog-row">
+                <span className="tog-lbl">Houve pausa por nossa conta? <small>(uso interno, não aparece no RDO)</small></span>
+                <label className="tog">
+                  <input
+                    type="checkbox"
+                    aria-label="Pausa por nossa conta"
+                    checked={Boolean(value.internalStandby)}
+                    disabled={disabled}
+                    onChange={event => onChange({ internalStandby: event.target.checked })}
+                  />
+                  <span className="tog-sl" />
+                </label>
+              </div>
+              {value.internalStandby ? (
+                <div className="collapse-section">
+                  <div className="fg-r2">
+                    <div className="field-group">
+                      <label htmlFor={fieldId('internalStandbyDuration')}>Tempo total</label>
+                      <input
+                        id={fieldId('internalStandbyDuration')}
+                        type="time"
+                        step={60}
+                        value={value.internalStandbyDuration || ''}
+                        disabled={disabled}
+                        onChange={event => onChange({ internalStandbyDuration: event.target.value })}
+                      />
+                    </div>
+                    <div className="field-group">
+                      <label htmlFor={fieldId('internalStandbyMotivo')}>Motivo</label>
+                      <input
+                        id={fieldId('internalStandbyMotivo')}
+                        value={value.internalStandbyMotivo || ''}
+                        disabled={disabled}
+                        onChange={event => onChange({ internalStandbyMotivo: event.target.value })}
+                        placeholder="Ex.: falha na bomba, acidente..."
+                      />
                     </div>
                   </div>
                 </div>

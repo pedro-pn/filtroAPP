@@ -42,8 +42,10 @@ test('histórico ignora dias sem standby positivo e ordena os restantes do mais 
   assert.deepEqual(entries, [{
     date: '2026-08-22',
     standbyMinutes: 150,
+    internalStandbyMinutes: 0,
     collaboratorCount: 2,
-    reason: 'Aguardando cliente'
+    reason: 'Aguardando cliente',
+    internalReason: null
   }]);
 });
 
@@ -82,8 +84,10 @@ test('histórico agrega fontes do mesmo dia sem duplicar colaboradores ou motivo
   assert.deepEqual(entries, [{
     date: '2026-08-20',
     standbyMinutes: 135,
+    internalStandbyMinutes: 0,
     collaboratorCount: 3,
-    reason: 'Chuva · Aguardando cliente'
+    reason: 'Chuva · Aguardando cliente',
+    internalReason: null
   }]);
 });
 
@@ -98,14 +102,51 @@ test('histórico usa efetivo legado sem inventar valor e preserva motivo ausente
     {
       date: '2026-08-25',
       standbyMinutes: 60,
+      internalStandbyMinutes: 0,
       collaboratorCount: 5,
-      reason: null
+      reason: null,
+      internalReason: null
     },
     {
       date: '2026-08-19',
       standbyMinutes: 30,
+      internalStandbyMinutes: 0,
       collaboratorCount: null,
-      reason: null
+      reason: null,
+      internalReason: null
     }
+  ]);
+});
+
+test('histórico separa standby do cliente e pausas por nossa conta no mesmo dia', () => {
+  const entries = buildProjectStandbyHistory([
+    {
+      id: 'r1',
+      reportType: 'RDO',
+      reportDate: '2026-11-20',
+      daytimeCount: 3,
+      specialConditions: {
+        standby: true,
+        standbyDetails: { total: '02:00', motivo: 'Aguardando PT' },
+        internalStandby: true,
+        internalStandbyDetails: { total: '01:00', motivo: 'Falha na bomba' }
+      }
+    },
+    {
+      id: 'r2',
+      reportType: 'RDO',
+      reportDate: '2026-11-21',
+      daytimeCount: 2,
+      specialConditions: {
+        standby: false,
+        internalStandby: true,
+        internalStandbyDetails: { total: '00:45', motivo: 'Acidente' }
+      }
+    }
+  ]);
+
+  assert.deepEqual(entries, [
+    { date: '2026-11-21', standbyMinutes: 0, internalStandbyMinutes: 45, collaboratorCount: 2, reason: null, internalReason: 'Acidente' },
+    { date: '2026-11-20', standbyMinutes: 120, internalStandbyMinutes: 60, collaboratorCount: 3, reason: 'Aguardando PT', internalReason: 'Falha na bomba' }
   ]);
 });

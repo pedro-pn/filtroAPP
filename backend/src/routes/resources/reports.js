@@ -78,6 +78,7 @@ import { calculateReportOvertime } from '../../lib/overtime.js';
 import { loadCorporateCalendar } from '../../lib/calendar/corporate-calendar.js';
 import { reportCollaboratorCreateManyData, resolveCollaboratorsByShift } from '../../lib/report-collaborators.js';
 import { buildReportSnapshot, stripAuthoritativeExecutionContext, stripInternalEditState } from '../../lib/reports/edit-snapshot.js';
+import { withoutInternalPause, withoutInternalPauseForRole } from '../../lib/reports/internal-pause.js';
 import {
   reportCollaboratorPrefillHandler,
   reportPlanningContextHandler
@@ -5443,7 +5444,8 @@ defineRoute(router, rdoRoute('GET /', { summary: 'Listar relatórios (paginado q
       : new Map(items.map(item => [item.id, item]));
     const visibleItems = items
       .filter(item => canClientSeeReport(item, byId))
-      .filter(matchesSearch);
+      .filter(matchesSearch)
+      .map(withoutInternalPause);
     if (pagination) {
       const pageItems = visibleItems.slice(pagination.skip, pagination.skip + pagination.take);
       const groups = reportGroupTotalsFromItems(visibleItems);
@@ -5995,7 +5997,7 @@ defineRoute(router, rdoRoute('GET /:id', { summary: 'Detalhe do relatório', res
   }
 
   grantReportUploadAccess(req.auth, item);
-  res.json(await withDerivedServiceReportParentMeta(item));
+  res.json(withoutInternalPauseForRole(req.auth.user.role, await withDerivedServiceReportParentMeta(item)));
 }));
 
 registerReportPdfAttachmentRoutes(router, {
@@ -7152,7 +7154,7 @@ defineRoute(router, rdoRoute('POST /:id/client-review', { summary: 'Registrar a 
     queueClientRejectionNotification({ ...item, clientRejectionReviewer }, data.comment || '');
   }
 
-  res.json(item);
+  res.json(withoutInternalPause(item));
 }));
 
 export default router;

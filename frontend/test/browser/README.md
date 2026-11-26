@@ -5,7 +5,7 @@ Run `playwright-cli run-code --filename frontend/test/browser/rdo-standby-sugges
 from the repository root. All API requests are simulated. It covers live detection, cancelling,
 ignoring and rediscovering the suggestion in a pending review, editing the proposed duration
 and reason, applying during submission/approval, legacy service observations, unclear durations,
-and 390 px layout. It also covers "entre as 10h e 13h", full/partial/no meal overlap, the explicit
+and 390 px layout. It also covers the client/internal responsibility question (auto-detected internal pause, mandatory choice and split), and "entre as 10h e 13h", full/partial/no meal overlap, the explicit
 5h total, zero standby when the period was only a meal, and preserving the accepted discount
 when the reviewer reopens the report. Screenshots are saved under
 `output/playwright/standby-review-*.png` and `output/playwright/standby-break-*.png`.

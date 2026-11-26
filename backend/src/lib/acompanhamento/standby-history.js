@@ -53,24 +53,28 @@ export function buildProjectStandbyHistory(queriedReports = [], queriedCollabora
   const byDate = new Map();
   for (const report of reports) {
     const specialConditions = plainObject(report?.specialConditions);
-    if (specialConditions.standby !== true) continue;
-
     const standbyDetails = plainObject(specialConditions.standbyDetails);
-    const standbyMinutes = parseMinutes(standbyDetails.total);
+    const internalDetails = plainObject(specialConditions.internalStandbyDetails);
+    // standby = por conta do cliente (RDO); internalStandby = por nossa conta (uso interno).
+    const standbyMinutes = specialConditions.standby === true ? parseMinutes(standbyDetails.total) : 0;
+    const internalStandbyMinutes = specialConditions.internalStandby === true ? parseMinutes(internalDetails.total) : 0;
     const date = dateKey(report?.reportDate);
-    if (!date || standbyMinutes <= 0) continue;
+    if (!date || (standbyMinutes <= 0 && internalStandbyMinutes <= 0)) continue;
 
     if (!byDate.has(date)) {
       byDate.set(date, {
         standbyMinutes: 0,
+        internalStandbyMinutes: 0,
         collaboratorIds: new Set(),
         fallbackCollaboratorCount: 0,
-        reasons: []
+        reasons: [],
+        internalReasons: []
       });
     }
 
     const day = byDate.get(date);
     day.standbyMinutes += standbyMinutes;
+    day.internalStandbyMinutes += internalStandbyMinutes;
     day.fallbackCollaboratorCount = Math.max(
       day.fallbackCollaboratorCount,
       positiveInteger(report?.daytimeCount)
@@ -81,16 +85,20 @@ export function buildProjectStandbyHistory(queriedReports = [], queriedCollabora
       day.collaboratorIds.add(collaboratorId);
     }
 
-    const reason = typeof standbyDetails.motivo === 'string' ? standbyDetails.motivo.trim() : '';
+    const reason = standbyMinutes > 0 && typeof standbyDetails.motivo === 'string' ? standbyDetails.motivo.trim() : '';
     if (reason && !day.reasons.includes(reason)) day.reasons.push(reason);
+    const internalReason = internalStandbyMinutes > 0 && typeof internalDetails.motivo === 'string' ? internalDetails.motivo.trim() : '';
+    if (internalReason && !day.internalReasons.includes(internalReason)) day.internalReasons.push(internalReason);
   }
 
   return Array.from(byDate.entries())
     .map(([date, day]) => ({
       date,
       standbyMinutes: day.standbyMinutes,
+      internalStandbyMinutes: day.internalStandbyMinutes,
       collaboratorCount: day.collaboratorIds.size || day.fallbackCollaboratorCount || null,
-      reason: day.reasons.length ? day.reasons.join(' · ') : null
+      reason: day.reasons.length ? day.reasons.join(' · ') : null,
+      internalReason: day.internalReasons.length ? day.internalReasons.join(' · ') : null
     }))
     .sort((left, right) => right.date.localeCompare(left.date));
 }

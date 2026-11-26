@@ -13,6 +13,9 @@ interface NewReportSpecialConditionsProps {
   standby: boolean;
   standbyDuration: string;
   standbyMotivo: string;
+  internalStandby: boolean;
+  internalStandbyDuration: string;
+  internalStandbyMotivo: string;
   noturno: boolean;
   noturnoStart: string;
   noturnoEnd: string;
@@ -40,6 +43,9 @@ export function NewReportSpecialConditions({
   standby,
   standbyDuration,
   standbyMotivo,
+  internalStandby,
+  internalStandbyDuration,
+  internalStandbyMotivo,
   noturno,
   noturnoStart,
   noturnoEnd,
@@ -235,7 +241,7 @@ export function NewReportSpecialConditions({
     <Card className="rdo-form-card rdo-form-card--conditions" title="Condições especiais">
       {renderDdsFields('day')}
       <div className="rdo-condition-switch">
-        <Switch label="Houve standby?" checked={standby} onChange={event => setHeaderField('standby', event.target.checked)} />
+        <Switch label="Houve standby?" description="Pausa por conta do cliente (aguardando PT, APR, documentação, energia, frente de serviço...). Aparece no RDO." checked={standby} onChange={event => setHeaderField('standby', event.target.checked)} />
       </div>
       {standby ? (
         <div className="collapse-section">
@@ -246,6 +252,21 @@ export function NewReportSpecialConditions({
             <Field id="rdo-standby-reason" className={fieldState('header:standbyMotivo')} label="Motivo" required optionalText={null} data-invalid-target="header:standbyMotivo">
               <Input id="rdo-standby-reason-control" type="text" placeholder="Motivo..." value={standbyMotivo} invalid={invalidTarget === 'header:standbyMotivo'} onChange={event => setHeaderField('standbyMotivo', event.target.value)} />
               <AdequarAnotacaoButton valor={standbyMotivo} campo="Motivo do standby" onAplicar={texto => setHeaderField('standbyMotivo', texto)} />
+            </Field>
+          </div>
+        </div>
+      ) : null}
+      <div className="rdo-condition-switch">
+        <Switch label="Houve pausa por nossa conta?" description="Falha em nosso equipamento, acidente, falta de recurso nosso... Uso interno: não aparece no RDO." checked={internalStandby} onChange={event => setHeaderField('internalStandby', event.target.checked)} />
+      </div>
+      {internalStandby ? (
+        <div className="collapse-section">
+          <div className="fg-r2">
+            <Field id="rdo-internal-standby-duration" className={fieldState('header:internalStandbyDuration')} label="Tempo total" required optionalText={null} data-invalid-target="header:internalStandbyDuration">
+              <Input id="rdo-internal-standby-duration-control" type="time" step={60} value={internalStandbyDuration} invalid={invalidTarget === 'header:internalStandbyDuration'} onChange={event => setHeaderField('internalStandbyDuration', event.target.value)} />
+            </Field>
+            <Field id="rdo-internal-standby-reason" className={fieldState('header:internalStandbyMotivo')} label="Motivo" required optionalText={null} data-invalid-target="header:internalStandbyMotivo">
+              <Input id="rdo-internal-standby-reason-control" type="text" placeholder="Ex.: falha na bomba, acidente..." value={internalStandbyMotivo} invalid={invalidTarget === 'header:internalStandbyMotivo'} onChange={event => setHeaderField('internalStandbyMotivo', event.target.value)} />
             </Field>
           </div>
         </div>

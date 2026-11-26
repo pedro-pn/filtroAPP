@@ -173,10 +173,12 @@ export function combineRecentDays(details) {
         date: item.date,
         status: 'TRABALHADO',
         workedMinutes: 0,
-        standbyMinutes: 0
+        standbyMinutes: 0,
+        internalStandbyMinutes: 0
       };
       existing.workedMinutes += toNumber(item.workedMinutes) ?? 0;
       existing.standbyMinutes += toNumber(item.standbyMinutes) ?? 0;
+      existing.internalStandbyMinutes += toNumber(item.internalStandbyMinutes) ?? 0;
       if (DAY_STATUS_ORDER[item.status] > DAY_STATUS_ORDER[existing.status]) {
         existing.status = item.status;
       }
@@ -570,6 +572,10 @@ export function groupProjectDetails(group, memberDetails = [], { progressProject
     standby: {
       count: sumValues(details, item => item.detail.standby?.count, { nullWhenEmpty: false }),
       minutes: sumValues(details, item => item.detail.standby?.minutes, { nullWhenEmpty: false })
+    },
+    internalStandby: {
+      count: sumValues(details, item => item.detail.internalStandby?.count, { nullWhenEmpty: false }),
+      minutes: sumValues(details, item => item.detail.internalStandby?.minutes, { nullWhenEmpty: false })
     },
     ultimosDias: combineRecentDays(details),
     overtimeMinutes: sumValues(details, item => item.detail.overtimeMinutes, { nullWhenEmpty: false }),

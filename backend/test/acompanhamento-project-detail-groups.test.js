@@ -396,9 +396,10 @@ test('groupProjectDetails returns one consolidated project detail shape', () => 
   ]);
   assert.deepEqual(result.manualCosts, [{ id: 'm1', projectId: 'p2', projectCode: '1002', description: 'Cliente pagou direto', amount: 10 }]);
   assert.deepEqual(result.standby, { count: 3, minutes: 150 });
+  assert.deepEqual(result.internalStandby, { count: 0, minutes: 0 });
   assert.deepEqual(result.ultimosDias, [
-    { date: '2026-07-09', status: 'STANDBY', workedMinutes: 840, standbyMinutes: 60 },
-    { date: '2026-07-12', status: 'PARADO', workedMinutes: 0, standbyMinutes: 480 }
+    { date: '2026-07-09', status: 'STANDBY', workedMinutes: 840, standbyMinutes: 60, internalStandbyMinutes: 0 },
+    { date: '2026-07-12', status: 'PARADO', workedMinutes: 0, standbyMinutes: 480, internalStandbyMinutes: 0 }
   ]);
   assert.deepEqual(result.colaboradores.map(item => ({
     name: item.name,

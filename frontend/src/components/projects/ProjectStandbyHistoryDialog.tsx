@@ -24,6 +24,14 @@ function formatMinutes(minutes: number) {
   return `${String(hours).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`;
 }
 
+function historyReason(entry: ProjectStandbyHistoryEntry) {
+  const parts = [
+    entry.standbyMinutes > 0 ? `Cliente: ${entry.reason || 'não informado'}` : null,
+    (entry.internalStandbyMinutes ?? 0) > 0 ? `Nossa conta: ${entry.internalReason || 'não informado'}` : null
+  ].filter(Boolean);
+  return parts.length ? parts.join(' · ') : 'Não informado';
+}
+
 export function StandbyHistoryTable({ entries }: { entries: ProjectStandbyHistoryEntry[] }) {
   return <DataTable<ProjectStandbyHistoryEntry>
     rows={entries}
@@ -34,16 +42,19 @@ export function StandbyHistoryTable({ entries }: { entries: ProjectStandbyHistor
     emptyState={<EmptyState title="Nenhum registro de standby" description="Este projeto ainda não possui tempo de standby registrado." />}
     columns={[
       { key: 'date', sortValue: entry => entry.date, header: 'Dia', rowHeader: true, render: entry => formatDate(entry.date) },
-      { key: 'time', sortValue: entry => entry.standbyMinutes, header: 'Horas em standby', align: 'right', render: entry => formatMinutes(entry.standbyMinutes) },
+      { key: 'time', sortValue: entry => entry.standbyMinutes, header: 'Standby cliente', align: 'right', render: entry => formatMinutes(entry.standbyMinutes) },
+      { key: 'internal', sortValue: entry => entry.internalStandbyMinutes ?? 0, header: 'Pausa nossa conta', align: 'right', render: entry => formatMinutes(entry.internalStandbyMinutes ?? 0) },
       { key: 'people', sortValue: entry => entry.collaboratorCount, header: 'Nº de colaboradores', align: 'right', render: entry => entry.collaboratorCount ?? 'Não informado' },
-      { key: 'reason', header: 'Motivo', render: entry => entry.reason || 'Não informado' }
+      { key: 'reason', header: 'Motivo', render: entry => historyReason(entry) }
     ]}
     mobile={{ renderItem: entry => ({
       title: formatDate(entry.date),
-      value: formatMinutes(entry.standbyMinutes),
+      value: formatMinutes(entry.standbyMinutes + (entry.internalStandbyMinutes ?? 0)),
       metadata: [
+        { label: 'Standby cliente', value: formatMinutes(entry.standbyMinutes) },
+        { label: 'Pausa nossa conta', value: formatMinutes(entry.internalStandbyMinutes ?? 0) },
         { label: 'Colaboradores', value: entry.collaboratorCount ?? 'Não informado' },
-        { label: 'Motivo', value: entry.reason || 'Não informado' }
+        { label: 'Motivo', value: historyReason(entry) }
       ]
     }) }}
   />;
@@ -86,7 +97,7 @@ export function ProjectStandbyHistoryDialog({
     >
       <div className="acp-standby-ds">
         <p id="acp-standby-history-description" className="acp-standby-ds__context">
-          {projectLabel} · Somente dias com tempo de standby registrado são exibidos.
+          {projectLabel} · Somente dias com standby (por conta do cliente) ou pausa por nossa conta são exibidos. Pausas por nossa conta são internas e não aparecem no RDO.
         </p>
         {historyQuery.isLoading ? <Skeleton variant="table-rows" lines={5} label="Carregando histórico de standby" />
           : historyQuery.isError ? <Alert tone="danger" title="Não foi possível carregar o histórico de standby"

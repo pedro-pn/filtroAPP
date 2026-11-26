@@ -278,6 +278,8 @@ function summarize(reports) {
     nighttimeOvertimeMinutes: 0,
     standbyCount: 0,
     standbyMinutes: 0,
+    internalStandbyCount: 0,
+    internalStandbyMinutes: 0,
     avgDaytimeCollaborators: 0,
     avgNighttimeCollaborators: 0
   };
@@ -292,6 +294,13 @@ function summarize(reports) {
     if (sc.standby === true) {
       summary.standbyCount += 1;
       summary.standbyMinutes += parseMinutes(sc.standbyDetails?.total);
+    }
+    if (sc.internalStandby === true) {
+      const internalMinutes = parseMinutes(sc.internalStandbyDetails?.total);
+      if (internalMinutes > 0) {
+        summary.internalStandbyCount += 1;
+        summary.internalStandbyMinutes += internalMinutes;
+      }
     }
     if (isManualUploadedReport(r)) continue;
 
@@ -356,6 +365,7 @@ export function buildDailyReport(r) {
     nighttimeOvertimeMinutes: manualUpload ? 0 : r.nighttimeOvertimeMinutes || 0,
     standby: isStandby,
     standbyMinutes: isStandby ? parseMinutes(sc.standbyDetails?.total) : 0,
+    internalStandbyMinutes: sc.internalStandby === true ? parseMinutes(sc.internalStandbyDetails?.total) : 0,
     daytimeCollaborators: manualUpload ? 0 : r.daytimeCount || 0,
     nighttimeCollaborators: !manualUpload && Array.isArray(noturnoIds) ? noturnoIds.length : 0,
     services: servicesByType

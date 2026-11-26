@@ -71,6 +71,9 @@ async page => {
   };
   const dialog = () => page.getByRole('dialog', { name: 'Revisar sugestão de standby', exact: true });
   const alert = () => page.locator('.standby-suggestion');
+  const responsibility = name => dialog().getByRole('radio', { name: new RegExp(`^${name}`) });
+  // Toda pausa exige a escolha de responsabilidade; "cliente" mantém o comportamento original (standby no RDO).
+  const pickClient = () => responsibility('Por conta do cliente').check();
   const assertBreakLayout = async () => {
     const fits = await dialog().locator('.standby-break-question').evaluateAll(groups => groups.every(group => {
       const box = group.getBoundingClientRect();
@@ -104,13 +107,14 @@ async page => {
   await page.goto(`${origin}/rdo/gestor/relatorio/standby-report`);
   await alert().waitFor();
   await page.getByRole('button', { name: 'Revisar sugestão', exact: true }).click();
-  assert(await dialog().getByLabel('Tempo total de standby', { exact: true }).inputValue() === '02:00', 'O revisor reencontra a sugestão ignorada');
+  assert(await dialog().getByLabel('Tempo total das pausas', { exact: true }).inputValue() === '02:00', 'O revisor reencontra a sugestão ignorada');
   await dialog().getByLabel('Não incluiu o intervalo', { exact: true }).check();
   await dialog().getByLabel('Motivo sugerido', { exact: true }).fill('Aguardando liberação da área pelo cliente.');
   await page.screenshot({ path: 'output/playwright/standby-review-desktop.png' });
   await page.setViewportSize({ width: 390, height: 844 });
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'O diálogo deve caber no celular');
   await page.screenshot({ path: 'output/playwright/standby-review-mobile.png' });
+  await pickClient();
   await dialog().getByRole('button', { name: 'Aplicar standby', exact: true }).click();
   await alert().waitFor({ state: 'hidden' });
   await page.getByRole('button', { name: 'Salvar e Aprovar', exact: true }).click();
@@ -127,8 +131,9 @@ async page => {
   await page.goto(`${origin}/rdo/gestor/relatorio/standby-report`);
   await alert().waitFor();
   await page.getByRole('button', { name: 'Salvar e Aprovar', exact: true }).click();
-  await dialog().getByLabel('Tempo total de standby', { exact: true }).fill('01:45');
+  await dialog().getByLabel('Tempo total das pausas', { exact: true }).fill('01:45');
   await dialog().getByLabel('Motivo sugerido', { exact: true }).fill('Tempo conferido pelo revisor.');
+  await pickClient();
   await dialog().getByRole('button', { name: 'Aplicar e continuar', exact: true }).click();
   await page.waitForURL(url => !url.pathname.includes('/relatorio/standby-report'));
   assert(savedReport.specialConditions.standbyDetails.total === '01:45', 'Enviar no mesmo evento deve incluir o total ajustado');
@@ -151,9 +156,10 @@ async page => {
   savedReport = { ...structuredClone(emptyReport), dailyDescription: 'Equipe parada aguardando material.' };
   await page.goto(`${origin}/rdo/gestor/relatorio/standby-report`);
   await page.getByRole('button', { name: 'Revisar sugestão', exact: true }).click();
-  assert(await dialog().getByLabel('Tempo total de standby', { exact: true }).inputValue() === '', 'Sem horários, o total deve ficar vazio');
+  assert(await dialog().getByLabel('Tempo total das pausas', { exact: true }).inputValue() === '', 'Sem horários, o total deve ficar vazio');
   assert(await dialog().getByRole('button', { name: 'Aplicar standby', exact: true }).isDisabled(), 'Aplicar exige um total válido');
-  await dialog().getByLabel('Tempo total de standby', { exact: true }).fill('00:45');
+  await dialog().getByLabel('Tempo total das pausas', { exact: true }).fill('00:45');
+  await pickClient();
   await dialog().getByRole('button', { name: 'Aplicar standby', exact: true }).click();
   await alert().waitFor({ state: 'hidden' });
 
@@ -161,8 +167,9 @@ async page => {
   await newForm();
   await page.locator('#rdo-description').fill('Parados por 2 horas.');
   await page.getByRole('button', { name: 'Enviar relatório', exact: true }).click();
-  await dialog().getByLabel('Tempo total de standby', { exact: true }).fill('01:50');
+  await dialog().getByLabel('Tempo total das pausas', { exact: true }).fill('01:50');
   await dialog().getByLabel('Motivo sugerido', { exact: true }).fill('Tempo conferido pelo colaborador.');
+  await pickClient();
   await dialog().getByRole('button', { name: 'Aplicar e continuar', exact: true }).click();
   await page.waitForURL(url => !url.pathname.includes('/relatorio/novo'));
   assert(savedReport.specialConditions.standbyDetails.total === '01:50', 'O envio inicial inclui o total aceito no diálogo');
@@ -174,7 +181,7 @@ async page => {
   await page.locator('#rdo-description').fill(textWithLunch);
   await page.getByRole('button', { name: 'Enviar relatório', exact: true }).click();
   await dialog().waitFor();
-  const total = dialog().getByLabel('Tempo total de standby', { exact: true });
+  const total = dialog().getByLabel('Tempo total das pausas', { exact: true });
   const apply = dialog().getByRole('button', { name: 'Aplicar e continuar', exact: true });
   assert(await total.inputValue() === '03:00', 'Entre as 10h e 13h representa 3h brutas');
   assert(await apply.isDisabled(), 'Desconto exige confirmação explícita');
@@ -196,6 +203,7 @@ async page => {
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'A confirmação de intervalo deve caber no celular');
   await assertBreakLayout();
   await page.screenshot({ path: 'output/playwright/standby-break-mobile.png' });
+  await pickClient();
   await apply.click();
   await page.waitForURL(url => !url.pathname.includes('/relatorio/novo'));
   assert(savedReport.specialConditions.standbyDetails.total === '02:00', 'O servidor deve receber o tempo líquido');
@@ -213,7 +221,8 @@ async page => {
   await page.getByRole('button', { name: 'Enviar relatório', exact: true }).click();
   await dialog().waitFor();
   assert(await dialog().locator('.standby-break-question').count() === 0, 'Um total de 5h não deve perguntar sobre desconto');
-  assert(await dialog().getByLabel('Tempo total de standby', { exact: true }).inputValue() === '05:00', 'A duração escrita deve permanecer em 5h');
+  assert(await dialog().getByLabel('Tempo total das pausas', { exact: true }).inputValue() === '05:00', 'A duração escrita deve permanecer em 5h');
+  await pickClient();
   await dialog().getByRole('button', { name: 'Aplicar e continuar', exact: true }).click();
   await page.waitForURL(url => !url.pathname.includes('/relatorio/novo'));
   assert(savedReport.specialConditions.standbyDetails.total === '05:00', 'As 5h explícitas não recebem desconto de almoço');
@@ -222,7 +231,7 @@ async page => {
   await page.locator('#rdo-description').fill('Equipe parada entre as 12h e 13h.');
   await page.getByRole('button', { name: 'Enviar relatório', exact: true }).click();
   await dialog().getByLabel('Sim, incluiu todo o intervalo (01:00)', { exact: true }).check();
-  assert(await dialog().getByLabel('Tempo total de standby', { exact: true }).inputValue() === '00:00', 'Uma pausa só de almoço deve resultar em zero standby');
+  assert(await dialog().getByLabel('Tempo total das pausas', { exact: true }).inputValue() === '00:00', 'Uma pausa só de almoço deve resultar em zero standby');
   await dialog().getByRole('button', { name: 'Confirmar sem standby', exact: true }).click();
   await page.waitForURL(url => !url.pathname.includes('/relatorio/novo'));
   assert(savedReport.specialConditions.standby === false, 'Se todo o período era intervalo, o standby fica desmarcado');
@@ -230,8 +239,45 @@ async page => {
   await page.goto(`${origin}/rdo/gestor/relatorio/standby-report`);
   await page.locator('#rdo-description').waitFor();
   assert(await alert().count() === 0, 'A confirmação de zero standby deve ser respeitada ao reabrir');
+
+  // Responsabilidade: falha nossa é identificada pelo texto e vai só para o registro interno.
+  role = 'COLLABORATOR';
+  await newForm();
+  await page.locator('#rdo-description').fill('Equipe parada por 2 horas devido a falha na bomba.');
+  await page.getByRole('button', { name: 'Enviar relatório', exact: true }).click();
+  await dialog().waitFor();
+  assert(await responsibility('Por nossa conta').isChecked(), 'Falha na bomba deve sugerir pausa por nossa conta');
+  assert((await dialog().innerText()).includes('Identificado automaticamente'), 'A sugestão automática deve ser explicada');
+  await page.screenshot({ path: 'output/playwright/standby-responsibility-desktop.png' });
+  await dialog().getByRole('button', { name: 'Registrar pausa e continuar', exact: true }).click();
+  await page.waitForURL(url => !url.pathname.includes('/relatorio/novo'));
+  assert(savedReport.specialConditions.standby === false, 'Pausa por nossa conta não vira standby do RDO');
+  assert(savedReport.specialConditions.internalStandby === true, 'Pausa por nossa conta é registrada internamente');
+  assert(savedReport.specialConditions.internalStandbyDetails.total === '02:00', 'O tempo interno chega ao servidor');
+
+  // Sem pista no texto, o colaborador precisa escolher; "parte de cada" divide o total.
+  await newForm();
+  await page.locator('#rdo-description').fill('Parados por 3 horas.');
+  await page.getByRole('button', { name: 'Enviar relatório', exact: true }).click();
+  await dialog().waitFor();
+  await dialog().getByLabel('Motivo sugerido', { exact: true }).fill('PT atrasou e depois a bomba falhou.');
+  const applySplit = dialog().getByRole('button', { name: 'Aplicar e continuar', exact: true });
+  assert(await applySplit.isDisabled(), 'Sem causa identificada, a responsabilidade é obrigatória');
+  await responsibility('Parte de cada').check();
+  assert(await applySplit.isDisabled(), 'Parte de cada exige o tempo por nossa conta');
+  await dialog().getByLabel('Tempo por nossa conta', { exact: true }).fill('03:00');
+  assert(await applySplit.isDisabled(), 'O tempo por nossa conta deve ser menor que o total');
+  await dialog().getByLabel('Tempo por nossa conta', { exact: true }).fill('01:00');
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'A pergunta de responsabilidade deve caber no celular');
+  await page.screenshot({ path: 'output/playwright/standby-responsibility-mobile.png' });
+  await page.setViewportSize({ width: 1365, height: 1000 });
+  await applySplit.click();
+  await page.waitForURL(url => !url.pathname.includes('/relatorio/novo'));
+  assert(savedReport.specialConditions.standbyDetails.total === '02:00', 'O restante entra como standby do cliente');
+  assert(savedReport.specialConditions.internalStandbyDetails.total === '01:00', 'A parte nossa fica no registro interno');
   return { passed: true, scenarios: ['live suggestion', 'cancel', 'skip and reviewer rediscovery', 'edit and approve',
     'apply on approval', 'legacy service notes', 'dismiss and save', 'unclear duration', 'mobile', 'apply on initial submission',
     'entre as 10h e 13h', 'full lunch overlap', 'no lunch overlap', 'partial lunch overlap', 'invalid overlap',
-    'net total and receipt persist', 'explicit 5h unchanged', 'only meal and zero standby', 'review respects accepted discount'] };
+    'net total and receipt persist', 'explicit 5h unchanged', 'only meal and zero standby', 'review respects accepted discount', 'internal pause detected', 'split responsibility'] };
 }

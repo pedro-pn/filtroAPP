@@ -51,7 +51,8 @@ function LastDaysBar({ days }: { days: ProjectDetail['ultimosDias'] }) {
             <div className="acp-detail-tip-date">{fmtDate(day.date)}</div>
             <div className="acp-detail-tip-status"><span className={`acp-detail-tip-dot ${DAY_META[day.status].cls}`} />{DAY_META[day.status].label}</div>
             <div className="acp-detail-tip-row"><span>Trabalhado</span><strong>{fmtHM(day.workedMinutes)}</strong></div>
-            <div className="acp-detail-tip-row"><span>Standby</span><strong>{fmtHM(day.standbyMinutes)}</strong></div>
+            <div className="acp-detail-tip-row"><span>Standby cliente</span><strong>{fmtHM(day.standbyMinutes)}</strong></div>
+            {day.internalStandbyMinutes ? <div className="acp-detail-tip-row"><span>Pausa nossa conta</span><strong>{fmtHM(day.internalStandbyMinutes)}</strong></div> : null}
           </>}
         ><span aria-hidden="true" /></PortalTip>)}
       </div>}
@@ -99,7 +100,8 @@ export function ProjectTimeDetail({ data, onOpenStandbyHistory }: { data: Projec
         </div>
       </div> },
     { label: 'Dias úteis', value: `${data.businessDays ?? '—'}`, sub: 'Dias úteis decorridos', icon: CalendarClock, help: 'Dias de segunda a sexta decorridos desde o início, sem descontar feriados. Segue o mesmo período dos dias corridos.' },
-    { label: 'Dias parados', value: data.stoppedDays == null ? '—' : `${data.stoppedDays} ${data.stoppedDays === 1 ? 'dia' : 'dias'}`, sub: `${fmtHM(data.standby.minutes)} de standby`, icon: Hourglass, help: 'Datas distintas em que o standby cobriu a jornada completa. O tempo de standby inclui também as paradas parciais.' }
+    { label: 'Dias parados', value: data.stoppedDays == null ? '—' : `${data.stoppedDays} ${data.stoppedDays === 1 ? 'dia' : 'dias'}`, sub: `${fmtHM(data.standby.minutes)} de standby do cliente`, icon: Hourglass, help: 'Datas distintas em que o standby por conta do cliente cobriu a jornada completa. O tempo de standby inclui também as paradas parciais e é contado em horas-homem.' },
+    { label: 'Pausas por nossa conta', value: fmtHM(data.internalStandby?.minutes ?? 0), sub: `${data.internalStandby?.count ?? 0} ${(data.internalStandby?.count ?? 0) === 1 ? 'relatório' : 'relatórios'} · uso interno`, icon: Hourglass, help: 'Paradas causadas por nós (falha em nossos equipamentos, acidentes, falta de recurso nosso), em horas-homem. Registro interno: não aparece no RDO nem é cobrado como standby.' }
   ];
   return <div className="acp-story-time-detail" data-acp-time-detail>
     <ProjectTimelineCard data={data} />
