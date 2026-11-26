@@ -68,9 +68,16 @@ docker compose -f deploy/logs/docker-compose.yml ps
 docker logs --since 2m filtrovali-logs-agent 2>&1 | grep -E 'level=(error|warn)' || echo "sem erros"
 ```
 
-**No Grafana Cloud:** abra **Explore**, escolha a fonte `grafanacloud-…-logs` e rode
-`{env="production"}`. Em até um minuto aparecem as linhas do backend, do worker, do nginx e do
-Postgres.
+**No Grafana Cloud:** abra **Explore** e, no seletor de fonte do topo, troque a fonte
+`grafanacloud-…-prom` (métricas) pela `grafanacloud-…-logs`. Mude a consulta de **Builder** para
+**Code**, cole `{env="production"}` e clique em **Run query**. Em até um minuto aparecem as linhas
+do backend, do worker, do nginx e do Postgres. Sem escrever consulta: **Drilldown → Logs**.
+
+Para conferir a máscara, rode `{env="production"} |= "@"`. Onde houver e-mail, só pode aparecer
+`<email>`.
+
+A conta começa num período de teste de 14 dias. Ao fim dele, confira em **View Plans** se ela
+passou para o plano gratuito, que basta para o volume atual.
 
 ### Rotação dos logs no app (vem no próximo deploy)
 
@@ -121,6 +128,7 @@ compose), `container`, `stream` (`stdout`/`stderr`) e `host`.
 | `404 Not Found` | `GRAFANA_LOGS_URL` sem `/loki/api/v1/push` no fim |
 | `429` ou `rate limit` | Cota do plano gratuito estourou: veja qual `service` gera mais em **Explore → Logs volume** |
 | `Cannot connect to the Docker daemon` / `connection refused` em `docker-proxy` | O proxy não subiu: `docker logs filtrovali-logs-docker-proxy` |
+| `can not get logs from container which is dead or marked for removal` ou `could not transfer logs … unexpected EOF`, só no minuto de um deploy | Esperado: o agente estava lendo um contêiner que o deploy removeu e passa sozinho para o novo. Só investigue se a mensagem continuar depois do deploy (`docker logs --since <hora UTC depois do deploy> filtrovali-logs-agent`). |
 
 **Desligar:** `docker compose -f deploy/logs/docker-compose.yml down`. Os logs locais do Docker
 continuam funcionando normalmente.
