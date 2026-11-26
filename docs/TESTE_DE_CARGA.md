@@ -97,7 +97,28 @@ Para refazer só um trecho, use, por exemplo, `LOAD_STAGES=30,40,50 LOAD_STAGE_S
 
 | Data | Commit | Capacidade certificada | Primeiro degrau que estourou | Gargalo | Recurso esgotado |
 |---|---|---|---|---|---|
-| _pendente_ | | | | | |
+| 2026-11-26 | `f4037cbe` | **20 usuários virtuais**: 16 req/s, p95 0,84 s, nenhum erro | 40 (p95 3,7 s) | Nenhuma rota isolada: todas pioram juntas. Pior p95 em 40: fluxo do Efetivo (5,6 s); em 80: cards do Acompanhamento (19 s) | **CPU**: backend 100–140% e Postgres 93–144% (teto 125%). Memória sobrando (< 750 MiB de 2 GB) |
+
+Evidência completa: [docs/evidence/load-test-staging-20261126.json](evidence/load-test-staging-20261126.json).
+
+### Leitura do resultado de 2026-11-26
+
+- **Vazão.** A vazão parou de crescer em ~20 req/s, no degrau de 40 usuários, e caiu para 16 req/s
+  no degrau de 80. Com resposta boa (p95 ≤ 1,5 s), o sistema atende **~16 req/s**.
+- **Usuário virtual não é uma pessoa.** Cada usuário virtual faz uma chamada por segundo, muito
+  mais que uma pessoa real. Para converter em pessoas, compare com o pico real de produção. No
+  Grafana Cloud (Explore, fonte `-logs`, últimos 7 dias):
+  `sum(rate({env="production", service="backend"} |~ "^(GET|POST|PUT|PATCH|DELETE) /api/" [5m]))`.
+  O máximo do gráfico, em req/s, dividido por 16 dá quanto da capacidade o pico real usa.
+- **O que esgota primeiro é CPU, e nos dois lados.** O backend é **um processo Node**: o código
+  da aplicação usa ~1 núcleo, e o que passa de 100% é coleta de lixo e I/O. Por isso aumentar
+  `cpus` do contêiner quase não ajuda; o próximo passo de escala seria uma segunda instância do
+  backend. O Postgres chegou ao teto de 1,25 CPU no degrau de 40. Antes de escalar, vale olhar
+  em `pg_stat_statements` as consultas do fluxo do Efetivo, dos cards do Acompanhamento e das
+  notificações, as rotas que mais pioraram.
+- **Erros.** Um único 500 na lista de relatórios, no degrau de 80 (1 em 987 chamadas).
+- **Produção durante o teste.** O backend de produção teve só os picos do próprio uso (até
+  127%), e o Postgres de produção ficou abaixo de 35%.
 
 Refaça o teste depois de mudanças grandes de desempenho, de máquina ou de limites dos
 contêineres. Refaça também quando o número de usuários ativos se aproximar da capacidade
