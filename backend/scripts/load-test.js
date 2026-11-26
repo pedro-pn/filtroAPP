@@ -84,11 +84,13 @@ export function summarize(samples) {
   const errors = samples.filter(s => !s.ok && s.status !== 429).length;
   const byEndpoint = {};
   for (const sample of samples) {
-    const item = byEndpoint[sample.name] ||= { requests: 0, errors: 0, limited: 0, durations: [] };
+    const item = byEndpoint[sample.name] ||= { requests: 0, errors: 0, limited: 0, durations: [], errorStatuses: {} };
     item.requests += 1;
     if (sample.status === 429) item.limited += 1;
-    else if (!sample.ok) item.errors += 1;
-    else item.durations.push(sample.ms);
+    else if (!sample.ok) {
+      item.errors += 1;
+      item.errorStatuses[sample.status] = (item.errorStatuses[sample.status] || 0) + 1;
+    } else item.durations.push(sample.ms);
   }
   return {
     requests: samples.length,
@@ -100,7 +102,7 @@ export function summarize(samples) {
     p99: percentile(durations, 99),
     endpoints: Object.fromEntries(Object.entries(byEndpoint).map(([name, item]) => {
       const sorted = item.durations.sort((a, b) => a - b);
-      return [name, { requests: item.requests, errors: item.errors, limited: item.limited, p50: percentile(sorted, 50), p95: percentile(sorted, 95) }];
+      return [name, { requests: item.requests, errors: item.errors, errorStatuses: item.errorStatuses, limited: item.limited, p50: percentile(sorted, 50), p95: percentile(sorted, 95) }];
     }))
   };
 }
@@ -162,10 +164,21 @@ async function timedRequest(config, auth, step, reportId) {
     const url = config.baseUrl + step.path.replace('{reportId}', encodeURIComponent(reportId || ''));
     const response = await fetch(url, { headers: auth, signal: AbortSignal.timeout(config.timeoutMs) });
     await response.arrayBuffer();
-    return { name: step.name, status: response.status, ok: response.status < 400, ms: performance.now() - started };
+    return { name: step.name, path: step.path, status: response.status, ok: response.status < 400, ms: performance.now() - started };
   } catch (error) {
-    return { name: step.name, status: error.name === 'TimeoutError' ? 'timeout' : 'network', ok: false, ms: performance.now() - started };
+    return { name: step.name, path: step.path, status: error.name === 'TimeoutError' ? 'timeout' : 'network', ok: false, ms: performance.now() - started };
   }
+}
+
+// Uma chamada por rota antes da carga: conta sem permissão (401/403) ou rota
+// quebrada invalidaria o resultado, então para com a lista do que falhou.
+export function preflightProblems(samples) {
+  return samples.filter(sample => !sample.ok && sample.status !== 429).map(sample => {
+    const hint = sample.status === 401 || sample.status === 403
+      ? 'a conta de teste não tem acesso a esta tela; ajuste as permissões dela'
+      : 'a rota falhou mesmo sem carga; veja o log do backend';
+    return `${sample.name} (${sample.path}): HTTP ${sample.status}: ${hint}`;
+  });
 }
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -191,12 +204,20 @@ async function main() {
   const auth = await login(config);
   const reportId = await firstReportId(config, auth);
   const journey = JOURNEY.filter(step => !step.needsReport || reportId);
+  const problems = preflightProblems(await Promise.all(journey.map(step => timedRequest(config, auth, step, reportId))));
+  if (problems.length) {
+    throw new Error(`Conferência antes da carga falhou; nada foi medido:\n  - ${problems.join('\n  - ')}`);
+  }
+  console.log(`Conferência: as ${journey.length} rotas responderam.`);
   const startedAt = new Date().toISOString();
   const results = [];
   for (const users of config.stages) {
     const summary = summarize(await runStage(config, auth, users, journey, reportId));
     results.push({ users, summary });
     console.log(`${String(users).padStart(4)} usuários: ${summary.requests} req, p50 ${summary.p50} ms, p95 ${summary.p95} ms, p99 ${summary.p99} ms, erros ${(summary.errorRate * 100).toFixed(1)}%, 429 ${summary.limited}`);
+    for (const [name, item] of Object.entries(summary.endpoints)) {
+      if (item.errors) console.log(`      erros em ${name}: ${Object.entries(item.errorStatuses).map(([status, count]) => `${count}× ${status}`).join(', ')}`);
+    }
     if ((summary.p95 ?? Infinity) > config.abortP95 || summary.errorRate > 0.05) {
       console.log(`Parado: o degrau de ${users} usuários passou do limite (p95 > ${config.abortP95} ms ou erros > 5%).`);
       break;

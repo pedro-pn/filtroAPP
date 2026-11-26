@@ -69,6 +69,10 @@ dados de produção, com o mesmo volume.
    npm run load:test
    ```
 
+   Antes de medir, o script chama cada rota uma vez. Se a conta não tiver acesso a alguma tela
+   (HTTP 401/403), ele para e mostra qual. Dê à conta o papel que falta e rode de novo: por
+   exemplo, o painel do gestor exige o papel de **gestor no módulo RDO**.
+
    São cerca de 5 minutos. No fim, o script mostra a capacidade e o gargalo e grava tudo em
    `output/load-test/resultado.json`.
 

@@ -7,7 +7,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { percentile, readConfig, summarize, verdict } from '../scripts/load-test.js';
+import { percentile, preflightProblems, readConfig, summarize, verdict } from '../scripts/load-test.js';
 
 const script = fileURLToPath(new URL('../scripts/load-test.js', import.meta.url));
 
@@ -34,6 +34,19 @@ test('resumo separa 429 (limitador) de erro e calcula percentis', () => {
   assert.equal(summary.errorRate, 0.25);
   assert.equal(summary.endpoints.a.p95, 300);
   assert.equal(summary.endpoints.b.errors, 1);
+  assert.deepEqual(summary.endpoints.b.errorStatuses, { 500: 1 });
+});
+
+test('conferência antes da carga aponta rota sem permissão e ignora 429', () => {
+  const problems = preflightProblems([
+    { name: 'sessão', path: '/api/auth/me', status: 200, ok: true },
+    { name: 'painel do gestor', path: '/api/rdo/bootstrap/gestor', status: 403, ok: false },
+    { name: 'PDF', path: '/pdf', status: 429, ok: false },
+    { name: 'cards', path: '/cards', status: 500, ok: false }
+  ]);
+  assert.equal(problems.length, 2);
+  assert.match(problems[0], /painel do gestor .*HTTP 403.*permissões/);
+  assert.match(problems[1], /cards .*HTTP 500.*log do backend/);
 });
 
 test('capacidade é o maior degrau dentro da meta e o gargalo vem do primeiro degrau que estourou', () => {
@@ -84,4 +97,32 @@ test('roda contra um servidor local, entra por cookie de sessão e grava o resul
   assert.equal(report.results.reduce((sum, stage) => sum + stage.summary.errors, 0), 0);
   assert.ok(seen.has('/api/rdo/reports/r1/pdf') || report.results.every(stage => !stage.summary.endpoints['PDF do RDO']));
   assert.match(stdout, /Capacidade/);
+});
+
+test('para antes da carga quando a conta não tem acesso a uma rota', async t => {
+  const server = http.createServer((req, res) => {
+    const url = new URL(req.url, 'http://x');
+    res.setHeader('content-type', 'application/json');
+    if (url.pathname === '/api/auth/login') {
+      res.setHeader('set-cookie', 'fv_session=abc; HttpOnly; Path=/');
+      return res.end(JSON.stringify({ user: { id: 'u' } }));
+    }
+    if (url.pathname === '/api/rdo/bootstrap/gestor') { res.statusCode = 403; return res.end('{}'); }
+    return res.end('{}');
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => server.close());
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'load-test-'));
+  const output = path.join(dir, 'resultado.json');
+  const child = spawn(process.execPath, [script], {
+    env: { ...process.env, LOAD_BASE_URL: `http://127.0.0.1:${server.address().port}`, LOAD_USERNAME: 'carga', LOAD_PASSWORD: 'x',
+      LOAD_STAGES: '2', LOAD_STAGE_SECONDS: '1', LOAD_THINK_MS: '20', LOAD_OUTPUT: output },
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+  let stderr = '';
+  child.stderr.on('data', chunk => { stderr += chunk; });
+  const code = await new Promise(resolve => child.on('exit', resolve));
+  assert.equal(code, 1);
+  assert.match(stderr, /painel do gestor \(\/api\/rdo\/bootstrap\/gestor\): HTTP 403/);
+  await assert.rejects(fs.access(output));
 });
