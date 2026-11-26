@@ -7,6 +7,7 @@ import { addCalendarDays, parseDateKey } from './date-only.js';
 import { businessDatesInclusive, holidayDateSet } from './business-days.js';
 import { getActiveOfficialPlan, resolvePlanningDatabase } from './plan-context.js';
 import { buildVacationAlert } from './vacation-alerts.js';
+import { normalizeCollaboratorSkillLevels } from '../../../../../shared/modules/collaborator-skills.js';
 import { loadCorporateCalendar } from '../../calendar/corporate-calendar.js';
 import { missionStartsOnOrBefore, missionEndsOnOrAfter } from './mission-period.js';
 import { missionCycles } from './allocation-period.js';
@@ -21,7 +22,7 @@ const missionReadInclude = {
   allocations: {
     where: { deletedAt: null },
     include: {
-      collaborator: { select: { id: true, name: true, jobRoleId: true, jobRole: { select: { id: true, name: true } } } },
+      collaborator: { select: { id: true, name: true, jobRoleId: true, skillLevels: true, jobRole: { select: { id: true, name: true } } } },
       cycles: { orderBy: { mobilizationDate: 'asc' } }
     }
   }
@@ -119,7 +120,7 @@ export async function loadPlanningProjection({ date, returnDate = null, planId =
         OR: [{ isActive: true }, { terminationDate: { gte: utcDate(startDate) } }],
         AND: [collaboratorVisibilityWhere('EFETIVO'), { OR: [{ rhStatus: 'PRE_ADMISSION' }, { admissionDate: null }, { admissionDate: { lte: utcDate(endDate) } }] }]
       },
-      select: { id: true, name: true, jobRoleId: true, jobRole: { select: { id: true, name: true } }, admissionDate: true, terminationDate: true, isActive: true, rhStatus: true, admissionDateProvisional: true }
+      select: { id: true, name: true, jobRoleId: true, jobRole: { select: { id: true, name: true } }, admissionDate: true, terminationDate: true, isActive: true, rhStatus: true, admissionDateProvisional: true, skillLevels: true }
     }),
     database.jobRole.findMany({ where: { isActive: true, ...jobRoleVisibilityWhere('EFETIVO') }, orderBy: [{ order: 'asc' }, { name: 'asc' }] }),
     database.efetivoMissionPlan.findMany({
@@ -289,7 +290,7 @@ export async function listPlanningCollaborators(filters, dependencies = {}) {
     const database = await resolvePlanningDatabase(dependencies.database);
     const inactive = await database.collaborator.findMany({
       where: { isActive: false, ...collaboratorVisibilityWhere('EFETIVO') },
-      select: { id: true, name: true, jobRoleId: true, jobRole: { select: { id: true, name: true } }, admissionDate: true, terminationDate: true, isActive: true, rhStatus: true, admissionDateProvisional: true }
+      select: { id: true, name: true, jobRoleId: true, jobRole: { select: { id: true, name: true } }, admissionDate: true, terminationDate: true, isActive: true, rhStatus: true, admissionDateProvisional: true, skillLevels: true }
     });
     const includedIds = new Set(collaborators.map(person => person.id));
     collaborators.push(...inactive.filter(person => !includedIds.has(person.id)));
@@ -307,6 +308,7 @@ export async function listPlanningCollaborators(filters, dependencies = {}) {
     isActive: collaborator.isActive,
     rhStatus: collaborator.rhStatus,
     admissionDateProvisional: collaborator.admissionDateProvisional,
+    skillLevels: normalizeCollaboratorSkillLevels(collaborator.skillLevels),
     status: statusById.get(collaborator.id) || 'OUTSIDE_EMPLOYMENT',
     plannedUtilization90d: availableByPerson.get(collaborator.id)
       ? committedByPerson.get(collaborator.id) / availableByPerson.get(collaborator.id) * 100 : null,

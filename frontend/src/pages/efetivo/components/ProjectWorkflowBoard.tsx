@@ -1,5 +1,6 @@
 import { useUsefulQueryContent } from '../../../observability/useUsefulContent';
 import { BrandLoading } from '../../../components/brand/BrandLoading';
+import { CollaboratorSkillTags } from '../../../components/efetivo/CollaboratorSkillTags';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   lazy,
@@ -296,6 +297,7 @@ function ProjectCard({
                 {allocation.collaboratorId === mission.headquartersResponsibleCollaboratorId ? <em>Líder</em> : null}
               </strong>
               <small>{allocation.jobRole?.name || allocation.collaborator?.role || 'Função não informada'}</small>
+              <CollaboratorSkillTags skillLevels={allocation.collaborator?.skillLevels} />
             </div>
           )) : <p>Nenhum colaborador alocado ainda.</p>}
         </div>

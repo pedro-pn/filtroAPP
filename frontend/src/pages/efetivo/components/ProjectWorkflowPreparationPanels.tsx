@@ -25,6 +25,7 @@ import { ProjectWorkflowBooleanChoice } from './ProjectWorkflowBooleanChoice';
 import { ProjectWorkflowIcon } from './ProjectWorkflowIcon';
 import { ProjectWorkflowStatusToggle } from './ProjectWorkflowStatusToggle';
 import { initialsOf } from '../../../utils/projectWorkflowPresentation';
+import { CollaboratorSkillTags } from '../../../components/efetivo/CollaboratorSkillTags';
 
 function sectionProgress(workflow: ProjectWorkflow, key: 'D15_TEAM' | 'D15_CLIENT' | 'D15_EQUIPMENT' | 'D15_MATERIALS' | 'D15_PRE_JOB' | 'D15_TRAVEL' | 'D15_QSMS') {
   return workflow.preparationReadiness.sections.find(section => section.key === key)
@@ -539,7 +540,7 @@ export function ProjectWorkflowDefinitiveTeam({ workflow, saving, onPatch, onOpe
           <div className="project-workflow-team-members">
             {members.map(member => (
               <article className="project-workflow-team-member" key={member.collaboratorId}>
-                <header><span className="project-workflow-avatar is-large" aria-hidden="true">{initialsOf(member.name)}</span><div><strong>{member.name}</strong><span>{member.role}</span></div><span className={member.checks.every(check => check.status === 'DONE') ? 'is-complete' : undefined}>{member.checks.filter(check => check.status === 'DONE').length}/{member.checks.length}</span></header>
+                <header><span className="project-workflow-avatar is-large" aria-hidden="true">{initialsOf(member.name)}</span><div><strong>{member.name}</strong><span>{member.role}</span><CollaboratorSkillTags skillLevels={member.skillLevels} /></div><span className={member.checks.every(check => check.status === 'DONE') ? 'is-complete' : undefined}>{member.checks.filter(check => check.status === 'DONE').length}/{member.checks.length}</span></header>
                 <div className="project-workflow-team-member-checks">
                   {member.checks.map(check => (
                     <label className={`project-workflow-member-check${check.status === 'DONE' ? ' is-done' : ''}`} key={check.key}>

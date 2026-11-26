@@ -1,4 +1,5 @@
 import { apiClient, type ApiClientError } from './client';
+import type { CollaboratorSkillLevels } from '../../../shared/modules/collaborator-skills.js';
 import type { ProjectReportRecipients } from '../../../shared/schemas/project-report-recipients.js';
 
 export type DateOnly = string;
@@ -95,7 +96,7 @@ export interface MissionAllocation {
   demobilizationDate: DateOnly | null;
   allowMissionOverlap: boolean;
   cycles?: MobilizationCycle[];
-  collaborator?: { id: string; name: string; isActive?: boolean; rhStatus?: 'PRE_ADMISSION' | 'ACTIVE' | 'TERMINATED' | 'CANCELLED' | null; role: string; jobRoleId: string | null };
+  collaborator?: { id: string; name: string; isActive?: boolean; rhStatus?: 'PRE_ADMISSION' | 'ACTIVE' | 'TERMINATED' | 'CANCELLED' | null; role: string; jobRoleId: string | null; skillLevels?: CollaboratorSkillLevels };
   jobRole?: { id: string; name: string };
 }
 
@@ -215,6 +216,7 @@ export interface PlanningAvailabilityPeriod {
     name: string;
     role: string;
     jobRoleId: string;
+    skillLevels?: CollaboratorSkillLevels;
     days: Array<{ date: DateOnly; status: PeriodAvailabilityStatus; detail: string | null }>;
   }>;
   roles: Array<{
@@ -257,6 +259,7 @@ export interface PlanningCollaborator {
   isActive: boolean;
   rhStatus?: 'PRE_ADMISSION' | 'ACTIVE' | 'TERMINATED' | 'CANCELLED' | null;
   admissionDateProvisional?: boolean;
+  skillLevels?: CollaboratorSkillLevels;
   status: CollaboratorPlanningStatus;
   plannedUtilization90d: number | null;
   vacationAlert: VacationAlert | null;
@@ -269,6 +272,7 @@ export interface CollaboratorInput {
   admissionDate: DateOnly;
   terminationDate?: DateOnly | null;
   note?: string | null;
+  skillLevels?: CollaboratorSkillLevels;
 }
 
 export interface PlanningAbsence {

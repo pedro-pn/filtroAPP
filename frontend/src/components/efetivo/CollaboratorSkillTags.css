@@ -1,0 +1,52 @@
+/* Cor de cada nível: tokens semânticos globais (valem dentro e fora do escopo .fv-ds). */
+.fv-skill-level--3 { --fv-skill-ink: var(--success, #1f7a3d); --fv-skill-bg: var(--success-bg, #e6f4ea); --fv-skill-line: var(--success-line, #b7dcc3); }
+.fv-skill-level--2 { --fv-skill-ink: var(--info, #11437e); --fv-skill-bg: var(--info-bg, #e7effa); --fv-skill-line: var(--info-line, #b6cbe6); }
+.fv-skill-level--1 { --fv-skill-ink: var(--warning, #b45309); --fv-skill-bg: var(--warning-bg, #fff7e6); --fv-skill-line: var(--warning-line, #fcd9a3); }
+.fv-skill-level--0 { --fv-skill-ink: var(--mu, #6b7280); --fv-skill-bg: transparent; --fv-skill-line: var(--line-strong, #d1d5db); }
+
+/* Tags exibidas nas listas de planejamento. */
+.fv-skill-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fv-skill-tags--empty {
+  color: var(--mu, #6b7280);
+  font-size: 11.5px;
+}
+
+/* Minimalista: bolinha em tom suave (como no editor) com o nível e o nome, sem contorno nem fundo. */
+.fv-skill-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  color: var(--ink, inherit);
+  font-size: 11.5px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.fv-skill-tag__level {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--fv-skill-bg);
+  color: var(--fv-skill-ink);
+  font-size: 10.5px;
+  font-weight: var(--font-semibold, 600);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.fv-skill-tag__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
