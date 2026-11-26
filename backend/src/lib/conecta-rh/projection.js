@@ -5,6 +5,9 @@ import { roleClassification } from '../collaborators/workforce-policy.js';
 const day = value => new Date(`${value}T00:00:00Z`);
 export const aggregateWhere = (companyId, aggregateType, externalId) => ({ companyId_aggregateType_externalId: { companyId, aggregateType, externalId } });
 const aggregate = (tx, companyId, type, id) => id ? tx.conectaRhAggregate.findUnique({ where: aggregateWhere(companyId, type, id) }) : null;
+// O RH às vezes preenche a matrícula com texto ("não tem"). Sem dígito não é
+// identificador: casaria pessoas diferentes que receberam o mesmo texto.
+export const usableRegistrationNumber = value => typeof value === 'string' && /\d/.test(value) ? value.trim() : null;
 const person = (tx, companyId, personId) => tx.conectaRhPerson.findUnique({ where: { companyId_personId: { companyId, personId } } });
 
 async function projectJobRole(tx, row) {
@@ -32,7 +35,8 @@ async function resolvePerson(tx, row, jobRoleId) {
   const mapped = await person(tx, row.companyId, input.personId);
   if (mapped) return mapped;
   const formattedCpf = input.cpf?.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4');
-  const identifiers = [input.cpf && { cpf: { in: [input.cpf, formattedCpf] } }, input.registrationNumber && { registrationNumber: input.registrationNumber }].filter(Boolean);
+  const registrationNumber = usableRegistrationNumber(input.registrationNumber);
+  const identifiers = [input.cpf && { cpf: { in: [input.cpf, formattedCpf] } }, registrationNumber && { registrationNumber }].filter(Boolean);
   const candidates = identifiers.length ? await tx.collaborator.findMany({ where: { OR: identifiers }, take: 3 }) : [];
   if (candidates.length > 1) return null;
   let collaborator = candidates[0];
@@ -81,7 +85,7 @@ async function projectEmployment(tx, row) {
   const dates = employmentDates(row.data, row.firstReceivedAt);
   const previous = await tx.collaborator.findUniqueOrThrow({ where: { id: mapping.collaboratorId } });
   const update = {
-    name: row.data.name, email: row.data.email, cpf: row.data.cpf, registrationNumber: row.data.registrationNumber,
+    name: row.data.name, email: row.data.email, cpf: row.data.cpf, registrationNumber: usableRegistrationNumber(row.data.registrationNumber),
     jobRoleId, admissionDate: day(dates.admissionDate), terminationDate: row.data.terminationDate ? day(row.data.terminationDate) : null,
     admissionDateProvisional: dates.admissionDateProvisional, rhFirstReceivedAt: row.firstReceivedAt,
     rhStatus: row.data.status, rhEmploymentId: row.externalId,

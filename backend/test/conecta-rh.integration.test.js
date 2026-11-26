@@ -54,6 +54,18 @@ test('Conecta: códigos locais sequenciais e identidade externa independente da 
   assert.equal(await db.collaborator.count(), 4);
   await receive(event('employment', { ...newcomer, employmentId: randomUUID(), personId: randomUUID(), name: 'Outra pessoa' }));
   assert.equal(await db.collaborator.count({ where: { code: 'COL-1001' } }), 1);
+
+  // Matrícula sem dígito ("não tem") não identifica ninguém: não casa com outros cadastros nem é gravada.
+  await db.collaborator.createMany({ data: [
+    { code: 'COL-PH1', name: 'Outra pessoa A', jobRoleId: role.id, registrationNumber: 'não tem' },
+    { code: 'COL-PH2', name: 'Outra pessoa B', jobRoleId: role.id, registrationNumber: 'não tem' }
+  ] });
+  const placeholder = { ...employment, employmentId: randomUUID(), personId: randomUUID(), name: 'Sem matrícula', registrationNumber: 'não tem' };
+  assert.equal((await receive(event('employment', placeholder))).status, 'APPLIED');
+  const placeholderMapping = await db.conectaRhPerson.findUniqueOrThrow({ where: { companyId_personId: { companyId, personId: placeholder.personId } } });
+  const placeholderCollaborator = await db.collaborator.findUniqueOrThrow({ where: { id: placeholderMapping.collaboratorId } });
+  assert.equal(placeholderCollaborator.code, 'COL-1002');
+  assert.equal(placeholderCollaborator.registrationNumber, null);
 });
 
 test('Conecta: recepção real, referência provisória por vínculo, correções e autenticação', { timeout: 120_000 }, async t => {
