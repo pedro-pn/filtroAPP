@@ -1,5 +1,6 @@
 import { useUsefulQueryContent } from '../../../observability/useUsefulContent';
 import { BrandLoading } from '../../../components/brand/BrandLoading';
+import { CollaboratorSkillTags } from '../../../components/efetivo/CollaboratorSkillTags';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   lazy,
@@ -76,7 +77,6 @@ import {
 } from '../../../utils/reorderDrag';
 import { buildInitialTeamContext } from '../../../utils/initialTeamContext';
 import { missionTeamAllocationPeriod, selectedMissionCollaboratorIds, type InitialTeamContext } from '../../../utils/missionTeam';
-import { CollaboratorSkillTags } from '../../../components/efetivo/CollaboratorSkillTags';
 
 const InitialTeamAvailabilityModal = lazy(() => import('./MissionFormModal').then(module => ({ default: module.InitialTeamAvailabilityModal })));
 const ProjectLegacyCompletionModal = lazy(() => import('./ProjectLegacyCompletionModal').then(module => ({ default: module.ProjectLegacyCompletionModal })));

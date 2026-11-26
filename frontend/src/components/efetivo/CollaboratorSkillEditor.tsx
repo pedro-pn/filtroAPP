@@ -6,6 +6,7 @@ import {
   type CollaboratorSkillLevels
 } from '../../../../shared/modules/collaborator-skills.js';
 import './CollaboratorSkillTags.css';
+import './CollaboratorSkillEditor.css';
 
 const LEVELS_ASCENDING = [...COLLABORATOR_SKILL_LEVELS].sort((left, right) => left.level - right.level);
 

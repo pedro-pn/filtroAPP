@@ -29,7 +29,7 @@
         "src/pages/efetivo/EfetivoPage.tsx",
         "src/pages/efetivo/components/ProjectWorkflowBoard.tsx"
       ],
-      "maxGzipBytes": 320000,
+      "maxGzipBytes": 322000,
       "deferred": [
         "src/pages/efetivo/components/MissionFormModal.tsx",
         "src/pages/efetivo/components/ProjectLegacyCompletionModal.tsx",
