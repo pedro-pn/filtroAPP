@@ -27,6 +27,7 @@ import {
 import { getProjectMeasurement, validateProjectMeasurementRequest } from '../../../lib/api-credentials/project-measurement.js';
 import { createUnloading, validateUnloading } from '../../../lib/logistica/unloading.js';
 import { defineRoute } from '../../../lib/api-contract/registry.js';
+import { integrationRoute } from '../../../lib/api-contract/domains/integracoes.js';
 import { projectServicesRouteContract } from '../../../lib/api-credentials/project-services-contract.js';
 
 const operationalRouteContracts = { 'acompanhamento.projects.services.list': projectServicesRouteContract };
@@ -37,7 +38,7 @@ export function createOperationalRouter({
 } = {}) {
   const router = Router();
   router.use((_req, _res, next) => withProjectChannel('api', next));
-  router.get('/efetivo/conferencia/alocacoes', requireApiOperation(ALLOCATION_REVIEW_OPERATION), asyncHandler(async (req, res) => {
+  defineRoute(router, integrationRoute('GET /efetivo/conferencia/alocacoes', ALLOCATION_REVIEW_OPERATION), requireApiOperation(ALLOCATION_REVIEW_OPERATION), asyncHandler(async (req, res) => {
     const context = {
       credentialId: req.apiAuth.credential.id, scopes: req.apiAuth.scopeCodes,
       projectAccessMode: req.apiAuth.credential.projectAccessMode,
@@ -54,7 +55,7 @@ export function createOperationalRouter({
     });
     res.json(result.body);
   }));
-  router.get('/efetivo/projetos/:id/medicao', requireApiOperation('efetivo.projects.measurement.get'), asyncHandler(async (req, res) => {
+  defineRoute(router, integrationRoute('GET /efetivo/projetos/:id/medicao', 'efetivo.projects.measurement.get'), requireApiOperation('efetivo.projects.measurement.get'), asyncHandler(async (req, res) => {
     const context = { scopes: req.apiAuth.scopeCodes, projectAccessMode: req.apiAuth.credential.projectAccessMode, projectIds: req.apiAuth.projectIds };
     validateProjectMeasurementRequest(req.params, req.query, context);
     const result = await runMeteredApiOperation(req, { prismaClient, operationId: 'efetivo.projects.measurement.get', requestedRows: 1,
@@ -62,7 +63,7 @@ export function createOperationalRouter({
         generatedAt: new Date().toISOString(), schemaVersion: '1.0', requestId: req.requestId } }) });
     res.json(result.body);
   }));
-  router.post('/logistica/descargas', requireApiOperation('logistics.unloadings.create'), asyncHandler(async (req, res) => {
+  defineRoute(router, integrationRoute('POST /logistica/descargas', 'logistics.unloadings.create'), requireApiOperation('logistics.unloadings.create'), asyncHandler(async (req, res) => {
     const context = { credentialId: req.apiAuth.credentialId, scopes: req.apiAuth.scopeCodes,
       projectAccessMode: req.apiAuth.credential.projectAccessMode, projectIds: req.apiAuth.projectIds };
     validateUnloading(req.body, req.headers['idempotency-key'], context, req.query);
@@ -71,7 +72,7 @@ export function createOperationalRouter({
         ...await createUnloading(database, req.body, req.headers['idempotency-key'], context), requestId: req.requestId } }) });
     res.status(result.statusCode).json(result.body);
   }));
-  router.post('/acompanhamento/oportunidades', requireApiOperation('acompanhamento.opportunities.post'), asyncHandler(async (req, res) => {
+  defineRoute(router, integrationRoute('POST /acompanhamento/oportunidades', 'acompanhamento.opportunities.post'), requireApiOperation('acompanhamento.opportunities.post'), asyncHandler(async (req, res) => {
     validateProjectWriteAccess(null, req.query, req.apiAuth.credential, { create: true });
     validateCrmOpportunity(req.body);
     if (!req.headers['idempotency-key']) throw new IntegrationApiError(400, 'IDEMPOTENCY_KEY_REQUIRED', 'Envie Idempotency-Key igual ao eventId.');
@@ -84,7 +85,7 @@ export function createOperationalRouter({
     });
     res.status(result.statusCode).json(result.body);
   }));
-  router.get('/acompanhamento/oportunidades/vinculos', requireApiOperation('acompanhamento.opportunities.links.list'), asyncHandler(async (req, res) => {
+  defineRoute(router, integrationRoute('GET /acompanhamento/oportunidades/vinculos', 'acompanhamento.opportunities.links.list'), requireApiOperation('acompanhamento.opportunities.links.list'), asyncHandler(async (req, res) => {
     validatePlanningReadAccess(req.apiAuth.credential);
     validatePlanningListQuery(req.query);
     const result = await runMeteredApiOperation(req, {
@@ -98,7 +99,7 @@ export function createOperationalRouter({
     });
     res.json(result.body);
   }));
-  router.get('/acompanhamento/oportunidades/por-origem/prismaCRM/:externalId', requireApiOperation('acompanhamento.opportunities.get'), asyncHandler(async (req, res) => {
+  defineRoute(router, integrationRoute('GET /acompanhamento/oportunidades/por-origem/prismaCRM/:externalId', 'acompanhamento.opportunities.get'), requireApiOperation('acompanhamento.opportunities.get'), asyncHandler(async (req, res) => {
     validatePlanningReadAccess(req.apiAuth.credential);
     const { externalId } = validatePlanningDetailParams(req.params, req.query);
     const result = await runMeteredApiOperation(req, {
@@ -107,7 +108,7 @@ export function createOperationalRouter({
     });
     res.json(result.body);
   }));
-  router.get('/cargos/:id/referencia-hh', requireApiOperation('jobRoles.hourlyReference.get'), asyncHandler(async (req, res) => {
+  defineRoute(router, integrationRoute('GET /cargos/:id/referencia-hh', 'jobRoles.hourlyReference.get'), requireApiOperation('jobRoles.hourlyReference.get'), asyncHandler(async (req, res) => {
     validateJobRoleSalaryRequest(req.params, req.query);
     const result = await runMeteredApiOperation(req, {
       prismaClient, operationId: 'jobRoles.hourlyReference.get', requestedRows: 1,
@@ -116,7 +117,7 @@ export function createOperationalRouter({
     });
     res.json(result.body);
   }));
-  router.get('/cargos/:id/salario', requireApiOperation('jobRoles.salary.get'), asyncHandler(async (req, res) => {
+  defineRoute(router, integrationRoute('GET /cargos/:id/salario', 'jobRoles.salary.get'), requireApiOperation('jobRoles.salary.get'), asyncHandler(async (req, res) => {
     validateJobRoleSalaryRequest(req.params, req.query);
     const result = await runMeteredApiOperation(req, {
       prismaClient, operationId: 'jobRoles.salary.get', requestedRows: 1,
@@ -127,7 +128,7 @@ export function createOperationalRouter({
     });
     res.json(result.body);
   }));
-  router.post('/efetivo/projetos', requireApiOperation('efetivo.projects.create'), asyncHandler(async (req, res) => {
+  defineRoute(router, integrationRoute('POST /efetivo/projetos', 'efetivo.projects.create'), requireApiOperation('efetivo.projects.create'), asyncHandler(async (req, res) => {
     validateProjectWriteAccess(null, req.query, req.apiAuth.credential, { create: true });
     validateProjectCreation(req.body);
     const result = await runMeteredApiOperation(req, {
@@ -139,7 +140,7 @@ export function createOperationalRouter({
     });
     res.status(result.statusCode).json(result.body);
   }));
-  router.post('/efetivo/projetos/:id/fatos-comerciais', requireApiOperation('efetivo.projects.commercialFact.post'), asyncHandler(async (req, res) => {
+  defineRoute(router, integrationRoute('POST /efetivo/projetos/:id/fatos-comerciais', 'efetivo.projects.commercialFact.post'), requireApiOperation('efetivo.projects.commercialFact.post'), asyncHandler(async (req, res) => {
     const id = validateProjectWriteAccess(req.params.id, req.query, { projectAccessMode: req.apiAuth.credential.projectAccessMode, projectIds: req.apiAuth.projectIds });
     validateCommercialFact(req.body);
     const result = await runMeteredApiOperation(req, {
@@ -152,7 +153,7 @@ export function createOperationalRouter({
     });
     res.status(result.statusCode).json(result.body);
   }));
-  router.post('/efetivo/projetos/:id/documentos', requireApiOperation('efetivo.projects.document.post'), asyncHandler(async (req, res) => {
+  defineRoute(router, integrationRoute('POST /efetivo/projetos/:id/documentos', 'efetivo.projects.document.post'), requireApiOperation('efetivo.projects.document.post'), asyncHandler(async (req, res) => {
     const id = validateProjectWriteAccess(req.params.id, req.query, { projectAccessMode: req.apiAuth.credential.projectAccessMode, projectIds: req.apiAuth.projectIds });
     validateCrmDocument(req.body);
     const result = await runMeteredApiOperation(req, {
@@ -165,7 +166,7 @@ export function createOperationalRouter({
     });
     res.status(result.statusCode).json(result.body);
   }));
-  router.get('/efetivo/projetos/:id/status', requireApiOperation('efetivo.projects.status.get'), asyncHandler(async (req, res) => {
+  defineRoute(router, integrationRoute('GET /efetivo/projetos/:id/status', 'efetivo.projects.status.get'), requireApiOperation('efetivo.projects.status.get'), asyncHandler(async (req, res) => {
     const context = {
       projectAccessMode: req.apiAuth.credential.projectAccessMode,
       projectIds: req.apiAuth.projectIds
@@ -185,11 +186,9 @@ export function createOperationalRouter({
   // Registra somente caminhos declarados no contrato; não recebe modelo/campos do cliente.
   for (const resource of OPERATIONAL_RESOURCES) {
     const contract = operationalRouteContracts[resource.operationId];
-    const register = contract
-      ? (path, ...handlers) => defineRoute(router, { method: 'get', path, ...contract }, ...handlers)
-      : router.get.bind(router);
-    register(
-      resource.path,
+    defineRoute(
+      router,
+      integrationRoute(`GET ${resource.path}`, resource.operationId, contract || {}),
       requireApiOperation(resource.operationId),
       asyncHandler(async (req, res) => {
         const context = {
@@ -245,7 +244,7 @@ export function createOperationalRouter({
     );
   }
   for (const download of OPERATIONAL_DOWNLOADS) {
-    router.get(download.path, requireApiOperation(download.operationId), asyncHandler(async (req, res) => {
+    defineRoute(router, integrationRoute(`GET ${download.path}`, download.operationId), requireApiOperation(download.operationId), asyncHandler(async (req, res) => {
       const context = { scopes: req.apiAuth.scopeCodes, projectAccessMode: req.apiAuth.credential.projectAccessMode,
         projectIds: req.apiAuth.projectIds, maxPageSize: req.apiAuth.credential.maxPageSize };
       validateOperationalDownload(download.operationId, req.params, req.query, context);

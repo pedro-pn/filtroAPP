@@ -7,12 +7,14 @@ import { requireApiOperation, runMeteredApiOperation } from '../../../middleware
 import { receiveConectaEvent, getConectaReceipt } from '../../../lib/conecta-rh/service.js';
 import { requireConectaCompany, validateConectaEvent } from '../../../lib/conecta-rh/schema.js';
 
+import { defineRoute } from '../../../lib/api-contract/registry.js';
+import { integrationRoute } from '../../../lib/api-contract/domains/integracoes.js';
 export function createConectaRhRouter({ prismaClient = prisma, envConfig = env } = {}) {
   const router = Router();
   const authorize = req => {
     if (req.apiAuth.credential.projectAccessMode !== 'ALL') throw new IntegrationApiError(403, 'GLOBAL_ACCESS_REQUIRED', 'A integração de RH exige autorização global.');
   };
-  router.post('/eventos', requireApiOperation('rh.conecta.events.post'), asyncHandler(async (req, res) => {
+  defineRoute(router, integrationRoute('POST /eventos', 'rh.conecta.events.post'), requireApiOperation('rh.conecta.events.post'), asyncHandler(async (req, res) => {
     authorize(req);
     if (!req.headers['idempotency-key']) throw new IntegrationApiError(400, 'IDEMPOTENCY_KEY_REQUIRED', 'Envie Idempotency-Key igual ao eventId.');
     const input = validateConectaEvent(req.body, req.headers['idempotency-key']);
@@ -25,7 +27,7 @@ export function createConectaRhRouter({ prismaClient = prisma, envConfig = env }
         body: { ...await receiveConectaEvent(database, input, { idempotencyKey: req.headers['idempotency-key'], companyId: envConfig.conectaRhCompanyId }), requestId: req.requestId } }) });
     res.status(result.statusCode).json(result.body);
   }));
-  router.get('/recebimentos/:id', requireApiOperation('rh.conecta.receipts.get'), asyncHandler(async (req, res) => {
+  defineRoute(router, integrationRoute('GET /recebimentos/:id', 'rh.conecta.receipts.get'), requireApiOperation('rh.conecta.receipts.get'), asyncHandler(async (req, res) => {
     authorize(req);
     requireConectaCompany(envConfig.conectaRhCompanyId, envConfig.conectaRhCompanyId);
     const result = await runMeteredApiOperation(req, { prismaClient, operationId: 'rh.conecta.receipts.get', requestedRows: 1,
