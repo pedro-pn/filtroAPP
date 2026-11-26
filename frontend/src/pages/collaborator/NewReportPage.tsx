@@ -47,6 +47,7 @@ import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
 import { useReportMutations } from '../../hooks/useReports';
 import { useReportWorkforcePrefill } from '../../hooks/useReportWorkforcePrefill';
 import { useStandbySuggestion } from '../../hooks/useStandbySuggestion';
+import { internalStandbySpecialConditions } from '../../utils/internalStandby';
 import { AppShell } from '../../layout/AppShell';
 import { createNavigationModel } from '../../layout/navigationModel';
 import { PageHeader } from '../../layout/PageHeader';
@@ -201,6 +202,9 @@ function SiteRdoFormPage() {
     standbyDuration,
     standbyMotivo,
     standbySuggestionReview,
+    internalStandby,
+    internalStandbyDuration,
+    internalStandbyMotivo,
     noturnoStart,
     noturnoEnd,
     noturnoInterval,
@@ -247,7 +251,7 @@ function SiteRdoFormPage() {
   const canReview = canReviewRdoReports(user);
   const effectiveServiceOnly = canCreateServiceOnly && serviceOnly;
   const standbyReview = useStandbySuggestion({
-    input: { dailyDescription, services, arrivalTime, departureTime, lunchBreak, noturno, noturnoStart, noturnoEnd, noturnoInterval, standby, standbyDuration, standbyMotivo, standbySuggestionReview },
+    input: { dailyDescription, services, arrivalTime, departureTime, lunchBreak, noturno, noturnoStart, noturnoEnd, noturnoInterval, standby, standbyDuration, standbyMotivo, internalStandby, internalStandbyDuration, internalStandbyMotivo, standbySuggestionReview },
     scope: `new:${projectId}:${reportDate}`,
     enabled: !effectiveServiceOnly,
     disabled: isSubmitting,
@@ -442,12 +446,14 @@ function SiteRdoFormPage() {
   // Dia inteiro em standby (tempo de standby cobre todo o período trabalhado, diurno + noturno,
   // descontados os intervalos): não há serviço a registrar, então nenhum lembrete é exibido.
   const fullDayStandby = useMemo(() => {
-    if (effectiveServiceOnly || !standby) return false;
-    const standbyMinutes = parseDurationToMinutes(standbyDuration);
+    if (effectiveServiceOnly || (!standby && !internalStandby)) return false;
+    // Pausas do cliente e por nossa conta somadas: o dia parado por qualquer causa não tem serviço.
+    const standbyMinutes = (standby ? parseDurationToMinutes(standbyDuration) : 0)
+      + (internalStandby ? parseDurationToMinutes(internalStandbyDuration) : 0);
     const workedMinutes = calculateWorkedMinutes(arrivalTime, departureTime, lunchBreak)
       + (noturno ? calculateWorkedMinutes(noturnoStart, noturnoEnd, noturnoInterval) : 0);
     return standbyMinutes > 0 && workedMinutes > 0 && standbyMinutes >= workedMinutes;
-  }, [arrivalTime, departureTime, effectiveServiceOnly, lunchBreak, noturno, noturnoEnd, noturnoInterval, noturnoStart, standby, standbyDuration]);
+  }, [arrivalTime, departureTime, effectiveServiceOnly, lunchBreak, noturno, noturnoEnd, noturnoInterval, noturnoStart, standby, standbyDuration, internalStandby, internalStandbyDuration]);
   const remindMissingService = !effectiveServiceOnly && !services.length && !noServiceAcknowledged && !fullDayStandby;
 
   useEffect(() => {
@@ -659,6 +665,8 @@ function SiteRdoFormPage() {
     }
     if (standby && !standbyDuration) return failRequired('Tempo total (standby)', 'header:standbyDuration', 0);
     if (standby && !standbyMotivo.trim()) return failRequired('Motivo (standby)', 'header:standbyMotivo', 0);
+    if (internalStandby && !internalStandbyDuration) return failRequired('Tempo total (pausa por nossa conta)', 'header:internalStandbyDuration', 0);
+    if (internalStandby && !internalStandbyMotivo.trim()) return failRequired('Motivo (pausa por nossa conta)', 'header:internalStandbyMotivo', 0);
     if (noturno && !noturnoStart) return failRequired('Início (noturno)', 'header:noturnoStart', 0);
     if (noturno && !noturnoEnd) return failRequired('Término (noturno)', 'header:noturnoEnd', 0);
     if (noturno && !noturnoInterval) return failRequired('Intervalo noturno', 'header:noturnoInterval', 0);
@@ -828,6 +836,9 @@ function SiteRdoFormPage() {
       standbyDuration,
       standbyMotivo,
       standbySuggestionReview,
+    internalStandby,
+    internalStandbyDuration,
+    internalStandbyMotivo,
       noturnoStart,
       noturnoEnd,
       noturnoInterval,
@@ -845,7 +856,7 @@ function SiteRdoFormPage() {
       generalUploads,
       services
     };
-  }, [projectId, effectiveServiceOnly, reportDate, effectiveWorkLocation, arrivalTime, departureTime, lunchBreak, collaboratorIds, nightCollaboratorIds, standby, noturno, standbyDuration, standbyMotivo, standbySuggestionReview, noturnoStart, noturnoEnd, noturnoInterval, ddsDay, ddsDayStart, ddsDayEnd, ddsDayThemes, ddsNight, ddsNightStart, ddsNightEnd, ddsNightThemes, overtimeReason, workforceJustification, dailyDescription, generalUploads, services]);
+  }, [projectId, effectiveServiceOnly, reportDate, effectiveWorkLocation, arrivalTime, departureTime, lunchBreak, collaboratorIds, nightCollaboratorIds, standby, noturno, standbyDuration, standbyMotivo, standbySuggestionReview, internalStandby, internalStandbyDuration, internalStandbyMotivo, noturnoStart, noturnoEnd, noturnoInterval, ddsDay, ddsDayStart, ddsDayEnd, ddsDayThemes, ddsNight, ddsNightStart, ddsNightEnd, ddsNightThemes, overtimeReason, workforceJustification, dailyDescription, generalUploads, services]);
 
   const draftProjectDateKey = useCallback((draft: { projectId?: string | null; reportDate?: string | null; payload?: Record<string, unknown> }) => {
     const payload = draft.payload || {};
@@ -977,7 +988,7 @@ function SiteRdoFormPage() {
     }
     // Applying from the dialog and sending happen in the same event: use its values directly.
     const submissionStandby = typeof standbyDecision === 'object'
-      ? standbyDecision : { standby, standbyDuration, standbyMotivo, standbySuggestionReview };
+      ? standbyDecision : { standby, standbyDuration, standbyMotivo, internalStandby, internalStandbyDuration, internalStandbyMotivo, standbySuggestionReview };
 
     if (effectiveServiceOnly && user.role === 'COORDINATOR') {
       const confirmed = await confirm({
@@ -1056,6 +1067,7 @@ function SiteRdoFormPage() {
               total: submissionStandby.standbyDuration,
               motivo: submissionStandby.standbyMotivo
             },
+            ...internalStandbySpecialConditions(submissionStandby),
             generalUploads,
             noturnoDetails: {
               enabled: noturno,
@@ -1323,6 +1335,9 @@ function SiteRdoFormPage() {
           standby={standby}
           standbyDuration={standbyDuration}
           standbyMotivo={standbyMotivo}
+          internalStandby={internalStandby}
+          internalStandbyDuration={internalStandbyDuration}
+          internalStandbyMotivo={internalStandbyMotivo}
           noturno={noturno}
           noturnoStart={noturnoStart}
           noturnoEnd={noturnoEnd}

@@ -31,6 +31,8 @@ export interface StatsSummary {
   nighttimeOvertimeMinutes: number;
   standbyCount: number;
   standbyMinutes: number;
+  internalStandbyCount?: number;
+  internalStandbyMinutes?: number;
   avgDaytimeCollaborators: number;
   avgNighttimeCollaborators: number;
 }
@@ -86,6 +88,7 @@ export interface StatsDailyReport {
   nighttimeOvertimeMinutes: number;
   standby: boolean;
   standbyMinutes: number;
+  internalStandbyMinutes?: number;
   daytimeCollaborators: number;
   nighttimeCollaborators: number;
   services: Record<string, StatsServiceStats>;

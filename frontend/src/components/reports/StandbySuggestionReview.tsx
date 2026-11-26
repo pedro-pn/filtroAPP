@@ -1,7 +1,8 @@
 import { useId, useState } from 'react';
-import { reviewedStandbyFields, standbyMinutesAfterBreaks, type StandbyBreak, type StandbyFields, type StandbySuggestion } from '../../utils/standbySuggestion';
+import { reviewedStandbyFields, standbyMinutesAfterBreaks, type PauseResponsibility, type StandbyBreak, type StandbyFields, type StandbySuggestion } from '../../utils/standbySuggestion';
 import { formatReportMinutes, parseDurationToMinutes } from '../../utils/reportOvertime';
 import { StandbyBreakQuestion } from './StandbyBreakQuestion';
+import { StandbyResponsibilityQuestion } from './StandbyResponsibilityQuestion';
 import { Modal } from '../ui/Modal';
 import { Alert, Button, Input, Textarea } from '../ui/ds';
 import './StandbySuggestionReview.css';
@@ -65,8 +66,17 @@ function StandbySuggestionDialog({ suggestion, existing, submitting, onResolve }
     .map(option => `${option.label}: descontado ${formatReportMinutes(deductions[option.id] || 0)}.`).join(' ');
   const reason = editedReason ?? [suggestion.reason, deductionText].filter(Boolean).join(' ');
   const onlyBreak = answered && calculatedMinutes === 0 && duration === '00:00';
+  const [responsibility, setResponsibility] = useState<PauseResponsibility | null>(suggestion.responsibility);
+  const [internalDuration, setInternalDuration] = useState(suggestion.internalMinutes ? formatReportMinutes(suggestion.internalMinutes) : '');
+  const totalMinutes = parseDurationToMinutes(duration);
+  const internalMinutes = /^\d{2}:[0-5]\d$/.test(internalDuration) ? parseDurationToMinutes(internalDuration) : 0;
+  const responsibilityValid = onlyBreak || (responsibility !== null
+    && (responsibility !== 'both' || (internalMinutes > 0 && internalMinutes < totalMinutes)));
   const valid = /^\d{2}:[0-5]\d$/.test(duration) && Number(duration.slice(0, 2)) < 24
-    && answered && (parseDurationToMinutes(duration) > 0 ? Boolean(reason.trim()) : onlyBreak);
+    && answered && (totalMinutes > 0 ? Boolean(reason.trim()) && responsibilityValid : onlyBreak);
+  const applyLabel = onlyBreak ? 'Confirmar sem standby'
+    : responsibility === 'internal' ? (submitting ? 'Registrar pausa e continuar' : 'Registrar pausa interna')
+    : submitting ? 'Aplicar e continuar' : 'Aplicar standby';
   return (
     <Modal
       open
@@ -78,8 +88,8 @@ function StandbySuggestionDialog({ suggestion, existing, submitting, onResolve }
         <div className="standby-suggestion__actions">
           <Button variant="ghost" onClick={() => onResolve('cancel')}>Voltar ao relatório</Button>
           {submitting ? <Button variant="secondary" onClick={() => onResolve('skip')}>Continuar sem aplicar</Button> : null}
-          <Button variant="primary" disabled={!valid} onClick={() => onResolve(reviewedStandbyFields(suggestion, duration, reason, deductedMinutes))}>
-            {onlyBreak ? 'Confirmar sem standby' : submitting ? 'Aplicar e continuar' : 'Aplicar standby'}
+          <Button variant="primary" disabled={!valid} onClick={() => onResolve(reviewedStandbyFields(suggestion, duration, reason, deductedMinutes, responsibility ?? 'client', internalDuration))}>
+            {applyLabel}
           </Button>
         </div>
       )}
@@ -87,10 +97,11 @@ function StandbySuggestionDialog({ suggestion, existing, submitting, onResolve }
       <div className="standby-suggestion__editor">
         <p>Confira as pausas identificadas nas anotações. Você pode ajustar o total e o motivo antes de preencher o standby.</p>
         {suggestion.warnings.map(warning => <Alert key={warning} tone="warning">{warning}</Alert>)}
-        {existing.standby ? (
+        {existing.standby || existing.internalStandby ? (
           <Alert tone="info">
-            Standby atual: {existing.standbyDuration || 'tempo não informado'}; motivo: {existing.standbyMotivo || 'não informado'}.
-            {' '}Ao aplicar, o tempo e o motivo atuais serão substituídos pelos valores abaixo.
+            {existing.standby ? `Standby atual (cliente): ${existing.standbyDuration || 'tempo não informado'}; motivo: ${existing.standbyMotivo || 'não informado'}. ` : ''}
+            {existing.internalStandby ? `Pausa atual por nossa conta: ${existing.internalStandbyDuration || 'tempo não informado'}; motivo: ${existing.internalStandbyMotivo || 'não informado'}. ` : ''}
+            Ao aplicar, os tempos e motivos atuais serão substituídos pelos valores abaixo.
           </Alert>
         ) : null}
         <details open>
@@ -113,14 +124,24 @@ function StandbySuggestionDialog({ suggestion, existing, submitting, onResolve }
           </Alert>
         ) : null}
         <div className="field-group">
-          <label htmlFor={`${id}-duration`}>Tempo total de standby</label>
+          <label htmlFor={`${id}-duration`}>Tempo total das pausas</label>
           <Input id={`${id}-duration`} type="time" step={60} required value={duration} onChange={event => setEditedDuration(event.target.value)} />
         </div>
+        {!onlyBreak ? (
+          <StandbyResponsibilityQuestion
+            value={responsibility}
+            suggested={suggestion.responsibility}
+            totalMinutes={totalMinutes}
+            internalDuration={internalDuration}
+            onChange={setResponsibility}
+            onInternalDurationChange={setInternalDuration}
+          />
+        ) : null}
         <div className="field-group">
           <label htmlFor={`${id}-reason`}>Motivo sugerido</label>
           <Textarea id={`${id}-reason`} rows={4} required value={reason} onChange={event => setEditedReason(event.target.value)} />
         </div>
-        <p>As anotações originais serão preservadas. O standby será preenchido apenas ao aplicar a sugestão.</p>
+        <p>As anotações originais serão preservadas. O standby será preenchido apenas ao aplicar a sugestão. Pausas por nossa conta ficam só para controle interno e não aparecem no RDO.</p>
       </div>
     </Modal>
   );

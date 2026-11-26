@@ -85,6 +85,7 @@ import { AdequarAnotacaoButton } from '../components/anotacoes/AdequarAnotacaoBu
 import { ReportDateWarning } from '../components/reports/ReportDateWarning';
 import { reportDateDescribedBy } from '../utils/reportDateWarning';
 import { readStandbyReviewReceipt, type StandbyReviewReceipt } from '../utils/standbySuggestion';
+import { INTERNAL_STANDBY_INCOMPLETE, internalStandbyFromSpecialConditions, internalStandbyIncomplete, internalStandbySpecialConditions, pickInternalStandby, type InternalStandbyForm } from '../utils/internalStandby';
 
 const serviceTypeModalOptions = [
   { type: 'limpeza', icon: DS_ICONS.serviceChemical, name: 'Limpeza química' },
@@ -103,7 +104,7 @@ interface RdoServiceForm {
   data: Record<string, unknown>;
 }
 
-interface RdoFormState {
+interface RdoFormState extends InternalStandbyForm {
   projectId: string | null;
   sequenceNumber: string;
   reportDate: string;
@@ -308,6 +309,7 @@ function reportToForm(report: ReportSummary): RdoFormState {
     standbyDuration: getString(standbyDetails.total),
     standbyMotivo: getString(standbyDetails.motivo),
     standbySuggestionReview: readStandbyReviewReceipt(specialConditions.standbySuggestionReview),
+    ...internalStandbyFromSpecialConditions(specialConditions),
     noturno: Boolean(specialConditions.noturno || noturnoDetails.enabled || nightCollaboratorIds.length),
     noturnoStart: getString(noturnoDetails.inicio),
     noturnoEnd: getString(noturnoDetails.termino),
@@ -411,6 +413,7 @@ function buildPayload(
             total: form.standbyDuration,
             motivo: form.standbyMotivo
           },
+          ...internalStandbySpecialConditions(form),
           generalUploads: form.generalUploads,
           overtimeAccepted,
           noturnoDetails: {
@@ -631,6 +634,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     standby: form.standby,
     standbyDuration: form.standbyDuration,
     standbyMotivo: form.standbyMotivo,
+    ...pickInternalStandby(form),
     ddsDay: form.ddsDay,
     ddsDayStart: form.ddsDayStart,
     ddsDayEnd: form.ddsDayEnd,
@@ -870,6 +874,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         return false;
       }
     }
+    if (internalStandbyIncomplete(form)) { showToast(INTERNAL_STANDBY_INCOMPLETE, 'error'); return false; }
 
     const { navigateAfter = false, showSuccess = true } = options;
 
@@ -1088,6 +1093,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
             showTimes={operationalMode === 'full'}
             showNightShift={operationalMode === 'full'}
             showStandby={operationalMode === 'full' && report.reportType === 'RDO'}
+            showInternalStandby={operationalMode === 'full' && report.reportType === 'RDO' && !manualReport}
             showDds={operationalMode === 'full' && showDdsFields}
             summaryLabel={operationalMode === 'team-only' ? 'Equipe do relatório' : undefined}
             teamLabel={operationalMode === 'team-only' ? 'Colaboradores' : undefined}

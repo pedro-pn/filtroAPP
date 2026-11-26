@@ -885,9 +885,13 @@ export interface CrmOpportunityCard {
 
 export interface ProjectStandbyHistoryEntry {
   date: string;
+  /** Standby por conta do cliente (aparece no RDO). */
   standbyMinutes: number;
+  /** Pausas por nossa conta (uso interno). Ausente em respostas antigas. */
+  internalStandbyMinutes?: number;
   collaboratorCount: number | null;
   reason: string | null;
+  internalReason?: string | null;
 }
 
 export interface ProjectStandbyHistory {
@@ -1127,12 +1131,16 @@ export interface ProjectDetail {
   dailyProgressHistory?: DailyProgressPoint[];
   requiredWeeklyProgress?: RequiredWeeklyProgress;
   progressFilters?: ProgressFilters | null;
+  /** Standby por conta do cliente. */
   standby: { count: number; minutes: number };
+  /** Pausas por nossa conta (falha de equipamento, acidente...), só controle interno. */
+  internalStandby?: { count: number; minutes: number };
   ultimosDias: Array<{
     date: string;
     status: DayStatus;
     workedMinutes: number;
     standbyMinutes: number;
+    internalStandbyMinutes?: number;
   }>;
   overtimeMinutes: number;
   colaboradores: ProjectDetailCollaborator[];

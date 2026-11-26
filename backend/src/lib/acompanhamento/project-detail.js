@@ -337,7 +337,8 @@ export function buildRecentReportDays(byDay, project, limit = 10) {
       date: key,
       status: reportDayStatus(day.statusStandbyMin, journeyMinutes(project, day.reportDate)),
       workedMinutes: day.workedMin,
-      standbyMinutes: day.standbyMin
+      standbyMinutes: day.standbyMin,
+      internalStandbyMinutes: day.internalStandbyMin || 0
     }));
 }
 
@@ -553,6 +554,8 @@ export async function getProjectDetail(projectId, {
   const byDay = new Map(); // dateKey -> { standbyMin, statusStandbyMin, workedMin, overtimeMin, reportDate }
   let standbyCount = 0;
   let standbyMinutesTotal = 0;
+  let internalStandbyCount = 0;
+  let internalStandbyMinutesTotal = 0;
   let overtimeMinutesTotal = 0;
   let normalWorkedMinutesTotal = 0;
   let overtimeWorkedMinutesTotal = 0;
@@ -570,11 +573,14 @@ export async function getProjectDetail(projectId, {
     const standbyMin = metrics.standbyDurationMinutes;
     if (sc.standby === true) standbyCount += 1;
     standbyMinutesTotal += metrics.standbyPersonMinutes;
+    if (metrics.internalStandbyDurationMinutes > 0) internalStandbyCount += 1;
+    internalStandbyMinutesTotal += metrics.internalStandbyPersonMinutes;
     overtimeMinutesTotal += metrics.overtimeWorkedMinutes;
     normalWorkedMinutesTotal += metrics.normalWorkedMinutes;
     overtimeWorkedMinutesTotal += metrics.overtimeWorkedMinutes;
-    const acc = byDay.get(key) || { standbyMin: 0, statusStandbyMin: 0, workedMin: 0, overtimeMin: 0, reportDate: r.reportDate };
+    const acc = byDay.get(key) || { standbyMin: 0, internalStandbyMin: 0, statusStandbyMin: 0, workedMin: 0, overtimeMin: 0, reportDate: r.reportDate };
     acc.standbyMin += metrics.standbyPersonMinutes;
+    acc.internalStandbyMin += metrics.internalStandbyPersonMinutes;
     acc.statusStandbyMin += standbyMin;
     acc.workedMin += metrics.normalWorkedMinutes + metrics.overtimeWorkedMinutes;
     acc.overtimeMin += metrics.overtimeWorkedMinutes;
@@ -781,6 +787,8 @@ export async function getProjectDetail(projectId, {
     manualCosts: manualCost.entries,
     ...projectProgressProjection(loadedProgressDetails, progressMode, calendar),
     standby: { count: standbyCount, minutes: standbyMinutesTotal },
+    // Pausas por nossa conta (uso interno). `standby` acima = somente por conta do cliente.
+    internalStandby: { count: internalStandbyCount, minutes: internalStandbyMinutesTotal },
     ultimosDias,
     overtimeMinutes: overtimeMinutesTotal,
     colaboradores,

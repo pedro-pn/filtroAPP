@@ -268,6 +268,7 @@ test('buildRecentReportDays preserva os 10 RDOs mais recentes em ordem cronológ
     date: '2026-08-12',
     status: 'PARADO',
     workedMinutes: 0,
-    standbyMinutes: 480
+    standbyMinutes: 480,
+    internalStandbyMinutes: 0
   });
 });

@@ -337,9 +337,15 @@ function KpiCards({
           />
           <KpiCard
             appearance={appearance}
-            label="Standby"
+            label="Standby (cliente)"
             value={`${summary.standbyCount} dia${summary.standbyCount === 1 ? '' : 's'}`}
             supportingText={`${fmtMin(summary.standbyMinutes)} acumuladas`}
+          />
+          <KpiCard
+            appearance={appearance}
+            label="Pausas por nossa conta"
+            value={`${summary.internalStandbyCount ?? 0} dia${(summary.internalStandbyCount ?? 0) === 1 ? '' : 's'}`}
+            supportingText={`${fmtMin(summary.internalStandbyMinutes ?? 0)} acumuladas · uso interno`}
           />
         </div>
 
@@ -414,6 +420,13 @@ function KpiCards({
             appearance={appearance}
             label="Standby (horas)"
             value={fmtMin(summary.standbyMinutes)}
+          />
+        )}
+        {(summary.internalStandbyMinutes ?? 0) > 0 && (
+          <KpiCard
+            appearance={appearance}
+            label="Pausas nossa conta (horas)"
+            value={fmtMin(summary.internalStandbyMinutes ?? 0)}
           />
         )}
       </div>

@@ -107,3 +107,29 @@ test('reportWorkedMinutesByCollaborator ignora colaboradores diurnos duplicados'
     }
   );
 });
+
+test('reportPersonTimeMetrics separa pausa por nossa conta do standby do cliente', () => {
+  const metrics = reportPersonTimeMetrics({
+    daytimeCount: 2,
+    daytimeWorkedMinutes: 8 * 60,
+    nighttimeWorkedMinutes: 0,
+    specialConditions: {
+      standby: true,
+      standbyDetails: { total: '01:00' },
+      internalStandby: true,
+      internalStandbyDetails: { total: '00:30' }
+    }
+  }, ['c1', 'c2']);
+
+  assert.equal(metrics.standbyDurationMinutes, 60);
+  assert.equal(metrics.standbyPersonMinutes, 60 * 2);
+  assert.equal(metrics.internalStandbyDurationMinutes, 30);
+  assert.equal(metrics.internalStandbyPersonMinutes, 30 * 2);
+
+  const disabled = reportPersonTimeMetrics({
+    daytimeCount: 2,
+    daytimeWorkedMinutes: 8 * 60,
+    specialConditions: { internalStandby: false, internalStandbyDetails: { total: '00:30' } }
+  }, ['c1', 'c2']);
+  assert.equal(disabled.internalStandbyPersonMinutes, 0);
+});

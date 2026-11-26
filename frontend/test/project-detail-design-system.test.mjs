@@ -285,7 +285,8 @@ test('detalhe: DS preserva valores, escopo, metas e apropriação', async t => {
       assert.match(time, /260h/);
       assert.match(time, /1 dia/);
       assert.match(time, /Dias úteis/);
-      assert.equal((time.match(/class="acp-story-time-item"/g) ?? []).length, 5);
+      assert.equal((time.match(/class="acp-story-time-item"/g) ?? []).length, 6);
+      assert.match(time, /Pausas por nossa conta/);
       assert.doesNotMatch(time, /RDOs assinados|Últimos dias/);
       assert.match(time, /acp-story-hours-meter/);
       assert.match(time, /Normais 220h/);

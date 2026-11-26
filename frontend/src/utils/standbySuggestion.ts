@@ -1,11 +1,20 @@
 import { calculateWorkedMinutes, formatReportMinutes, parseDurationToMinutes } from './reportOvertime';
 
+/**
+ * `standby` = paralisação por conta do cliente (aparece no RDO).
+ * `internalStandby` = pausa por nossa conta (falha de equipamento, acidente...): só uso interno, nunca vai ao RDO.
+ */
 export interface StandbyFields {
   standby: boolean;
   standbyDuration: string;
   standbyMotivo: string;
+  internalStandby: boolean;
+  internalStandbyDuration: string;
+  internalStandbyMotivo: string;
   standbySuggestionReview?: StandbyReviewReceipt | null;
 }
+
+export type PauseResponsibility = 'client' | 'internal' | 'both';
 
 export interface StandbyReviewReceipt {
   version: 1;
@@ -13,6 +22,8 @@ export interface StandbyReviewReceipt {
   standby: boolean;
   totalMinutes: number;
   deductedBreakMinutes: number;
+  /** Minutos classificados como pausa por nossa conta (ausente em recibos antigos = 0). */
+  internalMinutes?: number;
 }
 
 export interface StandbyBreak {
@@ -38,6 +49,7 @@ export interface StandbyEvidence {
   source: string;
   text: string;
   minutes: number | null;
+  responsibility?: 'client' | 'internal' | null;
 }
 
 export interface StandbySuggestion {
@@ -48,6 +60,10 @@ export interface StandbySuggestion {
   evidence: StandbyEvidence[];
   warnings: string[];
   breaks: StandbyBreak[];
+  /** Responsabilidade inferida pelo texto; null quando não há pista suficiente (o colaborador escolhe). */
+  responsibility: PauseResponsibility | null;
+  /** Minutos sugeridos como "nossa conta" quando a responsabilidade é mista e os trechos têm duração clara. */
+  internalMinutes: number | null;
 }
 
 type Interval = [number, number];
@@ -67,6 +83,18 @@ const technicalWait = /\b(?:cura|secagem|reacao|decantacao|tempo de contato|esta
 const negated = /\b(?:sem|nao (?:houve|ocorreu|ocorreram|tivemos|tiveram))\s+(?:nenhuma?\s+)?(?:paradas?|pausas?|paralisac(?:ao|oes)|interrupc(?:ao|oes)|stand\s*-?\s*by)\b|\bnao (?:ficamos|ficou|estivemos|estava|estavam)\s+parad[oa]s?\b/;
 const uncertain = /\b(?:aproximad\w*|cerca de|mais ou menos|talvez|previst\w*|previsao|amanha|ontem|dia anterior|semana passada|poder\w*|dever\w*|se houver)\b/;
 const notCurrent = /\b(?:amanha|ontem|dia anterior|semana passada|previst\w*|previsao|se houver)\b/;
+// Pistas de responsabilidade. Cliente: aguardando liberação/documentação/condições da planta.
+// Nossa conta: falha/quebra de equipamento próprio, acidente, falta de recurso nosso.
+const clientCause = /\b(?:pt|apr|pts|permiss(?:ao|oes) de trabalho|permiss\w*|liberac(?:ao|oes)|liberad[oa]|documentac\w*|documentos?|energia|frente de (?:servico|trabalho)|cliente|contratante|fiscal(?:izacao)?|operacao da (?:planta|unidade)|parada da (?:planta|unidade)|andaime|isolamento|bloqueio|raquete\w*|chuva|tempestade|descargas? atmosfericas?|alerta de raios?|acesso|integrac(?:ao|oes)|crach\w*)\b/;
+const internalCause = /\b(?:falhas?(?! (?:de|na|no) (?:energia|rede|liberac\w*|cliente))|defeitos?|quebr\w*|pane|avaria\w*|vazamentos?|manutenc(?:ao|oes) corretiva|conserto|reparo|acidentes?|incidentes?|nosso equipamento|nossos equipamentos|nossa equipe|equipamento (?:da filtrovali|nosso|proprio)|falta de (?:ferramenta|epi|insumo|combustivel|oleo|elemento filtrante)|bomba (?:parou|travou|queimou)|motor (?:parou|travou|queimou)|gerador|compressor (?:parou|travou|queimou)|mangueira (?:rompeu|estourou)|atraso (?:da|de) (?:nossa )?equipe)\b/;
+
+export function classifyPauseResponsibility(text: string): 'client' | 'internal' | null {
+  const normalized = fold(text);
+  const client = clientCause.test(normalized);
+  const internal = internalCause.test(normalized);
+  return client === internal ? null : client ? 'client' : 'internal';
+}
+
 const fullDay = /\b(?:dia (?:todo|inteiro)|tod[oa] (?:o dia|a jornada)|durante tod[oa] (?:o dia|a jornada))\b/;
 const numbers: Record<string, number> = {
   um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6,
@@ -176,6 +204,8 @@ export function readStandbyReviewReceipt(value: unknown): StandbyReviewReceipt |
     || Number(record.totalMinutes) < 0 || Number(record.totalMinutes) >= 1440
     || !Number.isInteger(record.deductedBreakMinutes) || Number(record.deductedBreakMinutes) < 0
     || Number(record.deductedBreakMinutes) >= 1440 || record.standby !== (Number(record.totalMinutes) > 0)) return null;
+  if (record.internalMinutes !== undefined && (!Number.isInteger(record.internalMinutes)
+    || Number(record.internalMinutes) < 0 || Number(record.internalMinutes) >= 1440)) return null;
   return record as unknown as StandbyReviewReceipt;
 }
 
@@ -191,13 +221,35 @@ export function standbyMinutesAfterBreaks(suggestion: StandbySuggestion, deducti
   return deducted <= suggestion.totalMinutes ? suggestion.totalMinutes - deducted : null;
 }
 
-export function reviewedStandbyFields(suggestion: StandbySuggestion, duration: string, reason: string, deductedBreakMinutes: number): StandbyFields {
+/**
+ * Divide o total revisado entre standby do cliente (RDO) e pausa por nossa conta (interno).
+ * `internalDuration` só é usado quando a responsabilidade é mista ("both").
+ */
+export function reviewedStandbyFields(
+  suggestion: StandbySuggestion,
+  duration: string,
+  reason: string,
+  deductedBreakMinutes: number,
+  responsibility: PauseResponsibility = 'client',
+  internalDuration = ''
+): StandbyFields {
   const totalMinutes = parseDurationToMinutes(duration);
+  const internalMinutes = totalMinutes <= 0 ? 0
+    : responsibility === 'internal' ? totalMinutes
+    : responsibility === 'both' ? Math.min(totalMinutes, Math.max(0, parseDurationToMinutes(internalDuration) || 0))
+    : 0;
+  const clientMinutes = totalMinutes > 0 ? totalMinutes - internalMinutes : 0;
+  const text = reason.trim();
   return {
-    standby: totalMinutes > 0,
-    standbyDuration: totalMinutes > 0 ? duration : '',
-    standbyMotivo: totalMinutes > 0 ? reason.trim() : '',
-    standbySuggestionReview: { version: 1, sourceKey: suggestion.key, standby: totalMinutes > 0, totalMinutes, deductedBreakMinutes }
+    standby: clientMinutes > 0,
+    standbyDuration: clientMinutes > 0 ? formatReportMinutes(clientMinutes) : '',
+    standbyMotivo: clientMinutes > 0 ? text : '',
+    internalStandby: internalMinutes > 0,
+    internalStandbyDuration: internalMinutes > 0 ? formatReportMinutes(internalMinutes) : '',
+    internalStandbyMotivo: internalMinutes > 0 ? text : '',
+    standbySuggestionReview: {
+      version: 1, sourceKey: suggestion.key, standby: clientMinutes > 0, totalMinutes: clientMinutes, deductedBreakMinutes, internalMinutes
+    }
   };
 }
 
@@ -284,19 +336,34 @@ export function suggestStandby(input: StandbyReportInput): StandbySuggestion | n
     parseDurationToMinutes(input.lunchBreak), input.noturno,
     ...(input.noturno ? [clockMinutes(input.noturnoStart), clockMinutes(input.noturnoEnd), parseDurationToMinutes(input.noturnoInterval)] : [])]));
   const registered = input.standby ? parseDurationToMinutes(input.standbyDuration) : 0;
+  const registeredInternal = input.internalStandby ? parseDurationToMinutes(input.internalStandbyDuration) : 0;
+  const clientComplete = !input.standby || Boolean(input.standbyMotivo.trim());
+  const internalComplete = !input.internalStandby || Boolean(input.internalStandbyMotivo.trim());
   const receipt = readStandbyReviewReceipt(input.standbySuggestionReview);
   if (receipt?.sourceKey === key && receipt.standby === input.standby && receipt.totalMinutes === registered
-    && (!input.standby || input.standbyMotivo.trim())) return null;
-  // A complete manual entry already covering the detected total takes precedence.
-  if (registered > 0 && input.standbyMotivo.trim() && (totalMinutes === null || registered >= totalMinutes)) return null;
+    && (receipt.internalMinutes ?? 0) === registeredInternal && clientComplete && internalComplete) return null;
+  // A complete manual entry (cliente + nossa conta) already covering the detected total takes precedence.
+  const covered = registered + registeredInternal;
+  if (covered > 0 && clientComplete && internalComplete && (totalMinutes === null || covered >= totalMinutes)) return null;
+
+  const classified = evidence.map(item => ({ ...item, responsibility: classifyPauseResponsibility(item.text) }));
+  // Trechos sem pista (ex.: "parados das 8h às 10h") não anulam os que indicam a causa.
+  const classes = new Set(classified.map(item => item.responsibility).filter(item => item !== null));
+  const responsibility: PauseResponsibility | null = classes.size === 0 ? null
+    : classes.size === 1 ? [...classes][0] : 'both';
+  const internalEvidence = classified.filter(item => item.responsibility === 'internal');
+  const internalMinutes = responsibility === 'both' && internalEvidence.every(item => item.minutes !== null)
+    ? internalEvidence.reduce((sum, item) => sum + (item.minutes || 0), 0) : null;
 
   return {
     key,
     totalMinutes,
     duration: totalMinutes === null ? '' : formatReportMinutes(totalMinutes),
     reason: `Paralisações registradas: ${occurrences.map(item => item.text).join('; ')}.`,
-    evidence,
+    evidence: classified,
     warnings,
-    breaks: totalMinutes === null ? [] : breaks
+    breaks: totalMinutes === null ? [] : breaks,
+    responsibility,
+    internalMinutes: internalMinutes !== null && totalMinutes !== null && internalMinutes < totalMinutes ? internalMinutes : null
   };
 }
