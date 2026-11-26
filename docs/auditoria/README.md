@@ -4,4 +4,4 @@ Uma análise por arquivo (`AAAA-MM-DD-13-pilares.md`), no formato do "Modelo de 
 
 | Data | Resultado |
 |---|---|
-| 2026-11-26 | [8 ✅, 5 🟡, nenhum ❌](2026-11-26-13-pilares.md) |
+| 2026-11-26 | [9 ✅, 4 🟡, nenhum ❌](2026-11-26-13-pilares.md) |
