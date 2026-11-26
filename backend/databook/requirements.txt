@@ -2,4 +2,4 @@
 # Atualizar = regenerar e reaprovar as referências (ver README).
 reportlab==5.0.1
 pypdf==6.20.0
-Pillow==12.3.0
+Pillow==13.0.0
