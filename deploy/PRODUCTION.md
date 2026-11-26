@@ -579,6 +579,12 @@ VITE_ERROR_TRACKING_ENABLED=true
 VITE_ERROR_TRACKING_ENDPOINT=
 ```
 
+### Logs centralizados
+
+Os logs de todos os contêineres vão para o Grafana Cloud (14 dias, com máscara de dado pessoal) e
+cada contêiner guarda no máximo 100 MB no servidor. Ativação, buscas e problemas comuns em
+[LOGS.md](LOGS.md).
+
 ### Alertas por e-mail
 
 Com `OPERATIONS_ALERT_EMAILS` preenchido, o backend e o worker enviam e-mail

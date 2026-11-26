@@ -31,6 +31,10 @@ df -h / /var/lib/docker
 dcp logs --since 30m --tail 200 backend worker nginx
 ```
 
+Para o que aconteceu **antes do último deploy** ou em vários serviços ao mesmo tempo, busque no
+Grafana Cloud (**Explore**, `{env="production"}`; buscas prontas em
+[deploy/LOGS.md](../deploy/LOGS.md#buscas-úteis-logql)). O `dcp logs` só tem o contêiner atual.
+
 O painel **Administração → Operações** (`/api/operations/status`) mostra jobs,
 filas, último backup e último restore.
 
@@ -91,6 +95,8 @@ du -sh /root/backups/filtrovali/* 2>/dev/null | sort -h | tail
      `docker image rm` das tags de commit que não são `previous` nem a atual;
      `docker builder prune` libera o cache de build;
   4. logs de container grandes: `du -sh /var/lib/docker/containers/*/*-json.log | sort -h | tail`.
+     Os serviços do compose têm rotação (5 × 20 MB); um log grande é de contêiner criado antes dela
+     ou de outro projeto.
 - **Muitas conexões**: o pool é limitado (8 no backend, 2 no worker). Veja quem
   está conectado:
 

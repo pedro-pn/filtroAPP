@@ -1,7 +1,7 @@
 # Registro de Atividades de Tratamento (ROPA) — NewRDO
 
-**Versão:** ropa_v4
-**Data:** 2026-11-18
+**Versão:** ropa_v5
+**Data:** 2026-11-26
 **Controlador:** Filtrovali Serviços de Filtragem de Óleos Industriais e Limpeza de Tubulações Ltda.
 **Canal de privacidade:** privacidade@filtrovali.com.br
 
@@ -23,6 +23,7 @@ Este documento resume as principais operações de tratamento de dados pessoais 
 | Integração Conecta RH (cadastro de colaboradores) | Colaboradores, pré-admitidos e ex-colaboradores | Identificação, CPF, matrícula, e-mail, cargo, vínculo, datas de admissão e desligamento, situação de documentos/exames/treinamentos (sem o arquivo) e salário-base por cargo (não individual) | Manter o cadastro do efetivo, a elegibilidade para mobilização e os custos por cargo sem digitação manual | Execução de contrato de trabalho e cumprimento de obrigação legal/regulatória (LGPD art. 7º, V e II); dados de exames (saúde) apenas para tutela da saúde/obrigação legal de SST (art. 11, II, a) — **revisar com o DPO** | Enquanto houver vínculo e por 5 anos após o desligamento; depois os eventos brutos recebidos (`ConectaRhAggregate`) têm nome, CPF, matrícula, e-mail e conteúdo de documentos removidos, junto com a anonimização do colaborador | Conecta RH (origem/operador), NewRDO, banco de dados | API com token de leitura, recebimento idempotente com hash, acesso por módulo, documentos consultados sob demanda e não armazenados |
 | Auditoria e segurança | Todos os usuários e titulares envolvidos em ações auditáveis | Usuário, ação, data/hora, IP, User-Agent, identificadores técnicos; contadores de falhas de login e bloqueios por IP e por conta existente (detecção de abuso) | Segurança, rastreabilidade, prevenção a fraudes e defesa de direitos | Legítimo interesse; exercício regular de direitos | IP/User-Agent de logs operacionais anonimizados após 2 anos; contadores de abuso com IP apagados após 30 dias | NewRDO, banco de dados | Logs de auditoria, minimização no job de retenção; o texto digitado como usuário em logins falhos não é guardado |
 | Direitos do titular | Titulares que acionam o canal LGPD | Nome, e-mail, identificador, tipo de solicitação, detalhes, protocolo, IP/User-Agent | Receber, registrar e responder solicitações do Art. 18 da LGPD | Cumprimento de obrigação legal/regulatória | Pelo período necessário para comprovação de atendimento | NewRDO, canal de privacidade | Protocolo único, status, controle de escopo e análise manual |
+| Logs técnicos da aplicação (logs centralizados) | Usuários internos e externos que acessam o sistema | IP, data/hora, método e rota acessada (sem query string no backend), status e tempo de resposta, usuário em mensagens de erro, identificadores técnicos (`requestId`) | Investigar falhas e incidentes de segurança, e acompanhar desempenho | Legítimo interesse em segurança e continuidade do serviço | 14 dias no Grafana Cloud; no servidor, rotação de até 100 MB por contêiner | Grafana Labs (operador, Grafana Cloud) — **transferência internacional** conforme a região da stack | Envio pelo agente `deploy/logs/` com máscara de e-mail, CPF, senhas em URL, tokens Bearer e de API e segredos em query string; parâmetros de consultas do Postgres descartados; acesso ao Grafana restrito à TI (`deploy/LOGS.md`) |
 
 ## Ambiente de homologação
 
@@ -45,3 +46,5 @@ anexos, PDFs) não são copiados. Se surgir coluna com dado pessoal sem regra de
   automática dos colaboradores; pesquisa de satisfação com a regra de 2 anos efetivamente aplicada. Base legal da
   integração e dos dados de exames a revisar com o DPO. Fotos e anexos dos RDOs: removidos 10 anos após o encerramento
   do projeto, mantendo os PDFs emitidos/assinados; exceções por projeto no painel de Operações.
+- 2026-11-26 (ropa_v5): incluídos os logs técnicos centralizados no Grafana Cloud (operador; 14 dias), com máscara
+  de dado pessoal e segredos antes do envio.
