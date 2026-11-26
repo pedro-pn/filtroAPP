@@ -110,6 +110,10 @@ Evidência completa: [docs/evidence/load-test-staging-20261126.json](evidence/lo
   Grafana Cloud (Explore, fonte `-logs`, últimos 7 dias):
   `sum(rate({env="production", service="backend"} |~ "^(GET|POST|PUT|PATCH|DELETE) /api/" [5m]))`.
   O máximo do gráfico, em req/s, dividido por 16 dá quanto da capacidade o pico real usa.
+  **Medido em 2026-11-26: pico de 0,56 req/s** (média de 5 min). O pico real usa **~3,5%** da
+  capacidade, uma folga de **~28 vezes**. Ressalva: os logs começaram nesse dia, então a medida
+  cobre só algumas horas de uma quinta-feira. Repita a busca depois de um mês de logs (início
+  de semana, fechamento de mês) e atualize este número.
 - **O que esgota primeiro é CPU, e nos dois lados.** O backend é **um processo Node**: o código
   da aplicação usa ~1 núcleo, e o que passa de 100% é coleta de lixo e I/O. Por isso aumentar
   `cpus` do contêiner quase não ajuda; o próximo passo de escala seria uma segunda instância do
