@@ -9,6 +9,7 @@ export type OperationalProblem = {
   source?: string | null;
   error?: string | null;
   backup?: OperationalFileStatus;
+  offsiteBackup?: OperationalFileStatus;
   restore?: OperationalFileStatus;
   deploy?: OperationalDeployStatus;
 };
@@ -36,6 +37,7 @@ export type OperationalFileStatus = {
   message?: string;
   runDir?: string;
   backupSource?: string;
+  destination?: string;
 };
 
 // Uso do caminho antigo do webhook do PrismaCRM (spec 042, 7.6).
@@ -135,6 +137,7 @@ export type OperationalStatus = {
     activeLocks: Array<Record<string, unknown>>;
   };
   backup: OperationalFileStatus;
+  offsiteBackup?: OperationalFileStatus;
   restore: OperationalFileStatus;
   deploy?: OperationalDeployStatus;
   abuse?: OperationalAbuseStatus;

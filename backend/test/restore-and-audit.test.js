@@ -161,6 +161,20 @@ test('backup script prevents concurrent runs before upload and cleanup', () => {
   assert.ok(lockIndex < cleanupIndex, 'lock must be held while pruning local backups');
 });
 
+test('backup com B2 grava status próprio da cópia externa e falha sem o comando b2', () => {
+  const script = fs.readFileSync(new URL('../../deploy/backup-prod.sh', import.meta.url), 'utf8');
+  const uploadIndex = script.indexOf('"$B2_BIN" sync "$RUN_DIR" "$B2_DEST"');
+  const offsiteSuccessIndex = script.indexOf('write_offsite_status "SUCCESS"');
+
+  assert.match(script, /OFFSITE_STATUS_FILE="\$\{OFFSITE_STATUS_FILE:-\$BACKUP_ROOT\/status\/offsite-latest\.json\}"/);
+  assert.ok(offsiteSuccessIndex > uploadIndex, 'o status externo só vira SUCCESS depois do sync');
+  // Sem o binário do b2, a rotina com B2_URI falha (ERR trap) em vez de seguir com SUCCESS.
+  assert.doesNotMatch(script, /skipping Backblaze B2 upload/);
+  assert.match(script, /a cópia externa não foi feita" >&2\n\s+false/);
+  // A falha de uma rotina com B2_URI também marca o status externo.
+  assert.match(script, /if \[ -n "\$B2_URI" \] && \[ "\$UPLOAD_SUCCEEDED" != "true" \]; then\n\s+write_offsite_status "FAILURE"/);
+});
+
 test('restore script aborts before docker when reports archive is required and missing', () => {
   const { result, dockerCalls } = runRestoreWithFakeDocker({
     RESTORE_REPORTS: 'true',

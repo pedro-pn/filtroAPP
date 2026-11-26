@@ -36,7 +36,7 @@ Grafana Cloud (**Explore**, `{env="production"}`; buscas prontas em
 [deploy/LOGS.md](../deploy/LOGS.md#buscas-úteis-logql)). O `dcp logs` só tem o contêiner atual.
 
 O painel **Administração → Operações** (`/api/operations/status`) mostra jobs,
-filas, último backup e último restore.
+filas, último backup e último restore. O cartão **Cópia externa (B2)** mostra o último envio ao Backblaze; ele é separado do backup local, que roda várias vezes ao dia.
 
 | Sintoma | Vá para |
 |---|---|

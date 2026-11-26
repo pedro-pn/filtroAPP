@@ -34,3 +34,4 @@ Regras:
 | 2026-11-18 | [Restauração de backup nunca comprovada](2026-11-18-restore-nao-comprovado.md) | Risco latente (auditoria) |
 | 2026-11-19 | [Ensaio de volta: `--rollback-to before-rollback` não desfez a volta](2026-11-19-ensaio-volta-before-rollback.md) | Incidente (ensaio de volta) |
 | 2026-11-19 | [Relatórios com data de execução no futuro](2026-11-19-datas-de-relatorio-no-futuro.md) | Correção de dados |
+| 2026-11-26 | [Falha na cópia externa (B2) ficaria escondida pelo backup local](2026-11-26-status-do-b2-encoberto.md) | Risco latente (auditoria) |
