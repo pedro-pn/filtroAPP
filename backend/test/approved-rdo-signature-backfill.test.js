@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import prisma from '../src/lib/prisma.js';
+import { ensureApprovedRdoSignatureRounds } from '../src/lib/reports/approved-rdo-signature-backfill.js';
 import {
-  ensureApprovedRdoSignatureRounds,
-  reconcileProjectClientSignatureRequirements
+  reconcileProjectClientSignatureRequirements,
+  shouldCreateInternalSignatureRound
 } from '../src/routes/resources/reports.js';
 
 function project(overrides = {}) {
@@ -22,19 +23,28 @@ function rdo(id, overrides = {}) {
   };
 }
 
+function deps(findMany, ensureRound) {
+  return {
+    database: { report: { findMany } }, include: {}, isUnavailable: report => !!report.deletedAt,
+    shouldCreateRound: shouldCreateInternalSignatureRound, ensureRound
+  };
+}
+
 function stubFindMany(t, implementation) {
   const original = prisma.report.findMany;
   prisma.report.findMany = implementation;
   t.after(() => { prisma.report.findMany = original; });
 }
 
-test('RDO aprovado antes do cadastro do signatário ganha rodada, em ordem cronológica', async t => {
+test('RDO aprovado antes do cadastro do signatário ganha rodada, em ordem cronológica', async () => {
   const queries = [];
-  stubFindMany(t, async args => { queries.push(args); return [rdo('rdo-1'), rdo('rdo-2')]; });
   const calls = [];
   const result = await ensureApprovedRdoSignatureRounds('project-1', {
-    userId: 'manager-1', evidence: { ip: '1.1.1.1' },
-    ensureRound: async (report, userId, evidence) => { calls.push([report.id, userId, evidence]); return { version: { id: `${report.id}-v1` } }; }
+    ...deps(
+      async args => { queries.push(args); return [rdo('rdo-1'), rdo('rdo-2')]; },
+      async (report, userId, evidence) => { calls.push([report.id, userId, evidence]); return { version: { id: `${report.id}-v1` } }; }
+    ),
+    userId: 'manager-1', evidence: { ip: '1.1.1.1' }
   });
 
   assert.deepEqual(result, { createdRounds: 2 });
@@ -50,23 +60,21 @@ test('RDO aprovado antes do cadastro do signatário ganha rodada, em ordem crono
 });
 
 test('sem signatário, projeto oculto ou rejeição ativa não cria rodada; falha de um não interrompe os demais', async t => {
-  stubFindMany(t, async () => [
+  const reports = [
     rdo('sem-signatario', { project: project({ clientEmailPrimary: '' }) }),
     rdo('oculto', { project: project({ managerOnly: true }) }),
     rdo('falha'),
     rdo('ok')
-  ]);
+  ];
   const calls = [];
   const originalError = console.error;
   console.error = () => {};
   t.after(() => { console.error = originalError; });
-  const result = await ensureApprovedRdoSignatureRounds('project-1', {
-    ensureRound: async report => {
-      calls.push(report.id);
-      if (report.id === 'falha') throw new Error('PDF indisponível');
-      return { version: { id: 'v1' } };
-    }
-  });
+  const result = await ensureApprovedRdoSignatureRounds('project-1', deps(async () => reports, async report => {
+    calls.push(report.id);
+    if (report.id === 'falha') throw new Error('PDF indisponível');
+    return { version: { id: 'v1' } };
+  }));
   assert.deepEqual(calls, ['falha', 'ok']);
   assert.deepEqual(result, { createdRounds: 1 });
 });

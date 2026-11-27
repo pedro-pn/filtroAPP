@@ -129,6 +129,7 @@ import historicalServicesRouter from './historical-services.js';
 import { registerReportReleaseRoutes } from './report-release-routes.js';
 import { registerReportPublicViewRoutes } from './report-public-view-routes.js';
 import { registerReportRegenerationRoutes } from './report-regeneration-routes.js';
+import { ensureApprovedRdoSignatureRounds } from '../../lib/reports/approved-rdo-signature-backfill.js';
 import { registerReportPdfAttachmentRoutes } from './report-pdf-attachment-routes.js';
 import { createReportPdfAttachmentAppender, withReportPdfAttachmentCount } from '../../lib/reports/pdf-attachments.js';
 import { canCreateServiceOnlyRdoReports, canReviewRdoReports } from '../../../../shared/modules/rdo-permissions.js';
@@ -1967,49 +1968,14 @@ export async function reconcileProjectClientSignatureRequirements(projectId, opt
   }
 
   const { createdRounds } = options.includeApprovedWithoutRound
-    ? await ensureApprovedRdoSignatureRounds(projectId, { userId, evidence, ensureRound: options.ensureRound })
+    ? await ensureApprovedRdoSignatureRounds(projectId, {
+      database: prisma, include, isUnavailable: isReportUnavailable, userId, evidence,
+      shouldCreateRound: shouldCreateInternalSignatureRound,
+      ensureRound: options.ensureRound || ensureInternalSignatureRoundAndNotify
+    })
     : { createdRounds: 0 };
 
   return { updatedReports, finalizedReports, createdRounds };
-}
-
-// RDO aprovado enquanto o projeto não tinha signatário cliente fica sem rodada de assinatura
-// (a aprovação só registra um aviso). A reconciliação acima só olha relatórios que já têm versão
-// ativa, então, quando o signatário é cadastrado depois, esses RDOs nunca entravam no link único
-// do cliente. Aqui eles ganham a rodada (PDF-base + token + e-mail), em ordem cronológica.
-export async function ensureApprovedRdoSignatureRounds(projectId, options = {}) {
-  if (!projectId) return { createdRounds: 0 };
-  const ensureRound = options.ensureRound || ensureInternalSignatureRoundAndNotify;
-  const reports = await prisma.report.findMany({
-    where: {
-      projectId,
-      deletedAt: null,
-      reportType: ReportType.RDO,
-      status: ReportStatus.APPROVED,
-      physicalSignedAt: null,
-      zapsignDocToken: null,
-      versions: { none: { status: ReportVersionStatus.ACTIVE } }
-    },
-    include,
-    orderBy: [{ reportDate: 'asc' }, { sequenceNumber: 'asc' }]
-  });
-
-  let createdRounds = 0;
-  for (const report of reports) {
-    if (isReportUnavailable(report) || !shouldCreateInternalSignatureRound(report)) continue;
-    try {
-      const preparation = await ensureRound(report, options.userId || null, options.evidence || {});
-      if (preparation?.version) createdRounds += 1;
-    } catch (error) {
-      // Um PDF que falhe não pode impedir os demais nem desfazer o cadastro já salvo do projeto.
-      console.error('Falha ao criar rodada de assinatura de RDO aprovado sem rodada.', {
-        reportId: report.id,
-        projectId,
-        error: error?.message || error
-      });
-    }
-  }
-  return { createdRounds };
 }
 
 function assertReportMutable(report) {
