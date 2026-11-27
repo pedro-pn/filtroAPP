@@ -113,6 +113,19 @@ fi
 
 cd "$PROJECT_DIR"
 
+# O compose local (docker-compose.local.yml) só tem postgres e backend: sem
+# serviço migrate e sem nginx. Os passos abaixo usam apenas o que existe.
+COMPOSE_SERVICES="$(docker compose -f "$COMPOSE_FILE" config --services)"
+has_service() {
+  grep -qxF "$1" <<<"$COMPOSE_SERVICES"
+}
+APP_SERVICES=()
+for service in "$BACKEND_SERVICE" "$NGINX_SERVICE"; do
+  if has_service "$service"; then
+    APP_SERVICES+=("$service")
+  fi
+done
+
 if [ "$RESTORE_PROXY" = "true" ] && [ -f "$BACKUP_SOURCE/proxy.tar.gz" ]; then
   if [ ! -f "$PROXY_COMPOSE_FILE" ]; then
     echo "[restore] proxy compose not found: $PROXY_COMPOSE_FILE; set PROXY_COMPOSE_FILE to the independent infra-proxy checkout" >&2
@@ -146,7 +159,9 @@ echo "[restore] starting postgres service"
 docker compose -f "$COMPOSE_FILE" up -d --no-recreate "$POSTGRES_SERVICE"
 
 echo "[restore] stopping public application services"
-docker compose -f "$COMPOSE_FILE" stop "$NGINX_SERVICE" "$BACKEND_SERVICE" || true
+if [ "${#APP_SERVICES[@]}" -gt 0 ]; then
+  docker compose -f "$COMPOSE_FILE" stop "${APP_SERVICES[@]}" || true
+fi
 
 if [ "$RESTORE_REPORTS" = "true" ] && [ -d "$RESTORE_STAGING_DIR/relatorios" ]; then
   echo "[restore] replacing reports volume $REPORTS_VOLUME from staged archive"
@@ -203,7 +218,12 @@ gunzip -c "$BACKUP_SOURCE/postgres.sql.gz" | docker compose -f "$COMPOSE_FILE" e
 
 if [ "$RUN_MIGRATIONS" = "true" ]; then
   echo "[restore] applying prisma migrations"
-  docker compose -f "$COMPOSE_FILE" run --rm --no-deps "$MIGRATE_SERVICE"
+  if has_service "$MIGRATE_SERVICE"; then
+    docker compose -f "$COMPOSE_FILE" run --rm --no-deps "$MIGRATE_SERVICE"
+  else
+    echo "[restore] no $MIGRATE_SERVICE service in $COMPOSE_FILE; running migrations in a one-off $BACKEND_SERVICE container"
+    docker compose -f "$COMPOSE_FILE" run --rm --no-deps "$BACKEND_SERVICE" npx prisma migrate deploy
+  fi
 fi
 
 if [ -f "$APP_ROLE_SQL" ]; then
@@ -213,7 +233,9 @@ if [ -f "$APP_ROLE_SQL" ]; then
 fi
 
 echo "[restore] starting application services"
-docker compose -f "$COMPOSE_FILE" up -d --no-recreate "$BACKEND_SERVICE" "$NGINX_SERVICE"
+if [ "${#APP_SERVICES[@]}" -gt 0 ]; then
+  docker compose -f "$COMPOSE_FILE" up -d --no-recreate "${APP_SERVICES[@]}"
+fi
 
 echo "[restore] done"
 write_restore_status "SUCCESS" 0 0 || true
