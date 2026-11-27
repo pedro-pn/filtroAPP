@@ -15,7 +15,8 @@ function runRestoreWithFakeDocker(env = {}, options = {}) {
   fs.mkdirSync(backup);
   fs.mkdirSync(project);
   fs.mkdirSync(bin);
-  fs.writeFileSync(path.join(backup, 'postgres.sql.gz'), '');
+  if (options.validDump) writeGzip(path.join(backup, 'postgres.sql.gz'), '');
+  else fs.writeFileSync(path.join(backup, 'postgres.sql.gz'), '');
   if (options.reportsArchive) fs.writeFileSync(path.join(backup, 'relatorios.tar.gz'), '');
   if (options.certsArchive) fs.writeFileSync(path.join(backup, 'certs.tar.gz'), '');
   if (options.proxyArchive) fs.writeFileSync(path.join(backup, 'proxy.tar.gz'), '');
@@ -265,18 +266,53 @@ exit 0
   assert.doesNotMatch(dockerCalls, /DROP DATABASE IF EXISTS/);
 });
 
+function composeDockerScript(services) {
+  return `#!/usr/bin/env bash
+echo "$@" >> "$DOCKER_TEST_LOG"
+if [[ "$*" == *"config --services"* ]]; then
+  printf '%s\\n' ${services.join(' ')}
+fi
+exit 0
+`;
+}
+
+test('restore uses the migrate service and nginx when the compose defines them', () => {
+  const { result, dockerCalls } = runRestoreWithFakeDocker({
+    RESTORE_REPORTS: 'false', RESTORE_CERTS: 'false', RUN_MIGRATIONS: 'true'
+  }, { validDump: true, dockerScript: composeDockerScript(['postgres', 'migrate', 'backend', 'nginx', 'worker']) });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(dockerCalls, /compose -f docker-compose\.prod\.yml stop backend nginx\n/);
+  assert.match(dockerCalls, /compose -f docker-compose\.prod\.yml run --rm --no-deps migrate\n/);
+  assert.match(dockerCalls, /compose -f docker-compose\.prod\.yml up -d --no-recreate backend nginx\n/);
+});
+
+test('restore on the local compose migrates through the backend and skips missing nginx', () => {
+  const { result, dockerCalls } = runRestoreWithFakeDocker({
+    RESTORE_REPORTS: 'false', RESTORE_CERTS: 'false', RUN_MIGRATIONS: 'true',
+    COMPOSE_FILE: 'docker-compose.local.yml'
+  }, { validDump: true, dockerScript: composeDockerScript(['postgres', 'backend']) });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(dockerCalls, /compose -f docker-compose\.local\.yml stop backend\n/);
+  assert.match(dockerCalls, /compose -f docker-compose\.local\.yml run --rm --no-deps backend npx prisma migrate deploy\n/);
+  assert.match(dockerCalls, /compose -f docker-compose\.local\.yml up -d --no-recreate backend\n/);
+  assert.doesNotMatch(dockerCalls, /nginx|migrate\n/);
+});
+
 test('restore script stops public services before mutating database or volumes', () => {
   const script = fs.readFileSync(new URL('../../deploy/restore-prod.sh', import.meta.url), 'utf8');
 
-  assert.match(script, /docker compose -f "\$COMPOSE_FILE" stop "\$NGINX_SERVICE" "\$BACKEND_SERVICE"/);
+  const stopIndex = script.indexOf('docker compose -f "$COMPOSE_FILE" stop "${APP_SERVICES[@]}"');
+
+  assert.match(script, /for service in "\$BACKEND_SERVICE" "\$NGINX_SERVICE"; do/);
+  assert.ok(stopIndex !== -1, 'public services must be stopped');
   assert.ok(
-    script.indexOf('docker compose -f "$COMPOSE_FILE" stop "$NGINX_SERVICE" "$BACKEND_SERVICE"')
-      < script.indexOf('DROP DATABASE IF EXISTS $POSTGRES_DB'),
+    stopIndex < script.indexOf('DROP DATABASE IF EXISTS $POSTGRES_DB'),
     'public services must stop before database is dropped'
   );
   assert.ok(
-    script.indexOf('docker compose -f "$COMPOSE_FILE" stop "$NGINX_SERVICE" "$BACKEND_SERVICE"')
-      < script.indexOf('cp -a /staging/relatorios/. /to/.restore-staging/'),
+    stopIndex < script.indexOf('cp -a /staging/relatorios/. /to/.restore-staging/'),
     'public services must stop before active report volume replacement'
   );
 });
@@ -360,7 +396,7 @@ exit 0
 
 test('restore script starts application services only after restore steps', () => {
   const script = fs.readFileSync(new URL('../../deploy/restore-prod.sh', import.meta.url), 'utf8');
-  const startIndex = script.indexOf('docker compose -f "$COMPOSE_FILE" up -d --no-recreate "$BACKEND_SERVICE" "$NGINX_SERVICE"');
+  const startIndex = script.indexOf('docker compose -f "$COMPOSE_FILE" up -d --no-recreate "${APP_SERVICES[@]}"');
 
   assert.ok(startIndex !== -1, 'backend/nginx must be started at the end');
   const migrationIndex = script.indexOf('run --rm --no-deps "$MIGRATE_SERVICE"');

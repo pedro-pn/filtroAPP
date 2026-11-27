@@ -447,6 +447,21 @@ Sem rodar migrations:
 BACKUP_SOURCE=/root/backups/filtrovali/2026-04-24-030001 RUN_MIGRATIONS=false ./deploy/restore-prod.sh
 ```
 
+Num ambiente local (`docker-compose.local.yml`, só `postgres` e `backend`), o
+script pula o nginx e, sem serviço `migrate`, roda `prisma migrate deploy` num
+container one-off do backend. Os nomes dos volumes e o status precisam apontar
+para o ambiente local:
+
+```bash
+BACKUP_SOURCE=/caminho/do/backup \
+  COMPOSE_FILE=docker-compose.local.yml \
+  REPORTS_VOLUME=filtrovali_local_relatorios \
+  RESTORE_CERTS=false \
+  RESTORE_STATUS_FILE=/tmp/restore-latest.json \
+  RUN_MIGRATIONS=true \
+  ./deploy/restore-prod.sh
+```
+
 ## Ensaio de restauração (`deploy/restore-drill.sh`)
 
 Backup que nunca foi restaurado não é backup comprovado. O ensaio:
