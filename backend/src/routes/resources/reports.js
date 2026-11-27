@@ -1780,7 +1780,7 @@ export function addedRequiredClientSigners(report, version = null) {
 }
 
 export async function reconcileProjectClientSignatureRequirements(projectId, options = {}) {
-  if (!projectId) return { updatedReports: 0, finalizedReports: 0 };
+  if (!projectId) return { updatedReports: 0, finalizedReports: 0, createdRounds: 0 };
   const evidence = options.evidence || {};
   const userId = options.userId || null;
   const reports = await prisma.report.findMany({
@@ -1966,7 +1966,50 @@ export async function reconcileProjectClientSignatureRequirements(projectId, opt
     }
   }
 
-  return { updatedReports, finalizedReports };
+  const { createdRounds } = options.includeApprovedWithoutRound
+    ? await ensureApprovedRdoSignatureRounds(projectId, { userId, evidence, ensureRound: options.ensureRound })
+    : { createdRounds: 0 };
+
+  return { updatedReports, finalizedReports, createdRounds };
+}
+
+// RDO aprovado enquanto o projeto não tinha signatário cliente fica sem rodada de assinatura
+// (a aprovação só registra um aviso). A reconciliação acima só olha relatórios que já têm versão
+// ativa, então, quando o signatário é cadastrado depois, esses RDOs nunca entravam no link único
+// do cliente. Aqui eles ganham a rodada (PDF-base + token + e-mail), em ordem cronológica.
+export async function ensureApprovedRdoSignatureRounds(projectId, options = {}) {
+  if (!projectId) return { createdRounds: 0 };
+  const ensureRound = options.ensureRound || ensureInternalSignatureRoundAndNotify;
+  const reports = await prisma.report.findMany({
+    where: {
+      projectId,
+      deletedAt: null,
+      reportType: ReportType.RDO,
+      status: ReportStatus.APPROVED,
+      physicalSignedAt: null,
+      zapsignDocToken: null,
+      versions: { none: { status: ReportVersionStatus.ACTIVE } }
+    },
+    include,
+    orderBy: [{ reportDate: 'asc' }, { sequenceNumber: 'asc' }]
+  });
+
+  let createdRounds = 0;
+  for (const report of reports) {
+    if (isReportUnavailable(report) || !shouldCreateInternalSignatureRound(report)) continue;
+    try {
+      const preparation = await ensureRound(report, options.userId || null, options.evidence || {});
+      if (preparation?.version) createdRounds += 1;
+    } catch (error) {
+      // Um PDF que falhe não pode impedir os demais nem desfazer o cadastro já salvo do projeto.
+      console.error('Falha ao criar rodada de assinatura de RDO aprovado sem rodada.', {
+        reportId: report.id,
+        projectId,
+        error: error?.message || error
+      });
+    }
+  }
+  return { createdRounds };
 }
 
 function assertReportMutable(report) {

@@ -2343,6 +2343,7 @@ test('planejador cadastra destinatários no projeto durante planejamento e execu
     assert.equal(state.events.at(-1).action, 'WORKFLOW_REPORT_RECIPIENTS');
     assert.deepEqual(effects.slice(-4).map(effect => effect[0]), ['primary', 'copies', 'signatures', 'cache']);
     assert.equal(effects.at(-2)[2].userId, 'leader-2');
+    assert.equal(effects.at(-2)[2].includeApprovedWithoutRound, true, 'RDOs aprovados antes do cadastro ganham a rodada');
     assert.equal(state.project.name, 'Flushing');
   }
   const reloaded = await getProjectWorkflow('project-1', planner, { database });
