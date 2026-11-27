@@ -1,0 +1,87 @@
+/* Visão por habilidades (matriz colaborador × habilidade). Cores dos níveis vêm de CollaboratorSkillTags.css. */
+.fv-skill-matrix th.fv-skill-matrix__level-col,
+.fv-skill-matrix td.fv-skill-matrix__level-col {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.fv-skill-matrix__level {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--fv-skill-line);
+  border-radius: 50%;
+  background: var(--fv-skill-bg);
+  color: var(--fv-skill-ink);
+  font-size: 12px;
+  font-weight: var(--font-semibold, 600);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.fv-skill-matrix__total {
+  font-weight: var(--font-semibold, 600);
+  font-variant-numeric: tabular-nums;
+}
+
+.fv-skill-matrix__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--mu, #6b7280);
+  font-size: 12px;
+}
+
+.fv-skill-matrix__legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fv-skill-matrix__legend .fv-skill-matrix__level {
+  width: 18px;
+  height: 18px;
+  font-size: 10.5px;
+}
+
+/* Modo de edição: cada célula vira um seletor 0–3 (mesmo visual do editor do cadastro). */
+.fv-skill-matrix.is-editing tbody tr { cursor: default; }
+.fv-skill-matrix tbody tr[aria-busy='true'] { opacity: .65; }
+
+.fv-skill-matrix__picker {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.fv-skill-matrix__option {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--fv-skill-bg);
+  color: var(--fv-skill-ink);
+  font-size: 11px;
+  font-weight: var(--font-semibold, 600);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.fv-skill-matrix__option.fv-skill-level--0 { background: var(--surface-2, #f3f4f6); }
+
+.fv-skill-matrix__option[aria-pressed='true'] {
+  background: var(--fv-skill-ink);
+  color: var(--surface, #fff);
+}
+
+.fv-skill-matrix__option:focus-visible {
+  outline: 2px solid var(--focus-ring, #2563eb);
+  outline-offset: 2px;
+}

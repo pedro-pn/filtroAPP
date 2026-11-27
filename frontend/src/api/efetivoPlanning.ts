@@ -363,6 +363,9 @@ export async function createPlanningCollaborator(payload: CollaboratorInput) {
 export async function updatePlanningCollaborator(id: string, payload: CollaboratorInput) {
   return (await apiClient.patch<PlanningCollaborator>(`${base}/collaborators/${encodeURIComponent(id)}`, payload)).data;
 }
+export async function updatePlanningCollaboratorSkills(id: string, skillLevels: CollaboratorSkillLevels) {
+  return (await apiClient.patch<{ id: string; skillLevels: CollaboratorSkillLevels }>(`${base}/collaborators/${encodeURIComponent(id)}/skills`, { skillLevels })).data;
+}
 export async function listPlanningAbsences(params: { collaboratorId?: string; startDate?: string; endDate?: string } = {}) {
   return (await apiClient.get<PlanningAbsence[]>('/workforce/absences', {
     params: { collaboratorId: params.collaboratorId, from: params.startDate, to: params.endDate }

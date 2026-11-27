@@ -88,3 +88,47 @@ test('contrato do Efetivo documenta a matriz de habilidades', () => {
   const schema = contract.slice(contract.indexOf('    CollaboratorSkillLevels:'), contract.indexOf('    CollaboratorPlanning:'));
   for (const skill of COLLABORATOR_SKILLS) assert.ok(schema.includes(`${skill.key}:`), skill.key);
 });
+
+test('edição direta da matriz grava só skillLevels, normalizada e auditada', async () => {
+  const { updatePlanningCollaboratorSkills } = await import('../src/lib/efetivo/planning/collaborators.js');
+  const { collaboratorSkillsInputSchema } = await import('../src/lib/efetivo/planning/schemas.js');
+  assert.deepEqual(collaboratorSkillsInputSchema.parse({ skillLevels: { FLUSHING: 2, FILTRATION: 0 } }), { skillLevels: { FLUSHING: 2, FILTRATION: 0 } });
+  assert.equal(collaboratorSkillsInputSchema.safeParse({ skillLevels: { FLUSHING: 2 }, name: 'X' }).success, false);
+  assert.equal(collaboratorSkillsInputSchema.safeParse({ skillLevels: { SOLDA: 1 } }).success, false);
+
+  const updates = [];
+  const audits = [];
+  const plan = { id: 'p1', kind: 'OFFICIAL', status: 'ACTIVE' };
+  const database = {
+    efetivoPlan: { findFirst: async () => plan, findUnique: async () => plan },
+    collaborator: {
+      findUnique: async () => ({ id: 'c1', name: 'Ana', skillLevels: { FLUSHING: 1 } }),
+      findMany: async () => [{ id: 'c1' }],
+      update: async query => { updates.push(query); return {}; }
+    },
+    efetivoAuditEvent: { create: async query => { audits.push(query); return {}; } }
+  };
+  const result = await updatePlanningCollaboratorSkills('c1', { FLUSHING: 3, FILTRATION: 0, HYDROJETTING: 2 }, { actorUserId: 'u1' }, { database });
+  assert.deepEqual(result, { id: 'c1', skillLevels: { FLUSHING: 3, HYDROJETTING: 2 } });
+  assert.deepEqual(updates, [{ where: { id: 'c1' }, data: { skillLevels: { FLUSHING: 3, HYDROJETTING: 2 } } }]);
+  assert.equal(audits.length, 1);
+  assert.deepEqual(audits[0].data.beforeData, { skillLevels: { FLUSHING: 1 } });
+  assert.deepEqual(audits[0].data.afterData, { skillLevels: { FLUSHING: 3, HYDROJETTING: 2 } });
+
+  database.collaborator.findUnique = async () => null;
+  await assert.rejects(updatePlanningCollaboratorSkills('x', {}, {}, { database }), /Colaborador não encontrado/);
+});
+
+test('rota PATCH /collaborators/:id/skills exige gestor do Efetivo', () => {
+  const routes = fs.readFileSync(new URL('../src/routes/efetivo-planning.js', import.meta.url), 'utf8');
+  assert.match(routes, /PATCH \/collaborators\/:collaboratorId\/skills[^\n]*requireEfetivoManager/);
+});
+
+test('withCollaboratorSkillLevel troca um nível sem alterar a matriz original', async () => {
+  const { withCollaboratorSkillLevel } = await import('../../shared/modules/collaborator-skills.js');
+  const original = { FLUSHING: 3, FILTRATION: 1 };
+  assert.deepEqual(withCollaboratorSkillLevel(original, 'FILTRATION', 2), { FLUSHING: 3, FILTRATION: 2 });
+  assert.deepEqual(withCollaboratorSkillLevel(original, 'FLUSHING', 0), { FILTRATION: 1 });
+  assert.deepEqual(withCollaboratorSkillLevel(null, 'HYDROJETTING', 1), { HYDROJETTING: 1 });
+  assert.deepEqual(original, { FLUSHING: 3, FILTRATION: 1 });
+});

@@ -37,7 +37,8 @@ import { getPlanningCalendar } from '../lib/efetivo/planning/calendar.js';
 import { getPlanningAvailabilityPeriod } from '../lib/efetivo/planning/availability-period.js';
 import {
   createPlanningCollaborator,
-  updatePlanningCollaborator
+  updatePlanningCollaborator,
+  updatePlanningCollaboratorSkills
 } from '../lib/efetivo/planning/collaborators.js';
 import {
   createWorkforceAbsence,
@@ -81,6 +82,7 @@ import {
   allocationInputSchema,
   allocationPeriodInputSchema,
   collaboratorInputSchema,
+  collaboratorSkillsInputSchema,
   dateOnlySchema,
   datePositionQuerySchema,
   holidayInputSchema,
@@ -192,6 +194,12 @@ defineRoute(router, efetivoRoute('PATCH /collaborators/:collaboratorId', { summa
   const collaborator = await updatePlanningCollaborator(idSchema.parse(req.params.collaboratorId), collaboratorInputSchema.parse(req.body), context(req));
   collaboratorsCache.clear();
   res.json(collaborator);
+}));
+defineRoute(router, efetivoRoute('PATCH /collaborators/:collaboratorId/skills', { summary: 'Atualizar a matriz de habilidades do colaborador', tag: 'efetivo', body: collaboratorSkillsInputSchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403, 404] }), requireEfetivoManager, asyncHandler(async (req, res) => {
+  const { skillLevels } = collaboratorSkillsInputSchema.parse(req.body);
+  const result = await updatePlanningCollaboratorSkills(idSchema.parse(req.params.collaboratorId), skillLevels, context(req));
+  collaboratorsCache.clear();
+  res.json(result);
 }));
 
 defineRoute(router, efetivoRoute('GET /absences', { summary: 'Ausências no planejamento', tag: 'efetivo', query: absenceListQuerySchema, responses: { 200: jsonResponseSchema }, errors: [400, 401, 403] }), requireEfetivoViewer, asyncHandler(async (req, res) => {

@@ -3115,3 +3115,25 @@
   .efetivo-team-plan { grid-template-columns: 1fr; }
   .efetivo-team-dialog .efetivo-modal-header, .efetivo-team-dialog .efetivo-modal-body, .efetivo-team-dialog .efetivo-modal-footer { padding-left: 16px; padding-right: 16px; }
 }
+
+/* Aba Colaboradores (lista e visão por habilidades): cabeçalho da tabela fixo durante a rolagem,
+   logo abaixo da barra superior. Abaixo de 1200px a tabela vira cartões e o cabeçalho some.
+   O base.css põe overflow-x: hidden em body/#root, o que os torna containers de rolagem (que nunca
+   rolam) e anula qualquer position: sticky. Nesta aba troca por clip: corta o excesso horizontal do
+   mesmo jeito, sem criar container de rolagem. Escopo por :has() para não mudar as outras telas. */
+body:has([data-efetivo-collaborators]),
+#root:has([data-efetivo-collaborators]) {
+  overflow-x: clip;
+}
+
+[data-efetivo-collaborators] .efetivo-table thead th {
+  background: var(--wh, var(--surface, #fff));
+  box-shadow: inset 0 -1px 0 var(--br);
+  position: sticky;
+  top: var(--topbar-h-mobile);
+  z-index: 2;
+}
+
+@media (min-width: 768px) {
+  [data-efetivo-collaborators] .efetivo-table thead th { top: var(--topbar-h); }
+}
