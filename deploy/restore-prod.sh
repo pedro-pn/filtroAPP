@@ -113,19 +113,6 @@ fi
 
 cd "$PROJECT_DIR"
 
-# O compose local (docker-compose.local.yml) só tem postgres e backend: sem
-# serviço migrate e sem nginx. Os passos abaixo usam apenas o que existe.
-COMPOSE_SERVICES="$(docker compose -f "$COMPOSE_FILE" config --services)"
-has_service() {
-  grep -qxF "$1" <<<"$COMPOSE_SERVICES"
-}
-APP_SERVICES=()
-for service in "$BACKEND_SERVICE" "$NGINX_SERVICE"; do
-  if has_service "$service"; then
-    APP_SERVICES+=("$service")
-  fi
-done
-
 if [ "$RESTORE_PROXY" = "true" ] && [ -f "$BACKUP_SOURCE/proxy.tar.gz" ]; then
   if [ ! -f "$PROXY_COMPOSE_FILE" ]; then
     echo "[restore] proxy compose not found: $PROXY_COMPOSE_FILE; set PROXY_COMPOSE_FILE to the independent infra-proxy checkout" >&2
@@ -157,6 +144,19 @@ fi
 
 echo "[restore] starting postgres service"
 docker compose -f "$COMPOSE_FILE" up -d --no-recreate "$POSTGRES_SERVICE"
+
+# O compose local (docker-compose.local.yml) só tem postgres e backend: sem
+# serviço migrate e sem nginx. Os passos abaixo usam apenas o que existe.
+COMPOSE_SERVICES="$(docker compose -f "$COMPOSE_FILE" config --services)"
+has_service() {
+  grep -qxF "$1" <<<"$COMPOSE_SERVICES"
+}
+APP_SERVICES=()
+for service in "$BACKEND_SERVICE" "$NGINX_SERVICE"; do
+  if has_service "$service"; then
+    APP_SERVICES+=("$service")
+  fi
+done
 
 echo "[restore] stopping public application services"
 if [ "${#APP_SERVICES[@]}" -gt 0 ]; then
