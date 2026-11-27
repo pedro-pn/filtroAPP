@@ -174,7 +174,8 @@ defineRoute(router, opsRoute('GET /projetos/:projectId/comercialapp/revisoes', {
       prisma.commercialProposalSyncJob.findMany({ where: { projectId: req.params.projectId }, select: { proposalCode: true, state: true } })
     ]);
     res.json({ items, budgetSource: budget?.source || null, queries: jobs.map(job => ({
-      proposalCode: job.proposalCode, revisionNumber: job.state.revisionNumber, status: job.state.status
+      proposalCode: job.proposalCode, revisionNumber: job.state.revisionNumber, status: job.state.status,
+      errorMessage: job.state.errorMessage ?? null
     })) });
   }));
 

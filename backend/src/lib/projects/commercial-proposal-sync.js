@@ -13,7 +13,7 @@ import { commercialAppQueryPayloadSchema, storeQueriedCommercialAppProposal } fr
 import { parseProjectDocumentUpload, storeProjectDocumentFile, removeProjectDocumentFile } from '../efetivo/project-workflow/documents.js';
 import { runTrackedJob } from '../jobs/runner.js';
 import { clearProjectDerivedCaches } from '../resource-list-cache.js';
-import { commercialTransaction, lockCommercialProject, contributionWhere, queueContributionQuery } from '../acompanhamento/commercial-contributions.js';
+import { CommercialAppBridgeError, commercialTransaction, lockCommercialProject, contributionWhere, queueContributionQuery } from '../acompanhamento/commercial-contributions.js';
 
 const MAX_PDF_BYTES = 10_000_000;
 const MAX_JSON_BYTES = 10_000_000;
@@ -176,7 +176,7 @@ export async function syncCommercialProposal(projectId, options = {}) {
       const now = new Date();
       const receipt = await queueCommercialReceipt(tx, { projectId: project.id, bundle,
         budgetStatus: commercial.budgetStatus, scopeStatus: scope.status, importedAt: now });
-      const finishedState = { ...state, status: 'SYNCED', errorCode: null, syncedAt: now.toISOString(),
+      const finishedState = { ...state, status: 'SYNCED', errorCode: null, errorMessage: null, syncedAt: now.toISOString(),
         documentIds: saved.map(item => item.documentId), scopeStatus: scope.status, scopeIssues: scope.issues,
         commercialDataVersion: 1, budgetStatus: commercial.budgetStatus };
       if (job) await tx.commercialProposalSyncJob.update({ where: { id: job.id },
@@ -201,15 +201,17 @@ export async function syncCommercialProposal(projectId, options = {}) {
     const excluded = error.code === 'COMERCIALAPP_SALE_EXCLUDED';
     const nextAttemptAt = excluded ? null : new Date(Date.now() + Math.min(3_600_000, 60_000 * 2 ** Math.min(attempts - 1, 6)));
     const errorCode = /^COMERCIALAPP_[A-Z_0-9]+$/.test(error.code || '') ? error.code : 'COMERCIALAPP_SYNC_FAILED';
+    // Recusas de regra de negócio têm mensagem própria; sem ela a tela só mostraria a falha genérica.
+    const errorMessage = error instanceof CommercialAppBridgeError ? error.message : null;
     if (job) await database.commercialProposalSyncJob.updateMany({
       where: { id: job.id, state: { equals: state } },
-      data: { state: { ...state, status: excluded ? 'EXCLUDED' : 'ERROR', attempts, errorCode }, nextAttemptAt }
+      data: { state: { ...state, status: excluded ? 'EXCLUDED' : 'ERROR', attempts, errorCode, errorMessage }, nextAttemptAt }
     });
     else await database.project.updateMany({
       where: { id: project.id, commercialProposalSync: { equals: state } },
-      data: { commercialProposalSync: { ...state, status: excluded ? 'EXCLUDED' : 'ERROR', attempts, errorCode }, commercialProposalSyncNextAttemptAt: nextAttemptAt }
+      data: { commercialProposalSync: { ...state, status: excluded ? 'EXCLUDED' : 'ERROR', attempts, errorCode, errorMessage }, commercialProposalSyncNextAttemptAt: nextAttemptAt }
     });
-    return { status: excluded ? 'EXCLUDED' : 'ERROR', errorCode };
+    return { status: excluded ? 'EXCLUDED' : 'ERROR', errorCode, errorMessage };
   } finally {
     for (const file of staged) if (!usedFiles.has(file.storagePath)) {
       await removeProjectDocumentFile(file.storagePath, options).catch(error => {

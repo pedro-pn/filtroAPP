@@ -186,7 +186,7 @@ export async function getProjectRevisions(projectId: string): Promise<ProjectRev
   return data;
 }
 
-export interface CommercialAppQuery { proposalCode: string; revisionNumber: number; status: string; }
+export interface CommercialAppQuery { proposalCode: string; revisionNumber: number; status: string; errorMessage?: string | null; }
 
 export interface CommercialAppRevision {
   id: string;

@@ -508,6 +508,7 @@ export async function listProjectDocuments(projectId, filters = {}, context = {}
       proposalCode: sync.proposalCode,
       revisionNumber: sync.revisionNumber,
       errorCode: sync.errorCode || null,
+      errorMessage: sync.errorMessage || null,
       stopReason: sync.stopReason || null
     } : null,
     documents: documents.map(document => serializeProjectDocument(document, project, context, dependencies)),
