@@ -10,6 +10,11 @@ export class CommercialAppBridgeError extends Error {
 }
 const conflict = message => new CommercialAppBridgeError(409, message);
 const digits = value => String(value || '').replace(/\D/g, '');
+// O Access guarda o CNPJ como número e perde os zeros à esquerda (01785706000179 → 1785706000179).
+const taxId = value => {
+  const raw = digits(value);
+  return raw.length >= 12 && raw.length < 14 ? raw.padStart(14, '0') : raw;
+};
 export const contributionWhere = (projectId, source, proposalCode) => ({
   projectId_source_proposalCode: { projectId, source, proposalCode: String(proposalCode) }
 });
@@ -36,8 +41,8 @@ export async function lockCommercialProject(tx, projectId) {
 
 export async function validateContributionParent(tx, project, proposal, source, { staged = false, checkProjectClient = true } = {}) {
   const parentCode = String(source === 'COMERCIAL_APP' ? proposal.parentProposalCode : proposal.parentCodProp);
-  const childCnpj = digits(proposal.clientCnpj);
-  const projectCnpj = digits(project.clientCnpj);
+  const childCnpj = taxId(proposal.clientCnpj);
+  const projectCnpj = taxId(project.clientCnpj);
   if (checkProjectClient && (source === 'COMERCIAL_APP' ? childCnpj.length !== 14 || childCnpj !== projectCnpj
     : childCnpj && projectCnpj && childCnpj !== projectCnpj)) {
     throw new CommercialAppBridgeError(422, 'Cliente/CNPJ do adicional não corresponde ao projeto.');
@@ -60,7 +65,7 @@ export async function validateContributionParent(tx, project, proposal, source, 
     throw new CommercialAppBridgeError(422, 'Projeto Prisma do adicional diverge da proposta principal.');
   }
   if (main.code !== parentCode) throw new CommercialAppBridgeError(422, 'A mãe do adicional não corresponde à principal selecionada.');
-  if (digits(main.cnpj) && childCnpj && digits(main.cnpj) !== childCnpj) {
+  if (taxId(main.cnpj) && childCnpj && taxId(main.cnpj) !== childCnpj) {
     throw new CommercialAppBridgeError(422, 'Cliente/CNPJ do adicional não corresponde à proposta mãe.');
   }
   return true;

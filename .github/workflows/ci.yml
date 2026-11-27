@@ -246,6 +246,7 @@ jobs:
       - name: Verify contributions, migration, mixed sources and v1 regression
         run: >-
           node --test --test-concurrency=1 test/commercial-additional-contributions.integration.test.js
+          test/commercial-additional-access-cnpj.integration.test.js
           test/commercial-additional-migration.integration.test.js
           test/commercial-proposal-backfill.integration.test.js
           test/proposal-scope-databook.integration.test.js
