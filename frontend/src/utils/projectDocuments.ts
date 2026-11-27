@@ -15,6 +15,7 @@ export function commercialProposalSyncMessage(sync: ProjectCommercialProposalSyn
   if (sync.status === 'ERROR') {
     if (sync.errorCode === 'COMERCIALAPP_HTTP_404') return `Os documentos da ${proposal} não foram encontrados no ComercialAPP. Confira o número e a revisão vinculados ao projeto.${retry}`;
     if (sync.errorCode === 'COMERCIALAPP_HTTP_409') return `Os PDFs da ${proposal} ainda não estão disponíveis para importação no ComercialAPP.${retry}`;
+    if (sync.errorMessage) return `A ${proposal} foi recusada pelo FiltroAPP: ${sync.errorMessage}${retry}`;
     return `Não foi possível importar os documentos da ${proposal} do ComercialAPP.${retry}`;
   }
   if (!sync.retryScheduled) return `A importação dos documentos da ${proposal} está pendente.`;

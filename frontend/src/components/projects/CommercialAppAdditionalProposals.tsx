@@ -24,7 +24,8 @@ export function CommercialAppAdditionalProposals({ projectId, items, onSaved, ca
   return <div>
     {queries.filter(job => !['SYNCED', 'SUPERSEDED'].includes(job.status)).map(job => <p role="status" key={job.proposalCode}>
       Adicional {job.proposalCode}, revisão {job.revisionNumber}: {job.status === 'ERROR'
-        ? 'falha na consulta. Uma nova tentativa automática está agendada.' : 'buscando proposta e documentos…'}
+        ? job.errorMessage ? `consulta recusada: ${job.errorMessage} Uma nova tentativa automática está agendada.`
+          : 'falha na consulta. Uma nova tentativa automática está agendada.' : 'buscando proposta e documentos…'}
     </p>)}
     {[...groups].map(([number, revisions]) => <AdditionalPicker key={`${number}-${revisions[0].selectionVersion}`}
       projectId={projectId} revisions={revisions} onSaved={onSaved} canManage={canManage} />)}

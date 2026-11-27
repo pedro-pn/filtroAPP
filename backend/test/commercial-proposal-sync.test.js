@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { commercialProposalReference, commercialProposalSyncData, ensureCommercialProposalSync } from '../src/lib/projects/commercial-proposal-sync-state.js';
 import { commercialAppConnection, fetchCommercialProposal, readLimitedCommercialResponse, syncCommercialProposal } from '../src/lib/projects/commercial-proposal-sync.js';
+import { CommercialAppBridgeError } from '../src/lib/acompanhamento/commercial-contributions.js';
 
 function fixture() {
   const project = { id: 'project-1', clientCnpj: '12.345.678/0001-90' };
@@ -122,6 +123,30 @@ test('venda excluída encerra a fila sem agendar tentativas recorrentes', async 
   assert.equal(result.status, 'EXCLUDED');
   assert.equal(update.data.commercialProposalSync.status, 'EXCLUDED');
   assert.equal(update.data.commercialProposalSyncNextAttemptAt, null);
+});
+
+test('recusa de regra de negócio guarda o motivo na fila; erro técnico continua genérico', async () => {
+  for (const [failure, errorMessage] of [
+    [new CommercialAppBridgeError(422, 'A mãe do adicional não corresponde à principal selecionada.'),
+      'A mãe do adicional não corresponde à principal selecionada.'],
+    [new Error('conexão interrompida com detalhe interno'), null]
+  ]) {
+    const f = fixture();
+    const job = { id: 'job-1', projectId: f.project.id, state: { ...f.state, requestId: 'request-1' } };
+    let update;
+    const removed = [];
+    const database = {
+      project: { findUnique: async () => ({ ...f.project, isActive: true }) },
+      commercialProposalSyncJob: { findUnique: async () => job, updateMany: async value => { update = value; } },
+      $transaction: async () => { throw failure; }
+    };
+    const result = await syncCommercialProposal(f.project.id, { ...f.options, database, jobId: job.id,
+      writeManagedDocumentFile: async () => `projetos/${randomUUID()}.pdf`,
+      unlinkManagedDocumentFile: async path => { removed.push(path); } });
+    assert.deepEqual(result, { status: 'ERROR', errorCode: 'COMERCIALAPP_SYNC_FAILED', errorMessage });
+    assert.equal(update.data.state.errorMessage, errorMessage);
+    assert.equal(removed.length, 2, 'arquivos baixados para a consulta recusada são removidos');
+  }
 });
 
 test('resposta antiga ou valores comerciais inválidos não concluem uma busca incompleta', async () => {

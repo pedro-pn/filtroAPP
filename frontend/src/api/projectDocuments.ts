@@ -104,6 +104,7 @@ export interface ProjectCommercialProposalSync {
   proposalCode: string;
   revisionNumber: number;
   errorCode: string | null;
+  errorMessage?: string | null;
   stopReason: string | null;
 }
 

@@ -16,6 +16,9 @@ test('handover distingue revisão ausente, PDFs não finalizados e importação 
   const sync = { status: 'ERROR', proposalCode: '4607', revisionNumber: 0, errorCode: 'COMERCIALAPP_HTTP_404', configured: true, retryScheduled: true };
   assert.match(commercialProposalSyncMessage(sync), /proposta 4607, revisão 0 não foram encontrados/);
   assert.match(commercialProposalSyncMessage({ ...sync, errorCode: 'COMERCIALAPP_HTTP_409' }), /PDFs.*disponíveis para importação/);
+  assert.match(commercialProposalSyncMessage({ ...sync, errorCode: 'COMERCIALAPP_SYNC_FAILED',
+    errorMessage: 'A mãe do adicional não corresponde à principal selecionada.' }), /recusada pelo FiltroAPP: A mãe do adicional não corresponde/);
+  assert.match(commercialProposalSyncMessage({ ...sync, errorCode: 'COMERCIALAPP_SYNC_FAILED' }), /Não foi possível importar/);
   assert.match(commercialProposalSyncMessage({ ...sync, status: 'PENDING' }), /aparecerão aqui automaticamente/);
   assert.match(commercialProposalSyncMessage({ ...sync, configured: false }), /ainda não está configurada/);
   assert.match(commercialProposalSyncMessage({ ...sync, status: 'EXCLUDED', stopReason: 'LEGACY_ACCESS_ONLY' }), /acervo legado/);
