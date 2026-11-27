@@ -21549,6 +21549,134 @@
         }
       }
     },
+    "/api/efetivo/planning/collaborators/{collaboratorId}/skills": {
+      "patch": {
+        "operationId": "patchApiEfetivoPlanningCollaboratorsCollaboratorIdSkills",
+        "summary": "Atualizar a matriz de habilidades do colaborador",
+        "tags": [
+          "efetivo"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "x-auth": "session",
+        "parameters": [
+          {
+            "name": "collaboratorId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "skillLevels": {
+                    "type": "object",
+                    "properties": {
+                      "FLUSHING": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 3
+                      },
+                      "CHEMICAL_CLEANING": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 3
+                      },
+                      "FILTRATION": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 3
+                      },
+                      "HYDROJETTING": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 3
+                      },
+                      "HYDROSTATIC_TEST": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 3
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "skillLevels"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-validated-by": "handler (mesmo schema do contrato)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "JSON (ver o handler para os campos)"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sem permissão",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Não encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/efetivo/planning/coordinators": {
       "get": {
         "operationId": "getApiEfetivoPlanningCoordinators",

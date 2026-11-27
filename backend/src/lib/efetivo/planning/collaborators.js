@@ -114,6 +114,27 @@ export async function updatePlanningCollaborator(collaboratorId, payload, contex
   });
 }
 
+// Atualiza só a matriz de habilidades, sem reenviar o restante do cadastro (edição direta na visão
+// por habilidades). Não mexe em alocações, então não incrementa a revisão do plano.
+export async function updatePlanningCollaboratorSkills(collaboratorId, skillLevels, context = {}, dependencies = {}) {
+  const database = await resolvePlanningDatabase(dependencies.database);
+  return runPlanningTransaction(database, async tx => {
+    const plan = await requireEditablePlan(tx, undefined, { actorUserId: context.actorUserId });
+    await lockCollaborator(tx, collaboratorId);
+    const existing = await tx.collaborator.findUnique({ where: { id: collaboratorId }, select: { id: true, name: true, skillLevels: true } });
+    if (!existing) throw notFound('Colaborador não encontrado.');
+    await requireVisibleCollaborators(tx, [collaboratorId], { target: 'EFETIVO' });
+    const next = normalizeCollaboratorSkillLevels(skillLevels);
+    await tx.collaborator.update({ where: { id: collaboratorId }, data: { skillLevels: next } });
+    await recordEfetivoAudit(tx, {
+      planId: plan.id, actorUserId: context.actorUserId, action: 'COLLABORATOR_UPDATE', entityType: 'COLLABORATOR', entityId: collaboratorId,
+      summary: `Habilidades de ${existing.name} atualizadas no efetivo operacional.`,
+      beforeData: { skillLevels: normalizeCollaboratorSkillLevels(existing.skillLevels) }, afterData: { skillLevels: next }, evidence: context.evidence
+    });
+    return { id: collaboratorId, skillLevels: next };
+  });
+}
+
 async function validateAbsenceConflicts(tx, plan, collaboratorId, period, ignoredAbsenceId = null) {
   await requireVisibleCollaborators(tx, [collaboratorId], { target: 'EFETIVO' });
   const data = await loadCollaboratorConflictData(tx, collaboratorId, period, plan.id);

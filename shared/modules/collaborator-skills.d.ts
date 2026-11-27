@@ -20,3 +20,4 @@ export function collaboratorSkillLevelMeta(level: number): CollaboratorSkillLeve
 export function collaboratorSkillEntries(levels: CollaboratorSkillLevels | null | undefined, options?: { includeZero?: boolean }): CollaboratorSkillEntry[];
 export function meetsCollaboratorSkill(levels: CollaboratorSkillLevels | null | undefined, key: CollaboratorSkillKey | '' | null | undefined, minLevel?: number): boolean;
 export function collaboratorSkillScore(levels: CollaboratorSkillLevels | null | undefined): number;
+export function withCollaboratorSkillLevel(levels: CollaboratorSkillLevels | null | undefined, key: CollaboratorSkillKey, level: CollaboratorSkillLevel): CollaboratorSkillLevels;

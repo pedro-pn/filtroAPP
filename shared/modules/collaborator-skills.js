@@ -67,3 +67,11 @@ export function meetsCollaboratorSkill(levels, key, minLevel = 1) {
 export function collaboratorSkillScore(levels) {
   return COLLABORATOR_SKILL_KEYS.reduce((total, key) => total + collaboratorSkillLevel(levels, key), 0);
 }
+
+// Devolve uma cópia da matriz com o nível da habilidade trocado; o nível 0 remove a chave.
+export function withCollaboratorSkillLevel(levels, key, level) {
+  const next = normalizeCollaboratorSkillLevels(levels);
+  if (isCollaboratorSkillKey(key) && isCollaboratorSkillLevel(level) && level > 0) next[key] = level;
+  else delete next[key];
+  return next;
+}

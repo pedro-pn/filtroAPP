@@ -13,6 +13,9 @@ export const collaboratorSkillLevelsSchema = z.object(Object.fromEntries(
   COLLABORATOR_SKILL_KEYS.map(key => [key, z.number().int().min(0).max(MAX_COLLABORATOR_SKILL_LEVEL).optional()])
 )).strict();
 
+// Edição só da matriz (visão por habilidades): o objeto enviado substitui a matriz inteira.
+export const collaboratorSkillsInputSchema = z.object({ skillLevels: collaboratorSkillLevelsSchema }).strict();
+
 export const idSchema = z.string().trim().min(1).max(100);
 export const hexColorSchema = z.string().regex(/^#[0-9a-f]{6}$/i, 'Informe uma cor hexadecimal válida.');
 export const absenceTypeSchema = z.enum(['FERIAS', 'FOLGA', 'AFASTAMENTO', 'FADIGA_OFFSHORE']);

@@ -41,3 +41,47 @@ test('telas de planejamento e seleção de equipe exibem as habilidades', () => 
   assert.match(selector, /&& matchesSkill\(entry\.collaborator\)/);
   assert.match(read('pages/efetivo/components/OperationalCollaboratorModal.tsx'), /<CollaboratorSkillEditor value=\{skillLevels\}/);
 });
+
+test('visão por habilidades mostra nome, uma coluna por habilidade e o nível de cada uma', async t => {
+  const server = await createServer({ configFile: false, root: new URL('..', import.meta.url).pathname,
+    server: { middlewareMode: true, hmr: false }, esbuild: { jsx: 'automatic' }, optimizeDeps: { noDiscovery: true }, appType: 'custom' });
+  t.after(() => server.close());
+  const { CollaboratorSkillMatrix } = await server.ssrLoadModule('/src/components/efetivo/CollaboratorSkillMatrix.tsx');
+
+  const html = renderToStaticMarkup(createElement(CollaboratorSkillMatrix, { rows: [
+    { id: 'c1', name: 'Ana Souza', role: 'Operador', skillLevels: { FLUSHING: 3, HYDROJETTING: 1 } },
+    { id: 'c2', name: 'Bruno Lima', role: 'Técnico', skillLevels: {} }
+  ] }));
+  for (const header of ['Colaborador', 'Flushing', 'Limpeza química', 'Filtragem', 'Hidrojato', 'Teste hidrostático', 'Total']) assert.match(html, new RegExp(`>${header}<`));
+  assert.match(html, /Ana Souza/);
+  assert.match(html, /class="fv-skill-matrix__level fv-skill-level--3" title="Flushing: nível 3 — Apto \/ executa com autonomia"/);
+  assert.match(html, /title="Hidrojato: nível 1 — Em desenvolvimento/);
+  assert.match(html, /title="Filtragem: nível 0 — Sem experiência ou não avaliado"/);
+  assert.match(html, /data-label="Total" data-sort-value="4"/);
+  assert.match(html, /aria-label="Legenda dos níveis"/);
+});
+
+test('modo de edição da visão por habilidades troca cada célula por um seletor 0–3', async t => {
+  const server = await createServer({ configFile: false, root: new URL('..', import.meta.url).pathname,
+    server: { middlewareMode: true, hmr: false }, esbuild: { jsx: 'automatic' }, optimizeDeps: { noDiscovery: true }, appType: 'custom' });
+  t.after(() => server.close());
+  const { CollaboratorSkillMatrix } = await server.ssrLoadModule('/src/components/efetivo/CollaboratorSkillMatrix.tsx');
+
+  const html = renderToStaticMarkup(createElement(CollaboratorSkillMatrix, { editing: true, savingIds: new Set(['c1']), rows: [
+    { id: 'c1', name: 'Ana Souza', role: 'Operador', skillLevels: { FLUSHING: 3 } }
+  ] }));
+  assert.match(html, /fv-skill-matrix is-editing/);
+  assert.match(html, /role="group" aria-label="Ana Souza — Flushing"/);
+  assert.equal((html.match(/class="fv-skill-matrix__option /g) || []).length, 5 * 4);
+  assert.match(html, /aria-pressed="true" aria-label="Flushing: nível 3/);
+  assert.match(html, /aria-pressed="true" aria-label="Filtragem: nível 0/);
+  assert.match(html, /aria-busy="true"/);
+});
+
+test('aba Colaboradores: cabeçalho fixo e botão de edição só para quem gerencia', () => {
+  const board = read('pages/efetivo/components/CollaboratorsBoard.tsx');
+  assert.match(board, /canManage && view === 'habilidades' \? <Button/);
+  assert.match(board, /updatePlanningCollaboratorSkills/);
+  const css = read('pages/efetivo/efetivo.css');
+  assert.match(css, /\[data-efetivo-collaborators\] \.efetivo-table thead th \{[^}]*position: sticky/);
+});
