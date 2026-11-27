@@ -143,7 +143,7 @@ for (const onlyPrimary of [true, false]) {
       const result = await reconcileProjectClientSignatureRequirements(configured.id, {
         userId: 'manager-1', sendReleasedEmails: false
       });
-      assert.deepEqual(result, { updatedReports: 1, finalizedReports: alreadySigned ? 1 : 0 });
+      assert.deepEqual(result, { updatedReports: 1, finalizedReports: alreadySigned ? 1 : 0, createdRounds: 0 });
       assert.equal(reports[0].status, alreadySigned ? 'SIGNED' : 'APPROVED');
       assert.equal(reports[1].status, 'APPROVED');
       assert.deepEqual(versions.get('rdo'), rdoBefore);

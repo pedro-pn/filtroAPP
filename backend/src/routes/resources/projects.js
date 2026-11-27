@@ -6,7 +6,7 @@ import asyncHandler from '../../lib/async-handler.js';
 import { ensureClientAccountForProject, ensureClientCcAccounts } from '../../lib/client-account.js';
 import { projectListWhereForAuth } from '../../lib/projects/access.js';
 import { normalizeCnpj } from '../../lib/cnpj.js';
-import { invalidateUnsignedInternalSignatureRound, signatureEvidenceFromRequest } from '../../lib/internal-report-signatures.js';
+import { clientSignersForReport, invalidateUnsignedInternalSignatureRound, signatureEvidenceFromRequest } from '../../lib/internal-report-signatures.js';
 import { ModuleRoleCodes } from '../../lib/module-roles.js';
 import prisma from '../../lib/prisma.js';
 import { requireVisibleCollaborators } from '../../lib/collaborators/workforce-policy.js';
@@ -68,6 +68,10 @@ const schema = z.object({
     nextNumber: z.number().int().nonnegative()
   })).default([])
 });
+
+function rdoClientSignerEmails(project) {
+  return new Set(clientSignersForReport({ reportType: ReportType.RDO, project }).map(signer => signer.email));
+}
 
 function parseProjectUpdateInput(input) {
   const parsed = schema.partial().parse(input);
@@ -417,6 +421,7 @@ defineRoute(router, opsRoute('PUT /:id', { tag: 'cadastros-rdo', summary: 'Proje
     : null;
   const { reportSequences, authorizedUserIds: _authorizedUserIds, ...projectData } = data;
 
+  let previousRdoSignerEmails = new Set();
   const item = await prisma.$transaction(async tx => {
     const previousProject = await tx.project.findUniqueOrThrow({
       where: { id: req.params.id },
@@ -431,6 +436,7 @@ defineRoute(router, opsRoute('PUT /:id', { tag: 'cadastros-rdo', summary: 'Proje
         clientSignerFirstName: true,
         clientSignerLastName: true,
         clientEmailCc: true,
+        clientSigners: true,
         contractCode: true,
         commercialProposalSync: true,
         location: true,
@@ -441,6 +447,7 @@ defineRoute(router, opsRoute('PUT /:id', { tag: 'cadastros-rdo', summary: 'Proje
         isActive: true
       }
     });
+    previousRdoSignerEmails = rdoClientSignerEmails(previousProject);
     if (reportSequences) {
       await tx.projectReportSeq.deleteMany({ where: { projectId: req.params.id } });
     }
@@ -536,9 +543,13 @@ defineRoute(router, opsRoute('PUT /:id', { tag: 'cadastros-rdo', summary: 'Proje
   });
 
   if (shouldReconcileClientSigners) {
+    // Só cria rodadas para RDOs aprovados sem rodada quando entra um signatário novo; salvar o
+    // projeto sem mexer nos signatários não dispara pedidos de assinatura de relatórios antigos.
+    const signerAdded = [...rdoClientSignerEmails(item)].some(email => !previousRdoSignerEmails.has(email));
     await reconcileProjectClientSignatureRequirements(item.id, {
       userId: req.auth.user.id,
-      evidence
+      evidence,
+      includeApprovedWithoutRound: signerAdded
     });
   }
   if (parsed.requireServiceReportSignatures === true) {

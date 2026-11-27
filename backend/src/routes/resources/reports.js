@@ -129,6 +129,7 @@ import historicalServicesRouter from './historical-services.js';
 import { registerReportReleaseRoutes } from './report-release-routes.js';
 import { registerReportPublicViewRoutes } from './report-public-view-routes.js';
 import { registerReportRegenerationRoutes } from './report-regeneration-routes.js';
+import { ensureApprovedRdoSignatureRounds } from '../../lib/reports/approved-rdo-signature-backfill.js';
 import { registerReportPdfAttachmentRoutes } from './report-pdf-attachment-routes.js';
 import { createReportPdfAttachmentAppender, withReportPdfAttachmentCount } from '../../lib/reports/pdf-attachments.js';
 import { canCreateServiceOnlyRdoReports, canReviewRdoReports } from '../../../../shared/modules/rdo-permissions.js';
@@ -1780,7 +1781,7 @@ export function addedRequiredClientSigners(report, version = null) {
 }
 
 export async function reconcileProjectClientSignatureRequirements(projectId, options = {}) {
-  if (!projectId) return { updatedReports: 0, finalizedReports: 0 };
+  if (!projectId) return { updatedReports: 0, finalizedReports: 0, createdRounds: 0 };
   const evidence = options.evidence || {};
   const userId = options.userId || null;
   const reports = await prisma.report.findMany({
@@ -1966,7 +1967,15 @@ export async function reconcileProjectClientSignatureRequirements(projectId, opt
     }
   }
 
-  return { updatedReports, finalizedReports };
+  const { createdRounds } = options.includeApprovedWithoutRound
+    ? await ensureApprovedRdoSignatureRounds(projectId, {
+      database: prisma, include, isUnavailable: isReportUnavailable, userId, evidence,
+      shouldCreateRound: shouldCreateInternalSignatureRound,
+      ensureRound: options.ensureRound || ensureInternalSignatureRoundAndNotify
+    })
+    : { createdRounds: 0 };
+
+  return { updatedReports, finalizedReports, createdRounds };
 }
 
 function assertReportMutable(report) {

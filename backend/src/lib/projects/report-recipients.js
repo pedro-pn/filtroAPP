@@ -20,7 +20,12 @@ export async function saveProjectReportRecipients(tx, projectId, payload, depend
 export async function reconcileProjectReportRecipients(projectId, context = {}, dependencies = {}) {
   const reconcile = dependencies.reconcileProjectClientSignatureRequirements
     || (await import('../../routes/resources/reports.js')).reconcileProjectClientSignatureRequirements;
-  await reconcile(projectId, { userId: context.actorUserId, evidence: context.evidence || {} });
+  // Salvar destinatários é configurar signatários: RDOs aprovados antes do cadastro ganham a rodada.
+  await reconcile(projectId, {
+    userId: context.actorUserId,
+    evidence: context.evidence || {},
+    includeApprovedWithoutRound: true
+  });
   const clearCaches = dependencies.clearProjectDerivedCaches
     || (await import('../resource-list-cache.js')).clearProjectDerivedCaches;
   clearCaches();
